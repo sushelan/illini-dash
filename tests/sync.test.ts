@@ -448,6 +448,38 @@ describe("course-site adapters in the loop (§4.5)", () => {
     expect(store.sources.site.lastError).toMatch(/every adapter failed/);
   });
 
+  it("reports a 401 in place as needs_login, not a broken adapter", async () => {
+    // A real protected course page (cs424/fa2026/secure/schedule.html) answers
+    // 401 without redirecting anywhere, so a status-only check would call an
+    // expired SSO session a parse failure and back off (§4.5, §0 rule 2).
+    const expired = deps({
+      async enabledAdapters() {
+        return [ADAPTER] as never;
+      },
+      async fetchPage(url) {
+        if (url.includes("cs999")) return { url, finalUrl: url, status: 401, body: "" };
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", expired);
+    expect(store.sources.site.state).toBe("needs_login");
+  });
+
+  it("still reports a 404 as an adapter failure, not a login problem", async () => {
+    const missing = deps({
+      async enabledAdapters() {
+        return [ADAPTER] as never;
+      },
+      async fetchPage(url) {
+        if (url.includes("cs999")) return { url, finalUrl: url, status: 404, body: "" };
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", missing);
+    expect(store.sources.site.state).toBe("parse_error");
+    expect(store.sources.site.lastError).toMatch(/404/);
+  });
+
   it("reports a Shibboleth landing as needs_login", async () => {
     const login = deps({
       async enabledAdapters() {

@@ -9,6 +9,7 @@
  */
 
 import { applyRetention, dedupe } from "./dedupe.js";
+import { looksLoggedOut } from "./parsing.js";
 import { inBackoff, nextAttemptAt, type StoreV1Plus } from "./store.js";
 import * as canvas from "../sources/canvas.js";
 import * as gradescope from "../sources/gradescope.js";
@@ -215,11 +216,14 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
   for (const adapter of adapters) {
     try {
       const page = await deps.fetchPage(adapter.url);
+      // §4.5: "sites behind Shibboleth work only while the SSO session is alive;
+      // same needs_login handling". Checked before the status test, because a
+      // protected course page answers 401 *in place* rather than redirecting to
+      // an SSO host — verified against a real one — so a plain `status >= 400`
+      // would report an expired session as a broken adapter and back off
+      // instead of telling the student to log in (§0 rule 2).
+      if (looksLoggedOut(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
       if (page.status >= 400) throw new Error(`${page.status} from ${adapter.url}`);
-      // §4.5: a Shibboleth-protected site behaves like any other source.
-      if (/shibboleth|login\.illinois\.edu/i.test(page.finalUrl)) {
-        throw new NeedsLogin(page);
-      }
       items.push(
         ...(await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt })),
       );
