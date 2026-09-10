@@ -54,6 +54,10 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
     if (!isPlainString(a[field])) return fail(`missing ${field}`);
   }
   if (a["link"] !== undefined && !isPlainString(a["link"])) return fail("bad link");
+  // A literal separator, and a short one: it is remote data applied to every row.
+  if (a["splitTitle"] !== undefined && !isPlainString(a["splitTitle"], 8)) {
+    return fail("bad splitTitle");
+  }
 
   const url = a["url"];
   if (!isPlainString(url, 2000)) return fail("missing url");

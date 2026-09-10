@@ -140,44 +140,55 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
 
   let sawTitledRow = false;
   for (const row of rows) {
-    const title = select(row, adapter.title);
+    const cell = select(row, adapter.title);
     // The `continue` stays: a header row legitimately has no title cell.
-    if (!title) continue;
+    if (!cell) continue;
     sawTitledRow = true;
-    if (!matchesFilter(title, adapter.filter)) continue;
+
+    // §4.5: one cell can hold several events. Split first, then filter, so a
+    // filter can reject one half of `HW5 Due; HW6 Out` and keep the other —
+    // which it cannot do while they share a string.
+    const titles = (adapter.splitTitle ? cell.split(adapter.splitTitle) : [cell])
+      .map((part) => part.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .filter((part) => matchesFilter(part, adapter.filter));
+    if (titles.length === 0) continue;
 
     const rawDate = select(row, adapter.due);
     const dueAt = rawDate
       ? parseAdapterDate(rawDate, adapter.dateFormat, adapter.timezone, page.fetchedAt)
       : undefined;
+    const url = sameOriginHttpsUrl(
+      adapter.link ? select(row, adapter.link) : undefined,
+      new URL(adapter.url).origin,
+      adapter.url,
+    );
 
-    // §3.1: course sites have no ids, so the key is content-derived and a
-    // rename loses any override on it. Documented and accepted there.
-    const sourceId = `${adapter.id}:${hashTitleAndDate(title, dueAt)}`;
-    if (keys.has(sourceId)) continue; // a repeated row is not a second deadline
-    keys.claim(sourceId, `row ${JSON.stringify(title)}`);
+    for (const title of titles) {
+      // §3.1: course sites have no ids, so the key is content-derived and a
+      // rename loses any override on it. Documented and accepted there.
+      const sourceId = `${adapter.id}:${hashTitleAndDate(title, dueAt)}`;
+      if (keys.has(sourceId)) continue; // a repeated row is not a second deadline
+      keys.claim(sourceId, `row ${JSON.stringify(title)}`);
 
-    const extra: Record<string, string> = { adapterId: adapter.id, term: adapter.term };
-    if (rawDate && dueAt === undefined) extra["unparsedDate"] = rawDate.slice(0, 200);
-    if (codes.length > 1) extra["altCodes"] = codes.join(" ");
+      const extra: Record<string, string> = { adapterId: adapter.id, term: adapter.term };
+      if (rawDate && dueAt === undefined) extra["unparsedDate"] = rawDate.slice(0, 200);
+      if (codes.length > 1) extra["altCodes"] = codes.join(" ");
 
-    items.push({
-      source: "site",
-      sourceId,
-      courseRaw: adapter.label,
-      courseCode: codes[0],
-      title,
-      kind: "assignment",
-      dueAt,
-      url: sameOriginHttpsUrl(
-        adapter.link ? select(row, adapter.link) : undefined,
-        new URL(adapter.url).origin,
-        adapter.url,
-      ),
-      status: "unknown",
-      extra,
-      fetchedAt: page.fetchedAt,
-    });
+      items.push({
+        source: "site",
+        sourceId,
+        courseRaw: adapter.label,
+        courseCode: codes[0],
+        title,
+        kind: "assignment",
+        dueAt,
+        url,
+        status: "unknown",
+        extra,
+        fetchedAt: page.fetchedAt,
+      });
+    }
   }
 
   // House rule 2 / §0 rule 3: rows matched but none carried a title, so the page

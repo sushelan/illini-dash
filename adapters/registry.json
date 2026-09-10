@@ -1,4 +1,23 @@
 {
-  "$comment": "Course-site adapters (SPEC.md §4.5). Adapters are DATA: selectors and a date format, never code. Empty because seeding it needs real course pages captured from a logged-in browser — see docs/adapters.md for the shape and what to capture.",
-  "adapters": []
+  "$comment": "Course-site adapters (SPEC.md \u00a74.5). Adapters are DATA: selectors and a date format, never code. See docs/adapters.md.",
+  "adapters": [
+    {
+      "id": "cs424-fa26",
+      "label": "CS 424 course site",
+      "courseCode": "CS424",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "table tr",
+      "title": "td:nth-last-child(3)",
+      "due": "td:not(.auto-style6)",
+      "splitTitle": ";",
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "filter": {
+        "include": "\\bdue\\b"
+      },
+      "minExtensionVersion": "0.1.0"
+    }
+  ]
 }

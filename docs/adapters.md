@@ -57,12 +57,43 @@ A single bad entry is dropped and reported; the rest of the file still applies, 
 broken adapter cannot block a fix for a different course. A file that is not a registry
 at all is rejected whole and **the previously stored copy is kept** (§4.5).
 
-## Why the registry ships empty
+## What CS 424 taught us (the first real adapter)
 
-§4.5 asks for 2–3 seed adapters for courses you or your beta testers are in. Writing one
-needs the actual course page, which needs a logged-in browser — the runner, the schema,
-the validator and the permission flow are all built and tested, but the selectors cannot
-be invented.
+`fixtures/sites/cs424-fa2026-schedule.html` is a real capture, and it broke two
+assumptions the synthetic fixture had let stand:
+
+**Row cell counts vary.** The table uses `rowspan` for unit labels, so a row carries 7
+cells when it opens a unit block and 6 when it does not — and some carry 5, 4 or 1
+because a `<td>` is simply missing. `td:nth-child(n)` is therefore wrong about half the
+time, and `nth-last-child` is wrong for the 5-cell rows. What is stable is that the
+spacer cells all use one presentational class, so `td:not(.auto-style6)` finds the date.
+Matching on a presentational class is exactly as brittle as it sounds — which is the
+argument for adapters being remote data, fixable without a store re-review.
+
+**One cell can hold two events, only one of which is a deadline.** The HW/MP column reads
+`HW5 Due; HW6 Out`. Without splitting, the row yields one item with a nonsense title, and
+`filter` cannot reach inside it to reject the half that is a release rather than a
+deadline. That is §4.5's "extend the schema with a new declarative field" case, and the
+field is `splitTitle`:
+
+```json
+"title": "td:nth-last-child(3)",
+"splitTitle": ";",
+"filter": { "include": "\bdue\b" }
+```
+
+Split first, then filter each part, then emit one item per surviving part. `splitTitle`
+is a **literal** separator and never a regex: adapter data is remote and is applied to
+every row of every page, so a regex there would be a ReDoS waiting to happen.
+
+The page also proves the fetch path end to end: it is Shibboleth-protected and answers
+**401 in place** rather than redirecting to an SSO host, which is why the runner checks
+`looksLoggedOut` before its status test.
+
+## Seeding another one
+
+§4.5 asks for 2–3 seed adapters. One (`cs424-fa26`) now ships; a second and third still
+need real pages, which need a logged-in browser.
 
 **To seed one**, capture the page with the options-page capture tool (it accepts any
 `*.illinois.edu` URL), then send it over. From the saved HTML the selectors are usually

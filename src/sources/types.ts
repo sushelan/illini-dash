@@ -27,6 +27,17 @@ export interface RawItem {
   courseCode?: string;
   /** Exactly as displayed. */
   title: string;
+  /**
+   * A literal separator that splits one cell into several deadlines (§4.5:
+   * "extend the schema with a new declarative field rather than embedding
+   * code"). CS 424's HW/MP column reads `HW5 Due; HW6 Out` — two events, one
+   * of them not a deadline at all — so without this a row yields one item with
+   * a nonsense title, and `filter` cannot reach inside it.
+   *
+   * A literal, never a regex: adapter data is remote, and a regex here would be
+   * a ReDoS run against every row of every page.
+   */
+  splitTitle?: string;
   kind: Kind;
   /** ISO 8601 with offset. undefined = undated. */
   dueAt?: string;
@@ -47,6 +58,17 @@ export interface Item {
   courseCode?: string;
   courseLabel: string;
   title: string;
+  /**
+   * A literal separator that splits one cell into several deadlines (§4.5:
+   * "extend the schema with a new declarative field rather than embedding
+   * code"). CS 424's HW/MP column reads `HW5 Due; HW6 Out` — two events, one
+   * of them not a deadline at all — so without this a row yields one item with
+   * a nonsense title, and `filter` cannot reach inside it.
+   *
+   * A literal, never a regex: adapter data is remote, and a regex here would be
+   * a ReDoS run against every row of every page.
+   */
+  splitTitle?: string;
   kind: Kind;
   dueAt?: string;
   lateDueAt?: string;
@@ -113,6 +135,17 @@ export interface Adapter {
   hostPattern: string;
   rows: string;
   title: string;
+  /**
+   * A literal separator that splits one cell into several deadlines (§4.5:
+   * "extend the schema with a new declarative field rather than embedding
+   * code"). CS 424's HW/MP column reads `HW5 Due; HW6 Out` — two events, one
+   * of them not a deadline at all — so without this a row yields one item with
+   * a nonsense title, and `filter` cannot reach inside it.
+   *
+   * A literal, never a regex: adapter data is remote, and a regex here would be
+   * a ReDoS run against every row of every page.
+   */
+  splitTitle?: string;
   due: string;
   link?: string;
   dateFormat: string;

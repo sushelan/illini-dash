@@ -16,6 +16,7 @@ import {
   validateAdapter,
   validateRegistry,
 } from "../src/core/registry.js";
+import { normalizeTitle } from "../src/core/normalize.js";
 import { ParseError, type Adapter, type PageCtx } from "../src/sources/types.js";
 
 const doc = (html: string) => parseHTML(html).document as unknown as Document;
@@ -242,5 +243,71 @@ describe("host patterns and terms", () => {
   it("hides an adapter from another term (§4.5: adapters expire)", () => {
     expect(isCurrentTerm(ADAPTER, "fa26")).toBe(true);
     expect(isCurrentTerm(ADAPTER, "sp27")).toBe(false);
+  });
+});
+
+describe("the CS 424 seed adapter, against its real captured page", () => {
+  const registry = JSON.parse(
+    readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8"),
+  ) as { adapters: Adapter[] };
+  const cs424 = registry.adapters.find((a) => a.id === "cs424-fa26")!;
+  const schedule = doc(
+    readFileSync(new URL("../fixtures/sites/cs424-fa2026-schedule.html", import.meta.url), "utf8"),
+  );
+  const ctx: PageCtx = { url: cs424.url, fetchedAt: "2026-09-10T18:00:00.000Z" };
+  const items = runAdapter(cs424, schedule, ctx);
+
+  it("ships a valid adapter", () => {
+    expect(validateAdapter(cs424).adapter).toBeDefined();
+  });
+
+  it("finds every deadline on the page and nothing else", () => {
+    expect(items.map((i) => i.title)).toEqual([
+      "HW1 Due",
+      "HW2 Due",
+      "HW3 Due",
+      "MP1 Due",
+      "HW4 Due",
+      "MP2 Due",
+      "HW5 Due",
+      "HW6 Due",
+      "MP3 Due",
+    ]);
+  });
+
+  it("dates all of them, across the CDT→CST flip", () => {
+    expect(items.every((i) => i.dueAt !== undefined)).toBe(true);
+    expect(items.find((i) => i.title === "HW2 Due")!.dueAt).toBe("2026-09-23T23:59:00-05:00");
+    // November is on the other side of the DST boundary.
+    expect(items.find((i) => i.title === "HW5 Due")!.dueAt).toBe("2026-11-18T23:59:00-06:00");
+  });
+
+  it("splits a cell holding two events and keeps only the deadline", () => {
+    // The HW/MP column reads "HW5 Due; HW6 Out" — one deadline and one release.
+    // Without splitTitle the row yields a single nonsense title, and `filter`
+    // cannot reach inside it to reject the half that is not a deadline.
+    expect(items.some((i) => i.title.includes("Out"))).toBe(false);
+    expect(items.filter((i) => i.title.startsWith("HW5")).map((i) => i.title)).toEqual(["HW5 Due"]);
+  });
+
+  it("emits nothing for a row that only announces a release", () => {
+    // "HW3 Out" on 9/25 is not a deadline; a phantom item there would cost G2
+    // precision as surely as a missing one costs recall.
+    expect(items.some((i) => i.dueAt?.startsWith("2026-09-25"))).toBe(false);
+  });
+
+  it("reads the date column despite rowspan shifting every row's cell count", () => {
+    // Rows carry 7, 6, 5, 4 or 1 cells depending on whether they open a unit
+    // block, so nth-child is wrong half the time and nth-last-child is wrong for
+    // the 5-cell rows. The spacer cells are the ones marked .auto-style6.
+    expect(items.find((i) => i.title === "HW1 Due")!.dueAt).toBe("2026-09-16T23:59:00-05:00"); // 5 cells
+    expect(items.find((i) => i.title === "HW3 Due")!.dueAt).toBe("2026-10-02T23:59:00-05:00"); // 6 cells
+    expect(items.find((i) => i.title === "MP3 Due")!.dueAt).toBe("2026-12-09T23:59:00-06:00"); // 7 cells, spacer has no rowspan
+  });
+
+  it("normalizes to badges that could merge with another source", () => {
+    // "HW3 Due" → {hw3}: "due" is filler (§5.2), so this would meet a Gradescope
+    // "Homework 3" if CS 424 ever posted one there.
+    expect([...normalizeTitle(items[2]!.title)]).toEqual(["hw3"]);
   });
 });
