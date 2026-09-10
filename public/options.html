@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Illini Due — debug</title>
+    <link rel="stylesheet" href="ui.css" />
+    <style>body { max-width: 760px; }</style>
+  </head>
+  <body>
+    <h1>Illini Due — debug</h1>
+    <p id="build-info" class="muted">Checking service worker…</p>
+
+    <h2>Gate 0 — cookie-authenticated fetch from the service worker</h2>
+    <p class="muted">
+      Fetches each source's authenticated home page from the extension's service
+      worker with <code>credentials: "include"</code> (SPEC.md §2.2, §9 G0).
+      Log in to all four sites in this browser profile first. Results are also
+      logged to the service worker console; nothing is stored.
+    </p>
+    <p>
+      <button id="run-gate0">Run Gate 0 check</button>
+      <button id="copy-gate0" disabled>Copy results as JSON</button>
+    </p>
+    <p id="gate0-status" class="muted"></p>
+    <div id="gate0-results"></div>
+
+    <h2>Offscreen parser round-trip</h2>
+    <p class="muted">
+      Sends HTML from the service worker to the offscreen document, runs a
+      throwaway parser there, and brings <code>RawItem[]</code> back (SPEC.md §2.1,
+      build step 3). Also checks that a structurally-empty page comes back as a
+      <code>ParseError</code> rather than an empty list (§0 rule 3).
+    </p>
+    <p><button id="run-selftest">Run round-trip check</button></p>
+    <p id="selftest-status" class="muted"></p>
+    <div id="selftest-results"></div>
+
+    <h2>Fixture capture</h2>
+    <p class="muted">
+      Fetches a page from the service worker exactly the way the sync loop will,
+      scrubs it per Appendix A, and hands it back as a download. Save the scrubbed
+      file into <code>fixtures/&lt;source&gt;/</code>. Nothing is fetched or saved
+      automatically (SPEC.md §10 step 4, §9 G1).
+    </p>
+
+    <p>
+      <label>Your NetID <input id="scrub-netid" type="text" size="12" placeholder="jdoe42" /></label>
+      <label>Your name <input id="scrub-name" type="text" size="18" placeholder="Jane Doe" /></label>
+      <span class="muted">— used only to scrub; stored in this page only.</span>
+    </p>
+
+    <p>
+      <input id="capture-url" type="url" size="70" placeholder="https://www.gradescope.com/courses/1352838" />
+      <button id="run-capture">Fetch</button>
+    </p>
+    <p id="capture-presets" class="muted"></p>
+    <p id="capture-status" class="muted"></p>
+    <div id="capture-result"></div>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

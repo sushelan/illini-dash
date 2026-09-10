@@ -1,0 +1,260 @@
+[
+  {
+    "plannable_type": "quiz",
+    "plannable_id": 9001,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-10T04:59:00Z",
+    "html_url": "/courses/72393/quizzes/9001",
+    "plannable": {
+      "id": 9001,
+      "title": "Quiz 3: Monte Carlo",
+      "due_at": "2026-09-10T04:59:00Z"
+    },
+    "submissions": {
+      "submitted": false,
+      "graded": true,
+      "missing": false,
+      "late": false,
+      "excused": false
+    }
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9002,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-13T04:59:00Z",
+    "html_url": "https://canvas.illinois.edu/courses/72393/assignments/9002",
+    "plannable": {
+      "id": 9002,
+      "title": "Homework 3",
+      "due_at": "2026-09-12T04:59:00Z"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9003,
+    "course_id": 74798,
+    "context_name": "CS 425 (a stale context_name that must lose to the course map)",
+    "plannable_date": "2026-09-15T04:59:00Z",
+    "html_url": "/courses/74798/assignments/9003",
+    "plannable": {
+      "id": 9003,
+      "title": "MP1: Distributed Logging",
+      "due_at": "2026-09-15T04:59:00Z"
+    },
+    "submissions": {
+      "submitted": true,
+      "graded": false,
+      "missing": false,
+      "late": true,
+      "excused": false
+    }
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9004,
+    "course_id": 74798,
+    "context_name": "Fall 2026-CS 425-Distributed Systems-Sections CSP, DS3, DS4, MC3, MC4, SG, SU",
+    "plannable_date": "2026-08-30T04:59:00Z",
+    "html_url": "/courses/74798/assignments/9004",
+    "plannable": {
+      "id": 9004,
+      "title": "HW0",
+      "due_at": "2026-08-30T04:59:00Z"
+    },
+    "submissions": {
+      "submitted": false,
+      "graded": false,
+      "missing": true,
+      "late": false,
+      "excused": false
+    }
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9005,
+    "course_id": 74798,
+    "context_name": "Fall 2026-CS 425-Distributed Systems-Sections CSP, DS3, DS4, MC3, MC4, SG, SU",
+    "plannable_date": "2026-09-20T04:59:00Z",
+    "html_url": "/courses/74798/assignments/9005",
+    "plannable": {
+      "id": 9005,
+      "title": "Reading response",
+      "due_at": "2026-09-20T04:59:00Z"
+    },
+    "submissions": {
+      "submitted": false,
+      "graded": false,
+      "missing": false,
+      "late": false,
+      "excused": true
+    }
+  },
+  {
+    "plannable_type": "calendar_event",
+    "plannable_id": 9006,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-10-01T18:00:00Z",
+    "html_url": "/courses/72393/calendar_events/9006",
+    "plannable": {
+      "id": 9006,
+      "title": "Midterm Exam 1",
+      "start_at": "2026-10-01T18:00:00Z"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "calendar_event",
+    "plannable_id": 9007,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-11T15:00:00Z",
+    "html_url": "/courses/72393/calendar_events/9007",
+    "plannable": {
+      "id": 9007,
+      "title": "Guest lecture"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "discussion_topic",
+    "plannable_id": 9008,
+    "course_id": 74798,
+    "context_name": "Fall 2026-CS 425-Distributed Systems-Sections CSP, DS3, DS4, MC3, MC4, SG, SU",
+    "plannable_date": "2026-09-18T04:59:00Z",
+    "html_url": "/courses/74798/discussion_topics/9008",
+    "plannable": {
+      "id": 9008,
+      "title": "Week 4 discussion",
+      "due_at": "2026-09-18T04:59:00Z"
+    },
+    "submissions": {
+      "submitted": false,
+      "graded": false,
+      "missing": false,
+      "late": false,
+      "excused": false
+    }
+  },
+  {
+    "plannable_type": "planner_note",
+    "plannable_id": 9009,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-09T04:59:00Z",
+    "html_url": "/planner_notes/9009",
+    "plannable": {
+      "id": 9009,
+      "title": "Remember to read chapter 4"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "announcement",
+    "plannable_id": 9010,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-05T14:00:00Z",
+    "html_url": "/courses/72393/announcements/9010",
+    "plannable": {
+      "id": 9010,
+      "title": "MP3 extended to Friday"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "wiki_page",
+    "plannable_id": 9011,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-06T14:00:00Z",
+    "html_url": "/courses/72393/pages/syllabus",
+    "plannable": {
+      "id": 9011,
+      "title": "Syllabus"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assessment_request",
+    "plannable_id": 9012,
+    "course_id": 74798,
+    "context_name": "Fall 2026-CS 425-Distributed Systems-Sections CSP, DS3, DS4, MC3, MC4, SG, SU",
+    "plannable_date": "2026-09-22T04:59:00Z",
+    "html_url": "/courses/74798/assessment_requests/9012",
+    "plannable": {
+      "id": 9012,
+      "title": "Peer review: MP1"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9013,
+    "course_id": 999999,
+    "context_name": "ECE 391 / CS 391 Computer Systems Engineering",
+    "plannable_date": "2026-09-25T04:59:00Z",
+    "html_url": "/courses/999999/assignments/9013",
+    "plannable": {
+      "id": 9013,
+      "title": "MP2: Kernel"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9014,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-28T04:59:00Z",
+    "html_url": "/courses/72393/assignments/9014",
+    "plannable": {
+      "id": 9014,
+      "title": "Survey (no due_at, exercises the fallback)"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9015,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "html_url": "/courses/72393/assignments/9015",
+    "plannable": {
+      "id": 9015,
+      "title": "Undated practice set"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9016,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "html_url": "/courses/72393/assignments/9016",
+    "plannable": {
+      "id": 9016,
+      "title": "Date TBD",
+      "due_at": "TBD"
+    },
+    "submissions": false
+  },
+  {
+    "plannable_type": "assignment",
+    "plannable_id": 9017,
+    "course_id": 72393,
+    "context_name": "Fall 2026-CS 357-Numerical Methods I-Sections AL1, CSP, OL1",
+    "plannable_date": "2026-09-30T04:59:00Z",
+    "html_url": "//evil.example/phish",
+    "plannable": {
+      "id": 9017,
+      "title": "Off-host link",
+      "due_at": "2026-09-30T04:59:00Z"
+    },
+    "submissions": false
+  }
+]

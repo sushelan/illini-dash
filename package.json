@@ -1,0 +1,21 @@
+{
+  "name": "illini-due",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "scrub": "node scripts/scrub-file.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^26.4.1",
+    "esbuild": "^0.24.0",
+    "linkedom": "^0.18.5",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

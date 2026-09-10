@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Illini Due",
+  "version": "0.1.0",
+  "description": "Every UIUC deadline from Canvas, Gradescope, PrairieLearn, PrairieTest and course sites in one list.",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Illini Due",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "permissions": ["storage", "alarms", "notifications", "offscreen"],
+  "host_permissions": [
+    "https://canvas.illinois.edu/*",
+    "https://www.gradescope.com/*",
+    "https://us.prairielearn.com/*",
+    "https://us.prairietest.com/*",
+    "https://raw.githubusercontent.com/*"
+  ],
+  "optional_host_permissions": ["https://*.illinois.edu/*"]
+}

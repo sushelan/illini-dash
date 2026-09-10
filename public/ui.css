@@ -1,0 +1,64 @@
+:root {
+  color-scheme: light dark;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --bg: #fff;
+  --line: #ddd;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --bg: #1c1c1c;
+    --line: #3a3a3a;
+    --ok: #4ac26b;
+    --warn: #d4a72c;
+    --err: #f0736a;
+  }
+}
+body {
+  margin: 0;
+  padding: 12px;
+  font: 13px/1.45 system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+h1 { font-size: 15px; margin: 0 0 8px; }
+h2 { font-size: 13px; margin: 16px 0 6px; }
+p { margin: 0 0 8px; }
+.muted { color: var(--muted); }
+button {
+  font: inherit;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+.result {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.result h3 { font-size: 13px; margin: 0 0 4px; }
+.verdict-logged_in { color: var(--ok); }
+.verdict-needs_login { color: var(--warn); }
+.verdict-error { color: var(--err); }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+pre {
+  margin: 6px 0 0;
+  padding: 6px;
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 11px/1.4 ui-monospace, Menlo, monospace;
+}
