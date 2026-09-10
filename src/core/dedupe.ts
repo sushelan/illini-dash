@@ -9,7 +9,7 @@
  * Pure functions over RawItems, so the whole rule is testable without a store.
  */
 
-import { isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
+import { NUMBERED_PREFIX, isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
 import { shortHash } from "./dates.js";
 import type { Item, Overrides, RawItem, Source, Status } from "../sources/types.js";
 import { memberKey } from "../sources/types.js";
@@ -33,15 +33,25 @@ const MIN_SUBSET_TOKENS = 2;
  *   "Lab 3" / "Lab 3 Report"           §5.3: "will merge, which is correct"
  *   "Homework 3" / "HW3 Errors and Big-O"   §4.3: the badge match "is the point"
  *
- * A single badge token is highly identifying inside one course, which a bare
- * word is not — and the number is what makes it so. Requiring a digit keeps
- * every protection §5.3 wanted: `quiz` still cannot swallow `quiz1 linear
- * algebra`, and `quiz1` is still not a subset of `quiz10`.
+ * A badge token carries a number, which a bare word does not, so `quiz` still
+ * cannot swallow `quiz1 linear algebra`.
  *
- * §5.3 makes G3 the arbiter of this threshold, so this is written to be
- * measured there rather than assumed correct.
+ * This is a TRADE, not a free win, and an earlier version of this note wrongly
+ * claimed it kept "every protection §5.3 wanted". It does not: the ≥2-token rule
+ * also bounded the *larger* side, and dropping it lets `{mp2}` merge into
+ * `{mp2, checkpoint}` — a real risk when a course splits one badge across two
+ * deliverables. The premise that a badge is unique within a course is also
+ * falsified by this repo's own fixture: CS 357 ships both `GA 0` and `GA00`,
+ * which §5.2 collapses to the same token.
+ *
+ * The same-source group check below is what keeps that trade survivable, and
+ * §5.3 makes G3 the arbiter of the threshold itself.
  */
-const BADGE_TOKEN = /^[a-z]{1,4}\d+[a-z]?$/;
+const BADGE_TOKEN = new RegExp(`^${NUMBERED_PREFIX.source.replace(/^\^|\$$/g, "")}\\d+[a-z]?$`);
+
+function badgesOf(tokens: Set<string>): string[] {
+  return [...tokens].filter((token) => BADGE_TOKEN.test(token));
+}
 
 /**
  * §5.3 url/dueAt precedence: the system a student actually submits in owns its
@@ -100,6 +110,18 @@ export function datesCompatible(a: RawItem, b: RawItem): boolean {
 /** §5.3: Jaccard ≥ 0.6, or a subset whose smaller side has ≥ 2 tokens. */
 export function titlesCompatible(a: Set<string>, b: Set<string>): boolean {
   if (a.size === 0 || b.size === 0) return false;
+
+  // Two titles that each carry a badge and share none are different work, however
+  // much description they have in common. Without this the Jaccard path is
+  // badge-blind: `Quiz 1: LA + Python + Errors` and `Quiz 10: LA + Python +
+  // Errors` score 0.667 and merge — the very pair §5.3 names as proof the rule is
+  // safe. That guarantee only ever held on the subset path.
+  const badgesA = badgesOf(a);
+  const badgesB = badgesOf(b);
+  if (badgesA.length > 0 && badgesB.length > 0 && !badgesA.some((t) => badgesB.includes(t))) {
+    return false;
+  }
+
   if (jaccard(a, b) >= JACCARD_THRESHOLD) return true;
   const [small, large] = a.size <= b.size ? [a, b] : [b, a];
   if (!isSubsetOf(small, large)) return false;
@@ -246,16 +268,34 @@ export function dedupe(
   const split = new Set(overrides.splitKeys);
 
   const union = new UnionFind();
-  for (const key of keys) union.find(key);
+  /** Which sources each component already holds — see the check below. */
+  const sourcesOf = new Map<string, Set<Source>>();
+  for (let i = 0; i < keys.length; i += 1) {
+    union.find(keys[i]!);
+    sourcesOf.set(keys[i]!, new Set([items[i]!.source]));
+  }
 
   for (let i = 0; i < items.length; i += 1) {
     for (let j = i + 1; j < items.length; j += 1) {
       // A key the user pulled apart never joins an *automatic* group again.
       // Explicit mergeGroups below still apply, so "split then merge" works.
       if (split.has(keys[i]!) || split.has(keys[j]!)) continue;
-      if (shouldMerge(items[i]!, items[j]!, titles[i]!, titles[j]!)) {
-        union.union(keys[i]!, keys[j]!);
-      }
+      if (!shouldMerge(items[i]!, items[j]!, titles[i]!, titles[j]!)) continue;
+
+      const rootI = union.find(keys[i]!);
+      const rootJ = union.find(keys[j]!);
+      if (rootI === rootJ) continue;
+      const sourcesI = sourcesOf.get(rootI)!;
+      const sourcesJ = sourcesOf.get(rootJ)!;
+      // §5.3's "never two rows from the same source" is a property of the whole
+      // group, not of a pair. Transitivity would otherwise route around the
+      // pairwise test: A(gs) merges B(cv), B merges C(cv), and the group ends up
+      // holding two Canvas rows — one of whose deadlines becomes unreachable,
+      // behind a row that looks like an honest two-source merge.
+      if ([...sourcesJ].some((source) => sourcesI.has(source))) continue;
+
+      union.union(keys[i]!, keys[j]!);
+      sourcesOf.set(union.find(keys[i]!), new Set([...sourcesI, ...sourcesJ]));
     }
   }
 

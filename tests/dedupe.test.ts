@@ -275,6 +275,89 @@ describe("dedupe", () => {
   });
 });
 
+describe("regressions found by the dedupe/sync review", () => {
+  it("refuses two titles whose badges differ, however much description they share", () => {
+    // The Jaccard path was badge-blind: these score 0.667 and merged — the very
+    // pair §5.3 cites as proof the rule is safe. That only held on the subset path.
+    expect(
+      titlesCompatible(
+        normalizeTitle("Quiz 1: Linear Algebra + Python + Errors"),
+        normalizeTitle("Quiz 10: Linear Algebra + Python + Errors"),
+      ),
+    ).toBe(false);
+    expect(
+      titlesCompatible(
+        normalizeTitle("L19 Principal Component Analysis - PCA"),
+        normalizeTitle("HW19 Principal Component Analysis - PCA"),
+      ),
+    ).toBe(false);
+  });
+
+  it("still merges when the badges agree, or when only one side has a badge", () => {
+    expect(
+      titlesCompatible(normalizeTitle("HW3 Errors and Big-O"), normalizeTitle("Homework 3")),
+    ).toBe(true);
+    expect(
+      titlesCompatible(normalizeTitle("Lab 3"), normalizeTitle("Lab 3 Report")),
+    ).toBe(true);
+    expect(
+      titlesCompatible(
+        normalizeTitle("Homework 1"),
+        normalizeTitle("Homework 1 for CS 357"),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps §5.2's join list and §5.3's badge shape in agreement", () => {
+    // They disagreed above four letters, so identical exams merged or not purely
+    // on whether staff typed "Exam" or "Midterm".
+    expect(titlesCompatible(normalizeTitle("Midterm 1"), normalizeTitle("CS 357: Midterm 1"))).toBe(
+      true,
+    );
+    expect(
+      titlesCompatible(normalizeTitle("Discussion 4"), normalizeTitle("Discussion 4 Worksheet")),
+    ).toBe(true);
+    expect(titlesCompatible(normalizeTitle("Exam 1"), normalizeTitle("CS 357: Exam 1"))).toBe(true);
+  });
+
+  it("never lets transitivity put two rows of one source in a group", () => {
+    // A(gs) merges B(cv), B merges C(cv) — the pairwise ban is on pairs, so
+    // union-find routed around it and one Canvas deadline became unreachable
+    // behind a row that looked like an honest two-source merge.
+    const items = dedupe(
+      [
+        raw({ source: "gradescope", sourceId: "1", title: "MP2", dueAt: "2026-09-20T23:59:00-05:00" }),
+        raw({ source: "canvas", sourceId: "a", title: "MP2 Checkpoint", dueAt: "2026-09-20T22:00:00-05:00" }),
+        raw({ source: "canvas", sourceId: "b", title: "MP2 Final Submission", dueAt: "2026-09-21T12:00:00-05:00" }),
+      ],
+      NO_OVERRIDES,
+    );
+    expect(items).toHaveLength(2);
+    for (const group of items) {
+      const sources = group.members.map((m) => m.source);
+      expect(new Set(sources).size, JSON.stringify(sources)).toBe(sources.length);
+    }
+  });
+
+  it("does not merge the fixture's own two distinct GA rows", () => {
+    // CS 357 ships both "GA 0" and "GA00"; §5.2 collapses both to `ga0`, which
+    // falsifies "a badge is unique within a course". The same-source guard is
+    // what keeps that survivable.
+    const items = dedupe(
+      [
+        raw({ source: "prairielearn", sourceId: "1:GA 0", title: "GA 0 Get started with GAs" }),
+        raw({ source: "prairielearn", sourceId: "1:GA00", title: "GA00 Workspaces" }),
+        raw({ source: "gradescope", sourceId: "9", title: "GA0" }),
+      ],
+      NO_OVERRIDES,
+    );
+    for (const group of items) {
+      const sources = group.members.map((m) => m.source);
+      expect(new Set(sources).size).toBe(sources.length);
+    }
+  });
+});
+
 describe("applyRetention (§5.4)", () => {
   const now = "2026-09-10T18:00:00.000Z";
   const stored: Record<string, RawItem> = {

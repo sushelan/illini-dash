@@ -3,7 +3,21 @@
 import { describe, expect, it } from "vitest";
 import { formatDue, groupItems, sectionFor } from "../src/ui/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
-import type { Item } from "../src/sources/types.js";
+import type { Item, RawItem, Status } from "../src/sources/types.js";
+
+function member(status: Status, extra?: Record<string, string>): RawItem {
+  return {
+    source: "gradescope",
+    sourceId: `${status}${Math.random()}`,
+    courseRaw: "CS 357",
+    title: "m",
+    kind: "assignment",
+    url: "https://www.gradescope.com/",
+    status,
+    extra,
+    fetchedAt: "2026-09-10T18:00:00.000Z",
+  };
+}
 
 function item(partial: Partial<Item> = {}): Item {
   return {
@@ -101,6 +115,75 @@ describe("groupItems", () => {
   it("never hides a booking item, even with hideSubmitted on", () => {
     const booking = item({ kind: "booking", status: "not_submitted" });
     expect(groupItems([booking], NOW, DEFAULT_SETTINGS)).toHaveLength(1);
+  });
+});
+
+describe("regressions found by the dedupe/sync review", () => {
+  it("does not hide a merged row whose other half is still outstanding", () => {
+    // A merged Item's status is its MOST done member (§5.3), so testing the
+    // Item's status alone removed the row that still needed doing — silently,
+    // because hideSubmitted is on by default.
+    const mixed = item({
+      dueAt: at(2026, 8, 11),
+      status: "graded",
+      members: [member("graded"), member("not_submitted")],
+    });
+    expect(groupItems([mixed], NOW, DEFAULT_SETTINGS)).toHaveLength(1);
+
+    const allDone = item({
+      dueAt: at(2026, 8, 11),
+      status: "graded",
+      members: [member("graded"), member("submitted")],
+    });
+    expect(groupItems([allDone], NOW, DEFAULT_SETTINGS)).toEqual([]);
+  });
+
+  it("still surfaces a mixed overdue row, which had no escape hatch at all", () => {
+    // The overdue branch tested the same collapsed status, so turning
+    // hideSubmitted off did not bring the row back either.
+    const overdue = item({
+      dueAt: at(2026, 8, 8),
+      status: "graded",
+      members: [member("graded"), member("not_submitted")],
+    });
+    expect(sectionFor(overdue, NOW)).toBe("Needs attention");
+    expect(groupItems([overdue], NOW, { ...DEFAULT_SETTINGS, hideSubmitted: false })).toHaveLength(
+      1,
+    );
+  });
+
+  it("never hides a booking row, whatever its collapsed status says", () => {
+    // `kind` survives a merge but `status` does not. With members present the
+    // mixed-status fix already covers this; the exemption is what holds when
+    // only the collapsed status is available — an Item read back from an older
+    // store, or any future path that builds one without members.
+    const merged = item({
+      kind: "booking",
+      status: "graded",
+      members: [member("graded"), member("not_submitted")],
+    });
+    expect(groupItems([merged], NOW, DEFAULT_SETTINGS)).toHaveLength(1);
+
+    const collapsed = item({ kind: "booking", status: "graded", members: [] });
+    expect(groupItems([collapsed], NOW, DEFAULT_SETTINGS)).toHaveLength(1);
+  });
+
+  it("sections a row whose only deadline is a reduced-credit window (§4.3)", () => {
+    // dueAt undefined, lateDueAt set: twelve days of partial credit still
+    // available, previously shown nowhere and labelled "no date".
+    const late = item({
+      lateDueAt: at(2026, 8, 22),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(sectionFor(late, NOW)).toBe("Later");
+    expect(formatDue(late, NOW)).toMatch(/^80% until /);
+  });
+
+  it("labels a late-due row without a credit figure as a late due date", () => {
+    // Gradescope reaches this shape when a row's only <time> is its late date.
+    const late = item({ lateDueAt: at(2026, 8, 12), members: [member("not_submitted")] });
+    expect(sectionFor(late, NOW)).toBe("This week");
+    expect(formatDue(late, NOW)).toMatch(/^late due /);
   });
 });
 

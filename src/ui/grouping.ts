@@ -51,8 +51,29 @@ function endOfWeek(now: Date): number {
   return startOfDay(now, daysUntilSunday + 1);
 }
 
+/**
+ * Done means *every* member is done.
+ *
+ * A merged Item's status is its most-done member (§5.3), so testing the Item's
+ * own status hides a group whose other half is still outstanding — and with
+ * `hideSubmitted` on by default, it disappears with no signal at all. If the
+ * outstanding half is also overdue, turning the setting off does not bring it
+ * back either, because the overdue branch tests the same thing.
+ */
 function isDone(item: Item): boolean {
-  return item.status === "submitted" || item.status === "graded";
+  const done = (status: string) => status === "submitted" || status === "graded";
+  if (item.members.length === 0) return done(item.status);
+  return item.members.every((member) => done(member.status));
+}
+
+/**
+ * §4.3: an assessment past its full-credit deadline has `dueAt` undefined and
+ * `lateDueAt` set — "the UI shows 80% until Tue 11:59 PM". Gradescope reaches
+ * the same shape when a row's only `<time>` is its late date. Reading `dueAt`
+ * alone puts that row in no section at all.
+ */
+function instantOf(item: Item): string | undefined {
+  return item.dueAt ?? item.lateDueAt;
 }
 
 export function sectionFor(item: Item, now: Date): SectionName | undefined {
@@ -60,8 +81,9 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
   // the student has looked, and §7 nags daily until it is gone.
   if (item.kind === "booking") return "Needs attention";
 
-  if (item.dueAt === undefined) return undefined;
-  const due = Date.parse(item.dueAt);
+  const instant = instantOf(item);
+  if (instant === undefined) return undefined;
+  const due = Date.parse(instant);
   if (Number.isNaN(due)) return undefined;
 
   const today = startOfDay(now);
@@ -83,15 +105,16 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
 /**
  * §8.1: sections in order, empty ones omitted.
  *
- * `hideSubmitted` never hides an overdue-unsubmitted or booking row, because
- * those are the rows the section exists for.
+ * `hideSubmitted` never hides a booking row: `kind` survives a merge but
+ * `status` does not, so a booking merged with a graded row would otherwise
+ * collapse to "done" and take §8.1's lead section with it.
  */
 export function groupItems(items: Item[], now: Date, settings: Settings): Section[] {
   const buckets = new Map<SectionName, Item[]>(SECTION_ORDER.map((name) => [name, []]));
 
   for (const item of items) {
     if (item.hidden) continue;
-    if (settings.hideSubmitted && isDone(item)) continue;
+    if (settings.hideSubmitted && item.kind !== "booking" && isDone(item)) continue;
     const section = sectionFor(item, now);
     if (section) buckets.get(section)!.push(item);
   }
@@ -103,8 +126,9 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
 
 /** `Thu 11:59 PM · in 2d`, or `2d ago` once past (§8.1's row format). */
 export function formatDue(item: Item, now: Date): string {
-  if (item.dueAt === undefined) return "no date";
-  const due = new Date(item.dueAt);
+  const instant = instantOf(item);
+  if (instant === undefined) return "no date";
+  const due = new Date(instant);
   if (Number.isNaN(due.getTime())) return "no date";
 
   const clock = due.toLocaleString(undefined, {
@@ -112,6 +136,15 @@ export function formatDue(item: Item, now: Date): string {
     hour: "numeric",
     minute: "2-digit",
   });
+
+  // §4.3's own wording for a row whose full-credit deadline has passed.
+  if (item.dueAt === undefined) {
+    const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
+      "creditRemaining"
+    ];
+    if (credit) return `${credit}% until ${clock}`;
+    return `late due ${clock}`;
+  }
   const deltaMs = due.getTime() - now.getTime();
   const past = deltaMs < 0;
   const abs = Math.abs(deltaMs);

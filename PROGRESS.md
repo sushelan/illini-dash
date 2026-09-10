@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (259 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (273 tests) all pass.
 
 ## Done
 
@@ -60,6 +60,30 @@ were tried; the two that survived the first pass have tests and now fail too.
 
 | 7 — normalize + dedupe | `src/core/normalize.ts` §5.2, `src/core/dedupe.ts` §5.3 union-find + overrides + §5.4 retention. 41 tests, table-driven from real fixture titles. |
 | 8 — store + sync + popup | `src/core/store.ts` (§3 schema, migrations, §6 backoff), `src/core/sync.ts` (§6 loop, injected fetch/parse/clock), `src/ui/grouping.ts` + `popup.ts` (§8.1). 32 tests, driven end-to-end by the real fixtures. Review in flight. |
+
+## Review outcome — dedupe + sync (the full review CLAUDE.md reserves for this layer)
+16 findings, 14 survived, 7 code defects fixed. **None of the seven was pinned by the
+260 tests that existed** — every fix left the suite green, which is what the mutation
+pass is for.
+
+Two would have broken the G2 run itself:
+- A source reporting `ok` with **zero** items deleted every key it had, behind a green
+  dot. Gradescope's own §0-rule-3 guard passes if *any* term has courses while its only
+  consumer reads the current term alone, so a breakage confined to this term produced
+  `{ok, 0 items}`. It happens before §5.4, so the 3-miss grace never applied. Now keyed
+  on N→0, so Canvas's legitimately empty planner stays green.
+- `hideSubmitted` hid a **merged** row whenever *any* member was done, taking the member
+  that was still outstanding with it. If that half was also overdue there was no escape
+  hatch at all — turning the setting off tested the same collapsed status.
+
+Also: the Jaccard path was badge-blind, so `Quiz 1: LA + Python + Errors` and
+`Quiz 10: …` merged at 0.667 — the exact pair §5.3 cites as proof the rule is safe;
+union-find could put two rows of one source in a group, making one deadline unreachable
+behind a row that looked like an honest two-source merge; §5.2's join list and §5.3's
+badge shape disagreed above four letters, so identical exams merged or not on whether
+staff typed "Exam" or "Midterm"; an item whose only deadline was `lateDueAt` rendered in
+no section and read "no date", losing §4.3's whole reduced-credit case; and a *disabled*
+source lost its undated items after three syncs, contradicting its own comment.
 
 ## Review outcome — PrairieTest
 Three high-severity silent-failure paths. **A single reworded card heading deleted that
@@ -119,10 +143,16 @@ failure — 0 of 67 assignments carry a due date (docs/canvas-findings.md).
 purpose, because §5.2 step 3 collapses `Lab 3` into the single token `lab3`:
 `Lab 3`/`Lab 3 Report` (§5.3: "will merge, which is correct") and
 `Homework 3`/`HW3 Errors and Big-O` (§4.3: the badge match "is the point").
-`dedupe.ts` now also accepts a single *badge* token — letters bound to a number — which
-keeps every protection the ≥2 rule was for: bare `quiz` still cannot swallow
-`quiz1 linear algebra`, and `quiz1` is still not a subset of `quiz10`. §5.3 makes G3 the
-arbiter of this threshold, so it is written to be measured there.
+`dedupe.ts` now also accepts a single *badge* token — letters bound to a number.
+
+**This is a trade, not a free win**, and an earlier version of this note wrongly claimed
+otherwise. The ≥2-token rule also bounded the *larger* side, and dropping it lets `{mp2}`
+merge into `{mp2, checkpoint}`. The claim that "a badge is unique within a course" is
+also falsified by this repo's own fixture: CS 357 ships both `GA 0` and `GA00`, which
+§5.2 collapses to the same token. What keeps the trade survivable is the same-source
+group check added after the review — §5.3's "never two rows from one source" is a
+property of the *group*, and union-find was routing around the pairwise test.
+§5.3 makes G3 the arbiter of the threshold itself.
 
 ## VERIFY (§12-style, needs your browser eventually)
 **Does PrairieTest render the "Exams available for reservations" card at all for a student

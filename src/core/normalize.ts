@@ -68,8 +68,15 @@ const FILLER = new Set([
   "fall", "spring", "summer", "winter", "sp", "fa", "su", "wi",
 ]);
 
-/** Prefixes that bind to a following bare number: `mp 3` → `mp3` (§5.2 step 3). */
-const NUMBERED_PREFIX = /^(mp|hw|pa|lab|quiz|pq|ga|exam|midterm|final|discussion|ex|q|l|s|e)$/;
+/**
+ * Prefixes that bind to a following bare number: `mp 3` → `mp3` (§5.2 step 3).
+ *
+ * Exported because §5.3's badge rule must be derived from it. When the two were
+ * written separately they disagreed above four letters, so §5.2 manufactured a
+ * one-token title (`midterm1`) that §5.3 then refused — identical exams merged
+ * or not purely on whether staff typed "Exam" or "Midterm".
+ */
+export const NUMBERED_PREFIX = /^(mp|hw|pa|lab|quiz|pq|ga|exam|midterm|final|discussion|ex|q|l|s|e)$/;
 
 /**
  * §5.2: a token set for comparison only. The displayed title is never altered.

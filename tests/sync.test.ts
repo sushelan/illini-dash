@@ -299,6 +299,70 @@ describe("runSync (§6)", () => {
     for (const key of before) expect(Object.keys(second.store.raw)).toContain(key);
   });
 
+  it("treats a source that had items and now returns none as a parse error", async () => {
+    // The `ok` branch deleted every key for the source and left a green dot over
+    // the gap — and it runs before §5.4, so the 3-miss grace never applied.
+    const first = await runSync(emptyStore(), "alarm", deps());
+    const before = Object.keys(first.store.raw).filter((k) => k.startsWith("gradescope:"));
+    expect(before.length).toBeGreaterThan(0);
+
+    const second = await runSync(
+      first.store,
+      "alarm",
+      deps({
+        // A dashboard whose current term parses to zero courses: no fetches, no
+        // items, and previously no error either.
+        async parseGradescopeDashboard() {
+          return [];
+        },
+      }),
+    );
+    expect(second.store.sources.gradescope.state).toBe("parse_error");
+    expect(second.store.sources.gradescope.lastError).toMatch(/0 items where it previously had/);
+    for (const key of before) expect(Object.keys(second.store.raw)).toContain(key);
+  });
+
+  it("leaves a legitimately empty source green, rather than crying wolf", async () => {
+    // Canvas's planner really is empty on this account (0 of 67 assignments are
+    // dated), so 0 -> 0 must stay ok. The rule keys on N -> 0.
+    const store = await runSync(
+      emptyStore(),
+      "alarm",
+      deps({
+        async fetchPage(url) {
+          if (url.includes("planner")) return { url, finalUrl: url, status: 200, body: "[]" };
+          const body = PAGES[url];
+          if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body };
+        },
+      }),
+    );
+    expect(store.store.sources.canvas.state).toBe("ok");
+  });
+
+  it("does not purge a disabled source's undated items", async () => {
+    // §5.4's miss counter was running on a source nobody was fetching, so three
+    // syncs deleted history the user might re-enable — the opposite of what the
+    // branch's own comment promised, and unlike the failing-source branch.
+    const first = await runSync(emptyStore(), "alarm", deps());
+    const undated = Object.entries(first.store.raw)
+      .filter(([key, item]) => key.startsWith("prairielearn:") && item.dueAt === undefined)
+      .map(([key]) => key);
+    expect(undated.length).toBeGreaterThan(0);
+
+    let store: StoreV1Plus = {
+      ...first.store,
+      sources: {
+        ...first.store.sources,
+        prairielearn: { ...first.store.sources.prairielearn, enabled: false },
+      },
+    };
+    for (let sync = 0; sync < 4; sync += 1) {
+      store = (await runSync(store, "alarm", deps())).store;
+    }
+    for (const key of undated) expect(Object.keys(store.raw), key).toContain(key);
+  });
+
   it("keeps notification state across syncs for an unchanged group", async () => {
     const first = await runSync(emptyStore(), "alarm", deps());
     const target = first.store.items.find((i) => i.dueAt !== undefined)!;

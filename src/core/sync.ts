@@ -264,7 +264,10 @@ export async function runSync(
     const status = next.sources[source];
     if (!status.enabled) {
       // Its items stay in `raw` deliberately: disabling a source in the options
-      // page should not delete history the user may re-enable.
+      // page should not delete history the user may re-enable — which means its
+      // keys must count as seen, or §5.4's miss counter runs on a source nobody
+      // is fetching and purges its undated items after three syncs.
+      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
       continue;
     }
     // §6's backoff exists to stop a *scheduled* loop hammering a site that is
@@ -281,6 +284,24 @@ export async function runSync(
     }
 
     const outcome = await syncOneSource(source, deps);
+
+    // §0 rule 3 at the loop level. A source that held items and now reports none
+    // has more likely short-circuited than emptied — Gradescope's dashboard
+    // guard, for instance, passes if *any* term has courses while its only
+    // consumer reads the current term alone. The `ok` branch below would delete
+    // every key for this source and leave a green dot over the gap, and it
+    // happens before §5.4, so the 3-miss grace never applies.
+    //
+    // Keyed on N→0 rather than on emptiness, so Canvas's legitimately empty
+    // planner (0→0 on this account) stays green.
+    if (
+      outcome.state === "ok" &&
+      outcome.items.length === 0 &&
+      Object.keys(raw).some((key) => key.startsWith(`${source}:`))
+    ) {
+      outcome.state = "parse_error";
+      outcome.error = `${source}: 0 items where it previously had some`;
+    }
     outcomes.push(outcome);
 
     if (outcome.state === "ok") {
