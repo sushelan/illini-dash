@@ -32,22 +32,71 @@ function select(row: Element, spec: string): string | undefined {
 const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
 
 /**
+ * The optional bits real course pages put around a date.
+ *
+ * `WEEKDAY` — "Tue Sep 08", "Friday, September 4". `SEP` — the separator before
+ * a time, which pages write as a comma, "at", "@", or an ISO "T".
+ */
+const WEEKDAY = "(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*\\.?,?\\s+";
+const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
+
+/**
+ * A stated time, in the two shapes that are not ambiguous.
+ *
+ * `h:mm` with optional am/pm, or a bare hour that *must* carry am/pm. A bare
+ * "5" with no meridiem is not read as a time at all: on a course page it could
+ * be either, and guessing would put a 5 PM deadline at 05:00 — worse than
+ * admitting the time is unknown, because it looks stated.
+ */
+const TIME =
+  `(?:(?<hour>\\d{1,2}):(?<minute>\\d{2})\\s*(?<ampm>am|pm)?` +
+  `|(?<hour12>\\d{1,2})\\s*(?<ampm12>am|pm))`;
+
+/**
  * Token formats an adapter may declare. Deliberately a closed set: an adapter
  * cannot supply a pattern, only choose one, so a bad registry entry can produce
  * a wrong *selector* but never arbitrary matching behaviour.
+ *
+ * Each is anchored at the start only, because pages append things this parser
+ * has no business understanding ("US Central time", "(no late work)"). What is
+ * *not* ignored is a tail that still looks like a time: see `timeLikeTail`.
  */
 const DATE_FORMATS: Record<string, RegExp> = {
-  // 2026-09-11 or 2026-09-11 23:59
-  "yyyy-MM-dd": /^(?<year>\d{4})-(?<month>\d{1,2})-(?<day>\d{1,2})(?:[ T](?<hour>\d{1,2}):(?<minute>\d{2}))?/i,
-  // Sep 11, 11:59 pm  ·  September 11 at 11:59pm  ·  Sep 11
-  "MMM d, h:mm a": new RegExp(
-    `^(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})` +
-      `(?:\\s*(?:,|at)?\\s*(?<hour>\\d{1,2})(?::(?<minute>\\d{2}))?\\s*(?<ampm>am|pm))?`,
+  // 2026-09-11 · 2026-09-11 23:59 · Fri, 2026-09-11 at 18:00
+  "yyyy-MM-dd": new RegExp(
+    `^(?:${WEEKDAY})?(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})(?:${SEP}${TIME})?`,
     "i",
   ),
-  // 9/11 or 9/11/2026, optional time
-  "M/d": /^(?<month>\d{1,2})\/(?<day>\d{1,2})(?:\/(?<year>\d{2,4}))?(?:\s+(?<hour>\d{1,2}):(?<minute>\d{2})\s*(?<ampm>am|pm)?)?/i,
+  // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
+  "MMM d, h:mm a": new RegExp(
+    `^(?:${WEEKDAY})?(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
+      `(?:${SEP}${TIME})?`,
+    "i",
+  ),
+  // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8
+  "M/d": new RegExp(
+    `^(?:${WEEKDAY})?(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?(?:${SEP}${TIME})?`,
+    "i",
+  ),
 };
+
+/**
+ * Whether the text this parser did not consume still looks like a time.
+ *
+ * The formats are start-anchored, so `09/04 @ 11:59pm` used to match `09/04`,
+ * discard the rest, and report `timeAssumed` — inventing 23:59 while the real
+ * cutoff sat unread in the same string. Now the leftover is inspected: if it
+ * contains something time-shaped, that is an unreadable *value* and house rule
+ * 1 says record it and keep the row, rather than quietly pretending the page
+ * stated nothing.
+ */
+export function timeLikeTail(tail: string): string | undefined {
+  const trimmed = tail.trim();
+  if (trimmed === "") return undefined;
+  return /\d{1,2}\s*:\s*\d{2}|\d\s*(?:am|pm)\b|\bnoon\b|\bmidnight\b/i.test(trimmed)
+    ? trimmed.slice(0, 120)
+    : undefined;
+}
 
 export function supportedDateFormats(): string[] {
   return Object.keys(DATE_FORMATS);
@@ -81,6 +130,15 @@ export interface AdapterDate {
    * deadline an instructor set in Canvas, and the row would look authoritative.
    */
   timeAssumed: boolean;
+  /**
+   * A time that was there and could not be read confidently.
+   *
+   * Either a tail the format did not consume (`09/04 @ 11:59pm` used to match
+   * `09/04` and silently drop the rest) or an ambiguous bare `5:00`. Surfaced
+   * through `extra` so the popup marks the row rather than presenting an
+   * invented 23:59 as if the page had said nothing.
+   */
+  unparsedTime?: string;
 }
 
 export function parseAdapterDateParts(
@@ -100,9 +158,26 @@ export function parseAdapterDateParts(
     : monthIndex(g["month"]!.slice(0, 3).replace(/^./, (c) => c.toUpperCase()));
   if (month === undefined) return undefined;
 
-  let hour = g["hour"] ? Number(g["hour"]) : 23;
-  const minute = g["minute"] ? Number(g["minute"]) : g["hour"] ? 0 : 59;
-  const ampm = g["ampm"]?.toLowerCase();
+  // Two alternatives in TIME, so the groups are coalesced here.
+  const rawHour = g["hour"] ?? g["hour12"];
+  const ampm = (g["ampm"] ?? g["ampm12"])?.toLowerCase();
+
+  // A bare `h:mm` with no meridiem is 24-hour notation only when it cannot mean
+  // anything else: an hour past noon, or a leading zero (nobody writes an
+  // evening deadline as "09:00"). "5:00" on a course page is genuinely
+  // ambiguous, and reading it as 05:00 would move a 5 PM deadline twelve hours
+  // earlier while looking like a stated time. Ambiguous is treated as unstated
+  // and recorded, per house rule 5.
+  const ambiguous =
+    rawHour !== undefined &&
+    ampm === undefined &&
+    g["minute"] !== undefined &&
+    Number(rawHour) < 13 &&
+    !/^0\d$/.test(rawHour);
+
+  const stated = rawHour !== undefined && !ambiguous;
+  let hour = stated ? Number(rawHour) : 23;
+  const minute = stated ? (g["minute"] ? Number(g["minute"]) : 0) : 59;
   if (ampm === "pm" && hour < 12) hour += 12;
   if (ampm === "am" && hour === 12) hour = 0;
 
@@ -121,8 +196,17 @@ export function parseAdapterDateParts(
     if (year === undefined) return undefined;
   }
 
+  // Anything after the match that still looks like a time is a value this
+  // parser failed to read, not text it was right to ignore.
+  const leftover = timeLikeTail(raw.trim().slice(match[0].length));
+  const unparsedTime = ambiguous ? String(rawHour) + (g["minute"] ? `:${g["minute"]}` : "") : leftover;
+
   try {
-    return { iso: wallClockToIso({ ...parts, year }, timezone), timeAssumed: !g["hour"] };
+    return {
+      iso: wallClockToIso({ ...parts, year }, timezone),
+      timeAssumed: !stated,
+      ...(unparsedTime ? { unparsedTime } : {}),
+    };
   } catch {
     return undefined;
   }
@@ -198,6 +282,9 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       const extra: Record<string, string> = { adapterId: adapter.id, term: adapter.term };
       if (rawDate && dueAt === undefined) extra["unparsedDate"] = rawDate.slice(0, 200);
       if (parsed?.timeAssumed) extra["timeAssumed"] = "true";
+      // House rule 1: a time that was printed and could not be read costs its
+      // own field and is recorded, rather than passing as "the page gave none".
+      if (parsed?.unparsedTime) extra["unparsedTime"] = parsed.unparsedTime;
       if (codes.length > 1) extra["altCodes"] = codes.join(" ");
 
       items.push({

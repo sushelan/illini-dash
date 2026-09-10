@@ -437,3 +437,89 @@ describe("assumed times in a merge", () => {
     expect(at("9/16 5:00 pm")!.timeAssumed).toBe(false);
   });
 });
+
+describe("adapter date grammar against real fa26 course pages (§4.5)", () => {
+  const TZ = "America/Chicago";
+  const REF = "2026-09-10T18:00:00.000Z";
+  const parse = (raw: string, format: string) => parseAdapterDateParts(raw, format, TZ, REF);
+  /** Local wall clock of the parsed instant, so the assertions read as a page does. */
+  const local = (iso: string) =>
+    new Date(iso).toLocaleString("en-US", {
+      timeZone: TZ,
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+  it("reads a time after @, which used to be dropped silently", () => {
+    // ECE 310 prints "09/04 @ 11:59pm". The format matched "09/04", ignored the
+    // rest, and reported timeAssumed — inventing 23:59 while the real cutoff
+    // sat unread in the same string. It landed on the right instant only by the
+    // coincidence that the invention and the truth agreed.
+    const at = parse("09/04 @ 11:59pm", "M/d")!;
+    expect(at.timeAssumed).toBe(false);
+    expect(local(at.iso)).toBe("Sep 04, 23:59");
+  });
+
+  it("reads a 24-hour time after 'at'", () => {
+    // ECE 391: "Due Friday, September 4 at 18:00 US Central time" — the trailing
+    // zone text is ignored, the time is not.
+    const at = parse("Friday, September 4 at 18:00 US Central time", "MMM d, h:mm a")!;
+    expect(at.timeAssumed).toBe(false);
+    expect(local(at.iso)).toBe("Sep 04, 18:00");
+  });
+
+  it("accepts a weekday prefix", () => {
+    // CS 374 prints "Tue Sep 08"; CS 357's own page prints "Tue, Sep 08".
+    expect(local(parse("Tue Sep 08", "MMM d, h:mm a")!.iso)).toBe("Sep 08, 23:59");
+    expect(local(parse("Tue, Sep 08", "MMM d, h:mm a")!.iso)).toBe("Sep 08, 23:59");
+    expect(parse("Tue Sep 08", "MMM d, h:mm a")!.timeAssumed).toBe(true);
+  });
+
+  it("accepts an ISO date with a 24-hour time", () => {
+    const at = parse("2026-09-11 23:59", "yyyy-MM-dd")!;
+    expect(at.timeAssumed).toBe(false);
+    expect(local(at.iso)).toBe("Sep 11, 23:59");
+  });
+
+  it("refuses to guess an ambiguous bare time, and records it", () => {
+    // "5:00" could be either. Reading it as 05:00 would move a 5 PM deadline
+    // twelve hours earlier while looking exactly like a stated time.
+    const at = parse("Sep 11 at 5:00", "MMM d, h:mm a")!;
+    expect(at.timeAssumed).toBe(true);
+    expect(at.unparsedTime).toBe("5:00");
+  });
+
+  it("accepts a leading-zero hour as 24-hour, which is unambiguous", () => {
+    // Nobody writes an evening deadline as "09:00".
+    const at = parse("Sep 11 at 09:00", "MMM d, h:mm a")!;
+    expect(at.timeAssumed).toBe(false);
+    expect(local(at.iso)).toBe("Sep 11, 09:00");
+  });
+
+  it("still assumes 23:59 when the page really states no time", () => {
+    const at = parse("Sep 11", "MMM d, h:mm a")!;
+    expect(at.timeAssumed).toBe(true);
+    expect(at.unparsedTime).toBeUndefined();
+    expect(local(at.iso)).toBe("Sep 11, 23:59");
+  });
+
+  it("ignores trailing text that is not a time", () => {
+    const at = parse("Sep 11 (no late work accepted)", "MMM d, h:mm a")!;
+    expect(at.unparsedTime).toBeUndefined();
+    expect(at.timeAssumed).toBe(true);
+  });
+
+  it("records a tail that looks like a time it could not read", () => {
+    expect(parse("Sep 11 — due by 11:59 pm sharp", "MMM d, h:mm a")!.unparsedTime).toContain(
+      "11:59",
+    );
+  });
+
+  it("keeps a 12-hour time with a meridiem working", () => {
+    expect(local(parse("Sep 11, 11:59 pm", "MMM d, h:mm a")!.iso)).toBe("Sep 11, 23:59");
+    expect(local(parse("September 11 at 5pm", "MMM d, h:mm a")!.iso)).toBe("Sep 11, 17:00");
+  });
+});
