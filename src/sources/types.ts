@@ -77,6 +77,14 @@ export interface Item {
   status: Status;
   hidden: boolean;
   /**
+   * Ticked off by the student, as opposed to reported finished by a source.
+   *
+   * Kept separate from `status` rather than folded into it: what the source
+   * says stays what the source says, so a row the student marked done that
+   * Gradescope later reports as `missing` can still be surfaced.
+   */
+  done: boolean;
+  /**
    * ISO timestamp per lead that has already fired.
    *
    * `late24h` / `late2h` are separate keys on purpose: they aim at the
@@ -151,6 +159,20 @@ export interface Overrides {
   hiddenKeys: string[];
   /** courseCodes or courseRaw values. */
   disabledCourses: string[];
+  /**
+   * memberKeys the student ticked off by hand.
+   *
+   * Two of the five sources can never say "done": a course-site row is emitted
+   * with `status: "unknown"` forever, and a Canvas assignment handed in on
+   * paper stays `not_submitted` until someone grades it. Without this the only
+   * way to clear such a row was Hide, which is permanent, lives in the options
+   * page, and means "I do not want to see this" rather than "I did it".
+   *
+   * Keyed by memberKey like `hiddenKeys`, and pruned by §5.4 for the same
+   * reason: an id-keyed override is spent the moment a second source mirrors
+   * the row, and the stale key stays armed forever.
+   */
+  doneKeys: string[];
 }
 
 export interface Settings {

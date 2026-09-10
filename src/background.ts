@@ -29,6 +29,8 @@ import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
   hideItem,
+  markDone,
+  markNotDone,
   mergeItems,
   setCourseDisabled,
   splitItem,
@@ -402,6 +404,8 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
     if (action.kind === "hide" && item) store.overrides = hideItem(store.overrides, item);
     else if (action.kind === "unhide" && item) store.overrides = unhideItem(store.overrides, item);
     else if (action.kind === "split" && item) store.overrides = splitItem(store.overrides, item);
+    else if (action.kind === "done" && item) store.overrides = markDone(store.overrides, item);
+    else if (action.kind === "undone" && item) store.overrides = markNotDone(store.overrides, item);
     else if (action.kind === "merge" && item) {
       const other = store.items.find((candidate) => candidate.id === action.otherItemId);
       if (other) store.overrides = mergeItems(store.overrides, item, other);
@@ -520,6 +524,9 @@ chrome.runtime.onMessage.addListener(
           itemCount: store.items.length,
           hiddenItems: store.items
             .filter((item) => item.hidden)
+            .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
+          doneItems: store.items
+            .filter((item) => item.done)
             .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
           lastSyncAt: store.lastSyncAt,
         }) as const),

@@ -29,6 +29,7 @@ function item(partial: Partial<Item> = {}): Item {
     url: "https://example.invalid/",
     status: "not_submitted",
     hidden: false,
+    done: false,
     notified: {},
     ...partial,
   };
@@ -292,5 +293,37 @@ describe("times this extension invented (§4.5, worker rule 3)", () => {
 
   it("leaves a stated time alone", () => {
     expect(formatDue(item({ dueAt: at(2026, 8, 18, 17) }), NOW)).toContain("5:00");
+  });
+});
+
+describe("a row the student ticked off", () => {
+  const ticked = (partial: Partial<Item> = {}) =>
+    item({
+      dueAt: at(2026, 8, 11),
+      done: true,
+      // A course-site row: `unknown` forever, so no source will ever finish it.
+      members: [{ ...member("unknown"), source: "site" }],
+      ...partial,
+    });
+
+  it("leaves the list", () => {
+    expect(groupItems([ticked()], NOW, DEFAULT_SETTINGS)).toEqual([]);
+  });
+
+  it("leaves it even with hideSubmitted off, because a tick is not a source report", () => {
+    // `hideSubmitted` decides whether to trust what a *source* says. The
+    // student's own tick is not a report, so it is not governed by that switch.
+    expect(groupItems([ticked()], NOW, { ...DEFAULT_SETTINGS, hideSubmitted: false })).toEqual([]);
+  });
+
+  it("comes back when a source says the work is missing", () => {
+    const contradicted = ticked({ members: [member("missing")] });
+    expect(groupItems([contradicted], NOW, DEFAULT_SETTINGS)).toHaveLength(1);
+  });
+
+  it("never removes a booking row, whose window closes regardless", () => {
+    expect(
+      groupItems([ticked({ kind: "booking" })], NOW, DEFAULT_SETTINGS),
+    ).toHaveLength(1);
   });
 });

@@ -49,6 +49,7 @@ function item(partial: Partial<Item> = {}): Item {
     url: "https://us.prairielearn.com/",
     status: "not_submitted",
     hidden: false,
+    done: false,
     notified: {},
     ...partial,
   };

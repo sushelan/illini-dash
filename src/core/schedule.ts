@@ -8,7 +8,7 @@
  * the ones that do.
  */
 
-import { isItemDone } from "./dedupe.js";
+import { isItemDone, isTickedDone } from "./dedupe.js";
 import { liveDeadline } from "./grouping.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -109,9 +109,9 @@ export interface PlannedNotification {
   superseded: Lead[];
 }
 
-/** §7: never notify about something hidden, finished, or already notified. */
+/** §7: never notify about something hidden, finished, ticked off, or already notified. */
 function isEligible(item: Item): boolean {
-  return !item.hidden && !isItemDone(item);
+  return !item.hidden && !isItemDone(item) && !isTickedDone(item);
 }
 
 /**

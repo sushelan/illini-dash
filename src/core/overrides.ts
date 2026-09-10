@@ -40,6 +40,24 @@ export function unhideItem(overrides: Overrides, item: Item): Overrides {
 }
 
 /**
+ * The student's own tick, independent of what any source reports.
+ *
+ * Every member is marked, so a row that later merges with a second source stays
+ * done rather than resurrecting — the same reason `hideItem` marks them all.
+ */
+export function markDone(overrides: Overrides, item: Item): Overrides {
+  return {
+    ...overrides,
+    doneKeys: [...new Set([...overrides.doneKeys, ...memberKeysOf(item)])],
+  };
+}
+
+export function markNotDone(overrides: Overrides, item: Item): Overrides {
+  const keys = new Set(memberKeysOf(item));
+  return { ...overrides, doneKeys: overrides.doneKeys.filter((key) => !keys.has(key)) };
+}
+
+/**
  * §5.3: pull an item's members apart into singletons.
  *
  * Every member is marked, not just one, because a three-way group split by one

@@ -267,7 +267,7 @@ function carryNotified(before: Item, item: Item): Item["notified"] {
   return carried;
 }
 
-function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
+function buildItem(members: RawItem[], hiddenKeys: Set<string>, doneKeys: Set<string>): Item {
   const ranked = byPrecedence(members);
   const keys = members.map((item) => memberKey(item.source, item.sourceId));
   const id = itemId(keys);
@@ -309,6 +309,9 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
     // Hidden when every member is: hiding a row and then having a second source
     // mirror it should keep it hidden, not resurrect it.
     hidden: keys.length > 0 && keys.every((key) => hiddenKeys.has(key)),
+    // Every member, like `hidden`: ticking a row off and then having a second
+    // source mirror it should keep it done, not resurrect it.
+    done: keys.length > 0 && keys.every((key) => doneKeys.has(key)),
     notified: {},
   };
 }
@@ -384,6 +387,7 @@ export function dedupe(
   }
 
   const hidden = new Set(overrides.hiddenKeys);
+  const done = new Set(overrides.doneKeys);
   const previousById = new Map((options.previous ?? []).map((item) => [item.id, item]));
   // A split, merge or re-enabled course produces a *new* id for the same work,
   // which would miss the id lookup below, come back with an empty `notified`,
@@ -396,7 +400,7 @@ export function dedupe(
   }
 
   const built = [...groups.values()].map((members) => {
-    const item = buildItem(members, hidden);
+    const item = buildItem(members, hidden, done);
     // An unchanged group keeps its id, and with it what it has already fired —
     // otherwise every sync would re-notify every item (§5.3, §7).
     const before = previousById.get(item.id);
@@ -514,6 +518,9 @@ export function applyRetention(
       // Pruned like the rest. Left unpruned, a key for purged work stays armed
       // forever — which is what the docstring above already promised.
       hiddenKeys: overrides.hiddenKeys.filter(survives),
+      // Same rule: an unpruned key for purged work stays armed forever and
+      // would silently re-tick any future row that reformed the same members.
+      doneKeys: overrides.doneKeys.filter(survives),
       mergeGroups: overrides.mergeGroups
         .map((group) => group.filter(survives))
         .filter((group) => group.length >= 2),
@@ -529,6 +536,24 @@ export function applyRetention(
  * it is still outstanding — the defect that hid real deadlines from the popup.
  * §7 must not silence a reminder for the same reason, so both callers use this.
  */
+/**
+ * Whether a source flatly contradicts the student's own tick.
+ *
+ * A hand-ticked row that Gradescope later reports as `missing` must come back.
+ * Without this the tick is a one-way door: the student says "done", the source
+ * says "nothing was submitted", and the extension believes the student —
+ * silently, which is the failure §11 calls catastrophic, one level down and
+ * with the student's own click as the cause.
+ */
+export function contradictsDone(item: Item): boolean {
+  return item.members.some((member) => member.status === "missing");
+}
+
+/** Ticked off by hand, and no source disagrees. */
+export function isTickedDone(item: Item): boolean {
+  return item.done && !contradictsDone(item);
+}
+
 export function isItemDone(item: Item): boolean {
   const done = (status: Status) => status === "submitted" || status === "graded";
   if (item.members.length === 0) return done(item.status);

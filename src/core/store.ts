@@ -105,7 +105,7 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [] },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [] },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
@@ -180,6 +180,7 @@ function migrateOverrides(stored: unknown): Overrides {
     splitKeys: [],
     hiddenKeys: [],
     disabledCourses: [],
+    doneKeys: [],
   };
   if (!stored || typeof stored !== "object") return base;
   const value = stored as Record<string, unknown>;
@@ -193,6 +194,9 @@ function migrateOverrides(stored: unknown): Overrides {
     splitKeys: strings(value["splitKeys"]),
     hiddenKeys: strings(value["hiddenKeys"]),
     disabledCourses: strings(value["disabledCourses"]),
+    // Absent in stores written before the tick-off existed, which is why every
+    // field here is filled in rather than switched on `schemaVersion`.
+    doneKeys: strings(value["doneKeys"]),
   };
 }
 

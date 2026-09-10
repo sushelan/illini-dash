@@ -12,8 +12,10 @@ import { describe, expect, it } from "vitest";
 import { isSubsetOf, jaccard, normalizeTitle } from "../src/core/normalize.js";
 import {
   applyRetention,
+  contradictsDone,
   datesCompatible,
   dedupe,
+  isTickedDone,
   itemId,
   sameCourse,
   shouldMerge,
@@ -26,6 +28,7 @@ const NO_OVERRIDES: Overrides = {
   splitKeys: [],
   hiddenKeys: [],
   disabledCourses: [],
+  doneKeys: [],
 };
 
 function raw(partial: Partial<RawItem> & Pick<RawItem, "source" | "sourceId" | "title">): RawItem {
@@ -542,5 +545,80 @@ describe("sort order for invented times", () => {
     });
     const sorted = dedupe([invented, stated], NO_OVERRIDES);
     expect(sorted.map((i) => i.title)).toEqual(["Zebra homework", "Alpha homework"]);
+  });
+});
+
+describe("the student's own tick (doneKeys)", () => {
+  const siteRow = () =>
+    raw({
+      source: "site",
+      sourceId: "cs424:hw1",
+      title: "Homework 1",
+      dueAt: "2026-09-18T23:59:00-05:00",
+      // §4.5's runner emits every course-site row as `unknown` forever, which is
+      // why a hand tick is the only way such a row can ever be finished.
+      status: "unknown",
+    });
+
+  it("marks the item done when every member key is ticked", () => {
+    const done = dedupe([siteRow()], { ...NO_OVERRIDES, doneKeys: ["site:cs424:hw1"] });
+    expect(done[0]!.done).toBe(true);
+  });
+
+  it("does not mark a merged row done when only one half was ticked", () => {
+    const cv = raw({
+      source: "canvas",
+      sourceId: "assignment:9",
+      title: "Homework 1",
+      dueAt: "2026-09-18T23:59:00-05:00",
+    });
+    const merged = dedupe([siteRow(), cv], { ...NO_OVERRIDES, doneKeys: ["site:cs424:hw1"] });
+    expect(merged[0]!.members).toHaveLength(2);
+    expect(merged[0]!.done).toBe(false);
+  });
+
+  it("lets a source contradict the tick when it says the work is missing", () => {
+    // Otherwise the tick is a one-way door: the student says done, Gradescope
+    // says nothing was submitted, and the extension believes the student.
+    const missing = raw({
+      source: "gradescope",
+      sourceId: "7",
+      title: "Homework 1",
+      dueAt: "2026-09-18T23:59:00-05:00",
+      status: "missing",
+    });
+    const item = dedupe([missing], { ...NO_OVERRIDES, doneKeys: ["gradescope:7"] })[0]!;
+    expect(item.done).toBe(true);
+    expect(contradictsDone(item)).toBe(true);
+    expect(isTickedDone(item)).toBe(false);
+  });
+
+  it("prunes a tick whose work §5.4 purged, so it cannot re-arm later", () => {
+    // Pruned like `hiddenKeys`, and by the same rule: a key for work that has
+    // aged out stays armed forever otherwise, silently re-ticking any future row
+    // that happens to reform the same member set.
+    const stale = { ...NO_OVERRIDES, doneKeys: ["gradescope:gone", "gradescope:kept"] };
+    const kept = raw({
+      source: "gradescope",
+      sourceId: "kept",
+      title: "Kept",
+      dueAt: "2026-09-18T23:59:00-05:00",
+    });
+    const gone = raw({
+      source: "gradescope",
+      sourceId: "gone",
+      title: "Gone",
+      // Past §5.4's 60-day purge horizon.
+      dueAt: "2026-05-01T17:00:00-05:00",
+    });
+    const result = applyRetention(
+      { "gradescope:kept": kept, "gradescope:gone": gone },
+      new Set(["gradescope:kept", "gradescope:gone"]),
+      {},
+      stale,
+      "2026-09-10T18:00:00.000Z",
+    );
+    expect(result.purged).toEqual(["gradescope:gone"]);
+    expect(result.overrides.doneKeys).toEqual(["gradescope:kept"]);
   });
 });

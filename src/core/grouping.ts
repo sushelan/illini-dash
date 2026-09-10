@@ -6,7 +6,7 @@
  * in the renderer.
  */
 
-import { isItemDone } from "./dedupe.js";
+import { isItemDone, isTickedDone } from "./dedupe.js";
 import type { Item, Settings } from "../sources/types.js";
 
 export type SectionName =
@@ -137,6 +137,11 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
 
   for (const item of items) {
     if (item.hidden) continue;
+    // The student's own tick, which is not conditional on `hideSubmitted`: that
+    // setting is about trusting what a *source* reports, and this is not a
+    // report. It is overridden when a source says the work is missing, so the
+    // tick cannot silently swallow a real deadline.
+    if (item.kind !== "booking" && isTickedDone(item)) continue;
     if (settings.hideSubmitted && item.kind !== "booking" && isItemDone(item)) continue;
     const section = sectionFor(item, now);
     if (section) buckets.get(section)!.push(item);

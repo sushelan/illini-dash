@@ -32,6 +32,7 @@ function item(partial: Partial<Item> = {}): Item {
     url: "https://www.gradescope.com/courses/1/assignments/2",
     status: "not_submitted",
     hidden: false,
+    done: false,
     notified: {},
     dueAt: "2026-09-11T22:00:00.000Z",
     ...partial,

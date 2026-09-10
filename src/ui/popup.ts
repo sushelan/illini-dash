@@ -240,6 +240,21 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
     menu.append(entry);
   };
 
+  // First, because it is the one a student reaches for most: two of the five
+  // sources can never report completion, so without it a finished course-site
+  // row sits in Needs attention for a week with only Hide as an escape.
+  add(item.done ? "Not done" : "Mark done", () => {
+    void send({
+      type: "override",
+      action: { kind: item.done ? "undone" : "done", itemId: item.id },
+    })
+      .then(reportOverride)
+      .then(() => {
+        closeMenus();
+        void refresh();
+      });
+  });
+
   add(item.hidden ? "Unhide" : "Hide", () => {
     void send({
       type: "override",

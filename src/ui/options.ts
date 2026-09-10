@@ -721,6 +721,25 @@ async function refreshOptions(): Promise<void> {
     row.append(unhide);
     hidden.append(row);
   }
+
+  /* Ticked off by hand — the only way back for a row the popup no longer shows */
+  const done = document.getElementById("done")!;
+  done.replaceChildren();
+  if (state.doneItems.length === 0) {
+    done.append(el("p", "Nothing ticked off.", "muted"));
+  }
+  for (const item of state.doneItems) {
+    const row = el("div", undefined, "opt-row");
+    row.append(el("span", `${item.courseLabel} — ${item.title}`));
+    const undo = el("button", "Not done");
+    undo.addEventListener("click", () => {
+      void send({ type: "override", action: { kind: "undone", itemId: item.id } }).then(
+        refreshOptions,
+      );
+    });
+    row.append(undo);
+    done.append(row);
+  }
 }
 
 /**

@@ -47,7 +47,9 @@ export type OverrideAction =
   | { kind: "hide"; itemId: string }
   | { kind: "unhide"; itemId: string }
   | { kind: "split"; itemId: string }
-  | { kind: "merge"; itemId: string; otherItemId: string };
+  | { kind: "merge"; itemId: string; otherItemId: string }
+  | { kind: "done"; itemId: string }
+  | { kind: "undone"; itemId: string };
 
 export type Response =
   | { type: "pong"; at: string; buildId: string }
@@ -79,6 +81,7 @@ export type Response =
       overrides: Overrides;
       itemCount: number;
       hiddenItems: { id: string; title: string; courseLabel: string }[];
+      doneItems: { id: string; title: string; courseLabel: string }[];
       lastSyncAt?: string;
     }
   | { type: "ok" }

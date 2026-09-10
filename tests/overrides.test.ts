@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 import {
   courseSummaries,
   hideItem,
+  markDone,
+  markNotDone,
   memberKeysOf,
   mergeItems,
   setCourseDisabled,
@@ -22,6 +24,7 @@ const NO_OVERRIDES: Overrides = {
   splitKeys: [],
   hiddenKeys: [],
   disabledCourses: [],
+  doneKeys: [],
 };
 
 function raw(source: RawItem["source"], sourceId: string, title: string, dueAt?: string): RawItem {
@@ -232,5 +235,28 @@ describe("a regrouped item keeps what it already fired (§7)", () => {
       "24h": "2026-09-10T18:00:00.000Z",
       "2h": "2026-09-10T19:00:00.000Z",
     });
+  });
+});
+
+describe("marking work done by hand", () => {
+  it("marks every member, so a later merge does not resurrect the row", () => {
+    const item = {
+      id: "x",
+      members: [
+        { source: "site", sourceId: "cs424:1" },
+        { source: "canvas", sourceId: "assignment:9" },
+      ],
+    } as unknown as Parameters<typeof markDone>[1];
+    const after = markDone(NO_OVERRIDES, item);
+    expect(after.doneKeys.sort()).toEqual(["canvas:assignment:9", "site:cs424:1"]);
+  });
+
+  it("undoes cleanly and leaves other keys alone", () => {
+    const item = {
+      id: "x",
+      members: [{ source: "site", sourceId: "cs424:1" }],
+    } as unknown as Parameters<typeof markDone>[1];
+    const done = markDone({ ...NO_OVERRIDES, doneKeys: ["gradescope:7"] }, item);
+    expect(markNotDone(done, item).doneKeys).toEqual(["gradescope:7"]);
   });
 });

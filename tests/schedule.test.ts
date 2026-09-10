@@ -42,6 +42,7 @@ function item(partial: Partial<Item> = {}): Item {
     url: "https://www.gradescope.com/courses/1/assignments/2",
     status: "not_submitted",
     hidden: false,
+    done: false,
     notified: {},
     ...partial,
   };
@@ -514,5 +515,22 @@ describe("reminders for a time this extension invented (§4.5, worker rule 3)", 
 
   it("round-trips dayOf through the alarm name", () => {
     expect(parseAlarmName(alarmName("abc", "dayOf"))).toEqual({ itemId: "abc", lead: "dayOf" });
+  });
+});
+
+describe("reminders for work the student ticked off", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+  const soon = new Date(2026, 8, 11, 17).toISOString();
+
+  it("plans nothing once it is ticked", () => {
+    const ticked = item({ dueAt: soon, done: true, members: [member("unknown")] });
+    expect(planNotifications([ticked], quiet, new Date(2026, 8, 10, 12))).toEqual([]);
+  });
+
+  it("still reminds when a source says the work is missing", () => {
+    // The tick must not be able to silence a deadline the source says is
+    // outstanding — that would be a silent miss the student caused themselves.
+    const contradicted = item({ dueAt: soon, done: true, members: [member("missing")] });
+    expect(planNotifications([contradicted], quiet, new Date(2026, 8, 10, 12)).length).toBeGreaterThan(0);
   });
 });
