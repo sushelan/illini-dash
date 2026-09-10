@@ -76,7 +76,15 @@ export interface Item {
   url: string;
   status: Status;
   hidden: boolean;
-  notified: Partial<Record<"24h" | "2h" | "booking", string>>;
+  /**
+   * ISO timestamp per lead that has already fired.
+   *
+   * `late24h` / `late2h` are separate keys on purpose: they aim at the
+   * reduced-credit window rather than the full-credit deadline, and sharing a
+   * key with the full-credit lead meant the late reminder was suppressed as
+   * already-sent — silencing the one deadline the student could still meet.
+   */
+  notified: Partial<Record<"24h" | "2h" | "booking" | "late24h" | "late2h", string>>;
   /**
    * True when the instant in `dueAt` carries a time this extension invented
    * rather than one the source printed (§4.5's runner fills in 23:59 for a

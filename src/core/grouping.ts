@@ -63,15 +63,51 @@ function instantOf(item: Item): string | undefined {
   return item.dueAt ?? item.lateDueAt;
 }
 
+export interface LiveDeadline {
+  /** Epoch ms of the deadline that still matters. */
+  at: number;
+  /** True when it is the reduced-credit / late window rather than full credit. */
+  late: boolean;
+}
+
+/**
+ * The deadline the student can still act on.
+ *
+ * `dueAt ?? lateDueAt` was wrong for the shape both Gradescope and PrairieLearn
+ * produce most often: full-credit deadline passed, late window still open. The
+ * row read "Wed 5:00 PM · 1d ago" in overdue red, planned no reminder for the
+ * date that was still live, and fell out of the list seven days later — while
+ * Gradescope was still accepting the work and PrairieLearn was still paying 80%
+ * for it. Saying "too late" when it is not is the same class of harm as saying
+ * nothing at all (§11).
+ *
+ * Once *both* are behind, the full-credit instant is what the overdue window is
+ * measured from, because that is the deadline the student actually missed.
+ */
+export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
+  const parse = (raw: string | undefined) => {
+    if (raw === undefined) return undefined;
+    const at = Date.parse(raw);
+    return Number.isNaN(at) ? undefined : at;
+  };
+  const due = parse(item.dueAt);
+  const late = parse(item.lateDueAt);
+
+  if (due !== undefined && due > now.getTime()) return { at: due, late: false };
+  if (late !== undefined && late > now.getTime()) return { at: late, late: true };
+  if (due !== undefined) return { at: due, late: false };
+  if (late !== undefined) return { at: late, late: true };
+  return undefined;
+}
+
 export function sectionFor(item: Item, now: Date): SectionName | undefined {
   // §8.1: booking items always lead, because the window closes whether or not
   // the student has looked, and §7 nags daily until it is gone.
   if (item.kind === "booking") return "Needs attention";
 
-  const instant = instantOf(item);
-  if (instant === undefined) return undefined;
-  const due = Date.parse(instant);
-  if (Number.isNaN(due)) return undefined;
+  const live = liveDeadline(item, now);
+  if (live === undefined) return undefined;
+  const due = live.at;
 
   const today = startOfDay(now);
   if (due < now.getTime()) {
@@ -141,6 +177,26 @@ export function formatDue(item: Item, now: Date): string {
     hour: "numeric",
     minute: "2-digit",
   });
+
+  // Full credit gone, late window still open: Gradescope's "Accepting late
+  // submissions until…" and PrairieLearn's next credit tier. The row used to
+  // read "1d ago" in overdue red for this, which is the opposite of the truth.
+  const live = liveDeadline(item, now);
+  if (live?.late && live.at > now.getTime()) {
+    const until = new Date(live.at).toLocaleString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
+      "creditRemaining"
+    ];
+    const left = Math.ceil((live.at - now.getTime()) / 86_400_000);
+    const remaining = left <= 1 ? "today" : `${left}d left`;
+    return credit ? `${credit}% until ${until} · ${remaining}` : `late until ${until} · ${remaining}`;
+  }
 
   // §4.3's own wording for a row whose full-credit deadline has passed.
   if (item.dueAt === undefined) {

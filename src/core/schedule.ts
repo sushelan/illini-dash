@@ -9,13 +9,33 @@
  */
 
 import { isItemDone } from "./dedupe.js";
+import { liveDeadline } from "./grouping.js";
 import type { Item, Settings } from "../sources/types.js";
 
-export type Lead = "24h" | "2h" | "booking";
+/**
+ * `late24h` / `late2h` are the same two lead times aimed at a reduced-credit or
+ * late window rather than the full-credit deadline.
+ *
+ * They need their own names because `notified` is keyed by lead: once the 24h
+ * reminder had been spent on the full-credit deadline, reusing that key for the
+ * late window meant the late reminder was suppressed as already-sent, which is
+ * precisely the deadline the student still has a chance to meet.
+ */
+export type Lead = "24h" | "2h" | "booking" | "late24h" | "late2h";
 
-const LEAD_MS: Record<"24h" | "2h", number> = {
+type TimedLead = "24h" | "2h" | "late24h" | "late2h";
+
+const LEAD_MS: Record<TimedLead, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "2h": 2 * 60 * 60 * 1000,
+  late24h: 24 * 60 * 60 * 1000,
+  late2h: 2 * 60 * 60 * 1000,
+};
+
+/** The late-window counterpart of each configured lead time. */
+const LATE_LEAD: Record<"24h" | "2h", "late24h" | "late2h"> = {
+  "24h": "late24h",
+  "2h": "late2h",
 };
 
 /** §7: the daily booking nag fires at 10:00 local. */
@@ -28,7 +48,7 @@ export function alarmName(itemId: string, lead: Lead): string {
 }
 
 export function parseAlarmName(name: string): { itemId: string; lead: Lead } | undefined {
-  const match = /^notify:(.+):(24h|2h|booking)$/.exec(name);
+  const match = /^notify:(.+):(late24h|late2h|24h|2h|booking)$/.exec(name);
   if (!match) return undefined;
   return { itemId: match[1]!, lead: match[2] as Lead };
 }
@@ -143,7 +163,7 @@ function collapseOverdue(plans: PlannedNotification[]): PlannedNotification[] {
 
   // Most urgent = smallest lead window = closest to the deadline.
   const ranked = [...overdue].sort(
-    (a, b) => (LEAD_MS[a.lead as "24h" | "2h"] ?? 0) - (LEAD_MS[b.lead as "24h" | "2h"] ?? 0),
+    (a, b) => (LEAD_MS[a.lead as TimedLead] ?? 0) - (LEAD_MS[b.lead as TimedLead] ?? 0),
   );
   const survivor = ranked[0]!;
   const replaced = ranked.slice(1).map((plan) => plan.lead);
@@ -181,18 +201,20 @@ export function planNotifications(
       continue;
     }
 
-    // §4.3 / §8.1: an item whose only instant is `lateDueAt` is still live —
-    // grouping.ts and ics.ts both resolve the pair this way, and both parsers
-    // emit that shape. Reading `dueAt` alone silences a real deadline.
-    const deadline = item.dueAt ?? item.lateDueAt;
-    if (deadline === undefined) continue;
-    const due = Date.parse(deadline);
-    if (Number.isNaN(due)) continue;
+    // §4.3 / §8.1: the deadline that is still ahead, which is the late or
+    // reduced-credit window once full credit has passed. `dueAt ?? lateDueAt`
+    // returned the *expired* full-credit instant for the commonest Gradescope
+    // and PrairieLearn shape, so the loop bailed out one line later and planned
+    // nothing at all for a window the student could still meet.
+    const live = liveDeadline(item, now);
+    if (live === undefined) continue;
+    const due = live.at;
     // §7: past the deadline, a reminder is noise. Nothing fires stale.
     if (due <= now.getTime()) continue;
 
     const forItem: PlannedNotification[] = [];
-    for (const lead of settings.leadTimes) {
+    for (const setting of settings.leadTimes) {
+      const lead: TimedLead = live.late ? LATE_LEAD[setting] : setting;
       if (item.notified[lead] !== undefined) continue;
       const moment = new Date(due - LEAD_MS[lead]);
       const overdue = moment.getTime() <= now.getTime();
@@ -303,8 +325,17 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
     ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
     : "";
   // §4.3: a reduced-credit window is not a due date, and must not be worded as
-  // one — the same care §4.4 takes with a booking.
-  const kindWord = item.dueAt === undefined ? "reduced credit" : "due";
+  // one — the same care §4.4 takes with a booking. A late lead is by definition
+  // about that window, whether or not `dueAt` survived.
+  const isLate = lead === "late24h" || lead === "late2h";
+  const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.["creditRemaining"];
+  const kindWord = isLate
+    ? credit
+      ? `${credit}% credit until`
+      : "late window closes"
+    : item.dueAt === undefined
+      ? "reduced credit"
+      : "due";
   return {
     title: `${item.courseLabel} — ${kindWord} ${urgency(due, now)}`,
     message: `${item.title}${when ? `\n${when}` : ""}`,

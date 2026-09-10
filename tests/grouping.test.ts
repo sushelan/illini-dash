@@ -1,7 +1,7 @@
 /** §8.1's sections. The boundaries are the part that goes quietly wrong. */
 
 import { describe, expect, it } from "vitest";
-import { formatDue, groupItems, sectionFor } from "../src/core/grouping.js";
+import { formatDue, groupItems, liveDeadline, sectionFor } from "../src/core/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
 import type { Item, RawItem, Status } from "../src/sources/types.js";
 
@@ -179,11 +179,16 @@ describe("regressions found by the dedupe/sync review", () => {
     expect(formatDue(late, NOW)).toMatch(/^80% until /);
   });
 
-  it("labels a late-due row without a credit figure as a late due date", () => {
+  it("labels a late-due row without a credit figure as a still-open late window", () => {
     // Gradescope reaches this shape when a row's only <time> is its late date.
+    // Wording changed deliberately from "late due Sat 12:00 PM": while the
+    // window is still open the fact the student acts on is how much of it is
+    // left, and the date has to carry a month because it is not this week's
+    // weekday any more.
     const late = item({ lateDueAt: at(2026, 8, 12), members: [member("not_submitted")] });
     expect(sectionFor(late, NOW)).toBe("This week");
-    expect(formatDue(late, NOW)).toMatch(/^late due /);
+    expect(formatDue(late, NOW)).toMatch(/^late until /);
+    expect(formatDue(late, NOW)).toMatch(/2d left$/);
   });
 });
 
@@ -197,5 +202,64 @@ describe("formatDue", () => {
   it("says so when there is no date", () => {
     expect(formatDue(item({}), NOW)).toBe("no date");
     expect(formatDue(item({ dueAt: "nonsense" }), NOW)).toBe("no date");
+  });
+});
+
+describe("a late window that is still open (§4.2, §4.3)", () => {
+  // The real Gradescope shape: PHYS 435 Homework 2 was due Wed Sep 9 at 5 PM
+  // and Gradescope accepts it until Wed Sep 16 at 5 PM. NOW is Thu Sep 10.
+  const gradescopeLate = item({
+    dueAt: at(2026, 8, 9, 17),
+    lateDueAt: at(2026, 8, 16, 17),
+    members: [member("not_submitted")],
+  });
+
+  it("counts down to the deadline that is still ahead, not the one that passed", () => {
+    const live = liveDeadline(gradescopeLate, NOW);
+    expect(live?.late).toBe(true);
+    expect(live?.at).toBe(Date.parse(at(2026, 8, 16, 17)));
+  });
+
+  it("sections the row by the open window rather than parking it in Needs attention", () => {
+    // It used to read "Wed 5:00 PM · 1d ago" in overdue red.
+    expect(sectionFor(gradescopeLate, NOW)).toBe("Later");
+  });
+
+  it("says the window is open and how long is left", () => {
+    expect(formatDue(gradescopeLate, NOW)).toMatch(/^late until /);
+    expect(formatDue(gradescopeLate, NOW)).toMatch(/6d left$/);
+  });
+
+  it("keeps the row past the 7-day overdue window while the late window is open", () => {
+    // The defect: CS 357 L4a and HW4a vanished from the list seven days after
+    // the full-credit deadline while 80% credit ran for another week. Full
+    // credit went on Sep 8, 80% runs to Sep 22, and this is Sep 17 — nine days
+    // past the old drop point, five days before the money actually runs out.
+    const plLadder = item({
+      dueAt: at(2026, 8, 8, 11),
+      lateDueAt: at(2026, 8, 22, 23),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    const nineDaysLater = new Date(2026, 8, 17, 12);
+    expect(sectionFor(plLadder, nineDaysLater)).toBe("Later");
+    expect(formatDue(plLadder, nineDaysLater)).toMatch(/^80% until /);
+  });
+
+  it("falls back to the full-credit instant once both have passed", () => {
+    const after = new Date(2026, 8, 20, 12);
+    const live = liveDeadline(gradescopeLate, after);
+    // The deadline the student actually missed is the one the overdue window is
+    // measured from, so a row does not linger a second week on its late date.
+    expect(live?.late).toBe(false);
+    expect(sectionFor(gradescopeLate, after)).toBeUndefined();
+  });
+
+  it("shows the credit figure when PrairieLearn gives one", () => {
+    const pl = item({
+      dueAt: at(2026, 8, 8, 11),
+      lateDueAt: at(2026, 8, 22, 23),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(formatDue(pl, NOW)).toMatch(/^80% until /);
   });
 });

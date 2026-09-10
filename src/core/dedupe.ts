@@ -250,6 +250,11 @@ function carryNotified(before: Item, item: Item): Item["notified"] {
   const carried = { ...before.notified };
   delete carried["24h"];
   delete carried["2h"];
+  // The late-window leads aim at their own instant, and `effectiveInstant`
+  // resolves to it once full credit has passed — so a moved late window has to
+  // re-arm them for the same reason.
+  delete carried["late24h"];
+  delete carried["late2h"];
 
   // Say so in the UI only when the source stated both instants. An assumed
   // 23:59 turning into a real 5 PM is this extension correcting its own

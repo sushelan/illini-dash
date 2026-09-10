@@ -405,3 +405,60 @@ describe("urgency", () => {
     expect(urgency(undefined, now)).toBe("soon");
   });
 });
+
+describe("reminders for a late window (§4.2, §4.3)", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+  // Full credit gone Wednesday, Gradescope still accepting until next Wednesday.
+  const late = () =>
+    item({
+      dueAt: new Date(2026, 8, 9, 17).toISOString(),
+      lateDueAt: new Date(2026, 8, 16, 17).toISOString(),
+    });
+
+  it("plans reminders for the window that is still open", () => {
+    // The defect: `dueAt ?? lateDueAt` returned the expired full-credit instant,
+    // the loop bailed out on "past the deadline", and nothing was ever planned
+    // for the window the student could still meet.
+    const plans = planNotifications([late()], quiet, new Date(2026, 8, 10, 12));
+    expect(plans.map((p) => p.lead).sort()).toEqual(["late24h", "late2h"]);
+  });
+
+  it("is not suppressed by the full-credit lead having already fired", () => {
+    const item0 = late();
+    item0.notified = { "24h": "2026-09-08T17:00:00Z", "2h": "2026-09-09T20:00:00Z" };
+    const plans = planNotifications([item0], quiet, new Date(2026, 8, 10, 12));
+    expect(plans).toHaveLength(2);
+  });
+
+  it("words it as a closing window, never as a due date", () => {
+    const content = notificationContent(late(), "late24h", new Date(2026, 8, 15, 17));
+    expect(content.title).toContain("late window closes");
+    expect(content.title).not.toMatch(/— due /);
+  });
+
+  it("names the credit at stake when PrairieLearn stated one", () => {
+    const pl = item({
+      dueAt: new Date(2026, 8, 8, 11).toISOString(),
+      lateDueAt: new Date(2026, 8, 22, 23).toISOString(),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(notificationContent(pl, "late24h", new Date(2026, 8, 21, 23)).title).toContain(
+      "80% credit until",
+    );
+  });
+
+  it("round-trips the new lead names through the alarm name", () => {
+    expect(parseAlarmName(alarmName("abc", "late24h"))).toEqual({
+      itemId: "abc",
+      lead: "late24h",
+    });
+    expect(parseAlarmName(alarmName("abc", "late2h"))!.lead).toBe("late2h");
+    // The bare names must still parse to themselves rather than being eaten by
+    // the new alternation.
+    expect(parseAlarmName(alarmName("abc", "24h"))!.lead).toBe("24h");
+  });
+
+  it("stops once the late window has passed too", () => {
+    expect(planNotifications([late()], quiet, new Date(2026, 8, 20, 12))).toEqual([]);
+  });
+});

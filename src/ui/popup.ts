@@ -12,7 +12,7 @@ import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
-import { formatDue, groupItems, movedText } from "../core/grouping.js";
+import { formatDue, groupItems, liveDeadline, movedText } from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
@@ -146,8 +146,17 @@ function renderBlockedBanner(blocked: boolean): void {
 function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   const row = document.createElement("div");
   row.className = "row";
-  if (item.kind === "booking") row.classList.add("row-booking");
-  else if (item.dueAt && Date.parse(item.dueAt) < now.getTime()) row.classList.add("row-overdue");
+  if (item.kind === "booking") {
+    row.classList.add("row-booking");
+  } else {
+    // Overdue red is for work that can no longer be handed in. A row whose full
+    // credit has gone but whose late or reduced-credit window is still open is
+    // amber: it is late, not lost, and painting it red told the student to give
+    // up on something Gradescope was still accepting.
+    const live = liveDeadline(item, now);
+    if (live && live.at < now.getTime()) row.classList.add("row-overdue");
+    else if (live?.late) row.classList.add("row-late");
+  }
 
   const chip = document.createElement("span");
   chip.className = "chip";
