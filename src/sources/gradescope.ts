@@ -9,6 +9,7 @@
 
 import { isOlderThan, parseGradescopeDateTime, shortHash } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
+import { KeyGuard, looksLoggedOut, parseField, textOf } from "../core/parsing.js";
 import { ParseError, type PageCtx, type RawItem, type Status } from "./types.js";
 
 export const GRADESCOPE_ORIGIN = "https://www.gradescope.com";
@@ -35,21 +36,14 @@ export interface GradescopeCourse {
 /* -------------------------------------------------------------------------- */
 
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  if (status === 401 || status === 403) return true;
-  const url = finalUrl.toLowerCase();
-  if (url.includes("shibboleth") || url.includes("login.illinois.edu")) return true;
   // §4.2: an expired session redirects the dashboard fetch to /login.
-  if (/gradescope\.com\/(login|auth)/.test(url)) return true;
-  return /<title>[^<]*\b(log ?in|sign ?in)\b/i.test(body);
+  return looksLoggedOut(status, finalUrl, body, { loginPath: /gradescope\.com\/(login|auth)/ });
 }
 
 /* -------------------------------------------------------------------------- */
 /* Dashboard (§4.2 step 1)                                                     */
 /* -------------------------------------------------------------------------- */
 
-function textOf(node: Element | null | undefined): string {
-  return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
-}
 
 /**
  * Courses from the account dashboard, in DOM order, grouped by term.
@@ -225,22 +219,13 @@ function dueTimes(row: Element): { due?: Element; late?: Element } {
  * the hidden "Due Date" column, which holds whichever deadline is next actionable
  * and therefore shows the *late* date once due has passed
  * (docs/gradescope-findings.md).
- *
- * §3.2's strictness is right, but the cost of a rejection must be one field, not
- * the page: letting ParseError escape the row loop would discard every other
- * assignment in the course over one bad attribute — including over a bad *release*
- * date, which only ever reaches `extra`. The rejected value is returned so the
- * caller can record it, the way Canvas records `extra.unparsedDate`.
  */
 function isoFromTime(node: Element | undefined): { iso?: string; unparsed?: string } {
   if (!node) return {};
   const raw = node.getAttribute("datetime") ?? "";
   if (raw.trim() === "") return { unparsed: raw };
-  try {
-    return { iso: parseGradescopeDateTime(raw) };
-  } catch {
-    return { unparsed: raw };
-  }
+  const result = parseField(raw, parseGradescopeDateTime, "gradescope");
+  return { iso: result.value, unparsed: result.unparsed };
 }
 
 /**
@@ -284,7 +269,7 @@ export function parseCoursePage(doc: Document, page: PageCtx): RawItem[] {
   }
 
   const items: RawItem[] = [];
-  const seen = new Set<string>();
+  const keys = new KeyGuard();
 
   for (const row of allRows) {
     const cell = row.querySelector("th.table--primaryLink")!;
@@ -295,10 +280,7 @@ export function parseCoursePage(doc: Document, page: PageCtx): RawItem[] {
     const assignmentId = assignmentIdFor(cell);
     // §3.1's hashed fallback, kept for a row carrying neither form of id.
     const sourceId = assignmentId ?? `${courseId}:${shortHash(title.toLowerCase())}`;
-    if (seen.has(sourceId)) {
-      throw new ParseError(`duplicate assignment key ${sourceId} on one page`);
-    }
-    seen.add(sourceId);
+    keys.claim(sourceId, `assignment key ${sourceId}`);
 
     const { due, late } = dueTimes(row);
     const dueParsed = isoFromTime(due);

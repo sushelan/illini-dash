@@ -89,6 +89,15 @@ Seven mutations were tried against the fixed code; all seven fail.
 ## Next
 Step 7 — `normalize.ts` §5.2 title normalization + `dedupe.ts` (union-find merge,
 overrides), then step 8 (store + sync loop + popup) where **G2 and G3** are decided.
+Sequential, per CLAUDE.md's parallelism note. Steps 9–12 can then run concurrently.
+
+## Shared parser primitives
+`src/core/parsing.ts` holds the rules that were previously written three or four times
+each across the source modules — and reintroduced as defects after being fixed
+elsewhere: `parseField` (a bad value costs its field, not the page), `KeyGuard`
+(duplicate `sourceId` on one page), `sameOriginHttpsUrl`, `looksLoggedOut`, `isInstant`,
+`nonEmpty`, `textOf`. Each is now pinned by tests from three or four different source
+test files at once. The house rules they encode are in CLAUDE.md.
 
 ## Blocked on Sushi
 1. **Nothing blocking.** The last outstanding capture (a PrairieTest available-card row)

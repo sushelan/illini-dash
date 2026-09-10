@@ -8,6 +8,7 @@
 
 import { parseDateAttribute, parseDateRangeAttribute, shortHash } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
+import { KeyGuard, looksLoggedOut, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
 import { ParseError, type PageCtx, type RawItem } from "./types.js";
 
 export const PRAIRIETEST_ORIGIN = "https://us.prairietest.com";
@@ -27,29 +28,11 @@ const EMPTY_CARD = [
   "You don't currently have any exams available for reservations",
 ];
 
-function textOf(node: Element | null | undefined): string {
-  return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
-}
 
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  if (status === 401 || status === 403) return true;
-  const url = finalUrl.toLowerCase();
-  if (url.includes("shibboleth") || url.includes("login.illinois.edu")) return true;
-  if (/prairietest\.com\/pt\/login/.test(url)) return true;
-  return /<title>[^<]*\b(log ?in|sign ?in)\b/i.test(body);
+  return looksLoggedOut(status, finalUrl, body, { loginPath: /prairietest\.com\/pt\/login/ });
 }
 
-function absoluteUrl(raw: string | null | undefined, fallback: string): string {
-  if (typeof raw !== "string" || raw === "") return fallback;
-  try {
-    const url = new URL(raw, PRAIRIETEST_ORIGIN);
-    return url.protocol === "https:" && url.origin === PRAIRIETEST_ORIGIN
-      ? url.toString()
-      : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 /** §4.4: `CS 357 (Fa26): Quiz 1` → title without the term, plus the term. */
 export function splitTerm(raw: string): { title: string; term?: string } {
@@ -144,7 +127,7 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
    * §3's `raw` map is keyed by memberKey: two items sharing one key silently
    * become one, losing a real exam session or a daily nag.
    */
-  const seen = new Set<string>();
+  const keys = new KeyGuard();
 
   /* ---- Booked exams ------------------------------------------------------ */
 
@@ -161,10 +144,7 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
 
       const { title, term } = splitTerm(raw);
       const key = examKey(title);
-      if (seen.has(key)) {
-        throw new ParseError(`duplicate exam key for ${JSON.stringify(title)} on one page`);
-      }
-      seen.add(key);
+      keys.claim(key, `exam key for ${JSON.stringify(title)}`);
       bookedTitles.add(key);
 
       // §4.4: the right-hand column's instant. Read from the attribute, never
@@ -224,7 +204,7 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
         title,
         kind: "exam",
         dueAt,
-        url: absoluteUrl(href, page.url),
+        url: sameOriginHttpsUrl(href, PRAIRIETEST_ORIGIN, page.url),
         // §4.4: `status` means "submitted", which is not meaningful for a seat.
         status: "unknown",
         extra,
@@ -257,10 +237,7 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
       // listed as available is the case §4.4 deliberately refuses to depend on,
       // and must not start throwing.
       const bookingKey = `${key}:booking`;
-      if (seen.has(bookingKey)) {
-        throw new ParseError(`duplicate booking key for ${JSON.stringify(title)} on one page`);
-      }
-      seen.add(bookingKey);
+      keys.claim(bookingKey, `booking key for ${JSON.stringify(title)}`);
 
       const rangeSpan = row.querySelector('[data-testid="dates"] [data-format-date-range]');
       const rangeAttr = rangeSpan?.getAttribute("data-format-date-range");
@@ -304,7 +281,7 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
         title: `Book a slot: ${title}`,
         kind: "booking",
         dueAt: window?.start,
-        url: absoluteUrl(href, page.url),
+        url: sameOriginHttpsUrl(href, PRAIRIETEST_ORIGIN, page.url),
         status: "not_submitted",
         extra,
         fetchedAt: page.fetchedAt,

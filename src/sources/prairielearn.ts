@@ -15,6 +15,7 @@ import {
   wallClockToIso,
 } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
+import { KeyGuard, looksLoggedOut, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
 import { ParseError, type PageCtx, type RawItem, type Status } from "./types.js";
 
 export const PRAIRIELEARN_ORIGIN = "https://us.prairielearn.com";
@@ -28,34 +29,10 @@ export interface CreditTier {
   end?: string;
 }
 
-function textOf(node: Element | null | undefined): string {
-  return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
-}
 
-/**
- * §3 / types.ts: `RawItem.url` is an absolute https URL on the source host, and
- * §8.1 refuses to render anything else. Resolving against a base almost never
- * throws — but a malformed href such as `http://[` does, and uncaught that would
- * discard every row on the page.
- */
-function absoluteUrl(raw: string | null | undefined, fallback: string): string {
-  if (typeof raw !== "string" || raw === "") return fallback;
-  try {
-    const url = new URL(raw, PRAIRIELEARN_ORIGIN);
-    return url.protocol === "https:" && url.origin === PRAIRIELEARN_ORIGIN
-      ? url.toString()
-      : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  if (status === 401 || status === 403) return true;
-  const url = finalUrl.toLowerCase();
-  if (url.includes("shibboleth") || url.includes("login.illinois.edu")) return true;
-  if (/prairielearn\.com\/pl\/login/.test(url)) return true;
-  return /<title>[^<]*\b(log ?in|sign ?in)\b/i.test(body);
+  return looksLoggedOut(status, finalUrl, body, { loginPath: /prairielearn\.com\/pl\/login/ });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -266,7 +243,7 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
   }
 
   const items: RawItem[] = [];
-  const seen = new Set<string>();
+  const keys = new KeyGuard();
   let group = "";
   let sawAssessmentRow = false;
   let popoversSeen = 0;
@@ -307,10 +284,7 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
     // the row's href switches from /assessment/{id} to /assessment_instance/{id}
     // the first time the student opens it.
     const sourceId = `${courseInstanceId}:${badge}`;
-    if (seen.has(sourceId)) {
-      throw new ParseError(`duplicate assessment badge ${JSON.stringify(badge)} on one page`);
-    }
-    seen.add(sourceId);
+    keys.claim(sourceId, `assessment badge ${JSON.stringify(badge)}`);
 
     const extra: Record<string, string> = { badge };
     if (group) extra["group"] = group;
@@ -397,7 +371,11 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
       kind: "assignment",
       dueAt,
       lateDueAt,
-      url: absoluteUrl(nameCell?.querySelector("a[href]")?.getAttribute("href"), page.url),
+      url: sameOriginHttpsUrl(
+        nameCell?.querySelector("a[href]")?.getAttribute("href"),
+        PRAIRIELEARN_ORIGIN,
+        page.url,
+      ),
       status: mapStatus(scoreCell),
       extra,
       fetchedAt: page.fetchedAt,

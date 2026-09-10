@@ -8,6 +8,7 @@
  */
 
 import { extractCourseCodes } from "../core/normalize.js";
+import { isInstant, looksLoggedOut, nonEmpty, sameOriginHttpsUrl } from "../core/parsing.js";
 import { ParseError, type Kind, type PageCtx, type RawItem, type Status } from "./types.js";
 
 export const CANVAS_ORIGIN = "https://canvas.illinois.edu";
@@ -89,11 +90,12 @@ export function linkHeaderNext(header: string | null | undefined): string | unde
  * checks are belt-and-braces.
  */
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  if (status === 401 || status === 403) return true;
-  const url = finalUrl.toLowerCase();
-  if (url.includes("shibboleth") || url.includes("login.illinois.edu")) return true;
-  if (/\/login(\/|\?|$)/.test(url)) return true;
-  return /^\s*<(!doctype|html)/i.test(body);
+  // Canvas differs from the HTML sources: an /api/v1 path answering with *any*
+  // HTML is already proof of a logged-out response.
+  return looksLoggedOut(status, finalUrl, body, {
+    loginPath: /\/login(\/|\?|$)/,
+    bodyLooksLoggedOut: (text) => /^\s*<(!doctype|html)/i.test(text),
+  });
 }
 
 function parseJsonArray(body: string, what: string): unknown[] {
@@ -200,40 +202,8 @@ export function mapStatus(submissions: unknown): Status {
   return "not_submitted";
 }
 
-/**
- * `RawItem.url` is documented as "absolute https URL on the source host"
- * (§3 / types.ts), and §8.1 refuses to render anything else. Resolving against
- * a base almost never throws, so without an explicit check a `//other.host/x`
- * or `javascript:` value would sail through and only be caught at render time.
- */
-function absoluteUrl(raw: unknown, fallback: string): string {
-  if (typeof raw !== "string" || raw === "") return fallback;
-  try {
-    const url = new URL(raw, CANVAS_ORIGIN);
-    return url.protocol === "https:" && url.origin === CANVAS_ORIGIN
-      ? url.toString()
-      : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
-/**
- * §3.2: every stored instant is ISO 8601 **with an offset**, never a naive local
- * time. Canvas's own dates are ISO UTC, but nothing in the API guarantees it, and
- * a naive `2026-09-12T23:59:00` would resolve to a different instant on every
- * machine that read it.
- */
-const INSTANT = /(?:[Zz]|[+-]\d{2}:?\d{2})$/;
 
-function isInstant(value: unknown): value is string {
-  return typeof value === "string" && INSTANT.test(value) && !Number.isNaN(Date.parse(value));
-}
-
-/** Treats an empty string as absent, so a `""` cannot shadow a real fallback. */
-function nonEmpty(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined;
-}
 
 /**
  * Parses one page of `/api/v1/planner/items`.
@@ -336,7 +306,11 @@ export function parsePlannerItems(
       title,
       kind,
       dueAt,
-      url: absoluteUrl(entry["html_url"], CANVAS_ORIGIN),
+      url: sameOriginHttpsUrl(
+        typeof entry["html_url"] === "string" ? entry["html_url"] : undefined,
+        CANVAS_ORIGIN,
+        CANVAS_ORIGIN,
+      ),
       status: mapStatus(submissions),
       extra,
       fetchedAt: page.fetchedAt,
