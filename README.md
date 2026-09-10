@@ -1,4 +1,4 @@
-# illini-due
+# illini-dash
 
 Chrome extension (MV3) that aggregates UIUC deadlines. Design: [SPEC.md](SPEC.md).
 

@@ -132,7 +132,7 @@ export async function send(request: Request): Promise<Response> {
     throw new Error(
       `The service worker received "${request.type}" but returned no response. ` +
         `The usual cause is that the worker is running older code than this page: ` +
-        `open chrome://extensions and click Reload on the Illini Due card, then retry.`,
+        `open chrome://extensions and click Reload on the Illini Dash card, then retry.`,
     );
   }
   return response;

@@ -18,6 +18,18 @@ import type {
 } from "../sources/types.js";
 
 export const SCHEMA_VERSION = 1 as const;
+/**
+ * Deliberately still the pre-rename name.
+ *
+ * The extension was renamed Illini Due → Illini Dash, but this key addresses
+ * data that already exists in installed profiles. Renaming it would read an
+ * absent key, hand `migrate` an empty store, and silently discard every
+ * override, `notified` record and cached item — the unrecoverable loss §3.1 and
+ * `migrateOverrides` are written to avoid. It is invisible to the user, so the
+ * cost of keeping it is a comment; the cost of changing it is Sushi's store.
+ * If it is ever renamed, it needs a read-old-write-new migration and a test
+ * that loads a store written under the old key.
+ */
 const STORAGE_KEY = "illiniDue";
 
 export const ALL_SOURCES: Source[] = [

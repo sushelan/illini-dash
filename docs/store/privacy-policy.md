@@ -1,8 +1,8 @@
-# Illini Due — Privacy Policy
+# Illini Dash — Privacy Policy
 
 _Last updated: 2026-09-10_
 
-Illini Due runs entirely in your browser. It reads assignment and exam information from
+Illini Dash runs entirely in your browser. It reads assignment and exam information from
 Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you explicitly
 enable, using the login sessions already in your browser. It never sees or stores your
 password. All data is stored locally in your browser's extension storage and is never
@@ -66,4 +66,4 @@ to a public issue — the scrubber removes what it recognises, which is not a gu
 
 ## Contact
 
-Open an issue at https://github.com/sushelan/illini-due/issues.
+Open an issue at https://github.com/sushelan/illini-dash/issues.

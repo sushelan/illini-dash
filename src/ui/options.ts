@@ -41,7 +41,7 @@ void (async () => {
     }
     buildInfo.textContent =
       `STALE SERVICE WORKER: this page is build ${BUILD_ID}, the worker is build ` +
-      `${resp.buildId}. Open chrome://extensions and click Reload on the Illini Due ` +
+      `${resp.buildId}. Open chrome://extensions and click Reload on the Illini Dash ` +
       `card before trusting anything below.`;
     buildInfo.className = "verdict-error";
   } catch (err) {
@@ -412,7 +412,7 @@ const SOURCE_LOGIN: Record<string, string> = {
 };
 
 const PRIVACY_TEXT =
-  "Illini Due runs entirely in your browser. It reads assignment and exam information " +
+  "Illini Dash runs entirely in your browser. It reads assignment and exam information " +
   "from Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you " +
   "explicitly enable, using the login sessions already in your browser. It never sees " +
   "or stores your password. All data is stored locally in your browser's extension " +
@@ -701,14 +701,14 @@ document.getElementById("download-ics")!.addEventListener("click", async () => {
   const state = await send({ type: "get-state" });
   if (state.type !== "state") return;
   const visible = state.items.filter((item) => !item.hidden);
-  download("illini-due.ics", buildIcs(visible), "text/calendar");
+  download("illini-dash.ics", buildIcs(visible), "text/calendar");
   dataStatus().textContent = `Exported ${visible.length} items. This is a one-time copy, not a subscription.`;
 });
 
 document.getElementById("export")!.addEventListener("click", async () => {
   const response = await send({ type: "export" });
   if (response.type !== "export") return;
-  download("illini-due-export.json", response.json, "application/json");
+  download("illini-dash-export.json", response.json, "application/json");
   dataStatus().textContent = "Exported.";
 });
 
@@ -779,7 +779,7 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
 
   // Context a maintainer would otherwise have to ask for, one round trip saved.
   const context = [
-    `illini-due report`,
+    `illini-dash report`,
     `build: ${BUILD_ID}`,
     `generated: ${new Date().toISOString()}`,
     `url: ${captured.result.requestUrl}`,
@@ -834,7 +834,7 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
     : "Download report";
   save.addEventListener("click", () => {
     download(
-      `illini-due-report-${Date.now()}.txt`,
+      `illini-dash-report-${Date.now()}.txt`,
       `${context}${html}`,
       "text/plain",
     );

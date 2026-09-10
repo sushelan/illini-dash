@@ -14,7 +14,7 @@ popup and the options page ping the worker on load and compare ids:
 
 - `Service worker alive, build 20260903T052059.` — page and worker agree.
 - `STALE SERVICE WORKER: this page is build A, the worker is build B.` — hit
-  **Reload** on the Illini Due card at `chrome://extensions`.
+  **Reload** on the Illini Dash card at `chrome://extensions`.
 
 Build ids are UTC timestamps, so they will not match your wall clock. They are
 only meant to be compared with each other.

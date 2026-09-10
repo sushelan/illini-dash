@@ -15,7 +15,7 @@ import { supportedDateFormats } from "../sources/site.js";
 import type { Adapter } from "../sources/types.js";
 
 export const REGISTRY_URL =
-  "https://raw.githubusercontent.com/sushelan/illini-due/main/adapters/registry.json";
+  "https://raw.githubusercontent.com/sushelan/illini-dash/main/adapters/registry.json";
 
 /** §4.5: refreshed once a day, non-blocking on failure. */
 export const REGISTRY_REFRESH_MS = 24 * 60 * 60 * 1000;

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Illini Due",
+  "name": "Illini Dash",
   "version": "0.1.0",
   "description": "Every UIUC deadline from Canvas, Gradescope, PrairieLearn, PrairieTest and course sites in one list.",
   "minimum_chrome_version": "116",
@@ -9,7 +9,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Illini Due",
+    "default_title": "Illini Dash",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icon16.png",

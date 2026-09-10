@@ -1,6 +1,6 @@
-# Illini Due — v1 Spec
+# Illini Dash — v1 Spec
 
-Working name: `illini-due` (rename freely). Version: spec v1.0, 2026-09-02.
+Working name: `illini-dash` (rename freely). Version: spec v1.0, 2026-09-02.
 
 A Chrome extension that shows every deadline from Canvas, Gradescope, PrairieLearn,
 PrairieTest, and a curated set of UIUC course websites in one list, deduped, with
@@ -665,7 +665,7 @@ Runner rules:
   a new declarative field rather than embedding code.
 - The built-in `adapters/registry.json` is bundled with the extension. Once a day the
   worker fetches the same file from
-  `https://raw.githubusercontent.com/{you}/illini-due/main/adapters/registry.json`,
+  `https://raw.githubusercontent.com/{you}/illini-dash/main/adapters/registry.json`,
   validates it against the schema, and replaces the stored copy. A bad remote file is
   rejected and the previous copy stays. This lets you fix a broken selector without a
   store re-review.
@@ -949,7 +949,7 @@ small HTML files, fine to commit.
 
 ## Appendix B — Privacy policy (draft text)
 
-> Illini Due runs entirely in your browser. It reads assignment and exam information
+> Illini Dash runs entirely in your browser. It reads assignment and exam information
 > from Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you
 > explicitly enable, using the login sessions already in your browser. It never sees
 > or stores your password. All data is stored locally in your browser's extension

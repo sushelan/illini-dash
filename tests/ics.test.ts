@@ -101,7 +101,7 @@ describe("buildIcs", () => {
   });
 
   it("uses a stable UID so a re-import updates rather than duplicates", () => {
-    expect(buildIcs([item()], now)).toContain("UID:abc123@illini-due");
+    expect(buildIcs([item()], now)).toContain("UID:abc123@illini-dash");
   });
 
   it("exports a reduced-credit deadline and says what it is", () => {

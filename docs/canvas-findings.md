@@ -130,3 +130,56 @@ By every field Canvas returns, that course is current — just old. Three ways f
 Deferred to step 8, when Canvas is first wired into a sync loop. Until then the course
 map contains every active enrolment, and a planner row for course 58438 would produce
 a live item. This is harmless today: that course publishes nothing dated.
+
+## RESOLVED 2026-09-10 by `include[]=term` — but not the way option 2 assumed
+
+`fixtures/canvas/courses-active-term.json` is the same request with `include[]=term`,
+captured 2026-09-10. Four enrolments now (CS 424 has appeared since the Sep 3 capture,
+which is the course the `cs424-fa26` adapter serves):
+
+| Course | `enrollment_term_id` | Term name | Term `start_at` | Term `end_at` |
+|---|---|---|---|---|
+| 58438 FA25 IBC NDA and Code of Conduct Forms | 109 | `OPEN` | **null** | **null** |
+| 72393 CS 357 | 262 | `2026 - Fall` | 2026-03-30T05:00:00Z | 2027-01-15T06:00:00Z |
+| 75165 CS 424 | 262 | `2026 - Fall` | 2026-03-30T05:00:00Z | 2027-01-15T06:00:00Z |
+| 74798 CS 425 | 262 | `2026 - Fall` | 2026-03-30T05:00:00Z | 2027-01-15T06:00:00Z |
+
+So the term object is there and it carries real dates for the real term — but **the
+stale course's term has null dates on both ends**, and that is not an accident or a
+missing field. In Canvas a term with no start and no end is *unbounded*: the "OPEN"
+term is a self-paced container for compliance and onboarding courses that are meant to
+be available indefinitely. It is not concluded. It never will be.
+
+**This inverts the question.** "Filter out concluded courses" cannot be answered from
+dates, because the course we want to set aside belongs to a term that is, correctly,
+always current. The answerable question is the one the student actually means:
+*which courses belong to the term my real coursework is in?*
+
+### The rule this supports
+
+1. A term is **current** if it has both dates and they bracket now. Here: term 262.
+2. Keep every course whose term is current.
+3. A course whose term is **unbounded** (either date null) is undecidable by dates.
+   Set it aside only when at least one current term exists and the course is not in
+   one — which is exactly course 58438's case.
+4. **Fail open.** If no term is current at all (between terms, or an account whose
+   terms all carry null dates), keep everything. §11 makes a hidden real deadline
+   catastrophic and a visible stale course merely untidy, and §8.2's per-course
+   checkbox already handles untidy.
+
+Set-aside courses are listed in Options as a collapsed "Older courses" group and can
+be switched back on, so rule 3 is never final and never silent.
+
+### Consequences for the code
+
+- `coursesUrl()` gains `include[]=term`. The response shape is otherwise unchanged, so
+  `parseCourses` keeps working; `termId` (parsed at `canvas.ts:147` and currently read
+  by nothing) stops being dead code.
+- The set-aside list has to be **persisted**. `courseSummaries` is built from
+  `store.raw`, so a course that contributes no items has nothing to hang a flag on and
+  would be invisible in Options — the opposite of "never silent".
+- Under house rule 1, a course whose `term` is missing entirely costs that course its
+  term, not the whole courses page: treat it as unbounded and let rule 3 decide.
+- Under house rule 5, `start_at`/`end_at` are validated with `isInstant` before use.
+  `Date.parse(null)` is `NaN`, and a `NaN` comparison is silently false in both
+  directions, which would make every term look non-current and quietly disable rule 1.

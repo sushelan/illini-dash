@@ -371,7 +371,7 @@ async function scheduleAlarm(): Promise<void> {
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log(`[illini-due] installed: ${details.reason} (build ${BUILD_ID})`);
+  console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
   void scheduleAlarm().then(() => sync("install"));
 });
 
@@ -595,4 +595,4 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
-console.log(`[illini-due] service worker loaded (build ${BUILD_ID})`);
+console.log(`[illini-dash] service worker loaded (build ${BUILD_ID})`);

@@ -295,11 +295,15 @@ checking at G4 rather than now.
 - **§3.1 `sourceId`** (2026-09-03): amended per source, with costs, in
   [sourceid-decision.md](docs/sourceid-decision.md).
 
-## Open decision — still open, now due before G4
-**§4.1's concluded-course filter** cannot be built from what Canvas returns — the stale
-FA25 course reports `workflow_state: available`, a future `end_at` and an active
-enrolment. Only `enrollment_term_id` separates it. Options in
-[canvas-findings.md](docs/canvas-findings.md); lean is adding `include[]=term`.
+## Open decision — RESOLVED 2026-09-10, not yet implemented
+**§4.1's concluded-course filter.** `include[]=term` was captured
+(`fixtures/canvas/courses-active-term.json`) and it settles the design: the real term
+(262, `2026 - Fall`) carries real dates, while the stale course's term (109, `OPEN`)
+has **null start and end** — an unbounded term, which is never "concluded". So the
+filter keeps courses whose term brackets today, sets aside unbounded-term courses only
+when a current term exists, and fails open when none does. Details and the code
+consequences in [canvas-findings.md](docs/canvas-findings.md); it is Tier 0b item 17 in
+[roadmap-ideas.md](docs/roadmap-ideas.md).
 
 ## Spec amendments forced by real data
 - **§4.1 / §5.3** — Canvas `course_code` is an opaque slug (`cs_357_120268_263847`), not

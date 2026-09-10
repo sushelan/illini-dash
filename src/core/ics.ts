@@ -81,7 +81,7 @@ function event(item: Item, stamp: string): string[] {
   return [
     "BEGIN:VEVENT",
     // Stable across exports, so re-importing updates rather than duplicating.
-    `UID:${item.id}@illini-due`,
+    `UID:${item.id}@illini-dash`,
     `DTSTAMP:${stamp}`,
     `DTSTART:${start}`,
     `DTEND:${end}`,
@@ -100,7 +100,7 @@ export function buildIcs(items: Item[], now: Date = new Date()): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//illini-due//EN",
+    "PRODID:-//illini-dash//EN",
     "CALSCALE:GREGORIAN",
     ...items.flatMap((item) => event(item, stamp)),
     "END:VCALENDAR",

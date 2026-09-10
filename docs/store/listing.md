@@ -5,7 +5,7 @@ G5 is a gate, and submission needs the developer account.
 
 ## Name
 
-Illini Due
+Illini Dash
 
 ## Short description (132 char limit)
 
@@ -15,7 +15,7 @@ Illini Due
 
 ## Detailed description
 
-> Illini Due collects your deadlines from Canvas, Gradescope, PrairieLearn and
+> Illini Dash collects your deadlines from Canvas, Gradescope, PrairieLearn and
 > PrairieTest into a single list, so you are not checking four sites to find out what is
 > due.
 >
