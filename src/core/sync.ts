@@ -207,7 +207,12 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
  */
 async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
   const adapters = await deps.enabledAdapters();
-  if (adapters.length === 0) return [];
+  // Not `return []`. A source that fetched nothing because nothing is
+  // configured is not a source that succeeded: reporting `ok` painted a green
+  // dot over a course-site source with no adapter enabled, which is exactly the
+  // silent-empty §0 rule 3 forbids. It cost a real user two rounds of
+  // "why don't I see any WEB rows" — the dot said everything was fine.
+  if (adapters.length === 0) throw new SourceDisabled("no course sites are enabled");
 
   const fetchedAt = deps.now();
   const items: RawItem[] = [];
@@ -250,6 +255,16 @@ const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<RawItem[]>>> = {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A source that is switched off or unconfigured, as opposed to one that broke.
+ *
+ * It has to be distinguishable from a failure at the `runSync` level: the
+ * failure branch increments `consecutiveFailures` and arms §6's backoff ladder,
+ * and neither belongs to a source nobody has configured — it would sit in a
+ * 30-minute backoff for being turned off.
+ */
+export class SourceDisabled extends Error {}
+
 export async function syncOneSource(source: Source, deps: SyncDeps): Promise<SourceOutcome> {
   const plan = PLANS[source];
   if (!plan) return { source, state: "disabled", items: [], requests: 0 };
@@ -266,6 +281,9 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
   try {
     return { source, state: "ok", items: await plan(counting), requests };
   } catch (err) {
+    if (err instanceof SourceDisabled) {
+      return { source, state: "disabled", items: [], error: err.message, requests };
+    }
     if (err instanceof NeedsLogin) {
       return { source, state: "needs_login", items: [], error: err.message, requests };
     }
@@ -363,6 +381,22 @@ export async function runSync(
       outcome.error = `${source}: 0 items where it previously had some`;
     }
     outcomes.push(outcome);
+
+    // Neither branch below fits: the success branch would delete this source's
+    // items and claim `ok`, and the failure branch would count a failure and
+    // arm a backoff against a source that is merely switched off.
+    if (outcome.state === "disabled") {
+      next.sources[source] = {
+        ...status,
+        state: "disabled",
+        lastAttemptAt: now,
+        lastError: outcome.error,
+        consecutiveFailures: 0,
+      };
+      delete next.backoffUntil[source];
+      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
+      continue;
+    }
 
     if (outcome.state === "ok") {
       // Atomic per source (§6): drop this source's old keys, then add the new.

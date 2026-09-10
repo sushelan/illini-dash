@@ -241,6 +241,16 @@ enrolment. Only `enrollment_term_id` separates it. Options in
   so no item was ever labelled WEB. The worker now seeds from the bundle when the stored
   list is empty; the remote fetch stays an *update*, never rolled back by the seed.
 
+## Two follow-ups from the first live WEB sync
+- **`site: ok (0 items)` was a lie.** With no adapter enabled, `syncSites` returned `[]`
+  and the loop recorded `ok`, so the options page showed a green dot on a source that was
+  fetching nothing. It now raises `SourceDisabled` and the loop records `disabled` —
+  a third branch, because the failure branch would arm §6's backoff against a source that
+  is merely switched off. The old behaviour was *asserted by a test*, which is how it
+  survived a mutation-checked suite.
+- **The bundle seed returned silently** when the store already had adapters, so a healthy
+  store and a seed that never ran looked identical in the console. It logs both cases now.
+
 ## Dev-loop note
 Chrome caches the service worker until you press Reload on the extension card, so a
 rebuilt page can talk to an old worker. Every bundle carries a build id and the UI says

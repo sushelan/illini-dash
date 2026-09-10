@@ -129,7 +129,15 @@ async function seedRegistryFromBundle(): Promise<void> {
     if (adapters.length === 0) return;
 
     const store = await loadStore();
-    if (!shouldSeedFromBundle(store.registry.adapters, adapters)) return;
+    if (!shouldSeedFromBundle(store.registry.adapters, adapters)) {
+      // Said out loud. Returning silently here made a healthy store and a seed
+      // that never ran look identical in the console, which is the difference
+      // between "tick the box" and "the fix is broken".
+      console.log(
+        `[registry] bundle not seeded: ${store.registry.adapters.length} adapter(s) already stored`,
+      );
+      return;
+    }
     // No `fetchedAt`: seeding must not look like a refresh, or the daily window
     // would suppress the first real fetch for 24 hours.
     store.registry = { ...store.registry, adapters };

@@ -429,6 +429,43 @@ describe("course-site adapters in the loop (§4.5)", () => {
     expect(store.items.some((i) => i.courseCode === "CS999")).toBe(true);
   });
 
+  it("reports the source disabled when no adapter is enabled, never ok", async () => {
+    // Regression: this returned `ok` with 0 items, so the options page painted a
+    // green dot on a course-site source that had no adapter enabled and was
+    // fetching nothing. A real user read that dot as "working" and spent two
+    // rounds asking why no WEB rows appeared.
+    const { store, outcomes } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([]));
+    expect(store.sources.site.state).toBe("disabled");
+    expect(outcomes.find((o) => o.source === "site")?.state).toBe("disabled");
+    expect(store.sources.site.lastError).toMatch(/no course sites are enabled/);
+  });
+
+  it("does not count being switched off as a failure", async () => {
+    // §6's ladder exists to stop hammering a *broken* site. A source nobody has
+    // configured must not accumulate failures or sit in a backoff for it —
+    // enabling an adapter would then appear to do nothing until the wait ran out.
+    let store = enableSite(emptyStore());
+    for (let i = 0; i < 4; i += 1) {
+      store = (await runSync(store, "alarm", withAdapters([]))).store;
+    }
+    expect(store.sources.site.consecutiveFailures).toBe(0);
+    expect(store.backoffUntil.site).toBeUndefined();
+  });
+
+  it("keeps items from a previous run while the source is switched off", async () => {
+    // §5.4's miss counter must not purge them: they belong to a source that is
+    // resting, not one that stopped reporting them.
+    const first = await runSync(enableSite(emptyStore()), "alarm", withAdapters([ADAPTER]));
+    const before = Object.keys(first.store.raw).filter((k) => k.startsWith("site:"));
+    expect(before.length).toBeGreaterThan(0);
+
+    let store = first.store;
+    for (let i = 0; i < 4; i += 1) {
+      store = (await runSync(store, "alarm", withAdapters([]))).store;
+    }
+    expect(Object.keys(store.raw).filter((k) => k.startsWith("site:"))).toEqual(before);
+  });
+
   it("isolates one failing adapter from the others (§4.5)", async () => {
     // The whole reason course sites are adapters rather than a fifth parser.
     const broken = { ...ADAPTER, id: "broken-fa26", rows: ".nothing-matches" };
@@ -501,9 +538,12 @@ describe("course-site adapters in the loop (§4.5)", () => {
     expect(store.sources.site.state).toBe("needs_login");
   });
 
-  it("does nothing when no adapter is enabled", async () => {
+  it("fetches nothing when no adapter is enabled", async () => {
+    // This test used to assert `state: "ok"` here, which is how the green-dot
+    // defect above survived a suite that was otherwise mutation-checked: the
+    // test pinned the bug rather than the requirement.
     const { store } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([]));
-    expect(store.sources.site.state).toBe("ok");
+    expect(store.sources.site.state).toBe("disabled");
     expect(Object.keys(store.raw).some((k) => k.startsWith("site:"))).toBe(false);
   });
 });
