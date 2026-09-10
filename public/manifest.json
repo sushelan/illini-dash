@@ -22,7 +22,8 @@
     "storage",
     "alarms",
     "notifications",
-    "offscreen"
+    "offscreen",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://canvas.illinois.edu/*",

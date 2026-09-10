@@ -8,7 +8,12 @@
 import { BUILD_ID } from "../build-info.js";
 import { buildIcs } from "../core/ics.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
-import { isGrantedUpFront, originPattern, type CaptureResult } from "../capture.js";
+import {
+  isGrantedUpFront,
+  originPattern,
+  reportUrlFromHash,
+  type CaptureResult,
+} from "../capture.js";
 import { displayState } from "../core/health.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
@@ -799,6 +804,19 @@ document.getElementById("download-ics")!.addEventListener("click", async () => {
   dataStatus().textContent = `Exported ${visible.length} items. This is a one-time copy, not a subscription.`;
 });
 
+document.getElementById("copy-diagnostics")!.addEventListener("click", async () => {
+  const dataStatus = document.getElementById("data-status")!;
+  dataStatus.textContent = "Collecting…";
+  const response = await send({ type: "get-diagnostics" });
+  if (response.type !== "diagnostics") {
+    dataStatus.textContent =
+      response.type === "error" ? response.message : "Unexpected response.";
+    return;
+  }
+  await navigator.clipboard.writeText(response.report);
+  dataStatus.textContent = `Diagnostics copied (${response.report.length} characters). Paste it into the issue.`;
+});
+
 document.getElementById("export")!.addEventListener("click", async () => {
   const response = await send({ type: "export" });
   if (response.type !== "export") return;
@@ -947,3 +965,22 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
     ? `Prepared, but ${blockers.length} thing(s) still look identifying.`
     : "Prepared.";
 });
+
+/* ---- Right-click "Report this page" hand-off ------------------------------
+ * The worker opens this page with the page URL in the fragment. It is untrusted
+ * input, so `reportUrlFromHash` validates it before it reaches the field.
+ */
+void (() => {
+  const target = reportUrlFromHash(location.hash);
+  if (!target) return;
+  const field = document.getElementById("report-url") as HTMLInputElement | null;
+  if (!field) return;
+  field.value = target;
+  field.scrollIntoView({ block: "center" });
+  field.focus();
+  const status = document.getElementById("report-status");
+  if (status) {
+    status.textContent =
+      "Filled in from the page you right-clicked. Press Prepare report to fetch and scrub it.";
+  }
+})();

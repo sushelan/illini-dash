@@ -24,6 +24,7 @@ import {
   validateRegistry,
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
+import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, statusAfterEnable } from "./core/health.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
@@ -466,8 +467,46 @@ async function retryAfterUpdate(previousVersion: string | undefined): Promise<vo
   });
 }
 
+const REPORT_MENU_ID = "report-page";
+
+/**
+ * §8.2's report flow, two clicks from the page it is about.
+ *
+ * It already existed and required copying a URL, opening Settings, scrolling to
+ * the section and pasting. That is enough friction that a beta tester sends a
+ * screenshot instead — and a screenshot cannot become a fixture, which is the
+ * whole point of the flow. Restricted to the hosts the extension already reads,
+ * so the menu never appears anywhere it could not act.
+ */
+function createReportMenu(): void {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: REPORT_MENU_ID,
+      title: "Report this page to Illini Dash",
+      contexts: ["page"],
+      documentUrlPatterns: [
+        "https://canvas.illinois.edu/*",
+        "https://www.gradescope.com/*",
+        "https://us.prairielearn.com/*",
+        "https://us.prairietest.com/*",
+        "https://*.illinois.edu/*",
+      ],
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener((info) => {
+  if (info.menuItemId !== REPORT_MENU_ID || !info.pageUrl) return;
+  // Handed to the options page in the fragment, which never leaves the browser.
+  // The page validates it again before using it: this is untrusted input, and
+  // the options page is where a bad URL would be acted on.
+  const target = chrome.runtime.getURL(`options.html#report=${encodeURIComponent(info.pageUrl)}`);
+  void chrome.tabs.create({ url: target });
+});
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
+  createReportMenu();
   void scheduleAlarm()
     .then(() =>
       // Only on `update`. `install` has nothing resting yet, and
@@ -478,6 +517,8 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  // Context menus do not survive the worker being torn down.
+  createReportMenu();
   // Badge text does not survive the worker being torn down, so repaint before
   // the sync rather than only after it — otherwise a browser restart shows a
   // blank icon over a source that is still failing.
@@ -664,6 +705,31 @@ chrome.runtime.onMessage.addListener(
             await saveStore(fresh);
           });
           return { type: "permission", granted: true } as const;
+        })(),
+      );
+    }
+    if (request?.type === "get-diagnostics") {
+      return answer(
+        (async () => {
+          const [store, permissions, alarms, blocked] = await Promise.all([
+            loadStore(),
+            chrome.permissions.getAll(),
+            chrome.alarms.getAll(),
+            notificationsBlocked(),
+          ]);
+          // Everything with a decision in it — what to include, what to scrub —
+          // is in core/diagnostics.ts; this only gathers the chrome.* facts.
+          const report = buildDiagnostics({
+            store,
+            buildId: BUILD_ID,
+            extensionVersion: chrome.runtime.getManifest().version,
+            browser: /Chrome\/[\d.]+/.exec(navigator.userAgent)?.[0] ?? "unknown",
+            grantedOrigins: permissions.origins ?? [],
+            alarms: alarms.map((alarm) => alarm.name),
+            notificationsBlocked: blocked,
+            now: new Date(),
+          });
+          return { type: "diagnostics", report: JSON.stringify(report, null, 2) } as const;
         })(),
       );
     }

@@ -51,6 +51,26 @@ export function isAllowedCaptureUrl(raw: string): boolean {
   );
 }
 
+/**
+ * The URL carried in `options.html#report=…`, if it is one this may act on.
+ *
+ * The fragment is untrusted input — anything can navigate to an extension page
+ * with any fragment — so it is validated here rather than trusted from whoever
+ * wrote it, and `decodeURIComponent` throws on a malformed escape (parser rule
+ * 7).
+ */
+export function reportUrlFromHash(hash: string): string | undefined {
+  const match = /^#report=(.*)$/.exec(hash);
+  if (!match) return undefined;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(match[1]!);
+  } catch {
+    return undefined;
+  }
+  return isAllowedCaptureUrl(decoded) ? decoded : undefined;
+}
+
 /** The match pattern `chrome.permissions` uses for a URL's origin. */
 export function originPattern(url: string): string {
   return `${new URL(url).origin}/*`;

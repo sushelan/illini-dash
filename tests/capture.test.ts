@@ -5,7 +5,12 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { isAllowedCaptureUrl, isGrantedUpFront, originPattern } from "../src/capture.js";
+import {
+  isAllowedCaptureUrl,
+  isGrantedUpFront,
+  originPattern,
+  reportUrlFromHash,
+} from "../src/capture.js";
 import { probeMarkers } from "../src/core/markers.js";
 
 describe("isAllowedCaptureUrl", () => {
@@ -114,5 +119,36 @@ describe("probeMarkers against the real PrairieTest capture", () => {
     // href, and the booking pseudo-item has never been seen in real markup.
     expect(hits["Make a reservation"]).toBe(0);
     expect(hits["You don't currently have any exams available for reservations"]).toBe(1);
+  });
+});
+
+describe("reportUrlFromHash", () => {
+  it("accepts a page on a host the extension already reads", () => {
+    expect(reportUrlFromHash("#report=" + encodeURIComponent("https://www.gradescope.com/courses/1"))).toBe(
+      "https://www.gradescope.com/courses/1",
+    );
+  });
+
+  it("refuses anything else, because a fragment is untrusted input", () => {
+    // Any page can navigate to an extension page with any fragment, so the
+    // options page validates rather than trusting whoever wrote it.
+    for (const bad of [
+      "https://evil.test/x",
+      "http://www.gradescope.com/x",
+      "javascript:alert(1)",
+      "//other.host/x",
+    ]) {
+      expect(reportUrlFromHash("#report=" + encodeURIComponent(bad)), bad).toBeUndefined();
+    }
+  });
+
+  it("does not throw on a malformed escape", () => {
+    expect(() => reportUrlFromHash("#report=%E0%A4%A")).not.toThrow();
+    expect(reportUrlFromHash("#report=%E0%A4%A")).toBeUndefined();
+  });
+
+  it("ignores an unrelated fragment", () => {
+    expect(reportUrlFromHash("#settings")).toBeUndefined();
+    expect(reportUrlFromHash("")).toBeUndefined();
   });
 });

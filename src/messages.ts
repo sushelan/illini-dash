@@ -41,7 +41,8 @@ export type Request =
   | { type: "get-adapters" }
   | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
   | { type: "refresh-registry" }
-  | { type: "test-notification" };
+  | { type: "test-notification" }
+  | { type: "get-diagnostics" };
 
 export type OverrideAction =
   | { kind: "hide"; itemId: string }
@@ -56,6 +57,7 @@ export type Response =
   | { type: "gate0"; results: Gate0Result[] }
   | { type: "parse-selftest"; cases: SelftestCase[] }
   | { type: "capture"; result: CaptureResult }
+  | { type: "diagnostics"; report: string }
   | {
       type: "state";
       items: Item[];
