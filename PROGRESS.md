@@ -197,8 +197,13 @@ One defect, and one superseded claim:
   the adapter is asking for a URL the site will not serve) from network ones (a failed
   fetch, a 5xx), and the per-adapter warning names the kind so a recurrence is
   diagnosable without another trip to the browser.
-- **Canvas is no longer empty on this account** — see the superseded note in
-  canvas-findings.md. Still open: whether the first-fetch-after-reload failure recurs.
+- **Canvas is no longer empty on this account.** `[sync] canvas: ok (1 items)`, where
+  canvas-findings.md claimed Canvas "cannot contribute any" deadlines here. That claim
+  was never supported by its own evidence — 0 of 67 assignments dated on one day says
+  nothing about whether an instructor will set a date — and it is corrected rather than
+  annotated. It also unblocks G1's last gap: `parsePlannerItems` is the only parser in
+  the project never tested against a real response, and a real planner fixture is now
+  one capture away. Still open: whether the first-fetch-after-reload failure recurs.
 
 **Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
 Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.
@@ -289,8 +294,13 @@ test files at once. The house rules they encode are in CLAUDE.md.
 
 ## Blocked on Sushi — the gates
 - **G2 recall — PASSED.** 100% recall on live data, no phantom items. Canvas contributed
-  0 items and that was a pass, not a failure: 0 of 67 assignments carry a due date
-  (docs/canvas-findings.md).
+  0 items on the day it was measured, which was a pass rather than a failure because
+  none of the 67 assignments captured on Sep 3 carried a due date.
+  **Canvas is no longer empty** (`[sync] canvas: ok (1 items)`, 2026-09-10), so that
+  exemption has expired: a Canvas source reporting 0 items is now something to explain
+  like any other empty source. The stronger claim this note used to lean on — that
+  Canvas "cannot contribute any" deadlines on this account — was an overreach and is
+  corrected in [canvas-findings.md](docs/canvas-findings.md).
 - **G3 dedupe — PASSES, on n=1.** Confirmed 2026-09-10, once course sites were finally
   running. The list holds exactly **one** cross-source merge, `CS424 · Homework 1` from
   Canvas + the CS 424 site (`CV WEB`), and Sushi confirmed it is the same assignment.

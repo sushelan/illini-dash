@@ -503,7 +503,7 @@ A student with no PrairieLearn course instances, or a PrairieTest home with no e
 
 Fetch `/api/v1/courses/{id}/assignments` per active course, and show undated, unsubmitted assignments in a collapsed 'No date' section at the bottom of the popup, grouped by course and off by default. Where a course has N assignments and zero dates, the Courses row and the onboarding page say 'CS 357: 66 Canvas assignments, none dated — these are PrairieLearn links; PrairieLearn is where the deadlines are'.
 
-- *Why:* On the owner's account Canvas contributes zero of 67 assignments, and the popup gives no hint why. A CS 425 student sees 'HW1' on Canvas with no date and nothing in Illini Dash, and concludes the extension missed it.
+- *Why:* On the owner's account, 67 of 67 Canvas assignments were undated when this was written (Canvas has since started carrying a dated row), and the popup gives no hint why an undated one is missing. A CS 425 student sees 'HW1' on Canvas with no date and nothing in Illini Dash, and concludes the extension missed it.
 - *Touches:* canvas.ts (+assignmentsUrl, parseAssignments), sync.ts (+1 fetch/course; FetchedPage needs a Link-header field), types.ts + store.ts (Settings.showUndated), grouping.ts (+"No date"), popup.ts…
 - *House-rule hazards:* Rule 4: dated assignments also come from planner as `assignment:{id}`, so emitting all rows collides sourceIds — emit undated only. Rule 5: reuse isInstant.
 - *Audit correction:* `linkHeaderNext` exists (canvas.ts:66-75) but `FetchedPage` (sync.ts:33-38) has no headers, so pagination is not wired in the loop; per_page=100 hides it.

@@ -50,18 +50,20 @@ appear nowhere in the planner window" — and not a broken query.
 
 ### What that means for the project
 
-**Canvas contributes zero deadlines for this account, and cannot contribute any.**
-
-> **Superseded 2026-09-10 by a live sync.** The loop now reports
-> `[sync] canvas: ok (1 items, 2 requests)`. Between the Sep 3 capture and today a
-> fourth enrolment appeared (CS 424, see the `include[]=term` capture above) and the
-> planner returned a dated row. So the claim below holds for the *courses captured on
-> Sep 3* and not for the account in general: a Canvas source that yields nothing is
-> a fact about which instructors dated their assignments that week, not a property of
-> this deployment. Anything reasoning from "Canvas is always empty here" — including
-> G2's recall note — should be re-read with that in mind.
+**On 2026-09-03, no instructor in either captured course had set a Canvas due date.**
 CS 357's 66 rows are LTI shells for PrairieLearn assessments; the dates live in
-PrairieLearn, which we already parse. CS 425 has one dateless `HW1`.
+PrairieLearn, which we already parse. CS 425 had one dateless `HW1`.
+
+That is a fact about two courses on one day, and an earlier version of this document
+overreached from it to "Canvas contributes zero deadlines for this account, and cannot
+contribute any." **That was wrong**, and it was wrong when it was written: nothing about
+Canvas, this deployment or this account prevents an instructor from setting a due date,
+and setting one is the ordinary case everywhere outside a PrairieLearn-backed course.
+The capture supported "none of these 67 assignments is dated *today*" and no more.
+
+Corrected 2026-09-10, by the extension itself: the loop reports
+`[sync] canvas: ok (1 items, 2 requests)`. A fourth enrolment has appeared since
+(CS 424, visible in the `include[]=term` capture) and Canvas is carrying a dated row.
 
 This confirms §4.1's prediction that external-tool assignments "are the main dedupe
 case (§5)" — structurally — but with a twist the spec did not anticipate: because the
@@ -70,13 +72,23 @@ originals. That rule needs both items dated within 24 h *or* both undated, and h
 one side is dated and the other is not. Surfacing the undated Canvas rows would
 therefore add 66 unmergeable duplicates to the list rather than enriching it.
 
-It also means **G2 (recall) will show Canvas contributing 0 items on this account, and
-that is a pass, not a failure.** Recorded here so it is not misread later.
+For G2 that meant Canvas contributing 0 items was a pass rather than a failure *on the
+day recall was measured*. It is no longer the expected outcome, and a Canvas source
+reporting 0 items should now be treated the way any other empty source is: something to
+explain, not something already explained.
 
-### G1 consequence
+### G1 consequence — now unblocked
 
-There is no non-empty planner fixture to be had from this account, so the Canvas
-parser's date, status and kind mapping cannot be tested against real data yet.
+This *was* "there is no non-empty planner fixture to be had from this account, so the
+Canvas parser's date, status and kind mapping cannot be tested against real data." That
+also followed from the overreach above, and it is no longer true: the planner is
+returning a dated row, so a real fixture is one capture away.
+
+Until it is taken, `fixtures/canvas/planner-items-SYNTHETIC.json` is still the only
+thing exercising `parsePlannerItems`, and it is hand-written — which under house rule 10
+means the Canvas parser is the one parser in this project whose mapping has never been
+checked against a real response. Worth taking while a dated row exists, since it depends
+on an instructor's choice and can disappear again.
 
 ## Historical note: a scrubber bug corrupted 8 values in these two fixtures
 
