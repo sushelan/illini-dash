@@ -34,3 +34,25 @@ h2.section {
 .row-overdue .row--due { color: var(--err); }
 .row-booking .row--due { color: var(--warn); }
 .empty { padding: 24px 12px; text-align: center; }
+
+.row--menu {
+  flex: none; background: none; border: 0; color: var(--muted);
+  font: inherit; cursor: pointer; padding: 0 2px; line-height: 1; opacity: 0;
+}
+.row:hover .row--menu, .row--menu:focus { opacity: 1; }
+.menu {
+  position: absolute; z-index: 10; min-width: 190px; max-width: 340px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25); padding: 4px 0;
+}
+.menu--item {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  font: inherit; color: inherit; padding: 6px 12px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.menu--item:hover { background: rgba(127,127,127,.14); }
+.menu--heading {
+  padding: 6px 12px; font-size: 11px; color: var(--muted);
+  border-bottom: 1px solid var(--line); margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

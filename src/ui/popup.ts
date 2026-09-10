@@ -10,6 +10,7 @@
 
 import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
+import { googleCalendarUrl } from "../core/ics.js";
 import { formatDue, groupItems } from "./grouping.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
 import type { Item, Settings, Source, SourceStatus } from "../sources/types.js";
@@ -102,12 +103,104 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   due.className = "row--due";
   due.textContent = dueText ?? formatDue(item, now);
 
-  row.append(chip, title, sources, due);
+  const menu = document.createElement("button");
+  menu.className = "row--menu";
+  menu.textContent = "⋯";
+  menu.title = "More";
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openRowMenu(item, menu);
+  });
+
+  row.append(chip, title, sources, due, menu);
 
   const url = safeUrl(item.url);
   if (url) row.addEventListener("click", () => chrome.tabs.create({ url }));
   else row.style.cursor = "default";
   return row;
+}
+
+/** All items currently rendered, so "Merge with…" can offer same-course rows. */
+let currentItems: Item[] = [];
+
+function closeMenus(): void {
+  for (const open of document.querySelectorAll(".menu")) open.remove();
+}
+document.addEventListener("click", closeMenus);
+
+/**
+ * §8.1's row menu: Hide, Split (if merged), Merge with…, Add to Google Calendar.
+ *
+ * §5.3 leans on this: a false merge is visible because the row shows two source
+ * labels, and the fix is meant to be one click. G3 budgets two corrections a
+ * semester, which only works if making one is trivial.
+ */
+function openRowMenu(item: Item, anchor: HTMLElement): void {
+  closeMenus();
+  const menu = document.createElement("div");
+  menu.className = "menu";
+  menu.addEventListener("click", (event) => event.stopPropagation());
+
+  const add = (label: string, onClick: () => void) => {
+    const entry = document.createElement("button");
+    entry.className = "menu--item";
+    entry.textContent = label;
+    entry.addEventListener("click", onClick);
+    menu.append(entry);
+  };
+
+  add(item.hidden ? "Unhide" : "Hide", () => {
+    void send({
+      type: "override",
+      action: { kind: item.hidden ? "unhide" : "hide", itemId: item.id },
+    }).then(() => {
+      closeMenus();
+      void refresh();
+    });
+  });
+
+  if (item.members.length > 1) {
+    add(`Split (${item.members.length} sources)`, () => {
+      void send({ type: "override", action: { kind: "split", itemId: item.id } }).then(() => {
+        closeMenus();
+        void refresh();
+      });
+    });
+  }
+
+  // Only same-course rows are offered: §5.3 never merges across courses, so an
+  // all-items picker would mostly be a list of things that cannot be chosen.
+  const candidates = currentItems.filter(
+    (other) => other.id !== item.id && other.courseLabel === item.courseLabel,
+  );
+  if (candidates.length > 0) {
+    add("Merge with…", () => {
+      menu.replaceChildren();
+      const heading = document.createElement("div");
+      heading.className = "menu--heading";
+      heading.textContent = `Merge "${item.title}" with:`;
+      menu.append(heading);
+      for (const other of candidates.slice(0, 12)) {
+        add(other.title, () => {
+          void send({
+            type: "override",
+            action: { kind: "merge", itemId: item.id, otherItemId: other.id },
+          }).then(() => {
+            closeMenus();
+            void refresh();
+          });
+        });
+      }
+    });
+  }
+
+  const calendar = googleCalendarUrl(item);
+  if (calendar) add("Add to Google Calendar", () => chrome.tabs.create({ url: calendar }));
+
+  const box = anchor.getBoundingClientRect();
+  menu.style.top = `${box.bottom + window.scrollY}px`;
+  menu.style.right = "10px";
+  document.body.append(menu);
 }
 
 /**
@@ -125,6 +218,7 @@ function bookingWindowText(item: Item): string | undefined {
 }
 
 function render(items: Item[], settings: Settings, now: Date): void {
+  currentItems = items;
   listEl.replaceChildren();
   const sections = groupItems(items, now, settings);
 

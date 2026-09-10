@@ -62,3 +62,18 @@ pre {
   overflow-wrap: anywhere;
   font: 11px/1.4 ui-monospace, Menlo, monospace;
 }
+
+/* §8.2 options */
+hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 8px; }
+.opt-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--line);
+}
+.opt-row:last-child { border-bottom: 0; }
+.opt-row label { flex: 1; cursor: pointer; }
+.opt-note { color: var(--muted); font-size: 11px; }
+.state-ok { color: var(--ok); }
+.state-needs_login { color: var(--warn); }
+.state-parse_error, .state-network_error { color: var(--err); }
+.state-disabled { color: var(--muted); }
+input[type="number"] { width: 5em; font: inherit; padding: 2px 4px; }

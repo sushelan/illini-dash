@@ -11,7 +11,21 @@ import { BUILD_ID } from "./build-info.js";
 import { capture } from "./capture.js";
 import { runParseSelftest } from "./core/parse-selftest.js";
 import { parseGradescopeDashboard, parseHtml } from "./core/offscreen-client.js";
-import { loadStore, saveStore, MIN_POLL_MINUTES } from "./core/store.js";
+import { dedupe } from "./core/dedupe.js";
+import {
+  courseSummaries,
+  hideItem,
+  mergeItems,
+  setCourseDisabled,
+  splitItem,
+  unhideItem,
+} from "./core/overrides.js";
+import {
+  loadStore,
+  saveStore,
+  MAX_POLL_MINUTES,
+  MIN_POLL_MINUTES,
+} from "./core/store.js";
 import {
   notificationContent,
   parseAlarmName,
@@ -142,6 +156,51 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   void chrome.notifications.clear(notificationId);
 });
 
+/**
+ * Read, change, re-derive, write.
+ *
+ * Every override changes what `dedupe` produces, so `items` is rebuilt in the
+ * same step — otherwise the popup would show a stale grouping until the next
+ * sync, which is up to two hours away. Notifications are rescheduled for the
+ * same reason: hiding a row must silence its reminder now, not eventually.
+ */
+async function mutate(change: (store: Awaited<ReturnType<typeof loadStore>>) => void): Promise<void> {
+  const store = await loadStore();
+  change(store);
+  store.items = dedupe(Object.values(store.raw), store.overrides, { previous: store.items });
+  await saveStore(store);
+  await reschedule();
+}
+
+async function applyOverride(action: import("./messages.js").OverrideAction): Promise<void> {
+  await mutate((store) => {
+    const item = store.items.find((candidate) => candidate.id === action.itemId);
+    if (action.kind === "hide") store.overrides = hideItem(store.overrides, action.itemId);
+    else if (action.kind === "unhide") store.overrides = unhideItem(store.overrides, action.itemId);
+    else if (action.kind === "split" && item) store.overrides = splitItem(store.overrides, item);
+    else if (action.kind === "merge" && item) {
+      const other = store.items.find((candidate) => candidate.id === action.otherItemId);
+      if (other) store.overrides = mergeItems(store.overrides, item, other);
+    }
+  });
+}
+
+async function applySettings(patch: Partial<import("./sources/types.js").Settings>): Promise<void> {
+  const store = await loadStore();
+  const settings = { ...store.settings, ...patch };
+  // §8.2 bounds the poll interval, and §4.2 promises Gradescope no faster than
+  // every 15 minutes. Clamped here as well as in migrate, because this is the
+  // path a person can actually drive.
+  settings.pollMinutes = Math.min(
+    MAX_POLL_MINUTES,
+    Math.max(MIN_POLL_MINUTES, Number(settings.pollMinutes) || store.settings.pollMinutes),
+  );
+  store.settings = settings;
+  await saveStore(store);
+  await scheduleAlarm();
+  await reschedule();
+}
+
 async function scheduleAlarm(): Promise<void> {
   const store = await loadStore();
   const periodInMinutes = Math.max(MIN_POLL_MINUTES, store.settings.pollMinutes);
@@ -213,6 +272,64 @@ chrome.runtime.onMessage.addListener(
               lastSyncAt: store.lastSyncAt,
             }) as const,
         ),
+      );
+    }
+    if (request?.type === "get-options-state") {
+      return answer(
+        loadStore().then((store) => ({
+          type: "options-state",
+          settings: store.settings,
+          sources: store.sources,
+          courses: courseSummaries(store.raw, store.overrides),
+          overrides: store.overrides,
+          itemCount: store.items.length,
+          hiddenItems: store.items
+            .filter((item) => item.hidden)
+            .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
+          lastSyncAt: store.lastSyncAt,
+        }) as const),
+      );
+    }
+    if (request?.type === "update-settings") {
+      return answer(applySettings(request.settings).then(() => ({ type: "ok" }) as const));
+    }
+    if (request?.type === "set-source-enabled") {
+      const { source, enabled } = request;
+      return answer(
+        mutate((store) => {
+          store.sources[source] = {
+            ...store.sources[source],
+            enabled,
+            state: enabled ? "ok" : "disabled",
+          };
+          // A source switched back on should not sit out a stale backoff.
+          if (enabled) delete store.backoffUntil[source];
+        }).then(() => ({ type: "ok" }) as const),
+      );
+    }
+    if (request?.type === "set-course-disabled") {
+      const { course, disabled } = request;
+      return answer(
+        mutate((store) => {
+          store.overrides = setCourseDisabled(store.overrides, course, disabled);
+        }).then(() => ({ type: "ok" }) as const),
+      );
+    }
+    if (request?.type === "override") {
+      return answer(applyOverride(request.action).then(() => ({ type: "ok" }) as const));
+    }
+    if (request?.type === "export") {
+      return answer(
+        loadStore().then((store) => ({ type: "export", json: JSON.stringify(store, null, 2) }) as const),
+      );
+    }
+    if (request?.type === "reset") {
+      return answer(
+        chrome.storage.local.clear().then(async () => {
+          await chrome.alarms.clearAll();
+          await scheduleAlarm();
+          return { type: "ok" } as const;
+        }),
       );
     }
     if (request?.type === "sync") {

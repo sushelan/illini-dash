@@ -11,8 +11,10 @@ import type { Gate0Result } from "./gate0.js";
 import type { ParserId } from "./sources/registry.js";
 import type { GradescopeCourse } from "./sources/gradescope.js";
 import type { SyncTrigger } from "./core/sync.js";
+import type { CourseSummary } from "./core/overrides.js";
 import type {
   Item,
+  Overrides,
   PageCtx,
   RawItem,
   Settings,
@@ -27,7 +29,20 @@ export type Request =
   | { type: "parse-selftest" }
   | { type: "capture"; url: string }
   | { type: "get-state" }
-  | { type: "sync"; trigger: SyncTrigger };
+  | { type: "sync"; trigger: SyncTrigger }
+  | { type: "get-options-state" }
+  | { type: "update-settings"; settings: Partial<Settings> }
+  | { type: "set-source-enabled"; source: Source; enabled: boolean }
+  | { type: "set-course-disabled"; course: string; disabled: boolean }
+  | { type: "override"; action: OverrideAction }
+  | { type: "export" }
+  | { type: "reset" };
+
+export type OverrideAction =
+  | { kind: "hide"; itemId: string }
+  | { kind: "unhide"; itemId: string }
+  | { kind: "split"; itemId: string }
+  | { kind: "merge"; itemId: string; otherItemId: string };
 
 export type Response =
   | { type: "pong"; at: string; buildId: string }
@@ -42,6 +57,18 @@ export type Response =
       lastSyncAt?: string;
     }
   | { type: "synced"; skipped: boolean; outcomes: { source: Source; state: string }[] }
+  | {
+      type: "options-state";
+      settings: Settings;
+      sources: Record<Source, SourceStatus>;
+      courses: CourseSummary[];
+      overrides: Overrides;
+      itemCount: number;
+      hiddenItems: { id: string; title: string; courseLabel: string }[];
+      lastSyncAt?: string;
+    }
+  | { type: "ok" }
+  | { type: "export"; json: string }
   | { type: "error"; message: string };
 
 export interface SelftestCase {

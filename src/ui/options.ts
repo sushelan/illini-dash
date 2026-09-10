@@ -6,6 +6,8 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
+import { buildIcs } from "../core/ics.js";
+import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
 import type { CaptureResult } from "../capture.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
@@ -381,3 +383,246 @@ captureButton.addEventListener("click", async () => {
     captureButton.disabled = false;
   }
 });
+
+
+/* ---- §8.2 options ---------------------------------------------------------
+ * All source-derived text goes in with textContent (§8.1's rendering rule);
+ * this page displays course names the extension did not author.
+ */
+
+const SOURCE_NAMES: Record<string, string> = {
+  canvas: "Canvas",
+  gradescope: "Gradescope",
+  prairielearn: "PrairieLearn",
+  prairietest: "PrairieTest",
+  site: "Course websites",
+};
+
+const SOURCE_LOGIN: Record<string, string> = {
+  canvas: "https://canvas.illinois.edu/login",
+  gradescope: "https://www.gradescope.com/login",
+  prairielearn: "https://us.prairielearn.com/pl/",
+  prairietest: "https://us.prairietest.com/pt/",
+};
+
+const PRIVACY_TEXT =
+  "Illini Due runs entirely in your browser. It reads assignment and exam information " +
+  "from Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you " +
+  "explicitly enable, using the login sessions already in your browser. It never sees " +
+  "or stores your password. All data is stored locally in your browser's extension " +
+  "storage and is never transmitted to the developer or any third party. The extension " +
+  "makes one network request to GitHub once a day to update its list of supported " +
+  "course websites; that request contains no personal data. Uninstalling the extension " +
+  "deletes all stored data.";
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  text?: string,
+  className?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function checkboxRow(
+  labelText: string,
+  checked: boolean,
+  note: string,
+  onChange: (checked: boolean) => void,
+): HTMLElement {
+  const row = el("div", undefined, "opt-row");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = checked;
+  const id = `chk-${Math.random().toString(36).slice(2)}`;
+  box.id = id;
+  const label = el("label", labelText);
+  label.htmlFor = id;
+  box.addEventListener("change", () => onChange(box.checked));
+  row.append(box, label, el("span", note, "opt-note"));
+  return row;
+}
+
+async function refreshOptions(): Promise<void> {
+  const state = await send({ type: "get-options-state" });
+  if (state.type !== "options-state") return;
+
+  document.getElementById("privacy")!.textContent = PRIVACY_TEXT;
+
+  /* Sources */
+  const sources = document.getElementById("sources")!;
+  sources.replaceChildren();
+  for (const [source, status] of Object.entries(state.sources)) {
+    const row = checkboxRow(
+      SOURCE_NAMES[source] ?? source,
+      status.enabled,
+      "",
+      (enabled) => {
+        void send({ type: "set-source-enabled", source: source as never, enabled }).then(
+          refreshOptions,
+        );
+      },
+    );
+    const stateLabel = el("span", status.enabled ? status.state : "disabled", `opt-note state-${status.enabled ? status.state : "disabled"}`);
+    if (status.lastError) stateLabel.title = status.lastError;
+    row.append(stateLabel);
+    if (status.state === "needs_login" && SOURCE_LOGIN[source]) {
+      const login = el("a", "log in");
+      login.href = SOURCE_LOGIN[source]!;
+      login.target = "_blank";
+      login.className = "opt-note";
+      row.append(login);
+    }
+    sources.append(row);
+  }
+
+  /* Courses (§8.2) */
+  const courses = document.getElementById("courses")!;
+  courses.replaceChildren();
+  if (state.courses.length === 0) {
+    courses.append(el("p", "No courses seen yet — sync first.", "muted"));
+  }
+  for (const course of state.courses) {
+    courses.append(
+      checkboxRow(
+        course.label,
+        !course.disabled,
+        `${course.itemCount} item${course.itemCount === 1 ? "" : "s"} · ${course.sources.join(", ")}`,
+        (enabled) => {
+          void send({
+            type: "set-course-disabled",
+            course: course.key,
+            disabled: !enabled,
+          }).then(refreshOptions);
+        },
+      ),
+    );
+  }
+
+  /* Reminders (§7, §8.2) */
+  const reminders = document.getElementById("reminders")!;
+  reminders.replaceChildren();
+  for (const lead of ["24h", "2h"] as const) {
+    reminders.append(
+      checkboxRow(
+        lead === "24h" ? "24 hours before" : "2 hours before",
+        state.settings.leadTimes.includes(lead),
+        "",
+        (checked) => {
+          const leadTimes = checked
+            ? [...new Set([...state.settings.leadTimes, lead])]
+            : state.settings.leadTimes.filter((l) => l !== lead);
+          void send({ type: "update-settings", settings: { leadTimes } }).then(refreshOptions);
+        },
+      ),
+    );
+  }
+  reminders.append(
+    checkboxRow(
+      "Hide submitted and graded work",
+      state.settings.hideSubmitted,
+      "",
+      (hideSubmitted) => {
+        void send({ type: "update-settings", settings: { hideSubmitted } }).then(refreshOptions);
+      },
+    ),
+  );
+
+  const quiet = state.settings.quietHours;
+  const quietRow = checkboxRow("Quiet hours", quiet !== null, "", (enabled) => {
+    void send({
+      type: "update-settings",
+      settings: { quietHours: enabled ? { start: 23, end: 8 } : null },
+    }).then(refreshOptions);
+  });
+  if (quiet) {
+    const from = el("input");
+    from.type = "number";
+    from.min = "0";
+    from.max = "23";
+    from.value = String(quiet.start);
+    const to = el("input");
+    to.type = "number";
+    to.min = "0";
+    to.max = "23";
+    to.value = String(quiet.end);
+    const push = () => {
+      void send({
+        type: "update-settings",
+        settings: { quietHours: { start: Number(from.value), end: Number(to.value) } },
+      }).then(refreshOptions);
+    };
+    from.addEventListener("change", push);
+    to.addEventListener("change", push);
+    quietRow.append(el("span", "from", "opt-note"), from, el("span", "to", "opt-note"), to);
+  }
+  reminders.append(quietRow);
+
+  const pollRow = el("div", undefined, "opt-row");
+  const pollLabel = el("label", "Check every");
+  const poll = el("input");
+  poll.type = "number";
+  poll.min = String(MIN_POLL_MINUTES);
+  poll.max = String(MAX_POLL_MINUTES);
+  poll.value = String(state.settings.pollMinutes);
+  poll.addEventListener("change", () => {
+    void send({
+      type: "update-settings",
+      settings: { pollMinutes: Number(poll.value) },
+    }).then(refreshOptions);
+  });
+  pollRow.append(
+    pollLabel,
+    poll,
+    el("span", `minutes (${MIN_POLL_MINUTES}–${MAX_POLL_MINUTES})`, "opt-note"),
+  );
+  reminders.append(pollRow);
+
+  /* Hidden items (§8.1's Hide, undoable) */
+  const hidden = document.getElementById("hidden")!;
+  hidden.replaceChildren();
+  if (state.hiddenItems.length === 0) {
+    hidden.append(el("p", "Nothing hidden.", "muted"));
+  }
+  for (const item of state.hiddenItems) {
+    const row = el("div", undefined, "opt-row");
+    row.append(el("span", `${item.courseLabel} — ${item.title}`));
+    const unhide = el("button", "Unhide");
+    unhide.addEventListener("click", () => {
+      void send({ type: "override", action: { kind: "unhide", itemId: item.id } }).then(
+        refreshOptions,
+      );
+    });
+    row.append(unhide);
+    hidden.append(row);
+  }
+}
+
+const dataStatus = () => document.getElementById("data-status")!;
+
+document.getElementById("download-ics")!.addEventListener("click", async () => {
+  const state = await send({ type: "get-state" });
+  if (state.type !== "state") return;
+  const visible = state.items.filter((item) => !item.hidden);
+  download("illini-due.ics", buildIcs(visible), "text/calendar");
+  dataStatus().textContent = `Exported ${visible.length} items. This is a one-time copy, not a subscription.`;
+});
+
+document.getElementById("export")!.addEventListener("click", async () => {
+  const response = await send({ type: "export" });
+  if (response.type !== "export") return;
+  download("illini-due-export.json", response.json, "application/json");
+  dataStatus().textContent = "Exported.";
+});
+
+document.getElementById("reset")!.addEventListener("click", async () => {
+  // Irreversible and it takes the user's overrides with it, so it asks.
+  if (!confirm("Delete all stored data, including your hide/merge corrections?")) return;
+  await send({ type: "reset" });
+  dataStatus().textContent = "Everything reset.";
+  await refreshOptions();
+});
+
+void refreshOptions();

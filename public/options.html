@@ -10,6 +10,49 @@
     <h1>Illini Due — debug</h1>
     <p id="build-info" class="muted">Checking service worker…</p>
 
+    <section id="settings-panel">
+      <h2>Sources</h2>
+      <p class="muted">
+        Each source is read using the login session already in your browser. Nothing
+        here ever sees a password (SPEC.md §0).
+      </p>
+      <div id="sources"></div>
+
+      <h2>Courses</h2>
+      <p class="muted">
+        Every course seen across every source. Turning one off hides its deadlines
+        without forgetting them.
+      </p>
+      <div id="courses"></div>
+
+      <h2>Reminders</h2>
+      <div id="reminders"></div>
+
+      <h2>Hidden items</h2>
+      <div id="hidden"></div>
+
+      <h2>Calendar</h2>
+      <p class="muted">
+        Downloads an <code>.ics</code> of everything currently listed. Importing it
+        into Google Calendar is a <strong>one-time copy, not a subscription</strong> —
+        later changes to a deadline will not follow it there.
+      </p>
+      <p><button id="download-ics">Download .ics</button></p>
+
+      <h2>Data</h2>
+      <p>
+        <button id="export">Export JSON</button>
+        <button id="reset">Reset everything</button>
+      </p>
+      <p id="data-status" class="muted"></p>
+
+      <h2>Privacy</h2>
+      <p class="muted" id="privacy"></p>
+    </section>
+
+    <hr />
+    <h2>Debug tools</h2>
+
     <h2>Gate 0 — cookie-authenticated fetch from the service worker</h2>
     <p class="muted">
       Fetches each source's authenticated home page from the extension's service
