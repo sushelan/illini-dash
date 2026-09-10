@@ -20,6 +20,7 @@ import {
   REGISTRY_URL,
   currentTermCode,
   isCurrentTerm,
+  shouldSeedFromBundle,
   validateRegistry,
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
@@ -112,7 +113,35 @@ const deps: SyncDeps = {
  * safety property, since this is remote data driving what the extension fetches.
  * Failure is non-blocking: the sync it precedes must still run.
  */
+/**
+ * §4.5: "The built-in `adapters/registry.json` is bundled with the extension."
+ *
+ * It is the baseline the daily GitHub refresh *replaces*, not an afterthought —
+ * and until this existed the bundled file was copied into `dist/` and never
+ * read, so with no published registry to fetch the adapter list stayed empty
+ * and no course site could be enabled at all.
+ */
+async function seedRegistryFromBundle(): Promise<void> {
+  try {
+    const response = await fetch(chrome.runtime.getURL("adapters/registry.json"));
+    const { adapters, rejected } = validateRegistry(await response.text());
+    for (const line of rejected) console.warn(`[registry] bundled entry rejected: ${line}`);
+    if (adapters.length === 0) return;
+
+    const store = await loadStore();
+    if (!shouldSeedFromBundle(store.registry.adapters, adapters)) return;
+    // No `fetchedAt`: seeding must not look like a refresh, or the daily window
+    // would suppress the first real fetch for 24 hours.
+    store.registry = { ...store.registry, adapters };
+    await saveStore(store);
+    console.log(`[registry] seeded ${adapters.length} bundled adapter(s)`);
+  } catch (err) {
+    console.warn("[registry] could not read the bundled registry:", err);
+  }
+}
+
 async function maybeRefreshRegistry(): Promise<void> {
+  await seedRegistryFromBundle();
   const store = await loadStore();
   const last = store.registry.fetchedAt ? Date.parse(store.registry.fetchedAt) : 0;
   if (Number.isFinite(last) && Date.now() - last < REGISTRY_REFRESH_MS) return;

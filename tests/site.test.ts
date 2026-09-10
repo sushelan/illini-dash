@@ -13,6 +13,7 @@ import {
   currentTermCode,
   isCurrentTerm,
   matchesHostPattern,
+  shouldSeedFromBundle,
   validateAdapter,
   validateRegistry,
 } from "../src/core/registry.js";
@@ -309,5 +310,43 @@ describe("the CS 424 seed adapter, against its real captured page", () => {
     // "HW3 Due" → {hw3}: "due" is filler (§5.2), so this would meet a Gradescope
     // "Homework 3" if CS 424 ever posted one there.
     expect([...normalizeTitle(items[2]!.title)]).toEqual(["hw3"]);
+  });
+});
+
+/**
+ * The bundled registry (§4.5).
+ *
+ * These are regression tests for a shipped bug: `adapters/registry.json` was
+ * copied into `dist/` by the build and then never read by anything. The only
+ * code path that filled `store.registry.adapters` was the daily GitHub fetch,
+ * so with no registry published at that URL the stored list stayed empty
+ * forever — the options page listed no course sites, the CS 424 adapter could
+ * not be enabled, and no item was ever labelled `WEB`.
+ */
+describe("the bundled registry", () => {
+  const text = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+
+  it("is what the extension actually ships", () => {
+    // Guards the build step that copies it: a registry that never reaches
+    // dist/ cannot be fetched from chrome.runtime.getURL at runtime.
+    const shipped = readFileSync(new URL("../dist/adapters/registry.json", import.meta.url), "utf8");
+    expect(JSON.parse(shipped)).toEqual(JSON.parse(text));
+  });
+
+  it("validates with nothing rejected", () => {
+    const { adapters, rejected } = validateRegistry(text);
+    // A bundled entry that fails validation is a mistake in this repo, not
+    // untrusted remote data, so unlike a fetched file it must be clean.
+    expect(rejected).toEqual([]);
+    expect(adapters.length).toBeGreaterThan(0);
+  });
+
+  it("seeds an empty store and leaves a refreshed one alone", () => {
+    const { adapters } = validateRegistry(text);
+    expect(shouldSeedFromBundle([], adapters)).toBe(true);
+    // A refresh that has already landed is newer than whatever shipped in the
+    // .crx; seeding over it would undo the fix the refresh exists to deliver.
+    expect(shouldSeedFromBundle(adapters, adapters)).toBe(false);
+    expect(shouldSeedFromBundle([], [])).toBe(false);
   });
 });

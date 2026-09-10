@@ -233,6 +233,14 @@ enrolment. Only `enrollment_term_id` separates it. Options in
 - 5. Any Moodle or client-rendered course sites this term — PrairieTest turned out to be
   server-rendered, so that worry is retired for it.
 
+## Fixed after the first real course site
+- **§4.5 bundled registry was never read.** The build copied `adapters/registry.json`
+  into `dist/`, but the only code that filled `store.registry.adapters` was the daily
+  GitHub fetch — and nothing is published at that URL yet. The stored list stayed empty,
+  Options → Course websites listed nothing, and the CS 424 adapter could not be enabled,
+  so no item was ever labelled WEB. The worker now seeds from the bundle when the stored
+  list is empty; the remote fetch stays an *update*, never rolled back by the seed.
+
 ## Dev-loop note
 Chrome caches the service worker until you press Reload on the extension card, so a
 rebuilt page can talk to an old worker. Every bundle carries a build id and the UI says

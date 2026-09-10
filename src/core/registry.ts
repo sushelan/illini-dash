@@ -164,6 +164,20 @@ export function validateRegistry(text: string): ValidationResult {
   return { adapters, rejected };
 }
 
+/**
+ * §4.5: whether the bundled copy should seed the stored one.
+ *
+ * The bundle is a *baseline*, not an update: it seeds only an empty list, so a
+ * daily refresh that has already landed is never rolled back to whatever
+ * shipped in the .crx. An empty list is the seed case rather than a no-op
+ * because it is also what a permanently failing refresh leaves behind — and
+ * with nothing stored the options page has no course sites to offer and no
+ * adapter can ever be enabled.
+ */
+export function shouldSeedFromBundle(stored: Adapter[], bundled: Adapter[]): boolean {
+  return bundled.length > 0 && stored.length === 0;
+}
+
 /** §4.5: adapters carry a term and expire; the UI hides stale ones. */
 export function isCurrentTerm(adapter: Adapter, currentTerm: string): boolean {
   return adapter.term.toLowerCase() === currentTerm.toLowerCase();
