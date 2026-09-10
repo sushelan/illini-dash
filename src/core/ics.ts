@@ -87,7 +87,9 @@ function event(item: Item, stamp: string): string[] {
     `DTEND:${end}`,
     `SUMMARY:${escapeIcsText(summary)}`,
     `DESCRIPTION:${escapeIcsText(description)}`,
-    `URL:${escapeIcsText(item.url)}`,
+    // RFC 5545 §3.3.13: URL's value type is URI, not TEXT — escaping a comma
+    // here would corrupt the link rather than protect the property.
+    `URL:${item.url.replace(/[\r\n]/g, "")}`,
     "END:VEVENT",
   ];
 }

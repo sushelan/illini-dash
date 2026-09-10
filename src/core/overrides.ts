@@ -19,17 +19,24 @@ function withoutKeys(groups: string[][], keys: Set<string>): string[][] {
     .filter((group) => group.length >= 2);
 }
 
-/** §8.1: hide a row. Keyed by item id, which is stable while the group is. */
-export function hideItem(overrides: Overrides, itemId: string): Overrides {
-  if (overrides.hiddenItemIds.includes(itemId)) return overrides;
-  return { ...overrides, hiddenItemIds: [...overrides.hiddenItemIds, itemId] };
-}
-
-export function unhideItem(overrides: Overrides, itemId: string): Overrides {
+/**
+ * §8.1: hide a row, keyed by its member keys rather than by `Item.id`.
+ *
+ * `Item.id` is a hash of the sorted member keys, so it changes whenever the
+ * group changes — hiding a Gradescope row and then having Canvas mirror it
+ * would un-hide it, and the abandoned id would stay armed for the life of the
+ * install, silently re-hiding any future group with the same members.
+ */
+export function hideItem(overrides: Overrides, item: Item): Overrides {
   return {
     ...overrides,
-    hiddenItemIds: overrides.hiddenItemIds.filter((id) => id !== itemId),
+    hiddenKeys: [...new Set([...overrides.hiddenKeys, ...memberKeysOf(item)])],
   };
+}
+
+export function unhideItem(overrides: Overrides, item: Item): Overrides {
+  const keys = new Set(memberKeysOf(item));
+  return { ...overrides, hiddenKeys: overrides.hiddenKeys.filter((key) => !keys.has(key)) };
 }
 
 /**

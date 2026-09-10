@@ -212,7 +212,7 @@ export function itemId(memberKeys: string[]): string {
   return `${shortHash(joined)}${shortHash(`${joined}#2`)}`;
 }
 
-function buildItem(members: RawItem[], hiddenItemIds: Set<string>): Item {
+function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
   const ranked = byPrecedence(members);
   const keys = members.map((item) => memberKey(item.source, item.sourceId));
   const id = itemId(keys);
@@ -238,7 +238,9 @@ function buildItem(members: RawItem[], hiddenItemIds: Set<string>): Item {
     lateDueAt: late?.lateDueAt,
     url: ranked[0]!.url,
     status: canonicalStatus(members),
-    hidden: hiddenItemIds.has(id),
+    // Hidden when every member is: hiding a row and then having a second source
+    // mirror it should keep it hidden, not resurrect it.
+    hidden: keys.length > 0 && keys.every((key) => hiddenKeys.has(key)),
     notified: {},
   };
 }
@@ -313,15 +315,33 @@ export function dedupe(
     else groups.set(root, [items[i]!]);
   }
 
-  const hidden = new Set(overrides.hiddenItemIds);
+  const hidden = new Set(overrides.hiddenKeys);
   const previousById = new Map((options.previous ?? []).map((item) => [item.id, item]));
+  // A split, merge or re-enabled course produces a *new* id for the same work,
+  // which would miss the id lookup below, come back with an empty `notified`,
+  // and be re-fired immediately by §7. Fall back to what its members fired.
+  const firedByMember = new Map<string, Item["notified"]>();
+  for (const before of options.previous ?? []) {
+    for (const member of before.members) {
+      firedByMember.set(memberKey(member.source, member.sourceId), before.notified);
+    }
+  }
 
   const built = [...groups.values()].map((members) => {
     const item = buildItem(members, hidden);
     // An unchanged group keeps its id, and with it what it has already fired —
     // otherwise every sync would re-notify every item (§5.3, §7).
     const before = previousById.get(item.id);
-    if (before) item.notified = before.notified;
+    if (before) {
+      item.notified = before.notified;
+    } else {
+      // Union across members, so a merge does not re-fire either half.
+      const inherited: Item["notified"] = {};
+      for (const key of members.map((m) => memberKey(m.source, m.sourceId))) {
+        Object.assign(inherited, firedByMember.get(key) ?? {});
+      }
+      item.notified = inherited;
+    }
     return item;
   });
 
@@ -413,6 +433,9 @@ export function applyRetention(
     overrides: {
       ...overrides,
       splitKeys: overrides.splitKeys.filter(survives),
+      // Pruned like the rest. Left unpruned, a key for purged work stays armed
+      // forever — which is what the docstring above already promised.
+      hiddenKeys: overrides.hiddenKeys.filter(survives),
       mergeGroups: overrides.mergeGroups
         .map((group) => group.filter(survives))
         .filter((group) => group.length >= 2),

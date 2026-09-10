@@ -12,8 +12,9 @@ import {
   notificationContent,
   parseAlarmName,
   planNotifications,
+  shouldFireNow,
 } from "../src/core/schedule.js";
-import { DEFAULT_SETTINGS } from "../src/core/store.js";
+import { DEFAULT_SETTINGS, normalizeQuietHours } from "../src/core/store.js";
 import type { Item, RawItem, Settings, Status } from "../src/sources/types.js";
 
 function member(status: Status, extra?: Record<string, string>): RawItem {
@@ -254,5 +255,62 @@ describe("notificationContent", () => {
     expect(content.title).toBe("Not booked: CS357");
     expect(content.message).toMatch(/sessions .+ Reserve a seat/);
     expect(content.message).not.toMatch(/\bdue\b/i);
+  });
+});
+
+describe("regressions found by the steps 9–12 review", () => {
+  it("does not fire a catch-up reminder during quiet hours", () => {
+    // The worker branched on `overdue` and ignored `fireAt`, so a reminder whose
+    // moment passed while the student slept fired the instant Chrome woke — at
+    // 02:30 — discarding the deferral planNotifications had just computed.
+    const night = new Date(2026, 8, 11, 2, 30);
+    const [plan] = planNotifications(
+      [item({ dueAt: local(2026, 8, 11, 20) })],
+      { ...DEFAULT_SETTINGS, leadTimes: ["24h"] },
+      night,
+    );
+    expect(plan!.overdue).toBe(true);
+    expect(new Date(plan!.fireAt).getHours()).toBe(8);
+    expect(shouldFireNow(plan!, night)).toBe(false);
+    expect(shouldFireNow(plan!, new Date(2026, 8, 11, 8, 0))).toBe(true);
+  });
+
+  it("fires a catch-up immediately when it is not quiet hours", () => {
+    const morning = new Date(2026, 8, 11, 9, 0);
+    const [plan] = planNotifications(
+      [item({ dueAt: local(2026, 8, 11, 20) })],
+      { ...DEFAULT_SETTINGS, leadTimes: ["24h"] },
+      morning,
+    );
+    expect(shouldFireNow(plan!, morning)).toBe(true);
+  });
+
+  it("notifies about a reduced-credit deadline, and does not call it 'due'", () => {
+    // §4.3's shape: dueAt undefined, lateDueAt set. grouping.ts and ics.ts both
+    // treat it as live; §7 read dueAt alone and stayed silent.
+    const late = item({
+      dueAt: undefined,
+      lateDueAt: local(2026, 8, 11, 17),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    const plans = planNotifications(late ? [late] : [], DEFAULT_SETTINGS, NOW);
+    expect(plans.length).toBeGreaterThan(0);
+    const content = notificationContent(late, "24h", NOW);
+    expect(content.title).toContain("reduced credit");
+    expect(content.title).not.toMatch(/\bdue\b/);
+  });
+
+  it("clamps an out-of-range or degenerate quiet-hours window", () => {
+    expect(normalizeQuietHours({ start: 99, end: 8 })).toEqual({ start: 23, end: 8 });
+    expect(normalizeQuietHours({ start: 23, end: -4 })).toEqual({ start: 23, end: 8 });
+    expect(normalizeQuietHours({ start: 1.5, end: 8 })).toEqual({ start: 23, end: 8 });
+    // A zero-length window reads as "off" to inQuietHours, so say so rather than
+    // leaving the checkbox on over a window that does nothing.
+    expect(normalizeQuietHours({ start: 0, end: 0 })).toBeNull();
+    expect(normalizeQuietHours(null)).toBeNull();
+    // {23, 0} is a legitimate one-hour window; it cannot be distinguished from a
+    // cleared input here, which is why the options page refuses to send a blank.
+    expect(normalizeQuietHours({ start: 23, end: 0 })).toEqual({ start: 23, end: 0 });
+    expect(normalizeQuietHours({ start: 22, end: 7 })).toEqual({ start: 22, end: 7 });
   });
 });

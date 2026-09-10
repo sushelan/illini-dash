@@ -39,6 +39,27 @@ export const DEFAULT_SETTINGS: Settings = {
 export const MIN_POLL_MINUTES = 15;
 export const MAX_POLL_MINUTES = 120;
 
+/**
+ * §7's window is two local hours.
+ *
+ * `Number("")` is 0 and an `<input min max>` is decorative without a form, so a
+ * cleared box would otherwise yield `{start: 23, end: 0}` — whose wrapping test
+ * `hour >= 23 || hour < 0` leaves midnight to 08:00 loud — or `{0, 0}`, which
+ * disables quiet hours while the checkbox still reads on.
+ */
+export function normalizeQuietHours(value: Settings["quietHours"]): Settings["quietHours"] {
+  if (!value) return null;
+  const hour = (candidate: unknown, fallback: number) => {
+    const n = Number(candidate);
+    return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
+  };
+  const start = hour(value.start, DEFAULT_SETTINGS.quietHours!.start);
+  const end = hour(value.end, DEFAULT_SETTINGS.quietHours!.end);
+  // start === end would be a zero-length window that inQuietHours reads as off,
+  // while the UI still shows it enabled. Treat it as off, explicitly.
+  return start === end ? null : { start, end };
+}
+
 export interface StoreV1Plus extends StoreV1 {
   /** §5.4: consecutive syncs in which an undated raw item was not seen. */
   misses: Record<string, number>;
@@ -69,7 +90,7 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenItemIds: [], disabledCourses: [] },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [] },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
@@ -107,13 +128,14 @@ export function migrate(stored: unknown): StoreV1Plus {
     Math.max(MIN_POLL_MINUTES, Number(settings.pollMinutes) || DEFAULT_SETTINGS.pollMinutes),
   );
   if (!Array.isArray(settings.leadTimes)) settings.leadTimes = [...DEFAULT_SETTINGS.leadTimes];
+  settings.quietHours = normalizeQuietHours(settings.quietHours);
 
   return {
     schemaVersion: SCHEMA_VERSION,
     raw: isRecord(value.raw) ? (value.raw as Record<string, RawItem>) : {},
     items: Array.isArray(value.items) ? (value.items as Item[]) : [],
     sources,
-    overrides: { ...base.overrides, ...(value.overrides ?? {}) } as Overrides,
+    overrides: migrateOverrides(value.overrides),
     settings,
     registry: {
       fetchedAt: value.registry?.fetchedAt,
@@ -127,6 +149,34 @@ export function migrate(stored: unknown): StoreV1Plus {
     enabledAdapters: Array.isArray(value.enabledAdapters)
       ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
       : [],
+  };
+}
+
+/**
+ * `hiddenItemIds` held `Item.id`s, which change whenever a group changes. There
+ * is no way to map an old id back to member keys, so stored hides are dropped
+ * rather than silently applied to the wrong rows — a small, one-time loss in
+ * exchange for a hide that then actually sticks.
+ */
+function migrateOverrides(stored: unknown): Overrides {
+  const base: Overrides = {
+    mergeGroups: [],
+    splitKeys: [],
+    hiddenKeys: [],
+    disabledCourses: [],
+  };
+  if (!stored || typeof stored !== "object") return base;
+  const value = stored as Record<string, unknown>;
+  const strings = (input: unknown): string[] =>
+    Array.isArray(input) ? input.filter((v): v is string => typeof v === "string") : [];
+
+  return {
+    mergeGroups: Array.isArray(value["mergeGroups"])
+      ? (value["mergeGroups"] as unknown[]).map(strings).filter((g) => g.length >= 2)
+      : [],
+    splitKeys: strings(value["splitKeys"]),
+    hiddenKeys: strings(value["hiddenKeys"]),
+    disabledCourses: strings(value["disabledCourses"]),
   };
 }
 

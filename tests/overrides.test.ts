@@ -14,13 +14,13 @@ import {
   splitItem,
   unhideItem,
 } from "../src/core/overrides.js";
-import { dedupe } from "../src/core/dedupe.js";
+import { applyRetention, dedupe } from "../src/core/dedupe.js";
 import type { Item, Overrides, RawItem } from "../src/sources/types.js";
 
 const NO_OVERRIDES: Overrides = {
   mergeGroups: [],
   splitKeys: [],
-  hiddenItemIds: [],
+  hiddenKeys: [],
   disabledCourses: [],
 };
 
@@ -45,12 +45,33 @@ function itemOf(members: RawItem[]): Item {
   return dedupe(members, NO_OVERRIDES)[0]!;
 }
 
-describe("hide", () => {
-  it("adds and removes an id without duplicating it", () => {
-    let o = hideItem(NO_OVERRIDES, "abc");
-    o = hideItem(o, "abc");
-    expect(o.hiddenItemIds).toEqual(["abc"]);
-    expect(unhideItem(o, "abc").hiddenItemIds).toEqual([]);
+describe("hide (§8.1)", () => {
+  const single = itemOf([raw("gradescope", "1", "HW3", DUE)]);
+
+  it("keys on member keys, not on the group id, without duplicating", () => {
+    let o = hideItem(NO_OVERRIDES, single);
+    o = hideItem(o, single);
+    expect(o.hiddenKeys).toEqual(["gradescope:1"]);
+    expect(dedupe(single.members, o)[0]!.hidden).toBe(true);
+    expect(unhideItem(o, single).hiddenKeys).toEqual([]);
+  });
+
+  it("survives the group changing, which an id-keyed hide would not", () => {
+    // Item.id is a hash of the sorted member keys, so a hide keyed by it is
+    // spent the moment a second source mirrors the assignment.
+    const hidden = hideItem(NO_OVERRIDES, single);
+    const mirrored = [...single.members, raw("canvas", "2", "HW3 Errors and Big-O", DUE)];
+    const regrouped = dedupe(mirrored, hidden);
+    expect(regrouped).toHaveLength(1);
+    expect(regrouped[0]!.id).not.toBe(single.id);
+    // Every member hidden → still hidden.
+    expect(dedupe(mirrored, hideItem(hidden, regrouped[0]!))[0]!.hidden).toBe(true);
+  });
+
+  it("does not hide a group where only one member was hidden", () => {
+    const hidden = hideItem(NO_OVERRIDES, single);
+    const mirrored = [...single.members, raw("canvas", "2", "HW3 Errors and Big-O", DUE)];
+    expect(dedupe(mirrored, hidden)[0]!.hidden).toBe(false);
   });
 });
 
@@ -160,5 +181,56 @@ describe("courseSummaries (§8.2)", () => {
     const off = setCourseDisabled(NO_OVERRIDES, "CS357", true);
     expect(dedupe(Object.values(stored), off).some((i) => i.courseCode === "CS357")).toBe(false);
     expect(courseSummaries(stored, off).some((s) => s.key === "CS357")).toBe(true);
+  });
+});
+
+describe("retention prunes every override, including hides", () => {
+  it("drops a hiddenKey whose item was purged (§5.4)", () => {
+    const item = itemOf([raw("gradescope", "old", "Ancient", "2026-06-01T00:00:00Z")]);
+    const hidden = hideItem(NO_OVERRIDES, item);
+    expect(hidden.hiddenKeys).toEqual(["gradescope:old"]);
+
+    const stored = { "gradescope:old": item.members[0]! };
+    const result = applyRetention(
+      stored,
+      new Set(Object.keys(stored)),
+      {},
+      hidden,
+      "2026-09-10T18:00:00.000Z",
+    );
+    // Left unpruned it stays armed for the life of the install, silently
+    // re-hiding any future group that re-forms the same member set.
+    expect(result.purged).toEqual(["gradescope:old"]);
+    expect(result.overrides.hiddenKeys).toEqual([]);
+  });
+});
+
+describe("a regrouped item keeps what it already fired (§7)", () => {
+  const members = [raw("gradescope", "1", "HW3", DUE), raw("canvas", "2", "HW3 Errors", DUE)];
+
+  it("carries notified across a split, so neither half re-fires", () => {
+    // Item.id is a hash of the member keys, so a split mints new ids that miss
+    // the id lookup — and mutate() reschedules two lines later, firing them at
+    // once for a deadline the student was already reminded about.
+    const merged = dedupe(members, NO_OVERRIDES);
+    merged[0]!.notified = { "24h": "2026-09-10T18:00:00.000Z" };
+
+    const split = splitItem(NO_OVERRIDES, merged[0]!);
+    const parts = dedupe(members, split, { previous: merged });
+    expect(parts).toHaveLength(2);
+    for (const part of parts) expect(part.notified["24h"], part.title).toBe("2026-09-10T18:00:00.000Z");
+  });
+
+  it("carries notified across a merge, taking the union", () => {
+    const separate = dedupe(members, splitItem(NO_OVERRIDES, dedupe(members, NO_OVERRIDES)[0]!));
+    separate[0]!.notified = { "24h": "2026-09-10T18:00:00.000Z" };
+    separate[1]!.notified = { "2h": "2026-09-10T19:00:00.000Z" };
+
+    const remerged = dedupe(members, NO_OVERRIDES, { previous: separate });
+    expect(remerged).toHaveLength(1);
+    expect(remerged[0]!.notified).toEqual({
+      "24h": "2026-09-10T18:00:00.000Z",
+      "2h": "2026-09-10T19:00:00.000Z",
+    });
   });
 });

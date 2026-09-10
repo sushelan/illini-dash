@@ -44,9 +44,12 @@ elsewhere, so it is a trust boundary:
 
 - a `url` that is not **https on `*.illinois.edu`** — §2.3 requests optional permission
   for that suffix only, so anything else could never be granted and must not be offered;
-- a `hostPattern` that does not cover its own `url` — the pattern is what
-  `chrome.permissions.request` asks for, and a mismatch would prompt for one origin and
-  then fetch another;
+- a `hostPattern` that is not **exactly** `https://<the url's host>/*` — the pattern is
+  what `chrome.permissions.request` asks for, so a wildcard like
+  `https://*.illinois.edu/*` (the manifest's own optional entry, and therefore
+  grantable) would prompt once for every illinois.edu site. Worse: only the adapter
+  **id** is stored, so a later daily refresh could repoint that adapter's `url` anywhere
+  under the wildcard with no second prompt and no user action at all;
 - an unsupported `dateFormat`, a `filter` that is not a valid regex, a duplicate `id`,
   a missing required field, a file over 512 KB or over 200 adapters.
 

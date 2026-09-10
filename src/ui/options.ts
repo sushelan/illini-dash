@@ -528,16 +528,27 @@ async function refreshOptions(): Promise<void> {
         adapter.enabled && adapter.granted,
         `${adapter.courseCode} · ${new URL(adapter.url).hostname}`,
         (enabled) => {
-          // Must run inside the click, or Chrome refuses the permission prompt
-          // for want of a user gesture.
-          void send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
-            (response) => {
-              if (response.type === "permission" && !response.granted) {
-                registryStatus.textContent = "Permission denied, so that site stays off.";
-              }
-              void refreshOptions();
-            },
-          );
+          // Requested here, synchronously in the handler: a user gesture does
+          // not survive an await, so asking from the service worker — as this
+          // first did — meant Chrome refused the prompt and the checkbox
+          // silently reverted with no diagnostic.
+          const asked = enabled
+            ? chrome.permissions.request({ origins: [adapter.hostPattern] })
+            : Promise.resolve(true);
+          void asked.then((granted) => {
+            if (!granted) {
+              // Returned, not followed by a refresh, or the refresh overwrites
+              // the only explanation the student gets.
+              registryStatus.textContent = "Permission denied, so that site stays off.";
+              return;
+            }
+            return send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
+              (response) => {
+                if (response.type === "error") registryStatus.textContent = response.message;
+                else void refreshOptions();
+              },
+            );
+          });
         },
       );
       if (adapter.enabled && !adapter.granted) {
@@ -595,10 +606,25 @@ async function refreshOptions(): Promise<void> {
     to.max = "23";
     to.value = String(quiet.end);
     const push = () => {
-      void send({
-        type: "update-settings",
-        settings: { quietHours: { start: Number(from.value), end: Number(to.value) } },
-      }).then(refreshOptions);
+      // `Number("")` is 0, which is a legitimate hour, so a cleared box would
+      // silently become midnight and narrow the window rather than being
+      // rejected. `<input min max>` is decorative outside a form, so check here.
+      const hour = (input: HTMLInputElement): number | undefined => {
+        const value = input.value.trim();
+        if (value === "") return undefined;
+        const n = Number(value);
+        return Number.isInteger(n) && n >= 0 && n <= 23 ? n : undefined;
+      };
+      const start = hour(from);
+      const end = hour(to);
+      if (start === undefined || end === undefined) {
+        dataStatus().textContent = "Quiet hours must be two hours between 0 and 23.";
+        void refreshOptions();
+        return;
+      }
+      void send({ type: "update-settings", settings: { quietHours: { start, end } } }).then(
+        refreshOptions,
+      );
     };
     from.addEventListener("change", push);
     to.addEventListener("change", push);
@@ -686,6 +712,8 @@ document.getElementById("refresh-registry")!.addEventListener("click", async () 
  * would otherwise have to ask for, and it never transmits anything.
  */
 
+const reportNetid = document.getElementById("report-netid") as HTMLInputElement;
+const reportName = document.getElementById("report-name") as HTMLInputElement;
 const reportStatus = () => document.getElementById("report-status")!;
 const reportResult = () => document.getElementById("report-result")!;
 
@@ -706,10 +734,17 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   if (captured.type !== "capture") return;
 
   const { html, report } = scrubHtml(captured.result.body, {
-    netid: netidInput.value.trim() || undefined,
-    name: nameInput.value.trim() || undefined,
+    netid: reportNetid.value.trim() || undefined,
+    name: reportName.value.trim() || undefined,
   });
-  const blockers = report.warnings.filter((w) => w.severity === "blocker");
+  // §8.2: this file is meant for a public issue, so "no name was supplied" is a
+  // blocker here even though it is only a note elsewhere. A scrub that never
+  // had a name to remove is not a scrubbed file, whatever the counts say — and
+  // these inputs previously lived two sections away in the debug tools, so they
+  // were always empty and the button always read "Download report".
+  const blockers = report.warnings.filter(
+    (w) => w.severity === "blocker" || /^No (name|NetID) given/.test(w.message),
+  );
 
   const state = await send({ type: "get-options-state" });
   const sources = state.type === "options-state" ? state.sources : undefined;

@@ -115,6 +115,22 @@ describe("runAdapter (§4.5)", () => {
     expect(() => runAdapter({ ...ADAPTER, rows: ".nope" }, fixture, page)).toThrow(ParseError);
   });
 
+  it("throws when rows match but none carries a title", () => {
+    // House rule 2: guarding the container is not enough. A site that keeps its
+    // table and renames the title class would otherwise yield [] with no error,
+    // and the sync loop's N->0 guard keys on the whole `site:` source — so a
+    // second healthy adapter keeps the dot green while these deadlines vanish.
+    expect(() => runAdapter({ ...ADAPTER, title: ".renamed" }, fixture, page)).toThrow(
+      /none matched title/,
+    );
+  });
+
+  it("does not confuse an empty result from a filter with a broken page", () => {
+    // Every row parses fine; the filter simply excludes them all.
+    const items = runAdapter({ ...ADAPTER, filter: { include: "nothing matches this" } }, fixture, page);
+    expect(items).toEqual([]);
+  });
+
   it("keys on title and date, so a repeated row is not a second deadline", () => {
     expect(new Set(items.map((i) => i.sourceId)).size).toBe(items.length);
     expect(items.every((i) => i.sourceId.startsWith("cs999-fa26:"))).toBe(true);
@@ -136,6 +152,19 @@ describe("registry validation (§4.5) — a trust boundary", () => {
     expect(validateAdapter({ ...ADAPTER, url: "https://evil.example/x" }).reason).toMatch(
       /illinois\.edu/,
     );
+  });
+
+  it("refuses a hostPattern broader than the adapter's own host", () => {
+    // `https://*.illinois.edu/*` is the manifest's own optional entry, so Chrome
+    // would grant it — one prompt covering every illinois.edu site. And since
+    // only the adapter *id* is stored, a later registry refresh could repoint
+    // its url anywhere under that wildcard with no second prompt.
+    expect(
+      validateAdapter({ ...ADAPTER, hostPattern: "https://*.illinois.edu/*" }).reason,
+    ).toMatch(/hostPattern must be exactly/);
+    expect(
+      validateAdapter({ ...ADAPTER, hostPattern: "https://*.grainger.illinois.edu/*" }).reason,
+    ).toMatch(/hostPattern must be exactly/);
   });
 
   it("refuses an adapter whose hostPattern does not cover its own url", () => {

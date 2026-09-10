@@ -24,7 +24,7 @@ import type { Overrides, RawItem } from "../src/sources/types.js";
 const NO_OVERRIDES: Overrides = {
   mergeGroups: [],
   splitKeys: [],
-  hiddenItemIds: [],
+  hiddenKeys: [],
   disabledCourses: [],
 };
 
@@ -253,9 +253,8 @@ describe("dedupe", () => {
       expect(items).toHaveLength(1);
     });
 
-    it("hides an item by id and drops a disabled course entirely", () => {
-      const [item] = dedupe([gs, canvas], NO_OVERRIDES);
-      expect(dedupe([gs, canvas], { ...NO_OVERRIDES, hiddenItemIds: [item!.id] })[0]!.hidden).toBe(
+    it("hides an item by member keys and drops a disabled course entirely", () => {
+      expect(dedupe([gs, canvas], { ...NO_OVERRIDES, hiddenKeys: ["gradescope:8398957", "canvas:assignment:9002"] })[0]!.hidden).toBe(
         true,
       );
       expect(dedupe([gs, canvas], { ...NO_OVERRIDES, disabledCourses: ["CS357"] })).toEqual([]);

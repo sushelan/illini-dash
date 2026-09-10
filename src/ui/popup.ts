@@ -10,6 +10,7 @@
 
 import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
+import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import { formatDue, groupItems } from "./grouping.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
@@ -123,6 +124,11 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
 /** All items currently rendered, so "Merge with…" can offer same-course rows. */
 let currentItems: Item[] = [];
 
+/** A correction that silently did nothing is worse than one that says so. */
+function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
+  if (response.type === "error") statusEl.textContent = response.message;
+}
+
 function closeMenus(): void {
   for (const open of document.querySelectorAll(".menu")) open.remove();
 }
@@ -153,25 +159,36 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
     void send({
       type: "override",
       action: { kind: item.hidden ? "unhide" : "hide", itemId: item.id },
-    }).then(() => {
-      closeMenus();
-      void refresh();
-    });
+    })
+      .then(reportOverride)
+      .then(() => {
+        closeMenus();
+        void refresh();
+      });
   });
 
   if (item.members.length > 1) {
     add(`Split (${item.members.length} sources)`, () => {
-      void send({ type: "override", action: { kind: "split", itemId: item.id } }).then(() => {
-        closeMenus();
-        void refresh();
-      });
+      void send({ type: "override", action: { kind: "split", itemId: item.id } })
+        .then(reportOverride)
+        .then(() => {
+          closeMenus();
+          void refresh();
+        });
     });
   }
 
   // Only same-course rows are offered: §5.3 never merges across courses, so an
   // all-items picker would mostly be a list of things that cannot be chosen.
+  // §5.1's own test, not the derived label. `courseLabel` is the *first*
+  // member's code, while `sameCourse` matches on any code including altCodes —
+  // so a cross-listed course ("CS425 ECE428", "ECE 391 / CS 391", both in this
+  // repo's fixtures) could otherwise never be re-merged after a split.
   const candidates = currentItems.filter(
-    (other) => other.id !== item.id && other.courseLabel === item.courseLabel,
+    (other) =>
+      other.id !== item.id &&
+      !other.hidden &&
+      other.members.some((mine) => item.members.some((theirs) => sameCourse(mine, theirs))),
   );
   if (candidates.length > 0) {
     add("Merge with…", () => {
@@ -185,10 +202,12 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
           void send({
             type: "override",
             action: { kind: "merge", itemId: item.id, otherItemId: other.id },
-          }).then(() => {
-            closeMenus();
-            void refresh();
-          });
+          })
+            .then(reportOverride)
+            .then(() => {
+              closeMenus();
+              void refresh();
+            });
         });
       }
     });
@@ -218,6 +237,10 @@ function bookingWindowText(item: Item): string | undefined {
 }
 
 function render(items: Item[], settings: Settings, now: Date): void {
+  // An open menu closed over an Item from the previous list. Leaving it up
+  // across a re-render lets it act on ids that no longer exist — and the popup
+  // fires a sync on open, so that race is the common case, not a corner one.
+  closeMenus();
   currentItems = items;
   listEl.replaceChildren();
   const sections = groupItems(items, now, settings);

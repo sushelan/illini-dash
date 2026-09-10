@@ -138,9 +138,12 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   const keys = new KeyGuard();
   const codes = extractCourseCodes(adapter.courseCode);
 
+  let sawTitledRow = false;
   for (const row of rows) {
     const title = select(row, adapter.title);
+    // The `continue` stays: a header row legitimately has no title cell.
     if (!title) continue;
+    sawTitledRow = true;
     if (!matchesFilter(title, adapter.filter)) continue;
 
     const rawDate = select(row, adapter.due);
@@ -175,6 +178,15 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       extra,
       fetchedAt: page.fetchedAt,
     });
+  }
+
+  // House rule 2 / §0 rule 3: rows matched but none carried a title, so the page
+  // was redesigned. Keyed on titles rather than on `items.length`, because a
+  // `filter` may legitimately exclude every row on a page that parses fine.
+  if (!sawTitledRow) {
+    throw new ParseError(
+      `adapter ${adapter.id}: ${rows.length} rows, none matched title ${JSON.stringify(adapter.title)}`,
+    );
   }
 
   return items;

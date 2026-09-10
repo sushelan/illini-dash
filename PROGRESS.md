@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (273 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (359 tests) all pass.
 
 ## Done
 
@@ -59,6 +59,10 @@ by a December date, the fall-back hour, and the previous-year candidate. Eleven 
 were tried; the two that survived the first pass have tests and now fail too.
 
 | 7 — normalize + dedupe | `src/core/normalize.ts` §5.2, `src/core/dedupe.ts` §5.3 union-find + overrides + §5.4 retention. 41 tests, table-driven from real fixture titles. |
+| 9 — notifications | `src/core/schedule.ts` §7: 24h/2h leads, quiet hours, the daily booking nag, alarms rebuilt after every sync. Plus the extension icons, without which `chrome.notifications.create` fails silently. |
+| 10 — options, overrides, calendar | §8.2's options page, §8.1's row menu (hide/split/merge/calendar) over `src/core/overrides.ts`, and §8.3's `.ics` + Google Calendar links in `src/core/ics.ts`. |
+| 11 — course-site adapters | §4.5's declarative runner (`src/sources/site.ts`), the registry trust boundary (`src/core/registry.ts`), the daily refresh and the runtime permission flow. **Registry ships empty** — see below. → [adapters.md](docs/adapters.md) |
+| 12 — report, policy, listing | §8.2's report-a-broken-page flow, plus [privacy-policy.md](docs/store/privacy-policy.md) and [listing.md](docs/store/listing.md). |
 | 8 — store + sync + popup | `src/core/store.ts` (§3 schema, migrations, §6 backoff), `src/core/sync.ts` (§6 loop, injected fetch/parse/clock), `src/ui/grouping.ts` + `popup.ts` (§8.1). 32 tests, driven end-to-end by the real fixtures. Review in flight. |
 
 ## Review outcome — dedupe + sync (the full review CLAUDE.md reserves for this layer)
@@ -104,6 +108,34 @@ field while a missing *hook* stays loud.
 
 Seven mutations were tried against the fixed code; all seven fail.
 
+## Review outcome — steps 9–12
+16 findings, **all 16 survived refutation**, 13 code defects fixed. None was pinned by the
+347 tests that existed.
+
+Wrong interruptions: a catch-up reminder threw away the quiet-hours deferral the planner
+had just computed and fired at 02:30; §7 read `dueAt` alone, so a reduced-credit deadline
+that the popup and the `.ics` both show as live got no reminder at all; every store write
+was an unserialized whole-store read-modify-write, so a sync landing over a notification
+restored the empty `notified` and re-fired it — and one landing over a hide reverted it;
+a split or merge dropped `notified` entirely and the reschedule two lines later re-fired
+both halves; quiet-hours inputs were unvalidated, so a cleared box left midnight to 08:00
+loud with the checkbox still on.
+
+Trust: `validateAdapter` accepted a `hostPattern` broader than the adapter's own host.
+`https://*.illinois.edu/*` is the manifest's own optional entry, so Chrome would grant
+it — and since only the adapter *id* is stored, a later daily refresh could repoint its
+`url` anywhere under that wildcard with no second prompt.
+
+Silent losses: an adapter whose title selector broke returned `[]` rather than throwing;
+`hiddenItemIds` was keyed by the group-derived `Item.id`, so a hide was spent the moment
+a second source mirrored the row, and the stale id stayed armed forever — it is now
+keyed by member keys and pruned by §5.4 like every other override; a notification's
+click target lived only in worker memory, which MV3 discards ~30s after the toast, so
+clicking opened nothing; the row menu survived a re-render and acted on stale ids while
+still reporting success.
+
+Eight mutations tried against the fixes; all eight fail.
+
 ## Fixtures captured
 
 | Source | Files | Notes |
@@ -114,8 +146,8 @@ Seven mutations were tried against the fixed code; all seven fail.
 | PrairieTest | `home-booked-none-available.html`, `home-booked-and-available.html` | Sep 3 and Sep 10. Between them the student rescheduled Quiz 1, so the pair is live evidence for the §3.1 amendment. The Sep 10 capture has the first available-card row ever seen. |
 
 ## Next
-**G2 and G3** — both hands-on, see below. Then steps 9–12, which CLAUDE.md notes can run
-in parallel: notifications, options/overrides UI, adapter runner, store assets.
+**G4** — 10 beta users across ≥3 majors for a week, ≥7 saying they would keep it. Then
+**G5**, which §9 gates behind it.
 
 ## Shared parser primitives
 `src/core/parsing.ts` holds the rules that were previously written three or four times

@@ -80,7 +80,16 @@ export interface Overrides {
   mergeGroups: string[][];
   /** memberKeys the user forced apart from auto-merges. */
   splitKeys: string[];
-  hiddenItemIds: string[];
+  /**
+   * memberKeys of hidden work.
+   *
+   * AMENDED from §3's `hiddenItemIds`. `Item.id` is a hash of the sorted member
+   * keys, so it changes whenever a group gains or loses a member — a hide keyed
+   * by it is spent the moment the item merges with anything, and the stale id
+   * stays armed forever, silently re-hiding any future group that happens to
+   * re-form the same member set.
+   */
+  hiddenKeys: string[];
   /** courseCodes or courseRaw values. */
   disabledCourses: string[];
 }

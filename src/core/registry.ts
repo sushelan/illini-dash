@@ -70,7 +70,16 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
 
   const hostPattern = a["hostPattern"];
   if (!isPlainString(hostPattern, 200)) return fail("missing hostPattern");
-  if (!matchesHostPattern(hostPattern, parsed)) return fail("hostPattern does not cover url");
+  // Exactly this adapter's host, not merely a pattern that covers it. The
+  // pattern is what `chrome.permissions.request` asks for, so a wildcard like
+  // `https://*.illinois.edu/*` — which is the manifest's own optional entry, and
+  // so grantable — would prompt once for every illinois.edu site. Worse, only
+  // the adapter *id* is stored: a later daily registry refresh could then
+  // repoint that adapter's `url` anywhere under the wildcard with no second
+  // prompt and no user action at all.
+  if (hostPattern !== `https://${parsed.hostname}/*`) {
+    return fail(`hostPattern must be exactly https://${parsed.hostname}/*`);
+  }
 
   const dateFormat = a["dateFormat"];
   if (!isPlainString(dateFormat, 40) || !supportedDateFormats().includes(dateFormat)) {

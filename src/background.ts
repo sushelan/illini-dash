@@ -33,6 +33,7 @@ import {
 } from "./core/overrides.js";
 import {
   loadStore,
+  normalizeQuietHours,
   saveStore,
   MAX_POLL_MINUTES,
   MIN_POLL_MINUTES,
@@ -41,6 +42,7 @@ import {
   notificationContent,
   parseAlarmName,
   planNotifications,
+  shouldFireNow,
   type Lead,
 } from "./core/schedule.js";
 import { REQUEST_TIMEOUT_MS, runSync, type FetchedPage, type SyncDeps, type SyncTrigger } from "./core/sync.js";
@@ -136,6 +138,23 @@ async function maybeRefreshRegistry(): Promise<void> {
   }
 }
 
+/**
+ * Every store writer goes through one queue.
+ *
+ * `chrome.storage.local.get` hands back a fresh copy, so two overlapping
+ * read-modify-writes lose one side wholesale: a sync landing over a
+ * notification restores the empty `notified` and §7 fires the same reminder
+ * again, and a sync landing over a hide reverts it — spending one of §9 G3's
+ * two corrections a semester. Holding the queue across a sync's fetches delays
+ * a reminder by at most one sync; that is the right trade.
+ */
+let storeQueue: Promise<unknown> = Promise.resolve();
+function withStore<T>(work: () => Promise<T>): Promise<T> {
+  const next = storeQueue.then(work, work);
+  storeQueue = next.catch(() => undefined);
+  return next;
+}
+
 /** One sync at a time: two overlapping runs would race on the same store. */
 let running: Promise<void> | null = null;
 
@@ -145,7 +164,7 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
     return { skipped: true };
   }
   let skipped = false;
-  running = (async () => {
+  running = withStore(async () => {
     await maybeRefreshRegistry();
     const store = await loadStore();
     const result = await runSync(store, trigger, deps);
@@ -163,7 +182,7 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
         );
       }
     }
-  })().finally(() => {
+  }).finally(() => {
     running = null;
   });
   await running;
@@ -187,14 +206,17 @@ async function reschedule(): Promise<void> {
   }
 
   for (const plan of planned) {
-    // An overdue plan is §7's "Chrome was closed" case: fire it now rather than
-    // waiting for a moment that has already gone by.
-    if (plan.overdue) await fireNotification(plan.itemId, plan.lead);
+    // `fireAt` already carries the quiet-hours deferral, *including* for §7's
+    // "Chrome was closed" catch-up — which is precisely the case it was computed
+    // for. Branching on `overdue` instead threw that away and woke people at
+    // 02:30 with a reminder whose moment had passed while they slept.
+    if (shouldFireNow(plan, new Date())) await fireNotification(plan.itemId, plan.lead);
     else await chrome.alarms.create(plan.alarmName, { when: Date.parse(plan.fireAt) });
   }
 }
 
 async function fireNotification(itemId: string, lead: Lead): Promise<void> {
+  return withStore(async () => {
   const store = await loadStore();
   const item = store.items.find((candidate) => candidate.id === itemId);
   // The item may have been submitted, hidden or purged since the alarm was set.
@@ -216,13 +238,25 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
 
   item.notified = { ...item.notified, [lead]: new Date().toISOString() };
   await saveStore(store);
+  });
 }
 
 chrome.notifications.onClicked.addListener((notificationId) => {
-  const url = notificationTargets.get(notificationId);
-  if (url) void chrome.tabs.create({ url });
-  notificationTargets.delete(notificationId);
-  void chrome.notifications.clear(notificationId);
+  void (async () => {
+    // MV3 tears the idle worker down within ~30s of the toast appearing, so this
+    // Map is usually empty by the time a click lands. The id starts with the
+    // item id (16 colon-free hex characters), so the target is one load away.
+    let url = notificationTargets.get(notificationId);
+    if (!url) {
+      const itemId = notificationId.split(":")[0]!;
+      url = (await loadStore()).items.find((item) => item.id === itemId)?.url;
+    }
+    // Leave the toast up rather than clearing the only remaining pointer to it.
+    if (!url) return;
+    await chrome.tabs.create({ url });
+    notificationTargets.delete(notificationId);
+    await chrome.notifications.clear(notificationId);
+  })();
 });
 
 /**
@@ -234,27 +268,41 @@ chrome.notifications.onClicked.addListener((notificationId) => {
  * same reason: hiding a row must silence its reminder now, not eventually.
  */
 async function mutate(change: (store: Awaited<ReturnType<typeof loadStore>>) => void): Promise<void> {
-  const store = await loadStore();
-  change(store);
-  store.items = dedupe(Object.values(store.raw), store.overrides, { previous: store.items });
-  await saveStore(store);
+  await withStore(async () => {
+    const store = await loadStore();
+    change(store);
+    store.items = dedupe(Object.values(store.raw), store.overrides, { previous: store.items });
+    await saveStore(store);
+  });
   await reschedule();
 }
 
 async function applyOverride(action: import("./messages.js").OverrideAction): Promise<void> {
+  let missing = false;
   await mutate((store) => {
     const item = store.items.find((candidate) => candidate.id === action.itemId);
-    if (action.kind === "hide") store.overrides = hideItem(store.overrides, action.itemId);
-    else if (action.kind === "unhide") store.overrides = unhideItem(store.overrides, action.itemId);
+    // §0 rule 3 applied to the UI: a menu opened before a re-render closes over
+    // an id that no longer exists, and reporting `ok` for a no-op leaves the
+    // student thinking their correction stuck.
+    if (!item) {
+      missing = true;
+      return;
+    }
+    if (action.kind === "hide" && item) store.overrides = hideItem(store.overrides, item);
+    else if (action.kind === "unhide" && item) store.overrides = unhideItem(store.overrides, item);
     else if (action.kind === "split" && item) store.overrides = splitItem(store.overrides, item);
     else if (action.kind === "merge" && item) {
       const other = store.items.find((candidate) => candidate.id === action.otherItemId);
       if (other) store.overrides = mergeItems(store.overrides, item, other);
     }
   });
+  if (missing) {
+    throw new Error(`no such item ${action.itemId} — the list changed, try again`);
+  }
 }
 
 async function applySettings(patch: Partial<import("./sources/types.js").Settings>): Promise<void> {
+  await withStore(async () => {
   const store = await loadStore();
   const settings = { ...store.settings, ...patch };
   // §8.2 bounds the poll interval, and §4.2 promises Gradescope no faster than
@@ -264,8 +312,10 @@ async function applySettings(patch: Partial<import("./sources/types.js").Setting
     MAX_POLL_MINUTES,
     Math.max(MIN_POLL_MINUTES, Number(settings.pollMinutes) || store.settings.pollMinutes),
   );
+  settings.quietHours = normalizeQuietHours(settings.quietHours);
   store.settings = settings;
   await saveStore(store);
+  });
   await scheduleAlarm();
   await reschedule();
 }
@@ -428,10 +478,13 @@ chrome.runtime.onMessage.addListener(
           if (!adapter) return { type: "error", message: `unknown adapter ${adapterId}` } as const;
 
           if (enabled) {
-            // §4.5 / §2.3: course sites live on subdomains deliberately left out
-            // of the up-front request, so the permission is asked for here — and
-            // this must be reached from a user gesture or Chrome refuses it.
-            const granted = await chrome.permissions.request({ origins: [adapter.hostPattern] });
+            // Verified, not requested. A user gesture does not survive the
+            // awaits above, and Chrome refuses `permissions.request` without
+            // one — so the options page asks synchronously inside the click and
+            // this only confirms the result.
+            const granted = await chrome.permissions.contains({
+              origins: [adapter.hostPattern],
+            });
             if (!granted) return { type: "permission", granted: false } as const;
           }
 

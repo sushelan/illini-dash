@@ -84,8 +84,8 @@ describe("migrate (§3)", () => {
   it("keeps a user's overrides rather than resetting them", () => {
     // The failure that matters is not a future migration, it is a half-written
     // store: losing overrides to a missing key would be unrecoverable.
-    const store = migrate({ overrides: { hiddenItemIds: ["abc"] }, items: undefined });
-    expect(store.overrides.hiddenItemIds).toEqual(["abc"]);
+    const store = migrate({ overrides: { hiddenKeys: ["gradescope:1"] }, items: undefined });
+    expect(store.overrides.hiddenKeys).toEqual(["gradescope:1"]);
     expect(store.overrides.splitKeys).toEqual([]);
   });
 

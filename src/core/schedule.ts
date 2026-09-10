@@ -134,8 +134,12 @@ export function planNotifications(
       continue;
     }
 
-    if (item.dueAt === undefined) continue;
-    const due = Date.parse(item.dueAt);
+    // §4.3 / §8.1: an item whose only instant is `lateDueAt` is still live —
+    // grouping.ts and ics.ts both resolve the pair this way, and both parsers
+    // emit that shape. Reading `dueAt` alone silences a real deadline.
+    const deadline = item.dueAt ?? item.lateDueAt;
+    if (deadline === undefined) continue;
+    const due = Date.parse(deadline);
     if (Number.isNaN(due)) continue;
     // §7: past the deadline, a reminder is noise. Nothing fires stale.
     if (due <= now.getTime()) continue;
@@ -159,6 +163,18 @@ export function planNotifications(
   }
 
   return planned;
+}
+
+/**
+ * Whether a plan is due to fire, or should be armed as an alarm.
+ *
+ * Extracted so the decision is testable: the worker previously branched on
+ * `overdue` and ignored `fireAt`, which discarded the quiet-hours deferral for
+ * exactly the case it was computed for — §7's "Chrome was closed" catch-up —
+ * and woke people at 02:30.
+ */
+export function shouldFireNow(plan: PlannedNotification, now: Date): boolean {
+  return Date.parse(plan.fireAt) <= now.getTime();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -197,12 +213,16 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
     };
   }
 
-  const due = item.dueAt ? new Date(item.dueAt) : undefined;
+  const instant = item.dueAt ?? item.lateDueAt;
+  const due = instant ? new Date(instant) : undefined;
   const when = due
     ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
     : "";
+  // §4.3: a reduced-credit window is not a due date, and must not be worded as
+  // one — the same care §4.4 takes with a booking.
+  const kindWord = item.dueAt === undefined ? "reduced credit" : "due";
   return {
-    title: `${item.courseLabel} — due ${lead === "24h" ? "tomorrow" : "in 2 hours"}`,
+    title: `${item.courseLabel} — ${kindWord} ${lead === "24h" ? "tomorrow" : "in 2 hours"}`,
     message: `${item.title}${when ? `\n${when}` : ""}`,
     url: item.url,
   };
