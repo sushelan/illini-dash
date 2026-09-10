@@ -7,16 +7,27 @@
  */
 
 import { isItemDone, isTickedDone } from "./dedupe.js";
+import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
 export type SectionName =
+  | "Couldn't read"
   | "Needs attention"
   | "Today"
   | "Tomorrow"
   | "This week"
   | "Later";
 
+/**
+ * "Couldn't read" leads, above even Needs attention.
+ *
+ * It holds rows whose deadline the parser could not make sense of, so its
+ * contents are by definition the deadlines this extension is least sure about —
+ * and §11 ranks a silently missing deadline above every other failure. It is
+ * empty on a healthy sync, which is what makes it tolerable at the top.
+ */
 export const SECTION_ORDER: SectionName[] = [
+  "Couldn't read",
   "Needs attention",
   "Today",
   "Tomorrow",
@@ -101,6 +112,11 @@ export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
 }
 
 export function sectionFor(item: Item, now: Date): SectionName | undefined {
+  // Before anything else: a row whose date could not be read has no instant to
+  // section by, so every branch below would drop it — which is how a row kept
+  // deliberately (house rule 1) ended up displayed nowhere.
+  if (unreadableDeadline(item).length > 0) return "Couldn't read";
+
   // §8.1: booking items always lead, because the window closes whether or not
   // the student has looked, and §7 nags daily until it is gone.
   if (item.kind === "booking") return "Needs attention";

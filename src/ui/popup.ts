@@ -14,6 +14,7 @@ import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import { formatDue, groupItems, liveDeadline, movedText } from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
+import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
@@ -185,7 +186,33 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
 
   const due = document.createElement("span");
   due.className = "row--due";
-  due.textContent = dueText ?? formatDue(item, now);
+  // A row whose date could not be read says so where the date would be, rather
+  // than reading "no date" — which is what a genuinely undated row says, and
+  // the two mean opposite things.
+  const unreadable = unreadableDeadline(item);
+  if (unreadable.length > 0) {
+    due.classList.add("row--unreadable");
+    due.textContent = unreadableSummary(unreadable)!;
+    // The raw text the parser could not make sense of, inserted as text so a
+    // hostile page cannot use this path (§8.1's rendering rule).
+    due.title = unreadable
+      .map((flag) => `${flag.source} ${flag.field}: ${flag.detail ?? "(no value)"}`)
+      .join("\n");
+  } else {
+    due.textContent = dueText ?? formatDue(item, now);
+    const soft = qualityFlags(item).filter((flag) => !flag.blocksDate);
+    if (soft.length > 0) {
+      // Dated, but something else on the row did not parse. Worth a mark, not a
+      // section: the deadline itself is intact.
+      const mark = document.createElement("span");
+      mark.className = "row--flag";
+      mark.textContent = "!";
+      mark.title = soft
+        .map((flag) => `${flag.source} ${flag.field}${flag.detail ? `: ${flag.detail}` : ""}`)
+        .join("\n");
+      due.append(document.createTextNode(" "), mark);
+    }
+  }
 
   // A deadline that moved since the last sync says so on the row. Without this
   // the change is absorbed silently: the row simply reads differently than it

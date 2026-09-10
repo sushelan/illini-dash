@@ -327,3 +327,41 @@ describe("a row the student ticked off", () => {
     ).toHaveLength(1);
   });
 });
+
+describe("a date the parser could not read (§0 rule 3, §11)", () => {
+  // House rule 1 keeps the row and files the raw text; before this the row was
+  // then shown nowhere, so a Gradescope format change would silently drop a
+  // deadline behind a green dot.
+  const unreadable = item({
+    dueAt: undefined,
+    members: [member("not_submitted", { unparsedDueDate: "2026-09-31 17:00:00 -0500" })],
+  });
+
+  it("leads the list rather than vanishing", () => {
+    expect(sectionFor(unreadable, NOW)).toBe("Couldn't read");
+    expect(groupItems([unreadable], NOW, DEFAULT_SETTINGS).map((s) => s.name)).toEqual([
+      "Couldn't read",
+    ]);
+  });
+
+  it("is not confused with a row that genuinely has no date", () => {
+    // Canvas's undated LTI shells and a course page's "TBD" belong nowhere in a
+    // list of deadlines; a date that failed to parse is a hidden deadline.
+    const undated = item({ dueAt: undefined, members: [member("not_submitted")] });
+    expect(sectionFor(undated, NOW)).toBeUndefined();
+  });
+
+  it("does not claim a dated row is unreadable because something else failed", () => {
+    const dated = item({
+      dueAt: at(2026, 8, 11),
+      members: [member("not_submitted", { unparsedReleaseDate: "junk" })],
+    });
+    expect(sectionFor(dated, NOW)).toBe("Tomorrow");
+  });
+
+  it("sorts above Needs attention, because it is the least certain thing there", () => {
+    const overdue = item({ id: "o", dueAt: at(2026, 8, 8), members: [member("not_submitted")] });
+    const sections = groupItems([overdue, unreadable], NOW, DEFAULT_SETTINGS);
+    expect(sections.map((s) => s.name)).toEqual(["Couldn't read", "Needs attention"]);
+  });
+});

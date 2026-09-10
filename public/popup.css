@@ -28,6 +28,8 @@ body { width: 400px; max-height: 600px; overflow-y: auto; padding: 0; }
 .row--moved { color: var(--warn); font-size: 10px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
+.row--unreadable { color: var(--err); white-space: normal; text-align: right; }
+.row--flag { color: var(--warn); font-weight: 700; cursor: help; }
 .row-late { border-left: 3px solid var(--warn); }
 .row-late .row--due { color: var(--warn); }
 h2.section {
