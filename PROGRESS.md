@@ -154,6 +154,10 @@ Eight mutations tried against the fixes; all eight fail.
 **G4** — 10 beta users across ≥3 majors for a week, ≥7 saying they would keep it. Then
 **G5**, which §9 gates behind it.
 
+The full pre-beta checklist, and 88 verified feature ideas ranked with audit and skeptic
+verdicts, are in [roadmap-ideas.md](docs/roadmap-ideas.md) (2026-09-10). The items below
+are the short version.
+
 Worth doing before handing this to ten people:
 
 - **The popup shows invented times as fact.** Every CS 424 row reads 11:59 PM and the
