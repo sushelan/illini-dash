@@ -143,7 +143,7 @@ Eight mutations tried against the fixes; all eight fail.
 
 | Source | Files | Notes |
 |---|---|---|
-| Canvas | `courses-active.json`, `planner-items-empty.json`, `assignments-cs357.json`, `assignments-cs425.json`, `planner-items-SYNTHETIC.json` | Planner is genuinely `[]`; 0 of 67 assignments carry a date. The synthetic fixture is hand-written — see `fixtures/canvas/README.md`. |
+| Canvas | `courses-active.json`, `courses-active-term.json`, `planner-items.json`, `planner-items-empty.json`, `assignments-cs357.json`, `assignments-cs425.json`, `planner-items-SYNTHETIC.json` | The Sep 3 planner was genuinely `[]` and 0 of 67 assignments were dated. **Sep 10: `planner-items.json` is a real capture with one dated row**, so `parsePlannerItems` is measured against a real response for the first time. The synthetic fixture stays for the mappings one row cannot reach — see `fixtures/canvas/README.md`. |
 | Gradescope | `dashboard.html`, `course-1352838.html` | 15 courses / 5 terms; PHYS435 with 2 assignments covering both the submitted and unsubmitted row shapes. |
 | PrairieLearn | `assessments-cs357.html` | 8 assessments, all 8 credit popovers present. |
 | Course site | `cs424-fa2026-schedule.html` | Real capture, 2026-09-10. Shibboleth-protected; answers 401 in place rather than redirecting. Drives the `cs424-fa26` seed adapter: 9 deadlines, all dated, across the CDT→CST flip. |
@@ -203,7 +203,12 @@ One defect, and one superseded claim:
   nothing about whether an instructor will set a date — and it is corrected rather than
   annotated. It also unblocks G1's last gap: `parsePlannerItems` is the only parser in
   the project never tested against a real response, and a real planner fixture is now
-  one capture away. Still open: whether the first-fetch-after-reload failure recurs.
+  one capture away. **Taken the same day**: `fixtures/canvas/planner-items.json`, one
+  dated CS 424 quiz. It pins the four things only a real response could — a *relative*
+  `html_url`, an absent `course_code` (the code comes from `context_name`, per the §4.1
+  amendment), four `submissions` keys the synthetic fixture never had, and §3.1's key
+  shape on live ids. All four already worked. Still open: whether the
+  first-fetch-after-reload failure recurs.
 
 **Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
 Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.

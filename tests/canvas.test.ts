@@ -1,10 +1,11 @@
 /**
  * Canvas parser tests (§4.1), run against `fixtures/canvas/`.
  *
- * The course and assignment fixtures are real captures. The planner fixture is
- * hand-written and its limits are documented in fixtures/canvas/README.md — the
- * real account has no dated Canvas assignments at all, so the mapping cannot yet
- * be exercised by a capture.
+ * The course and assignment fixtures are real captures, and since 2026-09-10 so
+ * is `planner-items.json` — one dated row, captured the day an instructor first
+ * set a Canvas due date on this account. The synthetic fixture stays: one real
+ * row cannot exercise ten kind and status mappings, and its limits are
+ * documented in fixtures/canvas/README.md.
  */
 
 import { readFileSync } from "node:fs";
@@ -126,6 +127,59 @@ describe("parsePlannerItems — the real, empty capture", () => {
     // place where empty is NOT a parse error under §0 rule 3.
     const items = parsePlannerItems(fixture("planner-items-empty.json"), new Map(), page);
     expect(items).toEqual([]);
+  });
+});
+
+describe("parsePlannerItems — the real dated capture (2026-09-10)", () => {
+  // One row, and it is the first real planner response this parser has ever been
+  // measured against: until today the account had no dated Canvas assignment, so
+  // `planner-items-SYNTHETIC.json` was the only thing exercising the mapping —
+  // and a hand-written fixture agrees with whatever the code does (house rule 10).
+  const courses = courseMap(parseCourses(fixture("courses-active-term.json")));
+  const items = parsePlannerItems(fixture("planner-items.json"), courses, page);
+
+  it("yields exactly the one item Canvas returned", () => {
+    expect(items).toHaveLength(1);
+  });
+
+  it("keys on §3.1's plannable_type:plannable_id", () => {
+    expect(items[0]!.sourceId).toBe("quiz:438909");
+  });
+
+  it("resolves the relative html_url against the Canvas origin", () => {
+    // The live response gives `/courses/75165/quizzes/438909`, not an absolute
+    // URL. §3 requires an absolute https URL on the source host, and house rule
+    // 7 says anything else is the fallback — which would open the dashboard
+    // instead of the assignment.
+    expect(items[0]!.url).toBe("https://canvas.illinois.edu/courses/75165/quizzes/438909");
+  });
+
+  it("takes the course code from context_name, since the planner has no course_code", () => {
+    // The §4.1 amendment, confirmed on real data: `course_code` is absent from
+    // this response entirely, and `context_name` carries the catalog number.
+    expect(items[0]!.courseRaw).toBe("Fall 2026-CS 424-Real-Time Systems-Sections PG, PU");
+    expect(items[0]!.courseCode).toBe("CS424");
+  });
+
+  it("reads the deadline from plannable.due_at and records which field it used", () => {
+    expect(items[0]!.dueAt).toBe("2026-09-17T04:59:59Z");
+    expect(items[0]!.extra?.["dateField"]).toBe("plannable.due_at");
+  });
+
+  it("reads not_submitted from a submissions object whose flags are all false", () => {
+    // The real object carries four keys the synthetic one does not —
+    // `posted_at`, `needs_grading`, `has_feedback`, `redo_request` — and none of
+    // them may be mistaken for a submission.
+    expect(items[0]!.status).toBe("not_submitted");
+  });
+
+  it("keeps Canvas's own kind, even though the title says homework", () => {
+    // `plannable_type` is "quiz" for something called "Homework 1", because
+    // Canvas classic quizzes are routinely used for homework. §4.1 maps quiz to
+    // quiz, and inventing "assignment" from the title would be reading the
+    // source's mind.
+    expect(items[0]!.kind).toBe("quiz");
+    expect(items[0]!.title).toBe("Homework 1");
   });
 });
 

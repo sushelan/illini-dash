@@ -3,6 +3,8 @@
 | File | Origin |
 |---|---|
 | `courses-active.json` | **Real capture**, 2026-09-03, `/api/v1/courses?enrollment_state=active&per_page=100`. 3 courses. |
+| `courses-active-term.json` | **Real capture**, 2026-09-10, the same with `include[]=term`. 4 courses; settles §4.1's concluded-course filter (`docs/canvas-findings.md`). |
+| `planner-items.json` | **Real capture**, 2026-09-10, `/api/v1/planner/items` over Sep 3 – Nov 9. **One dated row** — the first this account has ever produced. |
 | `planner-items-empty.json` | **Real capture**, 2026-09-03, `/api/v1/planner/items` over now−7d…now+60d. Genuinely `[]`. |
 | `assignments-cs357.json` | **Real capture**, 2026-09-03, `/api/v1/courses/72393/assignments`. 66 rows, none dated. |
 | `assignments-cs425.json` | **Real capture**, 2026-09-03, `/api/v1/courses/74798/assignments`. 1 row, undated. |
@@ -11,17 +13,25 @@
 All real captures were scrubbed per Appendix A and audited: no emails, no 9-digit
 ids, no name residue, `user_id` redacted.
 
-## Why a synthetic planner fixture exists
+## Why a synthetic planner fixture still exists
 
-The account this project is built on has **no dated Canvas assignments at all** — 0 of
-67, confirmed in `docs/canvas-findings.md` — so its planner is legitimately empty and
-cannot exercise the parser's date, status or kind mapping. G1 requires parser tests
-with hand-written expected outputs, so `planner-items-SYNTHETIC.json` was written
-from the field shapes §4.1 documents.
+**Updated 2026-09-10.** When this was written the account had no dated Canvas
+assignment, and an earlier version of `docs/canvas-findings.md` overreached from that
+to "Canvas cannot contribute any" — which was never supported by the evidence and is
+now corrected there. `planner-items.json` is a real capture with one dated row, taken
+the day an instructor first set a Canvas due date on this account.
 
-**It encodes assumptions, not observations.** Canvas is therefore *not validated
-against real planner data*, and that stays true until a real non-empty planner
-capture replaces it — a beta tester at G4 whose instructors set Canvas due dates is
+One row is not ten, so the synthetic fixture stays. It is what exercises the kind
+mapping across `assignment`, `discussion_topic`, `calendar_event` and the skipped
+types, the status mapping across submitted / graded / missing / excused, undated rows,
+and the malformed shapes §0 rule 3 requires to throw. The real capture is a `quiz` that
+is `not_submitted` with a `plannable.due_at`, and it pins the four things only a real
+response could: the relative `html_url`, the absent `course_code`, the extra
+`submissions` keys, and §3.1's key shape on live ids.
+
+**It encodes assumptions, not observations**, and that is still true of everything it
+covers beyond the single real row — the kind and status mappings in particular remain
+unmeasured against Canvas itself. That stays true until more real planner rows appear — a beta tester at G4 whose instructors set Canvas due dates is
 the expected source. Anything the parser learns to depend on that appears only here
 should be treated as unverified.
 
