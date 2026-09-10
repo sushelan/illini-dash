@@ -13,6 +13,7 @@ import type { GradescopeCourse } from "./sources/gradescope.js";
 import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
 import type {
+  Adapter,
   Item,
   Overrides,
   PageCtx,
@@ -36,7 +37,10 @@ export type Request =
   | { type: "set-course-disabled"; course: string; disabled: boolean }
   | { type: "override"; action: OverrideAction }
   | { type: "export" }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "get-adapters" }
+  | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
+  | { type: "refresh-registry" };
 
 export type OverrideAction =
   | { kind: "hide"; itemId: string }
@@ -68,6 +72,12 @@ export type Response =
       lastSyncAt?: string;
     }
   | { type: "ok" }
+  | {
+      type: "adapters";
+      adapters: (Adapter & { enabled: boolean; granted: boolean; currentTerm: boolean })[];
+      fetchedAt?: string;
+    }
+  | { type: "permission"; granted: boolean }
   | { type: "export"; json: string }
   | { type: "error"; message: string };
 
@@ -81,7 +91,14 @@ export interface SelftestCase {
 /** Service worker → offscreen document. */
 export type OffscreenRequest =
   | { target: "offscreen"; type: "parse"; parserId: ParserId; html: string; page: PageCtx }
-  | { target: "offscreen"; type: "parse-gradescope-dashboard"; html: string };
+  | { target: "offscreen"; type: "parse-gradescope-dashboard"; html: string }
+  | {
+      target: "offscreen";
+      type: "run-adapter";
+      adapter: Adapter;
+      html: string;
+      page: PageCtx;
+    };
 
 /** Kept as a name because the parse case is by far the common one. */
 export type ParseRequest = OffscreenRequest;

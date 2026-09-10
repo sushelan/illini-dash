@@ -1,0 +1,217 @@
+/**
+ * §4.5's declarative adapter runner and its registry.
+ *
+ * The registry is the only place this extension ingests data authored
+ * elsewhere, so its validation is a trust boundary rather than a formality.
+ */
+
+import { readFileSync } from "node:fs";
+import { parseHTML } from "linkedom";
+import { describe, expect, it } from "vitest";
+import { parseAdapterDate, runAdapter, supportedDateFormats } from "../src/sources/site.js";
+import {
+  currentTermCode,
+  isCurrentTerm,
+  matchesHostPattern,
+  validateAdapter,
+  validateRegistry,
+} from "../src/core/registry.js";
+import { ParseError, type Adapter, type PageCtx } from "../src/sources/types.js";
+
+const doc = (html: string) => parseHTML(html).document as unknown as Document;
+const fixture = doc(
+  readFileSync(new URL("../fixtures/sites/example-course-schedule.html", import.meta.url), "utf8"),
+);
+
+const page: PageCtx = {
+  url: "https://courses.grainger.illinois.edu/cs999/fa2026/schedule",
+  fetchedAt: "2026-09-10T18:00:00.000Z",
+};
+
+const ADAPTER: Adapter = {
+  id: "cs999-fa26",
+  label: "CS 999 course site",
+  courseCode: "CS999",
+  term: "fa26",
+  url: "https://courses.grainger.illinois.edu/cs999/fa2026/schedule",
+  hostPattern: "https://courses.grainger.illinois.edu/*",
+  rows: "#schedule tr.assignment",
+  title: ".name",
+  due: ".due",
+  link: ".name a@href",
+  dateFormat: "MMM d, h:mm a",
+  timezone: "America/Chicago",
+  filter: { exclude: "no submission" },
+  minExtensionVersion: "0.1.0",
+};
+
+describe("parseAdapterDate", () => {
+  const ref = "2026-09-10T18:00:00.000Z";
+
+  it("parses each supported format in the declared zone", () => {
+    expect(parseAdapterDate("Sep 11, 11:59 pm", "MMM d, h:mm a", "America/Chicago", ref)).toBe(
+      "2026-09-11T23:59:00-05:00",
+    );
+    expect(parseAdapterDate("2026-09-11 23:59", "yyyy-MM-dd", "America/Chicago", ref)).toBe(
+      "2026-09-11T23:59:00-05:00",
+    );
+    expect(parseAdapterDate("9/11 11:59 pm", "M/d", "America/Chicago", ref)).toBe(
+      "2026-09-11T23:59:00-05:00",
+    );
+  });
+
+  it("defaults a dateless entry to end of day, as a schedule page means it", () => {
+    expect(parseAdapterDate("Oct 2", "MMM d, h:mm a", "America/Chicago", ref)).toBe(
+      "2026-10-02T23:59:00-05:00",
+    );
+  });
+
+  it("respects the declared timezone rather than the host's", () => {
+    expect(parseAdapterDate("Sep 11, 11:59 pm", "MMM d, h:mm a", "America/New_York", ref)).toBe(
+      "2026-09-11T23:59:00-04:00",
+    );
+  });
+
+  it("returns undefined instead of guessing", () => {
+    expect(parseAdapterDate("TBD", "MMM d, h:mm a", "America/Chicago", ref)).toBeUndefined();
+    expect(parseAdapterDate("Sep 31", "MMM d, h:mm a", "America/Chicago", ref)).toBeUndefined();
+    expect(parseAdapterDate("Sep 11", "no-such-format", "America/Chicago", ref)).toBeUndefined();
+  });
+});
+
+describe("runAdapter (§4.5)", () => {
+  const items = runAdapter(ADAPTER, fixture, page);
+
+  it("produces one item per matching row", () => {
+    // Five rows: a header with no .name, an excluded exam, and a duplicate.
+    expect(items.map((i) => i.title)).toEqual([
+      "MP1: Warm-up",
+      "MP2: Scheduling",
+      "MP3: Unscheduled",
+    ]);
+  });
+
+  it("honours the declared filter", () => {
+    expect(items.some((i) => i.title.includes("Midterm"))).toBe(false);
+  });
+
+  it("keeps an unparseable date as an undated row rather than dropping it", () => {
+    const tbd = items.find((i) => i.title === "MP3: Unscheduled")!;
+    expect(tbd.dueAt).toBeUndefined();
+    expect(tbd.extra?.["unparsedDate"]).toBe("TBD");
+  });
+
+  it("resolves the row link, and refuses one off the adapter's own origin", () => {
+    expect(items[0]!.url).toBe("https://courses.grainger.illinois.edu/cs999/fa2026/mp1");
+    const offHost = runAdapter(
+      { ...ADAPTER, link: undefined },
+      doc(`<table id="schedule"><tr class="assignment"><td class="name">X</td><td class="due">Sep 11</td></tr></table>`),
+      page,
+    );
+    expect(offHost[0]!.url).toBe(ADAPTER.url);
+  });
+
+  it("throws when zero rows match, for this adapter only (§4.5)", () => {
+    expect(() => runAdapter({ ...ADAPTER, rows: ".nope" }, fixture, page)).toThrow(ParseError);
+  });
+
+  it("keys on title and date, so a repeated row is not a second deadline", () => {
+    expect(new Set(items.map((i) => i.sourceId)).size).toBe(items.length);
+    expect(items.every((i) => i.sourceId.startsWith("cs999-fa26:"))).toBe(true);
+    expect(items.every((i) => i.source === "site")).toBe(true);
+  });
+});
+
+describe("registry validation (§4.5) — a trust boundary", () => {
+  it("accepts a well-formed adapter", () => {
+    expect(validateAdapter(ADAPTER).adapter).toBeDefined();
+  });
+
+  it("refuses anything not https on illinois.edu", () => {
+    // §2.3 requests optional permission for *.illinois.edu only, so an adapter
+    // pointing elsewhere could never be granted and must not be offered.
+    expect(validateAdapter({ ...ADAPTER, url: "http://courses.grainger.illinois.edu/x" }).reason).toMatch(
+      /https/,
+    );
+    expect(validateAdapter({ ...ADAPTER, url: "https://evil.example/x" }).reason).toMatch(
+      /illinois\.edu/,
+    );
+  });
+
+  it("refuses an adapter whose hostPattern does not cover its own url", () => {
+    // The pattern is what chrome.permissions.request asks for; a mismatch would
+    // prompt for one origin and then fetch another.
+    expect(
+      validateAdapter({ ...ADAPTER, hostPattern: "https://other.illinois.edu/*" }).reason,
+    ).toMatch(/hostPattern/);
+  });
+
+  it("refuses an unsupported date format", () => {
+    const reason = validateAdapter({ ...ADAPTER, dateFormat: "RFC-9999" }).reason!;
+    expect(reason).toMatch(/dateFormat/);
+    for (const format of supportedDateFormats()) expect(reason).toContain(format);
+  });
+
+  it("refuses a filter that is not a valid regex", () => {
+    expect(validateAdapter({ ...ADAPTER, filter: { include: "([" } }).reason).toMatch(/regex/);
+  });
+
+  it("refuses missing required fields", () => {
+    for (const field of ["id", "label", "rows", "title", "due", "timezone", "minExtensionVersion"]) {
+      const broken = { ...ADAPTER } as Record<string, unknown>;
+      delete broken[field];
+      expect(validateAdapter(broken).adapter, field).toBeUndefined();
+    }
+  });
+
+  it("drops bad entries but keeps the good ones", () => {
+    // One broken adapter must not stop a fix for a different course reaching
+    // anyone.
+    const result = validateRegistry(
+      JSON.stringify({ adapters: [ADAPTER, { id: "broken" }, { ...ADAPTER, id: "cs998-fa26" }] }),
+    );
+    expect(result.adapters.map((a) => a.id)).toEqual(["cs999-fa26", "cs998-fa26"]);
+    expect(result.rejected).toEqual(["broken: missing label"]);
+  });
+
+  it("drops a duplicate id rather than letting it shadow", () => {
+    const result = validateRegistry(JSON.stringify({ adapters: [ADAPTER, ADAPTER] }));
+    expect(result.adapters).toHaveLength(1);
+    expect(result.rejected[0]).toMatch(/duplicate id/);
+  });
+
+  it("throws on a document that is not a registry, so the old copy is kept", () => {
+    expect(() => validateRegistry("not json")).toThrow(/not JSON/);
+    expect(() => validateRegistry("{}")).toThrow(/no adapters array/);
+    expect(() => validateRegistry(JSON.stringify({ adapters: "x" }))).toThrow(/no adapters/);
+    expect(() => validateRegistry(`{"adapters":[]}` + " ".repeat(600_000))).toThrow(/over the/);
+  });
+
+  it("accepts the bundled registry that actually ships", () => {
+    const bundled = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+    const result = validateRegistry(bundled);
+    expect(result.rejected).toEqual([]);
+  });
+});
+
+describe("host patterns and terms", () => {
+  it("matches an exact host and a wildcard subdomain", () => {
+    const url = new URL("https://courses.grainger.illinois.edu/cs999/x");
+    expect(matchesHostPattern("https://courses.grainger.illinois.edu/*", url)).toBe(true);
+    expect(matchesHostPattern("https://*.illinois.edu/*", url)).toBe(true);
+    expect(matchesHostPattern("https://cs.illinois.edu/*", url)).toBe(false);
+    expect(matchesHostPattern("http://courses.grainger.illinois.edu/*", url)).toBe(false);
+    expect(matchesHostPattern("courses.grainger.illinois.edu", url)).toBe(false);
+  });
+
+  it("derives a term code from the date", () => {
+    expect(currentTermCode(new Date(2026, 8, 10))).toBe("fa26");
+    expect(currentTermCode(new Date(2026, 1, 10))).toBe("sp26");
+    expect(currentTermCode(new Date(2026, 5, 10))).toBe("su26");
+  });
+
+  it("hides an adapter from another term (§4.5: adapters expire)", () => {
+    expect(isCurrentTerm(ADAPTER, "fa26")).toBe(true);
+    expect(isCurrentTerm(ADAPTER, "sp27")).toBe(false);
+  });
+});

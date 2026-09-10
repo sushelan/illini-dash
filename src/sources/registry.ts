@@ -20,6 +20,8 @@ export const PARSERS: Partial<Record<ParserId, ParseFn>> = {
   gradescope: parseGradescopeCoursePage,
   prairielearn: parsePrairieLearnAssessments,
   prairietest: parsePrairieTestHome,
+  // `site` is absent deliberately: an adapter parse needs the adapter itself,
+  // which the RawItem protocol does not carry, so it has its own offscreen op.
 };
 
 export function getParser(id: ParserId): ParseFn {

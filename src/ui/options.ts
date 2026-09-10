@@ -501,6 +501,52 @@ async function refreshOptions(): Promise<void> {
     );
   }
 
+  /* Course-site adapters (§4.5) */
+  const adaptersEl = document.getElementById("adapters")!;
+  const registryStatus = document.getElementById("registry-status")!;
+  const adapterState = await send({ type: "get-adapters" });
+  adaptersEl.replaceChildren();
+  if (adapterState.type === "adapters") {
+    registryStatus.textContent = adapterState.fetchedAt
+      ? `List updated ${new Date(adapterState.fetchedAt).toLocaleString()}`
+      : "List not fetched yet";
+    // §4.5: adapters carry a term and expire; stale ones are hidden.
+    const current = adapterState.adapters.filter((a) => a.currentTerm);
+    if (current.length === 0) {
+      adaptersEl.append(
+        el(
+          "p",
+          "No course-site adapters available for this term yet. They are published " +
+            "separately, so this list can fill in without updating the extension.",
+          "muted",
+        ),
+      );
+    }
+    for (const adapter of current) {
+      const row = checkboxRow(
+        adapter.label,
+        adapter.enabled && adapter.granted,
+        `${adapter.courseCode} · ${new URL(adapter.url).hostname}`,
+        (enabled) => {
+          // Must run inside the click, or Chrome refuses the permission prompt
+          // for want of a user gesture.
+          void send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
+            (response) => {
+              if (response.type === "permission" && !response.granted) {
+                registryStatus.textContent = "Permission denied, so that site stays off.";
+              }
+              void refreshOptions();
+            },
+          );
+        },
+      );
+      if (adapter.enabled && !adapter.granted) {
+        row.append(el("span", "permission missing", "opt-note state-needs_login"));
+      }
+      adaptersEl.append(row);
+    }
+  }
+
   /* Reminders (§7, §8.2) */
   const reminders = document.getElementById("reminders")!;
   reminders.replaceChildren();
@@ -626,3 +672,9 @@ document.getElementById("reset")!.addEventListener("click", async () => {
 });
 
 void refreshOptions();
+
+document.getElementById("refresh-registry")!.addEventListener("click", async () => {
+  document.getElementById("registry-status")!.textContent = "Checking…";
+  await send({ type: "refresh-registry" });
+  await refreshOptions();
+});

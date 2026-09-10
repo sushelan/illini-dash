@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  SYNTHETIC. Not a capture.
+
+  §4.5 asks for 2-3 seed adapters built from real UIUC course sites, which needs
+  pages captured from a logged-in browser. This file exists so the declarative
+  runner can be tested against the *shapes* those sites use — a table of rows
+  with a title cell and a date cell — and is deliberately awkward in ways real
+  course pages are: a header row, a non-assignment row that the filter must
+  exclude, an unparseable date, and a duplicate.
+-->
+<html lang="en">
+  <head><title>CS 999 — Schedule</title></head>
+  <body>
+    <table id="schedule">
+      <tr class="assignment header"><th>Assignment</th><th>Due</th></tr>
+      <tr class="assignment">
+        <td class="name"><a href="/cs999/fa2026/mp1">MP1: Warm-up</a></td>
+        <td class="due">Sep 11, 11:59 pm</td>
+      </tr>
+      <tr class="assignment">
+        <td class="name"><a href="/cs999/fa2026/mp2">MP2: Scheduling</a></td>
+        <td class="due">Sep 25, 5:00 pm</td>
+      </tr>
+      <tr class="assignment">
+        <td class="name"><a href="/cs999/fa2026/exam1">Midterm 1 (no submission)</a></td>
+        <td class="due">Oct 2</td>
+      </tr>
+      <tr class="assignment">
+        <td class="name"><a href="/cs999/fa2026/tbd">MP3: Unscheduled</a></td>
+        <td class="due">TBD</td>
+      </tr>
+      <tr class="assignment">
+        <td class="name"><a href="/cs999/fa2026/mp1">MP1: Warm-up</a></td>
+        <td class="due">Sep 11, 11:59 pm</td>
+      </tr>
+    </table>
+  </body>
+</html>

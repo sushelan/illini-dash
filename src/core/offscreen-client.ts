@@ -5,6 +5,7 @@
 
 import type { OffscreenRequest, ParseResponse } from "../messages.js";
 import type { GradescopeCourse } from "../sources/gradescope.js";
+import type { Adapter } from "../sources/types.js";
 import type { ParserId } from "../sources/registry.js";
 import { ParseError, type PageCtx, type RawItem } from "../sources/types.js";
 
@@ -54,6 +55,17 @@ export async function parseHtml(
 export async function parseGradescopeDashboard(html: string): Promise<GradescopeCourse[]> {
   const response = await ask({ target: "offscreen", type: "parse-gradescope-dashboard", html });
   if ("courses" in response) return response.courses;
+  throw new Error("offscreen document returned the wrong shape");
+}
+
+/** §4.5: one adapter over one fetched page, in the offscreen document. */
+export async function runAdapterInOffscreen(
+  adapter: Adapter,
+  html: string,
+  page: PageCtx,
+): Promise<RawItem[]> {
+  const response = await ask({ target: "offscreen", type: "run-adapter", adapter, html, page });
+  if ("items" in response) return response.items;
   throw new Error("offscreen document returned the wrong shape");
 }
 

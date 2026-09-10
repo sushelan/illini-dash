@@ -45,6 +45,8 @@ export interface StoreV1Plus extends StoreV1 {
   lastSyncAt?: string;
   /** Per-source earliest next attempt, from §6's backoff ladder. */
   backoffUntil: Partial<Record<Source, string>>;
+  /** §4.5: adapter ids the user switched on. The permission is checked separately. */
+  enabledAdapters: string[];
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -72,6 +74,7 @@ export function emptyStore(): StoreV1Plus {
     registry: { adapters: [] },
     misses: {},
     backoffUntil: {},
+    enabledAdapters: [],
   };
 }
 
@@ -121,6 +124,9 @@ export function migrate(stored: unknown): StoreV1Plus {
     misses: isRecord(value.misses) ? (value.misses as Record<string, number>) : {},
     lastSyncAt: typeof value.lastSyncAt === "string" ? value.lastSyncAt : undefined,
     backoffUntil: isRecord(value.backoffUntil) ? value.backoffUntil : {},
+    enabledAdapters: Array.isArray(value.enabledAdapters)
+      ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
+      : [],
   };
 }
 

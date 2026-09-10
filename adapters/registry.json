@@ -1,1 +1,4 @@
-{ "adapters": [] }
+{
+  "$comment": "Course-site adapters (SPEC.md §4.5). Adapters are DATA: selectors and a date format, never code. Empty because seeding it needs real course pages captured from a logged-in browser — see docs/adapters.md for the shape and what to capture.",
+  "adapters": []
+}

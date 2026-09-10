@@ -25,6 +25,19 @@
       </p>
       <div id="courses"></div>
 
+      <h2>Course websites</h2>
+      <p class="muted">
+        Some courses keep the real schedule on their own site. These adapters are
+        plain data — a URL and a few CSS selectors — so a broken one can be fixed
+        without updating the extension. Enabling one asks Chrome for permission to
+        read that site, which is why they are not requested up front.
+      </p>
+      <div id="adapters"></div>
+      <p>
+        <button id="refresh-registry">Check for adapter updates</button>
+        <span id="registry-status" class="opt-note"></span>
+      </p>
+
       <h2>Reminders</h2>
       <div id="reminders"></div>
 

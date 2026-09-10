@@ -8,6 +8,7 @@
 
 import { currentTermCourses } from "./sources/gradescope.js";
 import { getParser } from "./sources/registry.js";
+import { runAdapter } from "./sources/site.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
 
 chrome.runtime.onMessage.addListener(
@@ -22,6 +23,10 @@ chrome.runtime.onMessage.addListener(
         // The dashboard yields courses, not RawItems, so it needs its own op
         // rather than being squeezed through the RawItem protocol.
         sendResponse({ ok: true, courses: currentTermCourses(doc) });
+      } else if (message.type === "run-adapter") {
+        // §4.5's runner needs the adapter alongside the DOM, which the RawItem
+        // protocol does not carry, so it gets its own op.
+        sendResponse({ ok: true, items: runAdapter(message.adapter, doc, message.page) });
       } else {
         throw new Error("unknown offscreen message");
       }

@@ -21,6 +21,7 @@ import { POPUP_DEBOUNCE_MS, runSync, syncOneSource, type SyncDeps } from "../src
 import { currentTermCourses, parseCoursePage } from "../src/sources/gradescope.js";
 import { parseAssessments } from "../src/sources/prairielearn.js";
 import { parseHome } from "../src/sources/prairietest.js";
+import { runAdapter } from "../src/sources/site.js";
 import type { PageCtx, RawItem, Source } from "../src/sources/types.js";
 
 const fixture = (path: string) =>
@@ -58,6 +59,12 @@ function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
     },
     async parseGradescopeDashboard(html) {
       return currentTermCourses(doc(html));
+    },
+    async runAdapter(adapter, html, ctx) {
+      return runAdapter(adapter, doc(html), ctx);
+    },
+    async enabledAdapters() {
+      return [];
     },
     now: () => NOW,
     ...overrides,
@@ -172,6 +179,8 @@ describe("syncOneSource against the real fixtures", () => {
 describe("runSync (§6)", () => {
   it("collects every source into one deduped list", async () => {
     const { store, outcomes } = await runSync(emptyStore(), "alarm", deps());
+    // `site` starts disabled (§4.5: it needs a permission grant), so it is
+    // skipped entirely rather than reporting an outcome.
     expect(outcomes.map((o) => o.state)).toEqual(["ok", "ok", "ok", "ok"]);
     expect(Object.keys(store.raw).length).toBeGreaterThan(20);
     expect(store.items.length).toBeGreaterThan(0);
@@ -375,5 +384,94 @@ describe("runSync (§6)", () => {
     const first = await runSync(emptyStore(), "alarm", deps());
     const second = await runSync(first.store, "alarm", deps());
     expect(second.store.items.map((i) => i.id)).toEqual(first.store.items.map((i) => i.id));
+  });
+});
+
+describe("course-site adapters in the loop (§4.5)", () => {
+  const ADAPTER = {
+    id: "cs999-fa26",
+    label: "CS 999 course site",
+    courseCode: "CS999",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/cs999/fa2026/schedule",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "#schedule tr.assignment",
+    title: ".name",
+    due: ".due",
+    dateFormat: "MMM d, h:mm a",
+    timezone: "America/Chicago",
+    minExtensionVersion: "0.1.0",
+  };
+  const SITE_HTML = fixture("sites/example-course-schedule.html");
+
+  const withAdapters = (adapters: typeof ADAPTER[], pages: Record<string, string> = {}) =>
+    deps({
+      async enabledAdapters() {
+        return adapters as never;
+      },
+      async fetchPage(url) {
+        const body = pages[url] ?? PAGES[url] ?? (url.includes("illinois.edu/cs") ? SITE_HTML : undefined);
+        if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+        return { url, finalUrl: url, status: 200, body };
+      },
+    });
+
+  const enableSite = (store: StoreV1Plus): StoreV1Plus => ({
+    ...store,
+    sources: { ...store.sources, site: { ...store.sources.site, enabled: true, state: "ok" } },
+  });
+
+  it("runs an enabled adapter and folds its items into the list", async () => {
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([ADAPTER]));
+    expect(store.sources.site.state).toBe("ok");
+    const siteKeys = Object.keys(store.raw).filter((k) => k.startsWith("site:"));
+    expect(siteKeys.length).toBeGreaterThan(0);
+    expect(store.items.some((i) => i.courseCode === "CS999")).toBe(true);
+  });
+
+  it("isolates one failing adapter from the others (§4.5)", async () => {
+    // The whole reason course sites are adapters rather than a fifth parser.
+    const broken = { ...ADAPTER, id: "broken-fa26", rows: ".nothing-matches" };
+    const { store } = await runSync(
+      enableSite(emptyStore()),
+      "alarm",
+      withAdapters([broken, ADAPTER]),
+    );
+    expect(store.sources.site.state).toBe("ok");
+    expect(Object.keys(store.raw).some((k) => k.startsWith("site:cs999-fa26"))).toBe(true);
+  });
+
+  it("fails the source only when every adapter fails", async () => {
+    const broken = { ...ADAPTER, rows: ".nothing-matches" };
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([broken]));
+    expect(store.sources.site.state).toBe("parse_error");
+    expect(store.sources.site.lastError).toMatch(/every adapter failed/);
+  });
+
+  it("reports a Shibboleth landing as needs_login", async () => {
+    const login = deps({
+      async enabledAdapters() {
+        return [ADAPTER] as never;
+      },
+      async fetchPage(url) {
+        if (url.includes("cs999")) {
+          return {
+            url,
+            finalUrl: "https://shibboleth.illinois.edu/idp/profile/SAML2",
+            status: 200,
+            body: "",
+          };
+        }
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", login);
+    expect(store.sources.site.state).toBe("needs_login");
+  });
+
+  it("does nothing when no adapter is enabled", async () => {
+    const { store } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([]));
+    expect(store.sources.site.state).toBe("ok");
+    expect(Object.keys(store.raw).some((k) => k.startsWith("site:"))).toBe(false);
   });
 });

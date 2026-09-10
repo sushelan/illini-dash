@@ -10,7 +10,18 @@
 import { BUILD_ID } from "./build-info.js";
 import { capture } from "./capture.js";
 import { runParseSelftest } from "./core/parse-selftest.js";
-import { parseGradescopeDashboard, parseHtml } from "./core/offscreen-client.js";
+import {
+  parseGradescopeDashboard,
+  parseHtml,
+  runAdapterInOffscreen,
+} from "./core/offscreen-client.js";
+import {
+  REGISTRY_REFRESH_MS,
+  REGISTRY_URL,
+  currentTermCode,
+  isCurrentTerm,
+  validateRegistry,
+} from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
 import {
   courseSummaries,
@@ -36,6 +47,7 @@ import { REQUEST_TIMEOUT_MS, runSync, type FetchedPage, type SyncDeps, type Sync
 import { runGate0 } from "./gate0.js";
 import type { Request, Response } from "./messages.js";
 import type { ParserId } from "./sources/registry.js";
+import type { Adapter } from "./sources/types.js";
 
 const SYNC_ALARM = "sync";
 /** notificationId → the url its click should open (§7). */
@@ -61,12 +73,68 @@ async function fetchPage(url: string): Promise<FetchedPage> {
   };
 }
 
+/**
+ * §4.5: an adapter runs only when the user enabled it *and* the host permission
+ * is actually held. The permission can be revoked from Chrome's own UI at any
+ * time, so it is checked per sync rather than trusted from when it was granted.
+ */
+async function enabledAdapters(): Promise<Adapter[]> {
+  const store = await loadStore();
+  const on = new Set(store.enabledAdapters);
+  const term = currentTermCode(new Date());
+  const usable: Adapter[] = [];
+
+  for (const adapter of store.registry.adapters) {
+    if (!on.has(adapter.id)) continue;
+    if (!isCurrentTerm(adapter, term)) continue;
+    if (await chrome.permissions.contains({ origins: [adapter.hostPattern] })) {
+      usable.push(adapter);
+    }
+  }
+  return usable;
+}
+
 const deps: SyncDeps = {
   fetchPage,
   parseHtml: (source, html, page) => parseHtml(source as ParserId, html, page),
   parseGradescopeDashboard,
+  runAdapter: runAdapterInOffscreen,
+  enabledAdapters,
   now: () => new Date().toISOString(),
 };
+
+/**
+ * §4.5: refresh the adapter registry once a day.
+ *
+ * A bad remote file is rejected and the previous copy stays — that is the whole
+ * safety property, since this is remote data driving what the extension fetches.
+ * Failure is non-blocking: the sync it precedes must still run.
+ */
+async function maybeRefreshRegistry(): Promise<void> {
+  const store = await loadStore();
+  const last = store.registry.fetchedAt ? Date.parse(store.registry.fetchedAt) : 0;
+  if (Number.isFinite(last) && Date.now() - last < REGISTRY_REFRESH_MS) return;
+
+  try {
+    const response = await fetch(REGISTRY_URL, {
+      cache: "no-store",
+      // No cookies: this is a public file and has no business seeing any.
+      credentials: "omit",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`registry fetch: ${response.status}`);
+    const { adapters, rejected } = validateRegistry(await response.text());
+    for (const line of rejected) console.warn(`[registry] rejected ${line}`);
+
+    const fresh = await loadStore();
+    fresh.registry = { fetchedAt: new Date().toISOString(), adapters };
+    await saveStore(fresh);
+    console.log(`[registry] ${adapters.length} adapters, ${rejected.length} rejected`);
+  } catch (err) {
+    // The previous copy stays. §4.5 is explicit that this must not be fatal.
+    console.warn("[registry] refresh failed, keeping the stored copy:", err);
+  }
+}
 
 /** One sync at a time: two overlapping runs would race on the same store. */
 let running: Promise<void> | null = null;
@@ -78,6 +146,7 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   }
   let skipped = false;
   running = (async () => {
+    await maybeRefreshRegistry();
     const store = await loadStore();
     const result = await runSync(store, trigger, deps);
     skipped = result.skipped;
@@ -330,6 +399,68 @@ chrome.runtime.onMessage.addListener(
           await scheduleAlarm();
           return { type: "ok" } as const;
         }),
+      );
+    }
+    if (request?.type === "get-adapters") {
+      return answer(
+        (async () => {
+          const store = await loadStore();
+          const on = new Set(store.enabledAdapters);
+          const term = currentTermCode(new Date());
+          const adapters = await Promise.all(
+            store.registry.adapters.map(async (adapter) => ({
+              ...adapter,
+              enabled: on.has(adapter.id),
+              granted: await chrome.permissions.contains({ origins: [adapter.hostPattern] }),
+              currentTerm: isCurrentTerm(adapter, term),
+            })),
+          );
+          return { type: "adapters", adapters, fetchedAt: store.registry.fetchedAt } as const;
+        })(),
+      );
+    }
+    if (request?.type === "set-adapter-enabled") {
+      const { adapterId, enabled } = request;
+      return answer(
+        (async () => {
+          const store = await loadStore();
+          const adapter = store.registry.adapters.find((a) => a.id === adapterId);
+          if (!adapter) return { type: "error", message: `unknown adapter ${adapterId}` } as const;
+
+          if (enabled) {
+            // §4.5 / §2.3: course sites live on subdomains deliberately left out
+            // of the up-front request, so the permission is asked for here — and
+            // this must be reached from a user gesture or Chrome refuses it.
+            const granted = await chrome.permissions.request({ origins: [adapter.hostPattern] });
+            if (!granted) return { type: "permission", granted: false } as const;
+          }
+
+          const fresh = await loadStore();
+          const set = new Set(fresh.enabledAdapters);
+          if (enabled) set.add(adapterId);
+          else set.delete(adapterId);
+          fresh.enabledAdapters = [...set];
+          // Enabling the first adapter is what switches the source on at all.
+          fresh.sources.site = {
+            ...fresh.sources.site,
+            enabled: fresh.enabledAdapters.length > 0,
+            state: fresh.enabledAdapters.length > 0 ? "ok" : "disabled",
+          };
+          await saveStore(fresh);
+          return { type: "permission", granted: true } as const;
+        })(),
+      );
+    }
+    if (request?.type === "refresh-registry") {
+      return answer(
+        (async () => {
+          const store = await loadStore();
+          // Force it, rather than waiting out the daily window.
+          store.registry = { ...store.registry, fetchedAt: undefined };
+          await saveStore(store);
+          await maybeRefreshRegistry();
+          return { type: "ok" } as const;
+        })(),
       );
     }
     if (request?.type === "sync") {

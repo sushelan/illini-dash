@@ -14,7 +14,14 @@ import * as canvas from "../sources/canvas.js";
 import * as gradescope from "../sources/gradescope.js";
 import * as prairielearn from "../sources/prairielearn.js";
 import * as prairietest from "../sources/prairietest.js";
-import { ParseError, memberKey, type PageCtx, type RawItem, type Source } from "../sources/types.js";
+import {
+  ParseError,
+  memberKey,
+  type Adapter,
+  type PageCtx,
+  type RawItem,
+  type Source,
+} from "../sources/types.js";
 
 /** §4: 20 s per request, at most 4 concurrent per host. */
 export const REQUEST_TIMEOUT_MS = 20_000;
@@ -30,6 +37,13 @@ export interface FetchedPage {
 }
 
 export interface SyncDeps {
+  /**
+   * §4.5's runner, in the offscreen document. Separate from `parseHtml` because
+   * an adapter parse needs the adapter itself.
+   */
+  runAdapter(adapter: Adapter, html: string, page: PageCtx): Promise<RawItem[]>;
+  /** Enabled adapters whose host permission has actually been granted. */
+  enabledAdapters(): Promise<Adapter[]>;
   /** One authenticated GET. Throws on network failure. */
   fetchPage(url: string): Promise<FetchedPage>;
   /** Runs a parser in the offscreen document (§2.1). */
@@ -181,11 +195,53 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
   return deps.parseHtml("prairietest", home.body, { url: home.finalUrl, fetchedAt });
 }
 
+/**
+ * §4.5: every enabled adapter, each isolated.
+ *
+ * One adapter's failure must not take the others down — that is the whole
+ * reason course sites are adapters rather than a fifth hand-written parser —
+ * so a throw is recorded against that adapter and the rest still run. The
+ * source only fails outright when *every* adapter failed, which means the
+ * runner or the registry is broken rather than one course's page.
+ */
+async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
+  const adapters = await deps.enabledAdapters();
+  if (adapters.length === 0) return [];
+
+  const fetchedAt = deps.now();
+  const items: RawItem[] = [];
+  const failures: string[] = [];
+
+  for (const adapter of adapters) {
+    try {
+      const page = await deps.fetchPage(adapter.url);
+      if (page.status >= 400) throw new Error(`${page.status} from ${adapter.url}`);
+      // §4.5: a Shibboleth-protected site behaves like any other source.
+      if (/shibboleth|login\.illinois\.edu/i.test(page.finalUrl)) {
+        throw new NeedsLogin(page);
+      }
+      items.push(
+        ...(await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt })),
+      );
+    } catch (err) {
+      if (err instanceof NeedsLogin) throw err;
+      failures.push(`${adapter.id}: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`[site] adapter ${adapter.id} failed:`, err);
+    }
+  }
+
+  if (failures.length === adapters.length) {
+    throw new ParseError(`every adapter failed — ${failures.join("; ")}`);
+  }
+  return items;
+}
+
 const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<RawItem[]>>> = {
   canvas: syncCanvas,
   gradescope: syncGradescope,
   prairielearn: syncPrairieLearn,
   prairietest: syncPrairieTest,
+  site: syncSites,
 };
 
 /* -------------------------------------------------------------------------- */
