@@ -1,0 +1,209 @@
+/**
+ * Notification scheduling (§7).
+ *
+ * Pure decisions here; `chrome.alarms` and `chrome.notifications` are driven
+ * from the service worker. Notifications are the one part of this extension
+ * that interrupts a person, so the rules that decide *not* to fire — already
+ * fired, already done, deadline already passed, quiet hours — matter more than
+ * the ones that do.
+ */
+
+import { isItemDone } from "./dedupe.js";
+import type { Item, Settings } from "../sources/types.js";
+
+export type Lead = "24h" | "2h" | "booking";
+
+const LEAD_MS: Record<"24h" | "2h", number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "2h": 2 * 60 * 60 * 1000,
+};
+
+/** §7: the daily booking nag fires at 10:00 local. */
+export const BOOKING_HOUR = 10;
+
+const ALARM_PREFIX = "notify";
+
+export function alarmName(itemId: string, lead: Lead): string {
+  return `${ALARM_PREFIX}:${itemId}:${lead}`;
+}
+
+export function parseAlarmName(name: string): { itemId: string; lead: Lead } | undefined {
+  const match = /^notify:(.+):(24h|2h|booking)$/.exec(name);
+  if (!match) return undefined;
+  return { itemId: match[1]!, lead: match[2] as Lead };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Quiet hours                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Whether `when`'s local hour falls inside a possibly-midnight-wrapping window. */
+export function inQuietHours(when: Date, quiet: Settings["quietHours"]): boolean {
+  if (!quiet) return false;
+  const { start, end } = quiet;
+  if (start === end) return false;
+  const hour = when.getHours();
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+/**
+ * §7: a notification that would land inside quiet hours is deferred to the end
+ * of the window, not dropped.
+ *
+ * The default window is 23:00–08:00, and §7 notes the common case is
+ * unaffected: a 2-hour lead on an 11:59 PM deadline fires at 9:59 PM.
+ */
+export function deferPastQuietHours(when: Date, quiet: Settings["quietHours"]): Date {
+  if (!inQuietHours(when, quiet)) return when;
+  const { start, end } = quiet!;
+  const deferred = new Date(when);
+  deferred.setHours(end, 0, 0, 0);
+  // On the evening side of a wrapping window the window ends tomorrow morning.
+  if (start > end && when.getHours() >= start) deferred.setDate(deferred.getDate() + 1);
+  return deferred;
+}
+
+/* -------------------------------------------------------------------------- */
+/* What to fire                                                                */
+/* -------------------------------------------------------------------------- */
+
+export interface PlannedNotification {
+  alarmName: string;
+  itemId: string;
+  lead: Lead;
+  /** When it should fire, after quiet hours are applied. */
+  fireAt: string;
+  /** True when the moment has already passed and it should fire immediately. */
+  overdue: boolean;
+}
+
+/** §7: never notify about something hidden, finished, or already notified. */
+function isEligible(item: Item): boolean {
+  return !item.hidden && !isItemDone(item);
+}
+
+/**
+ * §7: the booking nag repeats daily until the exam is booked — at which point
+ * the item stops being produced at all, so its absence is what stops the nag.
+ */
+function planBooking(item: Item, settings: Settings, now: Date): PlannedNotification | undefined {
+  const lastFired = item.notified.booking;
+  const next = new Date(now);
+  next.setHours(BOOKING_HOUR, 0, 0, 0);
+
+  if (lastFired !== undefined) {
+    const last = new Date(lastFired);
+    // Already nagged today; the next one is tomorrow.
+    if (!Number.isNaN(last.getTime()) && last.toDateString() === now.toDateString()) {
+      next.setDate(next.getDate() + 1);
+    }
+  }
+  // Past 10:00 with nothing fired today means fire now, not tomorrow.
+  const overdue = next.getTime() <= now.getTime();
+  const fireAt = deferPastQuietHours(overdue ? now : next, settings.quietHours);
+
+  return {
+    alarmName: alarmName(item.id, "booking"),
+    itemId: item.id,
+    lead: "booking",
+    fireAt: fireAt.toISOString(),
+    overdue,
+  };
+}
+
+/**
+ * Everything that should be scheduled right now.
+ *
+ * A lead whose moment has already passed is returned with `overdue: true` when
+ * the deadline itself is still ahead — §7's "Chrome was closed" case — and
+ * omitted entirely once the deadline has passed, so nothing fires stale.
+ */
+export function planNotifications(
+  items: Item[],
+  settings: Settings,
+  now: Date,
+): PlannedNotification[] {
+  const planned: PlannedNotification[] = [];
+
+  for (const item of items) {
+    if (!isEligible(item)) continue;
+
+    if (item.kind === "booking") {
+      const booking = planBooking(item, settings, now);
+      if (booking) planned.push(booking);
+      continue;
+    }
+
+    if (item.dueAt === undefined) continue;
+    const due = Date.parse(item.dueAt);
+    if (Number.isNaN(due)) continue;
+    // §7: past the deadline, a reminder is noise. Nothing fires stale.
+    if (due <= now.getTime()) continue;
+
+    for (const lead of settings.leadTimes) {
+      if (item.notified[lead] !== undefined) continue;
+      const moment = new Date(due - LEAD_MS[lead]);
+      const overdue = moment.getTime() <= now.getTime();
+      const fireAt = deferPastQuietHours(overdue ? now : moment, settings.quietHours);
+      // Deferring out of quiet hours must never push a reminder past the thing
+      // it is reminding about.
+      if (fireAt.getTime() >= due) continue;
+      planned.push({
+        alarmName: alarmName(item.id, lead),
+        itemId: item.id,
+        lead,
+        fireAt: fireAt.toISOString(),
+        overdue,
+      });
+    }
+  }
+
+  return planned;
+}
+
+/* -------------------------------------------------------------------------- */
+/* What it says                                                                */
+/* -------------------------------------------------------------------------- */
+
+export interface NotificationContent {
+  title: string;
+  message: string;
+  url: string;
+}
+
+function relative(due: Date, now: Date): string {
+  const hours = Math.round((due.getTime() - now.getTime()) / 3_600_000);
+  if (hours <= 0) return "now";
+  if (hours < 24) return `in ${hours}h`;
+  return `in ${Math.round(hours / 24)}d`;
+}
+
+export function notificationContent(item: Item, lead: Lead, now: Date): NotificationContent {
+  if (lead === "booking") {
+    const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
+    const end = item.members.find((m) => m.extra?.["windowEnd"])?.extra?.["windowEnd"];
+    const window =
+      start && end
+        ? `${new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${new Date(
+            end,
+          ).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+        : "soon";
+    return {
+      // §4.4: never phrase a booking as a deadline. The date is deliberately
+      // early because slots fill; calling it "due" would be a lie.
+      title: `Not booked: ${item.courseLabel}`,
+      message: `${item.title.replace(/^Book a slot: /, "")} — sessions ${window}. Reserve a seat.`,
+      url: item.url,
+    };
+  }
+
+  const due = item.dueAt ? new Date(item.dueAt) : undefined;
+  const when = due
+    ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
+    : "";
+  return {
+    title: `${item.courseLabel} — due ${lead === "24h" ? "tomorrow" : "in 2 hours"}`,
+    message: `${item.title}${when ? `\n${when}` : ""}`,
+    url: item.url,
+  };
+}

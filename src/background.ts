@@ -12,12 +12,20 @@ import { capture } from "./capture.js";
 import { runParseSelftest } from "./core/parse-selftest.js";
 import { parseGradescopeDashboard, parseHtml } from "./core/offscreen-client.js";
 import { loadStore, saveStore, MIN_POLL_MINUTES } from "./core/store.js";
+import {
+  notificationContent,
+  parseAlarmName,
+  planNotifications,
+  type Lead,
+} from "./core/schedule.js";
 import { REQUEST_TIMEOUT_MS, runSync, type FetchedPage, type SyncDeps, type SyncTrigger } from "./core/sync.js";
 import { runGate0 } from "./gate0.js";
 import type { Request, Response } from "./messages.js";
 import type { ParserId } from "./sources/registry.js";
 
 const SYNC_ALARM = "sync";
+/** notificationId → the url its click should open (§7). */
+const notificationTargets = new Map<string, string>();
 
 /**
  * §2.2 / §4: the request that the whole project rests on. Cookies come from the
@@ -61,6 +69,10 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
     skipped = result.skipped;
     if (!result.skipped) {
       await saveStore(result.store);
+      // §7's alarms are derived from the item list, so they are rebuilt whenever
+      // it changes — a deadline that moved, or an item that was submitted,
+      // must not leave a stale reminder armed.
+      await reschedule();
       for (const outcome of result.outcomes) {
         console.log(
           `[sync] ${outcome.source}: ${outcome.state} (${outcome.items.length} items, ${outcome.requests} requests)` +
@@ -74,6 +86,61 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   await running;
   return { skipped };
 }
+
+/**
+ * §7: one alarm per (item, lead), so a pending reminder survives the worker
+ * being torn down. Alarms for items that no longer exist are cleared, or a
+ * deadline the student already dealt with would fire days later.
+ */
+async function reschedule(): Promise<void> {
+  const store = await loadStore();
+  const planned = planNotifications(store.items, store.settings, new Date());
+  const wanted = new Set(planned.map((p) => p.alarmName));
+
+  for (const alarm of await chrome.alarms.getAll()) {
+    if (alarm.name.startsWith("notify:") && !wanted.has(alarm.name)) {
+      await chrome.alarms.clear(alarm.name);
+    }
+  }
+
+  for (const plan of planned) {
+    // An overdue plan is §7's "Chrome was closed" case: fire it now rather than
+    // waiting for a moment that has already gone by.
+    if (plan.overdue) await fireNotification(plan.itemId, plan.lead);
+    else await chrome.alarms.create(plan.alarmName, { when: Date.parse(plan.fireAt) });
+  }
+}
+
+async function fireNotification(itemId: string, lead: Lead): Promise<void> {
+  const store = await loadStore();
+  const item = store.items.find((candidate) => candidate.id === itemId);
+  // The item may have been submitted, hidden or purged since the alarm was set.
+  if (!item) return;
+  const stillWanted = planNotifications([item], store.settings, new Date()).some(
+    (plan) => plan.lead === lead,
+  );
+  if (!stillWanted) return;
+
+  const content = notificationContent(item, lead, new Date());
+  const notificationId = `${itemId}:${lead}:${Date.now()}`;
+  notificationTargets.set(notificationId, content.url);
+  await chrome.notifications.create(notificationId, {
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("icon128.png"),
+    title: content.title,
+    message: content.message,
+  });
+
+  item.notified = { ...item.notified, [lead]: new Date().toISOString() };
+  await saveStore(store);
+}
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  const url = notificationTargets.get(notificationId);
+  if (url) void chrome.tabs.create({ url });
+  notificationTargets.delete(notificationId);
+  void chrome.notifications.clear(notificationId);
+});
 
 async function scheduleAlarm(): Promise<void> {
   const store = await loadStore();
@@ -91,7 +158,14 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === SYNC_ALARM) void sync("alarm");
+  if (alarm.name === SYNC_ALARM) {
+    void sync("alarm");
+    return;
+  }
+  const notify = parseAlarmName(alarm.name);
+  if (notify) {
+    void fireNotification(notify.itemId, notify.lead).then(reschedule);
+  }
 });
 
 chrome.runtime.onMessage.addListener(

@@ -6,6 +6,7 @@
  * in the renderer.
  */
 
+import { isItemDone } from "../core/dedupe.js";
 import type { Item, Settings } from "../sources/types.js";
 
 export type SectionName =
@@ -51,20 +52,6 @@ function endOfWeek(now: Date): number {
   return startOfDay(now, daysUntilSunday + 1);
 }
 
-/**
- * Done means *every* member is done.
- *
- * A merged Item's status is its most-done member (§5.3), so testing the Item's
- * own status hides a group whose other half is still outstanding — and with
- * `hideSubmitted` on by default, it disappears with no signal at all. If the
- * outstanding half is also overdue, turning the setting off does not bring it
- * back either, because the overdue branch tests the same thing.
- */
-function isDone(item: Item): boolean {
-  const done = (status: string) => status === "submitted" || status === "graded";
-  if (item.members.length === 0) return done(item.status);
-  return item.members.every((member) => done(member.status));
-}
 
 /**
  * §4.3: an assessment past its full-credit deadline has `dueAt` undefined and
@@ -89,7 +76,7 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
   const today = startOfDay(now);
   if (due < now.getTime()) {
     // Past due. Only unfinished work needs attention, and only for a week.
-    if (isDone(item)) return undefined;
+    if (isItemDone(item)) return undefined;
     return now.getTime() - due <= OVERDUE_WINDOW_DAYS * 86_400_000
       ? "Needs attention"
       : undefined;
@@ -114,7 +101,7 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
 
   for (const item of items) {
     if (item.hidden) continue;
-    if (settings.hideSubmitted && item.kind !== "booking" && isDone(item)) continue;
+    if (settings.hideSubmitted && item.kind !== "booking" && isItemDone(item)) continue;
     const section = sectionFor(item, now);
     if (section) buckets.get(section)!.push(item);
   }

@@ -419,3 +419,17 @@ export function applyRetention(
     },
   };
 }
+
+/**
+ * Whether every member of an item is finished.
+ *
+ * Shared deliberately. A merged Item's `status` is its *most done* member
+ * (§5.3), so testing that field alone treats a group as finished while half of
+ * it is still outstanding — the defect that hid real deadlines from the popup.
+ * §7 must not silence a reminder for the same reason, so both callers use this.
+ */
+export function isItemDone(item: Item): boolean {
+  const done = (status: Status) => status === "submitted" || status === "graded";
+  if (item.members.length === 0) return done(item.status);
+  return item.members.every((member) => done(member.status));
+}

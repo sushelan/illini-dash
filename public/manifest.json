@@ -10,10 +10,20 @@
   },
   "action": {
     "default_title": "Illini Due",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "options_page": "options.html",
-  "permissions": ["storage", "alarms", "notifications", "offscreen"],
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "offscreen"
+  ],
   "host_permissions": [
     "https://canvas.illinois.edu/*",
     "https://www.gradescope.com/*",
@@ -21,5 +31,12 @@
     "https://us.prairietest.com/*",
     "https://raw.githubusercontent.com/*"
   ],
-  "optional_host_permissions": ["https://*.illinois.edu/*"]
+  "optional_host_permissions": [
+    "https://*.illinois.edu/*"
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
 }
