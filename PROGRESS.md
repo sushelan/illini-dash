@@ -179,6 +179,27 @@ the item landed (recorded in the commits).
 | 12 | `migrate` validates `raw` and `items` instead of casting them; `fixtures/store/v1.json` pins that an older store survives. |
 | 13 | "Copy diagnostics" (counts and states, no titles or links) and a right-click "Report this page". |
 
+### What the first post-Tier-0a sync found (2026-09-10)
+
+Console from a reload: all four hosted sources `ok` (canvas 1, gradescope 5,
+prairielearn 25, prairietest 2), the update hook logging `no source was resting`, and
+the registry seed logging `bundle not seeded: 1 adapter(s) already stored` — every new
+both-branch log line doing its job.
+
+One defect, and one superseded claim:
+
+- **A failed fetch was reported as `parse_error`.** The sync that fires right after an
+  extension reload got `TypeError: Failed to fetch` for the CS 424 site; `syncSites`
+  threw `ParseError` whenever *every* adapter failed, regardless of why. It healed on the
+  next sync (`site: ok (9 items)`), but the label means "the page changed, go fix the
+  selectors" and would have sent someone to debug selectors that were fine.
+  `adapterFailureKind` now separates structural failures (a `ParseError`, or a 4xx —
+  the adapter is asking for a URL the site will not serve) from network ones (a failed
+  fetch, a 5xx), and the per-adapter warning names the kind so a recurrence is
+  diagnosable without another trip to the browser.
+- **Canvas is no longer empty on this account** — see the superseded note in
+  canvas-findings.md. Still open: whether the first-fetch-after-reload failure recurs.
+
 **Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
 Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.
 

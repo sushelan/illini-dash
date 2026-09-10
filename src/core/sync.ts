@@ -99,6 +99,40 @@ class NeedsLogin extends Error {
   }
 }
 
+/**
+ * An HTTP status this loop refuses, carrying the status itself.
+ *
+ * `new Error("404 from …")` lost the one fact the caller needs to tell a broken
+ * adapter from a site having a bad afternoon.
+ */
+class HttpStatusError extends Error {
+  override readonly name = "HttpStatusError";
+  constructor(readonly status: number, url: string) {
+    super(`${status} from ${url}`);
+  }
+}
+
+/**
+ * Whether an adapter's failure means *this adapter is broken* or *the network
+ * is*.
+ *
+ * The first live run after Tier 0a produced `TypeError: Failed to fetch` for the
+ * CS 424 site on the sync that fires immediately after an extension reload, and
+ * the loop reported the source as `parse_error` — §6's "the page changed, show a
+ * red dot" state. It self-healed on the next sync, but the label would have sent
+ * someone to debug selectors that were fine, and it is the wrong half of §6's
+ * own distinction: a parse error is not retried hopefully, a network error is.
+ *
+ * A 4xx is treated as structural because the adapter is asking for a URL the
+ * site will not serve — gone, moved, or never right. A 5xx is the site's
+ * problem, not the adapter's.
+ */
+export function adapterFailureKind(err: unknown): "parse" | "network" {
+  if (err instanceof ParseError) return "parse";
+  if (err instanceof HttpStatusError) return err.status >= 400 && err.status < 500 ? "parse" : "network";
+  return "network";
+}
+
 /** §4: at most 4 concurrent requests per host. */
 async function fetchAll(
   urls: string[],
@@ -228,7 +262,7 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
 
   const fetchedAt = deps.now();
   const items: RawItem[] = [];
-  const failures: string[] = [];
+  const failures: { id: string; message: string; kind: "parse" | "network" }[] = [];
 
   for (const adapter of adapters) {
     try {
@@ -240,19 +274,33 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
       // would report an expired session as a broken adapter and back off
       // instead of telling the student to log in (§0 rule 2).
       if (looksLoggedOut(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
-      if (page.status >= 400) throw new Error(`${page.status} from ${adapter.url}`);
+      if (page.status >= 400) throw new HttpStatusError(page.status, adapter.url);
       items.push(
         ...(await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt })),
       );
     } catch (err) {
       if (err instanceof NeedsLogin) throw err;
-      failures.push(`${adapter.id}: ${err instanceof Error ? err.message : String(err)}`);
-      console.warn(`[site] adapter ${adapter.id} failed:`, err);
+      const kind = adapterFailureKind(err);
+      failures.push({
+        id: adapter.id,
+        message: err instanceof Error ? err.message : String(err),
+        kind,
+      });
+      // The kind is in the line, so a recurrence is diagnosable from the console
+      // without another trip to the browser (worker rule 5).
+      console.warn(`[site] adapter ${adapter.id} failed (${kind}):`, err);
     }
   }
 
   if (failures.length === adapters.length) {
-    throw new ParseError(`every adapter failed — ${failures.join("; ")}`);
+    const detail = `every adapter failed — ${failures
+      .map((failure) => `${failure.id}: ${failure.message}`)
+      .join("; ")}`;
+    // Only a *structural* failure earns `parse_error`. A source that could not
+    // be reached is a network error, which is what §6's two branches are for.
+    throw failures.some((failure) => failure.kind === "parse")
+      ? new ParseError(detail)
+      : new Error(detail);
   }
   return items;
 }

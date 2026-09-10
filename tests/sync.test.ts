@@ -18,7 +18,14 @@ import {
   sourcesToRetryAfterUpdate,
   type StoreV1Plus,
 } from "../src/core/store.js";
-import { POPUP_DEBOUNCE_MS, runSync, syncOneSource, type SyncDeps } from "../src/core/sync.js";
+import { ParseError } from "../src/sources/types.js";
+import {
+  POPUP_DEBOUNCE_MS,
+  adapterFailureKind,
+  runSync,
+  syncOneSource,
+  type SyncDeps,
+} from "../src/core/sync.js";
 import { currentTermCourses, parseCoursePage } from "../src/sources/gradescope.js";
 import { parseAssessments } from "../src/sources/prairielearn.js";
 import { parseHome } from "../src/sources/prairietest.js";
@@ -420,6 +427,67 @@ describe("course-site adapters in the loop (§4.5)", () => {
   const enableSite = (store: StoreV1Plus): StoreV1Plus => ({
     ...store,
     sources: { ...store.sources, site: { ...store.sources.site, enabled: true, state: "ok" } },
+  });
+
+  describe("why it failed, not just that it did (§6's two branches)", () => {
+    it("calls a failed fetch a network error, not a broken page", () => {
+      // The live run after Tier 0a: `TypeError: Failed to fetch` for the CS 424
+      // site on the sync that fires right after an extension reload. It healed
+      // on the next sync, but it was reported as `parse_error` — the state that
+      // means "the page changed, go fix the selectors".
+      expect(adapterFailureKind(new TypeError("Failed to fetch"))).toBe("network");
+    });
+
+    it("calls zero matched rows a parse error, because that adapter really is broken", () => {
+      expect(adapterFailureKind(new ParseError('no rows matched "table tr"'))).toBe("parse");
+    });
+
+    it("reports network_error when the only adapter could not be fetched", async () => {
+      const failing = deps({
+        async enabledAdapters() {
+          return [ADAPTER] as never;
+        },
+        async fetchPage() {
+          throw new TypeError("Failed to fetch");
+        },
+      });
+      const result = await runSync(enableSite(emptyStore()), "manual", failing);
+      const site = result.outcomes.find((o) => o.source === "site")!;
+      expect(site.state).toBe("network_error");
+      expect(site.error).toContain("Failed to fetch");
+    });
+
+    it("still reports parse_error when the adapter matched nothing", async () => {
+      const broken = deps({
+        async enabledAdapters() {
+          return [ADAPTER] as never;
+        },
+        async fetchPage(url) {
+          return { url, finalUrl: url, status: 200, body: "<html></html>" };
+        },
+        async runAdapter() {
+          throw new ParseError('no rows matched "#schedule tr.assignment"');
+        },
+      });
+      const result = await runSync(enableSite(emptyStore()), "manual", broken);
+      expect(result.outcomes.find((o) => o.source === "site")!.state).toBe("parse_error");
+    });
+
+    it("treats a 4xx as structural and a 5xx as the site's problem", async () => {
+      const withStatus = (status: number) =>
+        deps({
+          async enabledAdapters() {
+            return [ADAPTER] as never;
+          },
+          async fetchPage(url) {
+            return { url, finalUrl: url, status, body: "" };
+          },
+        });
+      const gone = await runSync(enableSite(emptyStore()), "manual", withStatus(404));
+      expect(gone.outcomes.find((o) => o.source === "site")!.state).toBe("parse_error");
+      const down = await runSync(enableSite(emptyStore()), "manual", withStatus(503));
+      expect(down.outcomes.find((o) => o.source === "site")!.state).toBe("network_error");
+    });
   });
 
   it("runs an enabled adapter and folds its items into the list", async () => {

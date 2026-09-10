@@ -51,6 +51,15 @@ appear nowhere in the planner window" — and not a broken query.
 ### What that means for the project
 
 **Canvas contributes zero deadlines for this account, and cannot contribute any.**
+
+> **Superseded 2026-09-10 by a live sync.** The loop now reports
+> `[sync] canvas: ok (1 items, 2 requests)`. Between the Sep 3 capture and today a
+> fourth enrolment appeared (CS 424, see the `include[]=term` capture above) and the
+> planner returned a dated row. So the claim below holds for the *courses captured on
+> Sep 3* and not for the account in general: a Canvas source that yields nothing is
+> a fact about which instructors dated their assignments that week, not a property of
+> this deployment. Anything reasoning from "Canvas is always empty here" — including
+> G2's recall note — should be re-read with that in mind.
 CS 357's 66 rows are LTI shells for PrairieLearn assessments; the dates live in
 PrairieLearn, which we already parse. CS 425 has one dateless `HW1`.
 
