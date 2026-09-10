@@ -5,7 +5,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { isAllowedCaptureUrl } from "../src/capture.js";
+import { isAllowedCaptureUrl, isGrantedUpFront, originPattern } from "../src/capture.js";
 import { probeMarkers } from "../src/core/markers.js";
 
 describe("isAllowedCaptureUrl", () => {
@@ -32,6 +32,41 @@ describe("isAllowedCaptureUrl", () => {
     ]) {
       expect(isAllowedCaptureUrl(url), url).toBe(false);
     }
+  });
+});
+
+describe("host permissions for a capture (§2.3)", () => {
+  it("knows which hosts the manifest already grants", () => {
+    // The four sources are in host_permissions and fetch straight away.
+    for (const url of [
+      "https://www.gradescope.com/courses/1",
+      "https://canvas.illinois.edu/api/v1/courses",
+      "https://us.prairielearn.com/pl/",
+      "https://us.prairietest.com/pt/",
+    ]) {
+      expect(isGrantedUpFront(url), url).toBe(true);
+    }
+  });
+
+  it("knows which need a runtime grant, which is what CORS-blocked the capture", () => {
+    // *.illinois.edu is optional_host_permissions, so without a grant the fetch
+    // falls back to ordinary CORS rules and the browser blocks it — with an
+    // error that says nothing about permissions.
+    expect(isGrantedUpFront("https://courses.grainger.illinois.edu/cs424/fa2026/x.html")).toBe(
+      false,
+    );
+    expect(isGrantedUpFront("https://cs.illinois.edu/x")).toBe(false);
+    expect(isGrantedUpFront("not a url")).toBe(false);
+  });
+
+  it("builds the origin pattern chrome.permissions expects", () => {
+    expect(originPattern("https://courses.grainger.illinois.edu/cs424/fa2026/secure/x.html")).toBe(
+      "https://courses.grainger.illinois.edu/*",
+    );
+    // The path never widens or narrows the grant — it is per-origin.
+    expect(originPattern("https://courses.grainger.illinois.edu/")).toBe(
+      "https://courses.grainger.illinois.edu/*",
+    );
   });
 });
 

@@ -8,7 +8,7 @@
 import { BUILD_ID } from "../build-info.js";
 import { buildIcs } from "../core/ics.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
-import type { CaptureResult } from "../capture.js";
+import { isGrantedUpFront, originPattern, type CaptureResult } from "../capture.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
@@ -360,6 +360,12 @@ captureButton.addEventListener("click", async () => {
     captureStatus.textContent = "Enter a URL first.";
     return;
   }
+  if (!(await ensureHostPermission(url))) {
+    captureStatus.textContent =
+      `Chrome did not grant access to ${url}. That host is an optional ` +
+      `permission, so it cannot be fetched until you allow it.`;
+    return;
+  }
   captureButton.disabled = true;
   captureStatus.textContent = "Fetching…";
   captureResult.replaceChildren();
@@ -672,6 +678,23 @@ async function refreshOptions(): Promise<void> {
   }
 }
 
+/**
+ * §2.3 keeps course-site hosts out of the up-front permission request, so any
+ * illinois.edu host other than the four sources needs a runtime grant before it
+ * can be fetched at all. Asked here rather than in the worker: a user gesture
+ * does not survive the message hop, and Chrome refuses the prompt without one.
+ */
+async function ensureHostPermission(url: string): Promise<boolean> {
+  try {
+    if (isGrantedUpFront(url)) return true;
+    const origins = [originPattern(url)];
+    if (await chrome.permissions.contains({ origins })) return true;
+    return await chrome.permissions.request({ origins });
+  } catch {
+    return false;
+  }
+}
+
 const dataStatus = () => document.getElementById("data-status")!;
 
 document.getElementById("download-ics")!.addEventListener("click", async () => {
@@ -721,6 +744,11 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   const url = (document.getElementById("report-url") as HTMLInputElement).value.trim();
   if (!url) {
     reportStatus().textContent = "Paste the URL of the page that is not working.";
+    return;
+  }
+  if (!(await ensureHostPermission(url))) {
+    reportStatus().textContent =
+      `Chrome did not grant access to ${url}, so that page cannot be read.`;
     return;
   }
   reportStatus().textContent = "Fetching…";

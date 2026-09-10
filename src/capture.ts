@@ -25,7 +25,12 @@ export interface CaptureResult {
 
 const TIMEOUT_MS = 20_000;
 
-/** Only our own hosts, so a typo cannot make the extension fetch the open web. */
+/**
+ * Hosts the manifest grants up front (§2.3). Anything else on illinois.edu is
+ * an *optional* permission and has to be granted at runtime before a fetch can
+ * work at all — without it the request falls back to ordinary CORS rules and is
+ * blocked by the browser, with an error that says nothing about permissions.
+ */
 const ALLOWED_HOSTS = [
   "canvas.illinois.edu",
   "www.gradescope.com",
@@ -46,11 +51,40 @@ export function isAllowedCaptureUrl(raw: string): boolean {
   );
 }
 
+/** The match pattern `chrome.permissions` uses for a URL's origin. */
+export function originPattern(url: string): string {
+  return `${new URL(url).origin}/*`;
+}
+
+/** True when the manifest already grants this host without a runtime request. */
+export function isGrantedUpFront(url: string): boolean {
+  try {
+    return ALLOWED_HOSTS.includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export async function capture(url: string): Promise<CaptureResult> {
   if (!isAllowedCaptureUrl(url)) {
     throw new Error(
       `Refusing to capture ${url}: must be https on a UIUC or source host ` +
         `(${ALLOWED_HOSTS.join(", ")}, or any *.illinois.edu).`,
+    );
+  }
+
+  // Checked, not requested: a permission prompt needs a user gesture, which
+  // does not survive the message hop into this worker. The options page asks
+  // inside the click; this only turns "TypeError: Failed to fetch" — which is
+  // what the browser gives you for a cross-origin request without permission —
+  // into something that names the actual problem.
+  if (!isGrantedUpFront(url) && !(await chrome.permissions.contains({
+    origins: [originPattern(url)],
+  }))) {
+    throw new Error(
+      `No permission for ${originPattern(url)}. This host is an optional ` +
+        `permission (§2.3), so Chrome must be asked for it from a click before ` +
+        `it can be fetched.`,
     );
   }
 
