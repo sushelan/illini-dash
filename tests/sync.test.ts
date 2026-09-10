@@ -232,6 +232,27 @@ describe("runSync (§6)", () => {
     expect(second.outcomes.every((o) => o.requests === 0)).toBe(true);
   });
 
+  it("lets a manual sync bypass backoff, since the user just fixed something", async () => {
+    // The commonest reason to press "Sync now" is having just logged back in.
+    // Skipping the source would ignore the user and leave a stale error on
+    // screen with no way to refresh it.
+    const failed = await runSync(
+      emptyStore(),
+      "alarm",
+      deps({ async fetchPage() { throw new Error("down"); } }),
+    );
+    expect(failed.store.backoffUntil.canvas).toBeDefined();
+
+    // Same instant, so the backoff has definitely not lapsed.
+    const manual = await runSync(failed.store, "manual", deps());
+    expect(manual.store.sources.canvas.state).toBe("ok");
+    expect(manual.store.backoffUntil.canvas).toBeUndefined();
+
+    // An alarm at the same instant still respects it.
+    const alarm = await runSync(failed.store, "alarm", deps());
+    expect(alarm.outcomes.every((o) => o.requests === 0)).toBe(true);
+  });
+
   it("clears the backoff and the error once a source recovers", async () => {
     const failed = await runSync(
       emptyStore(),

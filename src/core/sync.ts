@@ -53,9 +53,23 @@ export interface SourceOutcome {
   requests: number;
 }
 
-/** Raised when a fetch lands on a login page, so §6 reports needs_login. */
+/**
+ * Raised when a fetch looks logged out, so §6 reports needs_login.
+ *
+ * Carries the evidence. "session expired" alone is useless when the student is
+ * demonstrably logged in and one source still says otherwise — the only way to
+ * tell a real expiry from a misfiring heuristic is which request, what status,
+ * and where it landed.
+ */
 class NeedsLogin extends Error {
   override readonly name = "NeedsLogin";
+  constructor(readonly page: FetchedPage) {
+    super(
+      `${page.status} at ${page.finalUrl}` +
+        (page.finalUrl !== page.url ? ` (from ${page.url})` : "") +
+        ` — ${page.body.slice(0, 120).replace(/\s+/g, " ")}`,
+    );
+  }
 }
 
 /** §4: at most 4 concurrent requests per host. */
@@ -71,7 +85,7 @@ async function fetchAll(
     for (const page of pages) {
       // Checked before parsing, or a session expiry surfaces as parse_error and
       // §6 backs off instead of telling the student to log in (§0 rule 2).
-      if (isLoginResponse(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page.url);
+      if (isLoginResponse(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
       results.push(page);
     }
   }
@@ -86,13 +100,13 @@ async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
   const coursesPage = await deps.fetchPage(canvas.coursesUrl());
   if (canvas.isLoginResponse(coursesPage.status, coursesPage.finalUrl, coursesPage.body)) {
-    throw new NeedsLogin(coursesPage.url);
+    throw new NeedsLogin(coursesPage);
   }
   const courses = canvas.courseMap(canvas.parseCourses(coursesPage.body));
 
   const plannerPage = await deps.fetchPage(canvas.plannerUrl(new Date(fetchedAt)));
   if (canvas.isLoginResponse(plannerPage.status, plannerPage.finalUrl, plannerPage.body)) {
-    throw new NeedsLogin(plannerPage.url);
+    throw new NeedsLogin(plannerPage);
   }
   return canvas.parsePlannerItems(plannerPage.body, courses, {
     url: plannerPage.finalUrl,
@@ -104,7 +118,7 @@ async function syncGradescope(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
   const dashboard = await deps.fetchPage(`${gradescope.GRADESCOPE_ORIGIN}/`);
   if (gradescope.isLoginResponse(dashboard.status, dashboard.finalUrl, dashboard.body)) {
-    throw new NeedsLogin(dashboard.url);
+    throw new NeedsLogin(dashboard);
   }
 
   // Parsed in the offscreen document like any other HTML, but it yields courses
@@ -133,7 +147,7 @@ async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
   const home = await deps.fetchPage(`${prairielearn.PRAIRIELEARN_ORIGIN}/pl/`);
   if (prairielearn.isLoginResponse(home.status, home.finalUrl, home.body)) {
-    throw new NeedsLogin(home.url);
+    throw new NeedsLogin(home);
   }
 
   // §4.3 step 1: the student home lists course instances.
@@ -162,7 +176,7 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
   const home = await deps.fetchPage(`${prairietest.PRAIRIETEST_ORIGIN}/pt/`);
   if (prairietest.isLoginResponse(home.status, home.finalUrl, home.body)) {
-    throw new NeedsLogin(home.url);
+    throw new NeedsLogin(home);
   }
   return deps.parseHtml("prairietest", home.body, { url: home.finalUrl, fetchedAt });
 }
@@ -193,7 +207,7 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
     return { source, state: "ok", items: await plan(counting), requests };
   } catch (err) {
     if (err instanceof NeedsLogin) {
-      return { source, state: "needs_login", items: [], error: "session expired", requests };
+      return { source, state: "needs_login", items: [], error: err.message, requests };
     }
     // §6 distinguishes these: a ParseError means the page changed and the user
     // should see a red dot; anything else is treated as a network problem, which
@@ -253,7 +267,12 @@ export async function runSync(
       // page should not delete history the user may re-enable.
       continue;
     }
-    if (inBackoff(next, source, now)) {
+    // §6's backoff exists to stop a *scheduled* loop hammering a site that is
+    // failing. A person pressing "Sync now" is not that loop, and the commonest
+    // reason to press it is having just fixed the thing that failed — logging
+    // back in. Making them wait out a 30-minute ladder would ignore the user and
+    // leave a stale error on screen with no way to refresh it.
+    if (trigger !== "manual" && inBackoff(next, source, now)) {
       outcomes.push({ source, state: status.state, items: [], requests: 0 });
       // Its previous keys count as seen, or §5.4 would purge undated items
       // belonging to a source that is merely resting.
