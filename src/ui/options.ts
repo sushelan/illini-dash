@@ -678,3 +678,115 @@ document.getElementById("refresh-registry")!.addEventListener("click", async () 
   await send({ type: "refresh-registry" });
   await refreshOptions();
 });
+
+
+/* ---- §8.2's "report a broken page" ---------------------------------------
+ * The same capture + scrub path the fixture tool uses, packaged for someone who
+ * is not building the extension: it adds the diagnostic context a maintainer
+ * would otherwise have to ask for, and it never transmits anything.
+ */
+
+const reportStatus = () => document.getElementById("report-status")!;
+const reportResult = () => document.getElementById("report-result")!;
+
+document.getElementById("report-fetch")!.addEventListener("click", async () => {
+  const url = (document.getElementById("report-url") as HTMLInputElement).value.trim();
+  if (!url) {
+    reportStatus().textContent = "Paste the URL of the page that is not working.";
+    return;
+  }
+  reportStatus().textContent = "Fetching…";
+  reportResult().replaceChildren();
+
+  const captured = await send({ type: "capture", url });
+  if (captured.type === "error") {
+    reportStatus().textContent = captured.message;
+    return;
+  }
+  if (captured.type !== "capture") return;
+
+  const { html, report } = scrubHtml(captured.result.body, {
+    netid: netidInput.value.trim() || undefined,
+    name: nameInput.value.trim() || undefined,
+  });
+  const blockers = report.warnings.filter((w) => w.severity === "blocker");
+
+  const state = await send({ type: "get-options-state" });
+  const sources = state.type === "options-state" ? state.sources : undefined;
+
+  // Context a maintainer would otherwise have to ask for, one round trip saved.
+  const context = [
+    `illini-due report`,
+    `build: ${BUILD_ID}`,
+    `generated: ${new Date().toISOString()}`,
+    `url: ${captured.result.requestUrl}`,
+    `final url: ${captured.result.finalUrl}`,
+    `status: ${captured.result.status} ${captured.result.statusText}`,
+    `content-type: ${captured.result.contentType ?? "unknown"}`,
+    `bytes: ${captured.result.bytes}`,
+    "",
+    "source health:",
+    ...(sources
+      ? Object.values(sources).map(
+          (s) =>
+            `  ${s.source}: ${s.enabled ? s.state : "disabled"}` +
+            `${s.lastError ? ` — ${s.lastError}` : ""}` +
+            `${s.lastSuccessAt ? ` (last ok ${s.lastSuccessAt})` : ""}`,
+        )
+      : ["  unavailable"]),
+    "",
+    "scrubbing applied:",
+    ...Object.entries(report.counts).map(([label, count]) => `  ${label}: ${count}`),
+    ...report.warnings.map((w) => `  ${w.severity.toUpperCase()}: ${w.message}`),
+    "",
+    "The HTML below was fetched from the page above and scrubbed in the browser.",
+    "Read it before attaching it to a public issue.",
+    "=".repeat(70),
+    "",
+  ].join("\n");
+
+  const box = document.createElement("div");
+  box.className = "result";
+  const heading = document.createElement("h3");
+  heading.textContent = "Report ready";
+  box.append(heading);
+
+  const dl = document.createElement("dl");
+  row(dl, "page", captured.result.finalUrl);
+  row(dl, "status", String(captured.result.status));
+  for (const [label, count] of Object.entries(report.counts)) row(dl, label, `${count} replaced`);
+  for (const warning of report.warnings) {
+    const dt = document.createElement("dt");
+    dt.textContent = warning.severity === "blocker" ? "MUST FIX" : "note";
+    const dd = document.createElement("dd");
+    if (warning.severity === "blocker") dd.className = "verdict-error";
+    dd.textContent = warning.message;
+    dl.append(dt, dd);
+  }
+  box.append(dl);
+
+  const save = document.createElement("button");
+  save.textContent = blockers.length
+    ? `Download anyway (${blockers.length} unresolved — read it first)`
+    : "Download report";
+  save.addEventListener("click", () => {
+    download(
+      `illini-due-report-${Date.now()}.txt`,
+      `${context}${html}`,
+      "text/plain",
+    );
+  });
+  box.append(save);
+
+  const note = document.createElement("p");
+  note.className = "muted";
+  note.textContent =
+    "Attach the downloaded file to an issue. It contains the page's HTML, so read " +
+    "it first — anything the scrubber could not recognise as yours is still in there.";
+  box.append(note);
+
+  reportResult().append(box);
+  reportStatus().textContent = blockers.length
+    ? `Prepared, but ${blockers.length} thing(s) still look identifying.`
+    : "Prepared.";
+});

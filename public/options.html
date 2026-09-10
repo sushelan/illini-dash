@@ -59,6 +59,21 @@
       </p>
       <p id="data-status" class="muted"></p>
 
+      <h2>Report a broken page</h2>
+      <p class="muted">
+        If a source is showing a red dot, or a deadline you can see on the site is
+        missing from the list, this fetches that page, removes what it can recognise
+        as yours, and hands you a file to attach to a GitHub issue.
+        <strong>Nothing is sent anywhere automatically.</strong>
+      </p>
+      <p>
+        <input id="report-url" type="url" size="60"
+               placeholder="https://www.gradescope.com/courses/1352838" />
+        <button id="report-fetch">Prepare report</button>
+      </p>
+      <p id="report-status" class="muted"></p>
+      <div id="report-result"></div>
+
       <h2>Privacy</h2>
       <p class="muted" id="privacy"></p>
     </section>
