@@ -17,8 +17,10 @@ const AVAILABLE_HEADING = "Exams available for reservations";
 
 /**
  * §0 rule 3: an empty card is legitimate and must not read as a parse error.
- * One string per card — §4.4 recorded only the reservations one, and attributed
- * it to the wrong card.
+ * There is one wording per card — §4.4 recorded only one of them, and
+ * attributed it to the wrong card. They are pooled rather than bound to their
+ * own card because the spec already got that pairing wrong once; the binding
+ * that matters is to a *row* (see `isEmptyRow`), not to a card.
  */
 const EMPTY_CARD = [
   "You don't have any upcoming reservations",
@@ -79,13 +81,32 @@ function cardFor(doc: Document, heading: string): Element | undefined {
   );
 }
 
-function isEmptyCard(card: Element): boolean {
-  const text = textOf(card);
-  return EMPTY_CARD.some((marker) => text.includes(marker));
+/**
+ * An empty-state row: no data hook, and one of the cards' own wordings.
+ *
+ * Both halves matter. Matching the marker anywhere in the card's subtree — as
+ * this first did — lets an exam titled "…You don't have any upcoming
+ * reservations quiz", or a CSS-hidden empty-state element left in the DOM
+ * beside a real row, blank the entire card with no error. Requiring the absence
+ * of `[data-testid="exam"]` alone would be worse still: an unrecognised
+ * wording would then make every empty card look like a redesign.
+ */
+function isEmptyRow(row: Element): boolean {
+  if (row.querySelector('[data-testid="exam"]')) return false;
+  return EMPTY_CARD.some((marker) => textOf(row).includes(marker));
 }
 
+/** Real rows only. An empty-state row is not a row. */
 function rowsOf(card: Element): Element[] {
-  return Array.from(card.querySelectorAll("li.list-group-item"));
+  return Array.from(card.querySelectorAll("li.list-group-item")).filter(
+    (row) => !isEmptyRow(row),
+  );
+}
+
+/** Empty only when the card has rows and every one of them says so. */
+function isEmptyCard(card: Element): boolean {
+  const all = Array.from(card.querySelectorAll("li.list-group-item"));
+  return all.length > 0 && all.every(isEmptyRow);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -94,15 +115,36 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
   const reservations = cardFor(doc, RESERVATIONS_HEADING);
   const available = cardFor(doc, AVAILABLE_HEADING);
 
-  // Both cards are always rendered on a logged-in home page, empty or not.
-  // Neither present means this is not the page we think it is (§0 rule 3).
-  if (!reservations && !available) {
-    throw new ParseError("no exam reservation cards on the PrairieTest home page");
+  // Both cards are rendered on a logged-in home page, empty or not, in both
+  // captures. Requiring only that *one* survive meant a single reworded heading
+  // silently deleted that card's whole contents: a booked exam vanishing with
+  // no error, or §4.4's booking pseudo-item and its §7 daily nag ceasing to
+  // exist. The card is named so §6's health text says which one moved.
+  //
+  // VERIFY (n=1 for the empty case): whether PrairieTest renders the available
+  // card at all for a student with no CBTF-enabled courses. If it does not,
+  // this trades a silent drop for a spurious parse_error and the reservations
+  // card should be the only unconditional one. See PROGRESS.md.
+  if (!reservations || !available) {
+    const missing = [
+      reservations ? undefined : RESERVATIONS_HEADING,
+      available ? undefined : AVAILABLE_HEADING,
+    ]
+      .filter(Boolean)
+      .join(" and ");
+    throw new ParseError(`missing PrairieTest card: ${missing}`);
   }
 
   const items: RawItem[] = [];
   /** Titles that are booked, for §4.4's cross-card check. */
   const bookedTitles = new Set<string>();
+  /**
+   * Emitted keys. This source's key is purely content-derived — no course
+   * instance, no term — so a collision is likelier here than anywhere else, and
+   * §3's `raw` map is keyed by memberKey: two items sharing one key silently
+   * become one, losing a real exam session or a daily nag.
+   */
+  const seen = new Set<string>();
 
   /* ---- Booked exams ------------------------------------------------------ */
 
@@ -119,6 +161,10 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
 
       const { title, term } = splitTerm(raw);
       const key = examKey(title);
+      if (seen.has(key)) {
+        throw new ParseError(`duplicate exam key for ${JSON.stringify(title)} on one page`);
+      }
+      seen.add(key);
       bookedTitles.add(key);
 
       // §4.4: the right-hand column's instant. Read from the attribute, never
@@ -126,10 +172,23 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
       // exam it renders as "today, 9pm (CDT)".
       const dateSpan = row.querySelector('[data-testid="date"] [data-format-date]');
       const dateAttr = dateSpan?.getAttribute("data-format-date");
+      // A missing hook is structural and stays loud. An unreadable *value* costs
+      // its own field, matching Gradescope and PrairieLearn: one bad attribute
+      // must not discard the other card's items, and PrairieTest is a single
+      // page, so a throw here is 100% of the source rather than one course.
       if (!dateAttr) throw new ParseError(`reservation "${title}" has no date attribute`);
-      const dueAt = parseDateAttribute(dateAttr);
 
       const extra: Record<string, string> = {};
+      let dueAt: string | undefined;
+      try {
+        dueAt = parseDateAttribute(dateAttr);
+      } catch (err) {
+        extra["unparsedDate"] = dateAttr.slice(0, 200);
+        console.warn(
+          `[prairietest] unreadable date for ${title}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
       if (term) extra["term"] = term;
 
       const locationCell = row.querySelector('[data-testid="location"]');
@@ -194,22 +253,42 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
       // different ids — the booked row has only a reservation id.
       if (bookedTitles.has(key)) continue;
 
+      // Checked *after* the cross-card skip: a booked exam that also remains
+      // listed as available is the case §4.4 deliberately refuses to depend on,
+      // and must not start throwing.
+      const bookingKey = `${key}:booking`;
+      if (seen.has(bookingKey)) {
+        throw new ParseError(`duplicate booking key for ${JSON.stringify(title)} on one page`);
+      }
+      seen.add(bookingKey);
+
       const rangeSpan = row.querySelector('[data-testid="dates"] [data-format-date-range]');
       const rangeAttr = rangeSpan?.getAttribute("data-format-date-range");
       if (!rangeAttr) throw new ParseError(`available exam "${title}" has no date range`);
-      const { start, end } = parseDateRangeAttribute(rangeAttr);
-
-      const href = row.querySelector('[data-testid="action"] a[href]')?.getAttribute("href");
-      const examId = /\/exam\/(\d+)/.exec(href ?? "")?.[1];
 
       const extra: Record<string, string> = {
-        windowStart: start,
-        windowEnd: end,
         // §4.4: dueAt is deliberately early — slots fill, and by the time the
         // window opens the good ones are gone. The UI must word this as
         // "sessions Sep 21–23, not booked", never "due Sep 21".
         deadlineIsEstimate: "true",
       };
+      let window: { start: string; end: string } | undefined;
+      try {
+        window = parseDateRangeAttribute(rangeAttr);
+        extra["windowStart"] = window.start;
+        extra["windowEnd"] = window.end;
+      } catch (err) {
+        // Emitted undated rather than dropped: an un-booked exam the student
+        // still has to reserve is exactly what §0 rule 3 forbids losing.
+        extra["unparsedDateRange"] = rangeAttr.slice(0, 200);
+        console.warn(
+          `[prairietest] unreadable reservation window for ${title}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      const href = row.querySelector('[data-testid="action"] a[href]')?.getAttribute("href");
+      const examId = /\/exam\/(\d+)/.exec(href ?? "")?.[1];
       if (term) extra["term"] = term;
       // Present only on this card; the booked row has no exam id at all.
       if (examId) extra["examId"] = examId;
@@ -219,12 +298,12 @@ export function parseHome(doc: Document, page: PageCtx): RawItem[] {
 
       items.push({
         source: "prairietest",
-        sourceId: `${key}:booking`,
+        sourceId: bookingKey,
         courseRaw: codes[0] ?? title,
         courseCode: codes[0],
         title: `Book a slot: ${title}`,
         kind: "booking",
-        dueAt: start,
+        dueAt: window?.start,
         url: absoluteUrl(href, page.url),
         status: "not_submitted",
         extra,

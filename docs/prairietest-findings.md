@@ -140,10 +140,16 @@ re-firing its notifications — for nothing more than moving a seat. The title-d
 in [sourceid-decision.md](sourceid-decision.md) produces `6107374e` in both captures.
 This is no longer a predicted hazard; it is an observed one.
 
-## G1 gap (closed 2026-09-10): no available-card row had ever been captured
+## G1 gap — closed 2026-09-10
 
-This capture has zero rows in the available card, so §4.4's booking pseudo-item — the
-one that drives the daily 10:00 nag, described as the headline feature — cannot be
-parser-tested against real markup. Its row shape, its date-range format
-(`Tue, Sep 8 to Thu, Sep 10 (CDT)`), and whether that range is also machine-readable
-are all still unobserved. A capture is needed while a reservation window is open.
+The 2026-09-03 capture had zero rows in the available card, so §4.4's booking
+pseudo-item — the daily-nag feature the spec calls the headline — had never been seen
+in real markup. The 2026-09-10 capture closes that: the row, its `Make a reservation`
+link, and its machine-readable window are all above, and both are parser-tested.
+
+The one state still uncaptured is a student with **no CBTF-enabled courses at all**.
+Both captures come from an account that has them, so "both cards are always rendered,
+empty or not" rests on n=1 for the available card's empty case. The parser now treats a
+missing card as a `ParseError`; if that assumption is wrong, this trades a silent drop
+for a spurious `parse_error`, and the right shape is to require only the reservations
+card and treat the available card's absence as a distinct visible state.

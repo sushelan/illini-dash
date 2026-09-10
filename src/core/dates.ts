@@ -240,6 +240,17 @@ export function inferYear(
  * day of an exam renders it as "today, 9pm (CDT)", which §4.4's regex would
  * reject outright.
  */
+/**
+ * §3.2: what comes back must be an instant with an offset. `Date.parse` is far
+ * laxer than that — it accepts a naive `2026-09-11T02:00:00` (a different
+ * instant on every machine), a bare `2026-09-11` (which resolves to 7pm the
+ * previous day in Chicago, firing a -24h reminder ~29h early), and
+ * `Sep 11 2026 9:00 pm`. Every other parser in this file is anchored-regex
+ * strict; Canvas guards the identical shape for the identical reason.
+ */
+const RFC3339_INSTANT =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
+
 export function parseDateAttribute(raw: string): string {
   let payload: unknown;
   try {
@@ -248,7 +259,7 @@ export function parseDateAttribute(raw: string): string {
     throw new ParseError(`date attribute is not JSON: ${JSON.stringify(raw.slice(0, 80))}`);
   }
   const date = (payload as { date?: unknown })?.date;
-  if (typeof date !== "string" || Number.isNaN(Date.parse(date))) {
+  if (typeof date !== "string" || !RFC3339_INSTANT.test(date) || Number.isNaN(Date.parse(date))) {
     throw new ParseError(`date attribute has no usable date: ${JSON.stringify(raw.slice(0, 80))}`);
   }
   return date;
@@ -263,8 +274,8 @@ export function parseDateRangeAttribute(raw: string): { start: string; end: stri
   }
   const { start, end } = (payload ?? {}) as { start?: unknown; end?: unknown };
   if (
-    typeof start !== "string" || Number.isNaN(Date.parse(start)) ||
-    typeof end !== "string" || Number.isNaN(Date.parse(end))
+    typeof start !== "string" || !RFC3339_INSTANT.test(start) || Number.isNaN(Date.parse(start)) ||
+    typeof end !== "string" || !RFC3339_INSTANT.test(end) || Number.isNaN(Date.parse(end))
   ) {
     throw new ParseError(`date range is incomplete: ${JSON.stringify(raw.slice(0, 80))}`);
   }

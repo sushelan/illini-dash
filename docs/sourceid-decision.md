@@ -27,6 +27,20 @@ re-fire.** That is strictly better than the alternative, where the key changes f
 student the moment they open the assessment or rebook a seat — an event that is certain,
 rather than rare.
 
+**The duplicate-key obligation applies to every source, not just PrairieLearn.** §3's
+`raw` is a `Record<memberKey, RawItem>`, so two items sharing a key silently become one
+— losing a real deadline with no `ParseError` and no change to the source's health dot.
+Each parser therefore raises on a duplicate within one page. PrairieTest needs this most:
+its key is the only one that is *purely* content-derived, with no course instance and no
+term to disambiguate.
+
+Known limitation of the PrairieTest key: `splitTerm` removes the term before the title is
+hashed, so `CS 357 (Fa26): Quiz 1` and `CS 357 (Sp27): Quiz 1` produce the same key, and
+`extra.term` — the only field that distinguishes them — sits outside it. Two terms' exams
+never appear on the home page together, so this cannot collide today; it would matter if
+the store ever retained items across a term boundary, which §5.4's purge is designed to
+prevent.
+
 A PrairieLearn badge is unique within a course instance in every capture seen so far
 (8 assessments, 8 distinct badges). If a course ever ships two rows with the same badge,
 the second would collide with the first; the parser must detect a duplicate key within

@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (178 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (186 tests) all pass.
 
 ## Done
 
@@ -14,7 +14,7 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 | 4 — fixture capture | Options page fetches an allowlisted URL from the worker, scrubs it per Appendix A, probes it for §4 marker strings, downloads it. Also `npm run scrub` for re-scrubbing from the CLI. |
 | 5 — Canvas | `src/sources/canvas.ts`, planner-only as decided. Adversarially reviewed; four code defects fixed. → [canvas-findings.md](docs/canvas-findings.md) |
 | 6a — Gradescope | `src/sources/gradescope.ts` + `src/core/dates.ts`, 37 tests on two real fixtures. Adversarially reviewed: 12 findings, 11 survived, all fixed. → [gradescope-findings.md](docs/gradescope-findings.md) |
-| 6c — PrairieTest | `src/sources/prairietest.ts`, both cards + the booking pseudo-item. 22 tests on **two** real captures a week apart. Review in flight. → [prairietest-findings.md](docs/prairietest-findings.md) |
+| 6c — PrairieTest | `src/sources/prairietest.ts`, both cards + the booking pseudo-item. 30 tests on **two** real captures a week apart. Adversarially reviewed: 12 findings, **all 12 survived refutation**, all fixed. → [prairietest-findings.md](docs/prairietest-findings.md) |
 | 6b — PrairieLearn | `src/sources/prairielearn.ts` + the §3.2 half of `src/core/dates.ts` (wall-clock in a named zone, year inference, CDT/CST). 48 tests on the real fixture. Adversarially reviewed: 12 findings, **all 12 survived refutation**, all fixed. → [prairielearn-findings.md](docs/prairielearn-findings.md) |
 
 ## Review outcome — Gradescope
@@ -58,6 +58,25 @@ The DST path was entirely unpinned — hard-coding `-05:00` passed all 137 tests
 by a December date, the fall-back hour, and the previous-year candidate. Eleven mutations
 were tried; the two that survived the first pass have tests and now fail too.
 
+## Review outcome — PrairieTest
+Three high-severity silent-failure paths. **A single reworded card heading deleted that
+card's entire contents** — the guard fired only when *both* cards were missing, two lines
+under a comment asserting the opposite invariant; a booked exam vanished with no error, or
+§4.4's booking item and its §7 nag ceased to exist. **`isEmptyCard` substring-matched the
+whole card subtree** and gated the row loop, so a hidden empty-state element left beside a
+real row, or an exam whose title happened to contain the empty-state sentence, blanked the
+card silently; emptiness is now decided per row, by the absence of the data hook. **No
+duplicate-key guard** in the one source whose key is purely content-derived — two rows
+sharing a key silently became one item in §3's `raw` map.
+
+Also fixed: the date attributes accepted anything `Date.parse` tolerated, so a bare
+`2026-09-11` would have stored a `dueAt` resolving to 7pm the *previous* day and fired
+§7's −24h reminder ~29h early; and one unreadable value discarded the whole page — on a
+single-page source, 100% of it — where the house rule is that a bad *value* costs its
+field while a missing *hook* stays loud.
+
+Seven mutations were tried against the fixed code; all seven fail.
+
 ## Fixtures captured
 
 | Source | Files | Notes |
@@ -77,6 +96,14 @@ overrides), then step 8 (store + sync loop + popup) where **G2 and G3** are deci
 2. **No commits yet** — 60+ files, no history. Worth doing before step 7 touches the
    dedupe core.
 3. Later: **G2 recall** and **G3 dedupe** at step 8 are hands-on and cannot be automated.
+
+## VERIFY (§12-style, needs your browser eventually)
+**Does PrairieTest render the "Exams available for reservations" card at all for a student
+with no CBTF-enabled courses?** Both captures come from an account that has them, so
+"both cards always render, empty or not" rests on n=1 for that card's empty case. The
+parser now treats a missing card as a `ParseError`. If the assumption is wrong, a
+non-CBTF beta tester would see a spurious red dot rather than a clean empty state — worth
+checking at G4 rather than now.
 
 ## Decisions taken
 - **Canvas scope** (2026-09-03): planner-only as specced, even though it yields 0 items

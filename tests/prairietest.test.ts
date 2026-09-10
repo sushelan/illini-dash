@@ -30,6 +30,33 @@ const page: PageCtx = {
   fetchedAt: "2026-09-10T18:00:00.000Z",
 };
 
+/** Both cards, always — a missing card is now a structural error. */
+const CARD = (heading: string, body: string) =>
+  `<div class="card"><div class="card-header"><h2>${heading}</h2></div>` +
+  `<ul class="list-group">${body}</ul></div>`;
+const EMPTY_RESERVATIONS = CARD(
+  "Exam reservations",
+  `<li class="list-group-item"><i>You don't have any upcoming reservations.</i></li>`,
+);
+const EMPTY_AVAILABLE = CARD(
+  "Exams available for reservations",
+  `<li class="list-group-item"><i>You don't currently have any exams available for reservations.</i></li>`,
+);
+const BOOKED_ROW = (title: string, dateJson = '{"date":"2026-09-11T02:00:00.000Z"}') =>
+  `<li class="list-group-item"><div class="row">` +
+  `<div class="col-1" data-testid="exam"><a href="/pt/student/reservation/1">${title}</a></div>` +
+  `<div class="col-1" data-testid="date"><span data-format-date='${dateJson}'>x</span></div>` +
+  `</div></li>`;
+const AVAILABLE_ROW = (
+  title: string,
+  rangeJson = '{"start":"2026-09-21T05:01:00.000Z","end":"2026-09-24T04:59:00.000Z"}',
+) =>
+  `<li class="list-group-item"><div class="row">` +
+  `<div class="col-1" data-testid="action"><a href="/pt/student/exam/9">Make a reservation</a></div>` +
+  `<div class="col-1" data-testid="exam">${title}</div>` +
+  `<div class="col-1" data-testid="dates"><span data-format-date-range='${rangeJson}'>x</span></div>` +
+  `</div></li>`;
+
 const both = parseHome(docOf("home-booked-and-available.html"), page);
 const bookedOnly = parseHome(docOf("home-booked-none-available.html"), page);
 
@@ -108,20 +135,9 @@ describe("parseHome — booking pseudo-item (§4.4's headline feature)", () => {
 });
 
 describe("the both-cards cross-check (§4.4)", () => {
-  const card = (heading: string, body: string) =>
-    `<div class="card"><div class="card-header"><h2>${heading}</h2></div>` +
-    `<ul class="list-group">${body}</ul></div>`;
-  const bookedRow = (title: string) =>
-    `<li class="list-group-item"><div class="row">` +
-    `<div class="col-1" data-testid="exam"><a href="/pt/student/reservation/1">${title}</a></div>` +
-    `<div class="col-1" data-testid="date"><span data-format-date='{"date":"2026-09-11T02:00:00.000Z"}'>x</span></div>` +
-    `</div></li>`;
-  const availableRow = (title: string) =>
-    `<li class="list-group-item"><div class="row">` +
-    `<div class="col-1" data-testid="action"><a href="/pt/student/exam/9">Make a reservation</a></div>` +
-    `<div class="col-1" data-testid="exam">${title}</div>` +
-    `<div class="col-1" data-testid="dates"><span data-format-date-range='{"start":"2026-09-21T05:01:00.000Z","end":"2026-09-24T04:59:00.000Z"}'>x</span></div>` +
-    `</div></li>`;
+  const card = CARD;
+  const bookedRow = BOOKED_ROW;
+  const availableRow = AVAILABLE_ROW;
 
   it("suppresses the booking item once the exam is booked", () => {
     // Whether a booked exam also stays listed in the available card was never
@@ -144,41 +160,140 @@ describe("the both-cards cross-check (§4.4)", () => {
 });
 
 describe("empty and missing cards (§0 rule 3)", () => {
-  const emptyCard = (heading: string, text: string) =>
-    `<div class="card"><div class="card-header"><h2>${heading}</h2></div>` +
-    `<ul class="list-group"><li class="list-group-item"><i>${text}</i></li></ul></div>`;
-
   it("accepts both empty-card wordings, one per card", () => {
     // §4.4 recorded only one of these, and attributed it to the wrong card.
-    const doc = docFrom(
-      emptyCard(
-        "Exams available for reservations",
-        "You don't currently have any exams available for reservations.",
-      ) + emptyCard("Exam reservations", "You don't have any upcoming reservations."),
-    );
-    expect(parseHome(doc, page)).toEqual([]);
+    expect(parseHome(docFrom(EMPTY_AVAILABLE + EMPTY_RESERVATIONS), page)).toEqual([]);
   });
 
   it("throws when neither card is on the page", () => {
-    expect(() => parseHome(docFrom("<p>hello</p>"), page)).toThrow(/no exam reservation cards/);
+    expect(() => parseHome(docFrom("<p>hello</p>"), page)).toThrow(/missing PrairieTest card/);
+  });
+
+  it("names each missing card, so a reworded heading is diagnosable", () => {
+    // A single reworded heading used to delete that card's whole contents
+    // silently — a booked exam gone, or the booking nag ceasing to exist.
+    expect(() =>
+      parseHome(docFrom(EMPTY_AVAILABLE + CARD("Your exam reservations", BOOKED_ROW("X"))), page),
+    ).toThrow(/missing PrairieTest card: Exam reservations/);
+    expect(() =>
+      parseHome(
+        docFrom(EMPTY_RESERVATIONS + CARD("Exams open for reservations", AVAILABLE_ROW("X"))),
+        page,
+      ),
+    ).toThrow(/missing PrairieTest card: Exams available for reservations/);
+  });
+
+  it("is not fooled by extra markup inside a heading", () => {
+    const doc = docFrom(
+      EMPTY_AVAILABLE +
+        CARD("<span>Exam reservations</span>", BOOKED_ROW("CS 357 (Fa26): Quiz 1")),
+    );
+    expect(parseHome(doc, page)).toHaveLength(1);
   });
 
   it("throws when a card is neither empty nor has rows", () => {
     const doc = docFrom(
-      `<div class="card"><div class="card-header"><h2>Exam reservations</h2></div>` +
+      EMPTY_AVAILABLE +
+        `<div class="card"><div class="card-header"><h2>Exam reservations</h2></div>` +
         `<div>something else entirely</div></div>`,
     );
     expect(() => parseHome(doc, page)).toThrow(/neither empty nor has rows/);
   });
 
-  it("throws when a booked row has no date attribute", () => {
+  it("throws when a booked row has no date hook at all", () => {
+    // A missing hook is structural. An unreadable *value* is not — see below.
     const doc = docFrom(
-      `<div class="card"><div class="card-header"><h2>Exam reservations</h2></div>` +
-        `<ul class="list-group"><li class="list-group-item">` +
-        `<div class="col-1" data-testid="exam">CS 357 (Fa26): Quiz 1</div>` +
-        `</li></ul></div>`,
+      EMPTY_AVAILABLE +
+        CARD(
+          "Exam reservations",
+          `<li class="list-group-item"><div class="col-1" data-testid="exam">CS 357 (Fa26): Quiz 1</div></li>`,
+        ),
     );
     expect(() => parseHome(doc, page)).toThrow(/has no date attribute/);
+  });
+});
+
+describe("regressions found by the adversarial review", () => {
+  it("does not blank a card because an empty-state element lingers beside a real row", () => {
+    // A hidden empty-state li left in the DOM used to blank the whole card,
+    // silently — §0 rule 3's worst case.
+    const doc = docFrom(
+      EMPTY_RESERVATIONS +
+        CARD(
+          "Exams available for reservations",
+          `<li class="list-group-item d-none"><i>You don't currently have any exams available for reservations.</i></li>` +
+            AVAILABLE_ROW("CS 357 (Fa26): Quiz 2"),
+        ),
+    );
+    expect(parseHome(doc, page).map((i) => i.kind)).toEqual(["booking"]);
+  });
+
+  it("does not blank a card because a row's own title contains the marker", () => {
+    const doc = docFrom(
+      EMPTY_AVAILABLE +
+        CARD(
+          "Exam reservations",
+          BOOKED_ROW("CS 357 (Fa26): You don't have any upcoming reservations quiz"),
+        ),
+    );
+    expect(parseHome(doc, page)).toHaveLength(1);
+  });
+
+  it("throws on two rows that would share one key", () => {
+    // §3's raw map is keyed by memberKey, so a collision silently merges two
+    // items into one — losing an exam session, or a daily nag.
+    const dupBooked = docFrom(
+      EMPTY_AVAILABLE +
+        CARD("Exam reservations", BOOKED_ROW("CS 357 (Fa26): Quiz 1").repeat(2)),
+    );
+    expect(() => parseHome(dupBooked, page)).toThrow(/duplicate exam key/);
+
+    const dupAvailable = docFrom(
+      EMPTY_RESERVATIONS +
+        CARD("Exams available for reservations", AVAILABLE_ROW("CS 357 (Fa26): Quiz 2").repeat(2)),
+    );
+    expect(() => parseHome(dupAvailable, page)).toThrow(/duplicate booking key/);
+  });
+
+  it("does not throw when a booked exam is also still listed as available", () => {
+    // §4.4 deliberately refuses to depend on whether this happens, so the
+    // duplicate guard must sit after the cross-card skip, not before it.
+    const doc = docFrom(
+      CARD("Exams available for reservations", AVAILABLE_ROW("CS 357 (Fa26): Quiz 1")) +
+        CARD("Exam reservations", BOOKED_ROW("CS 357 (Fa26): Quiz 1")),
+    );
+    expect(parseHome(doc, page).map((i) => i.kind)).toEqual(["exam"]);
+  });
+
+  it("keeps a booked exam undated rather than losing the page to a bad date value", () => {
+    const doc = docFrom(
+      CARD("Exams available for reservations", AVAILABLE_ROW("CS 357 (Fa26): Quiz 2")) +
+        CARD("Exam reservations", BOOKED_ROW("CS 357 (Fa26): Quiz 1", '{"date":"nonsense"}')),
+    );
+    const items = parseHome(doc, page);
+    // The other card's booking item must survive.
+    expect(items.map((i) => i.kind).sort()).toEqual(["booking", "exam"]);
+    const exam = items.find((i) => i.kind === "exam")!;
+    expect(exam.dueAt).toBeUndefined();
+    expect(exam.extra?.["unparsedDate"]).toBe('{"date":"nonsense"}');
+  });
+
+  it("keeps a booking item undated rather than losing it to a bad window", () => {
+    const doc = docFrom(
+      EMPTY_RESERVATIONS +
+        CARD(
+          "Exams available for reservations",
+          AVAILABLE_ROW(
+            "CS 357 (Fa26): Quiz 2",
+            '{"start":"2026-09-24T04:59:00.000Z","end":"2026-09-21T05:01:00.000Z"}',
+          ),
+        ),
+    );
+    const [item] = parseHome(doc, page);
+    expect(item!.kind).toBe("booking");
+    expect(item!.dueAt).toBeUndefined();
+    expect(item!.extra?.["unparsedDateRange"]).toContain("2026-09-24");
+    expect(item!.extra?.["windowStart"]).toBeUndefined();
   });
 });
 
@@ -214,7 +329,18 @@ describe("date attributes (§4.4, replacing the regexes)", () => {
   });
 
   it("throws rather than guessing", () => {
-    for (const bad of ["", "not json", "{}", '{"date":"tomorrow"}', '{"date":123}']) {
+    for (const bad of [
+      "",
+      "not json",
+      "{}",
+      '{"date":"tomorrow"}',
+      '{"date":123}',
+      // Date.parse accepts all of these; §3.2 does not.
+      '{"date":"2026-09-11T02:00:00"}', // naive — a different instant per machine
+      '{"date":"2026-09-11"}', // date-only — resolves to 7pm the previous day here
+      '{"date":"Sep 11 2026 9:00 pm"}',
+      '{"date":"2026-09-11T02:00:00+0500"}', // offset, but not RFC 3339
+    ]) {
       expect(() => parseDateAttribute(bad), bad).toThrow(ParseError);
     }
     for (const bad of ['{"start":"2026-09-21T05:01:00Z"}', '{"start":"x","end":"y"}']) {
@@ -235,11 +361,14 @@ describe("url handling", () => {
   it("refuses an off-origin or non-https link", () => {
     for (const href of ["//evil.example/x", "http://evil.example/x", "javascript:alert(1)"]) {
       const doc = docFrom(
-        `<div class="card"><div class="card-header"><h2>Exam reservations</h2></div>` +
-          `<ul class="list-group"><li class="list-group-item">` +
-          `<div class="col-1" data-testid="exam"><a href="${href}">CS 357 (Fa26): Quiz 1</a></div>` +
-          `<div class="col-1" data-testid="date"><span data-format-date='{"date":"2026-09-11T02:00:00.000Z"}'>x</span></div>` +
-          `</li></ul></div>`,
+        EMPTY_AVAILABLE +
+          CARD(
+            "Exam reservations",
+            `<li class="list-group-item">` +
+              `<div class="col-1" data-testid="exam"><a href="${href}">CS 357 (Fa26): Quiz 1</a></div>` +
+              `<div class="col-1" data-testid="date"><span data-format-date='{"date":"2026-09-11T02:00:00.000Z"}'>x</span></div>` +
+              `</li>`,
+          ),
       );
       expect(parseHome(doc, page)[0]!.url, href).toBe(page.url);
     }
