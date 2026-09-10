@@ -416,14 +416,24 @@ export function dedupe(
   return sortItems(built);
 }
 
-/** Undated last, then by instant, then by title so the order is stable. */
+/**
+ * Undated last, then by instant, then by title so the order is stable.
+ *
+ * An assumed time sorts after a stated one at the same instant. §4.5's runner
+ * puts every timeless course-site row at 23:59, so without this a real 11:59 PM
+ * deadline and an invented one interleave by title, and the row the student can
+ * actually trust is not the one on top.
+ */
 export function sortItems(items: Item[]): Item[] {
   return [...items].sort((a, b) => {
     if (a.dueAt === undefined && b.dueAt === undefined) return a.title.localeCompare(b.title);
     if (a.dueAt === undefined) return 1;
     if (b.dueAt === undefined) return -1;
     const gap = Date.parse(a.dueAt) - Date.parse(b.dueAt);
-    return gap !== 0 ? gap : a.title.localeCompare(b.title);
+    if (gap !== 0) return gap;
+    const assumed = Number(a.timeAssumed ?? false) - Number(b.timeAssumed ?? false);
+    if (assumed !== 0) return assumed;
+    return a.title.localeCompare(b.title);
   });
 }
 

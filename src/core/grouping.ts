@@ -34,9 +34,9 @@ const OVERDUE_WINDOW_DAYS = 7;
 /** §8.1: "Later (next 60 days)". */
 const HORIZON_DAYS = 60;
 
-/** Local midnight `days` after the day containing `now`. */
-function startOfDay(now: Date, days = 0): number {
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+/** Local midnight `days` after the day containing `when`. */
+function startOfDay(when: Date, days = 0): number {
+  const d = new Date(when.getFullYear(), when.getMonth(), when.getDate() + days);
   return d.getTime();
 }
 
@@ -177,6 +177,30 @@ export function formatDue(item: Item, now: Date): string {
     hour: "numeric",
     minute: "2-digit",
   });
+
+  // §4.5's runner fills in 23:59 when a course page prints a bare date. Showing
+  // that as "Fri 11:59 PM" is the §11 risk wearing a friendly face: it looks
+  // like a stated deadline, and a student who trusts it misses a 5 PM cutoff.
+  // The date is real, the time is ours, and the row has to say which is which.
+  if (item.timeAssumed) {
+    const day = due.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    const deltaDays = Math.round(
+      (startOfDay(due) - startOfDay(now)) / 86_400_000,
+    );
+    const when =
+      deltaDays === 0
+        ? "today"
+        : deltaDays === 1
+          ? "tomorrow"
+          : deltaDays < 0
+            ? `${Math.abs(deltaDays)}d ago`
+            : `in ${deltaDays}d`;
+    return `${day} · time not given · ${when}`;
+  }
 
   // Full credit gone, late window still open: Gradescope's "Accepting late
   // submissions until…" and PrairieLearn's next credit tier. The row used to

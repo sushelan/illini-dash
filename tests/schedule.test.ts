@@ -462,3 +462,57 @@ describe("reminders for a late window (§4.2, §4.3)", () => {
     expect(planNotifications([late()], quiet, new Date(2026, 8, 20, 12))).toEqual([]);
   });
 });
+
+describe("reminders for a time this extension invented (§4.5, worker rule 3)", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+  // CS 424: the schedule prints "HW2 Due" against a bare date, so the runner
+  // fills in 23:59 and flags it.
+  const assumed = () =>
+    item({ dueAt: new Date(2026, 8, 18, 23, 59).toISOString(), timeAssumed: true });
+
+  it("never plans a 2-hour countdown against an instant it invented", () => {
+    // If the real cutoff is 5 PM, a 2h lead fires at 9:59 PM — three hours after
+    // the work was late, in the confident voice of a real deadline.
+    const plans = planNotifications([assumed()], quiet, new Date(2026, 8, 17, 12));
+    expect(plans.map((p) => p.lead)).toEqual(["dayOf"]);
+  });
+
+  it("puts the one reminder on the morning of the day it is due", () => {
+    const plans = planNotifications([assumed()], quiet, new Date(2026, 8, 17, 12));
+    const fireAt = new Date(plans[0]!.fireAt);
+    expect(fireAt.getDate()).toBe(18);
+    expect(fireAt.getHours()).toBe(0);
+  });
+
+  it("still respects quiet hours, which is what puts it at 08:00", () => {
+    const plans = planNotifications(
+      [assumed()],
+      { ...DEFAULT_SETTINGS, quietHours: { start: 23, end: 8 } },
+      new Date(2026, 8, 17, 12),
+    );
+    expect(new Date(plans[0]!.fireAt).getHours()).toBe(8);
+  });
+
+  it("does not fire once, then fire again on the next pass", () => {
+    const already = assumed();
+    already.notified = { dayOf: "2026-09-18T13:00:00Z" };
+    expect(planNotifications([already], quiet, new Date(2026, 8, 18, 12))).toEqual([]);
+  });
+
+  it("says no time in the toast, and shows no clock", () => {
+    const content = notificationContent(assumed(), "dayOf", new Date(2026, 8, 18, 8));
+    expect(content.message).toContain("no time");
+    expect(content.title).not.toContain("11:59");
+    expect(content.title).not.toContain("in 2 hours");
+  });
+
+  it("leaves an item with a stated time on the normal leads", () => {
+    const stated = item({ dueAt: new Date(2026, 8, 18, 17).toISOString() });
+    const plans = planNotifications([stated], quiet, new Date(2026, 8, 17, 12));
+    expect(plans.map((p) => p.lead).sort()).toEqual(["24h", "2h"]);
+  });
+
+  it("round-trips dayOf through the alarm name", () => {
+    expect(parseAlarmName(alarmName("abc", "dayOf"))).toEqual({ itemId: "abc", lead: "dayOf" });
+  });
+});

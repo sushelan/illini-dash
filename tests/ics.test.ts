@@ -144,3 +144,42 @@ describe("googleCalendarUrl (§8.3)", () => {
     expect(googleCalendarUrl(item({ dueAt: undefined }))).toBeUndefined();
   });
 });
+
+describe("exporting a time this extension invented (§4.5)", () => {
+  const now = new Date("2026-09-10T18:00:00.000Z");
+  const assumed = () =>
+    item({
+      dueAt: "2026-09-18T23:59:00-05:00",
+      timeAssumed: true,
+    });
+
+  it("writes an all-day event rather than a hard 11:59 PM one", () => {
+    // A calendar entry at 11:59 PM looks more authoritative than a popup row,
+    // and it is the one still being trusted three weeks later.
+    const ics = buildIcs([assumed()], now);
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260918");
+    expect(ics).not.toMatch(/DTSTART:\d{8}T\d{6}Z/);
+  });
+
+  it("files it on the local day, not the UTC one", () => {
+    // 23:59 Central is the *next* day in UTC, so a naive toISOString would put
+    // every timeless course-site deadline one day late.
+    expect(buildIcs([assumed()], now)).toContain("DTSTART;VALUE=DATE:20260918");
+    expect(buildIcs([assumed()], now)).toContain("DTEND;VALUE=DATE:20260919");
+  });
+
+  it("says in the event that the time is not the course's", () => {
+    expect(buildIcs([assumed()], now)).toContain("no time");
+  });
+
+  it("keeps a stated deadline as a timed event", () => {
+    const ics = buildIcs([item({ dueAt: "2026-09-18T17:00:00-05:00" })], now);
+    expect(ics).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+    expect(ics).not.toContain("VALUE=DATE");
+  });
+
+  it("makes the Google Calendar link all-day too", () => {
+    const url = googleCalendarUrl(assumed())!;
+    expect(url).toContain("dates=20260918%2F20260919");
+  });
+});

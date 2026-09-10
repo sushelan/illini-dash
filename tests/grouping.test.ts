@@ -36,7 +36,8 @@ function item(partial: Partial<Item> = {}): Item {
 
 // A Thursday, 6pm local.
 const NOW = new Date(2026, 8, 10, 18, 0, 0);
-const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).toISOString();
+const at = (y: number, m: number, d: number, h = 12, min = 0) =>
+  new Date(y, m, d, h, min).toISOString();
 
 describe("sectionFor (§8.1)", () => {
   it("puts booking items first, whatever their date", () => {
@@ -261,5 +262,35 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
     expect(formatDue(pl, NOW)).toMatch(/^80% until /);
+  });
+});
+
+describe("times this extension invented (§4.5, worker rule 3)", () => {
+  // Every CS 424 row: the course schedule prints "HW1 Due" against a bare date
+  // and §4.5's runner fills in 23:59.
+  const assumed = item({ dueAt: at(2026, 8, 18, 23, 59), timeAssumed: true });
+
+  it("never shows an invented time as a clock", () => {
+    const text = formatDue(assumed, NOW);
+    expect(text).not.toContain("11:59");
+    expect(text).toContain("time not given");
+  });
+
+  it("still shows the date, which the course site did state", () => {
+    expect(formatDue(assumed, NOW)).toContain("Sep 18");
+  });
+
+  it("counts whole days rather than a false hour precision", () => {
+    expect(formatDue(assumed, NOW)).toMatch(/in 8d$/);
+    expect(formatDue(item({ dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }), NOW)).toMatch(
+      /today$/,
+    );
+    expect(formatDue(item({ dueAt: at(2026, 8, 11, 23, 59), timeAssumed: true }), NOW)).toMatch(
+      /tomorrow$/,
+    );
+  });
+
+  it("leaves a stated time alone", () => {
+    expect(formatDue(item({ dueAt: at(2026, 8, 18, 17) }), NOW)).toContain("5:00");
   });
 });

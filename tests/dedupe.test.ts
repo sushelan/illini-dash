@@ -521,3 +521,26 @@ describe("a deadline that moved (§7's fired record is about a moment)", () => {
     expect(after[0]!.notified.booking).toBe("2026-09-10T15:00:00Z");
   });
 });
+
+describe("sort order for invented times", () => {
+  it("puts a stated deadline ahead of an assumed one at the same instant", () => {
+    // §4.5's runner puts every timeless course-site row at 23:59, so without a
+    // tie-break a real 11:59 PM deadline and an invented one interleave by
+    // title and the trustworthy row is not necessarily on top.
+    const stated = raw({
+      source: "gradescope",
+      sourceId: "z",
+      title: "Zebra homework",
+      dueAt: "2026-09-18T23:59:00-05:00",
+    });
+    const invented = raw({
+      source: "site",
+      sourceId: "cs424:a",
+      title: "Alpha homework",
+      dueAt: "2026-09-18T23:59:00-05:00",
+      extra: { timeAssumed: "true" },
+    });
+    const sorted = dedupe([invented, stated], NO_OVERRIDES);
+    expect(sorted.map((i) => i.title)).toEqual(["Zebra homework", "Alpha homework"]);
+  });
+});

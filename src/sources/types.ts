@@ -84,7 +84,7 @@ export interface Item {
    * key with the full-credit lead meant the late reminder was suppressed as
    * already-sent — silencing the one deadline the student could still meet.
    */
-  notified: Partial<Record<"24h" | "2h" | "booking" | "late24h" | "late2h", string>>;
+  notified: Partial<Record<"24h" | "2h" | "booking" | "late24h" | "late2h" | "dayOf", string>>;
   /**
    * True when the instant in `dueAt` carries a time this extension invented
    * rather than one the source printed (§4.5's runner fills in 23:59 for a

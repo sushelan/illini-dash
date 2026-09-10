@@ -21,7 +21,7 @@ import type { Item, Settings } from "../sources/types.js";
  * late window meant the late reminder was suppressed as already-sent, which is
  * precisely the deadline the student still has a chance to meet.
  */
-export type Lead = "24h" | "2h" | "booking" | "late24h" | "late2h";
+export type Lead = "24h" | "2h" | "booking" | "late24h" | "late2h" | "dayOf";
 
 type TimedLead = "24h" | "2h" | "late24h" | "late2h";
 
@@ -48,7 +48,7 @@ export function alarmName(itemId: string, lead: Lead): string {
 }
 
 export function parseAlarmName(name: string): { itemId: string; lead: Lead } | undefined {
-  const match = /^notify:(.+):(late24h|late2h|24h|2h|booking)$/.exec(name);
+  const match = /^notify:(.+):(late24h|late2h|24h|2h|booking|dayOf)$/.exec(name);
   if (!match) return undefined;
   return { itemId: match[1]!, lead: match[2] as Lead };
 }
@@ -146,6 +146,38 @@ function planBooking(item: Item, settings: Settings, now: Date): PlannedNotifica
 }
 
 /**
+ * The single reminder an unknown-time deadline gets: the morning it is due.
+ *
+ * Deliberately not a lead time. The extension does not know when the work is
+ * due, so it cannot honestly count down to it — the only true statement it can
+ * make is which day. Quiet hours still apply, which is what puts it at 08:00
+ * rather than at midnight.
+ */
+function planDayOf(
+  item: Item,
+  settings: Settings,
+  now: Date,
+  due: number,
+): PlannedNotification | undefined {
+  if (item.notified.dayOf !== undefined) return undefined;
+  const dueDate = new Date(due);
+  const morning = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const overdue = morning.getTime() <= now.getTime();
+  const fireAt = deferPastQuietHours(overdue ? now : morning, settings.quietHours);
+  // Never after the (assumed) deadline itself — at that point it is not a
+  // reminder, and §7 says nothing fires stale.
+  if (fireAt.getTime() >= due) return undefined;
+  return {
+    alarmName: alarmName(item.id, "dayOf"),
+    itemId: item.id,
+    lead: "dayOf",
+    fireAt: fireAt.toISOString(),
+    overdue,
+    superseded: [],
+  };
+}
+
+/**
  * Two overdue leads for one deadline are one reminder, not two.
  *
  * Both the 24h and the 2h moment have passed whenever Chrome was closed across
@@ -211,6 +243,19 @@ export function planNotifications(
     const due = live.at;
     // §7: past the deadline, a reminder is noise. Nothing fires stale.
     if (due <= now.getTime()) continue;
+
+    // §4.5's runner fills in 23:59 when a course page prints only a date, and a
+    // countdown against an invented instant is worse than none: if the real
+    // cutoff is 5 PM, "due in 2 hours" fires at 9:59 PM — three hours after the
+    // work was already late, in the confident voice of a real deadline.
+    // One reminder, on the morning of the day, saying plainly that the time is
+    // unknown. Worker house rule 3: what this code invented must never be
+    // handed to something that treats it as stated.
+    if (item.timeAssumed) {
+      const dayOf = planDayOf(item, settings, now, due);
+      if (dayOf) planned.push(dayOf);
+      continue;
+    }
 
     const forItem: PlannedNotification[] = [];
     for (const setting of settings.leadTimes) {
@@ -321,6 +366,22 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
 
   const instant = item.dueAt ?? item.lateDueAt;
   const due = instant ? new Date(instant) : undefined;
+
+  // An assumed time must not appear in a toast at all, in any form: not as a
+  // clock, not as a countdown. The day is the only thing the source stated.
+  if (item.timeAssumed && due) {
+    const day = due.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+    return {
+      title: `${item.courseLabel} — due ${urgency(due, now) === "now" ? "today" : day}`,
+      message: `${item.title}\nThe course site gives no time. Check the course page for the cutoff.`,
+      url: item.url,
+    };
+  }
+
   const when = due
     ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
     : "";

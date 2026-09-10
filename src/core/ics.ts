@@ -57,6 +57,25 @@ export function foldIcsLine(line: string): string {
   return parts.join("\r\n ");
 }
 
+/** `20260918` — RFC 5545 DATE form, for an all-day event. */
+export function icsDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) throw new Error(`not a date: ${iso}`);
+  // Local calendar day, not UTC: an invented 23:59 Central is the *next* day in
+  // UTC, so `toISOString().slice(0, 10)` would file every timeless course-site
+  // deadline one day late.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+}
+
+/** The day after `iso`, as a DATE — RFC 5545 makes DTEND exclusive. */
+function icsDayAfter(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) throw new Error(`not a date: ${iso}`);
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  return icsDate(next.toISOString());
+}
+
 function event(item: Item, stamp: string): string[] {
   const instant = item.dueAt ?? item.lateDueAt;
   if (instant === undefined) return [];
@@ -73,18 +92,29 @@ function event(item: Item, stamp: string): string[] {
   const description = [
     item.kind === "booking" ? "Not booked — reserve a seat." : undefined,
     item.dueAt === undefined ? "Reduced-credit deadline." : undefined,
+    // Said in the event itself, because a calendar entry is read long after and
+    // far away from the popup that could have explained it.
+    item.timeAssumed
+      ? "The course site gives a date but no time. This is filed as an all-day event; check the course page for the real cutoff."
+      : undefined,
     item.url,
   ]
     .filter(Boolean)
     .join("\n");
+
+  // §4.5's invented 23:59 must not be exported as a timed event. A calendar
+  // entry at 11:59 PM looks more authoritative than a row in a popup, and it is
+  // the one the student will still be trusting in three weeks.
+  const timing = item.timeAssumed
+    ? [`DTSTART;VALUE=DATE:${icsDate(instant)}`, `DTEND;VALUE=DATE:${icsDayAfter(instant)}`]
+    : [`DTSTART:${start}`, `DTEND:${end}`];
 
   return [
     "BEGIN:VEVENT",
     // Stable across exports, so re-importing updates rather than duplicating.
     `UID:${item.id}@illini-dash`,
     `DTSTAMP:${stamp}`,
-    `DTSTART:${start}`,
-    `DTEND:${end}`,
+    ...timing,
     `SUMMARY:${escapeIcsText(summary)}`,
     `DESCRIPTION:${escapeIcsText(description)}`,
     // RFC 5545 §3.3.13: URL's value type is URI, not TEXT — escaping a comma
@@ -117,9 +147,17 @@ export function googleCalendarUrl(item: Item): string | undefined {
   if (instant === undefined) return undefined;
   let dates: string;
   try {
-    const end = icsTimestamp(instant);
-    const start = icsTimestamp(new Date(Date.parse(instant) - EVENT_MINUTES * 60_000).toISOString());
-    dates = `${start}/${end}`;
+    if (item.timeAssumed) {
+      // Google's TEMPLATE link takes a bare YYYYMMDD pair for an all-day event,
+      // with the end exclusive — the same reason the .ics uses a DATE value.
+      dates = `${icsDate(instant)}/${icsDayAfter(instant)}`;
+    } else {
+      const end = icsTimestamp(instant);
+      const start = icsTimestamp(
+        new Date(Date.parse(instant) - EVENT_MINUTES * 60_000).toISOString(),
+      );
+      dates = `${start}/${end}`;
+    }
   } catch {
     return undefined;
   }
@@ -128,7 +166,9 @@ export function googleCalendarUrl(item: Item): string | undefined {
     action: "TEMPLATE",
     text: item.courseLabel ? `${item.courseLabel}: ${item.title}` : item.title,
     dates,
-    details: item.url,
+    details: item.timeAssumed
+      ? `${item.url}\n\nThe course site gives no time; check the course page for the real cutoff.`
+      : item.url,
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
