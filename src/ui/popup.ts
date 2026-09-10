@@ -12,7 +12,7 @@ import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
-import { formatDue, groupItems } from "../core/grouping.js";
+import { formatDue, groupItems, movedText } from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
@@ -167,6 +167,18 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   const due = document.createElement("span");
   due.className = "row--due";
   due.textContent = dueText ?? formatDue(item, now);
+
+  // A deadline that moved since the last sync says so on the row. Without this
+  // the change is absorbed silently: the row simply reads differently than it
+  // did yesterday, and a student who had planned around the old date has no
+  // reason to look twice.
+  const moved = movedText(item);
+  if (moved) {
+    const flag = document.createElement("span");
+    flag.className = "row--moved";
+    flag.textContent = moved;
+    due.append(document.createTextNode(" "), flag);
+  }
 
   const menu = document.createElement("button");
   menu.className = "row--menu";

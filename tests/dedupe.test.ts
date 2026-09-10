@@ -412,3 +412,112 @@ describe("applyRetention (§5.4)", () => {
     expect(result.overrides.mergeGroups).toEqual([["gradescope:recent", "site:undated"]]);
   });
 });
+
+describe("a deadline that moved (§7's fired record is about a moment)", () => {
+  const at = (day: number, hour = 17) =>
+    `2026-09-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:00:00-05:00`;
+
+  const stated = (dueAt: string) =>
+    raw({ source: "gradescope", sourceId: "1", title: "Homework 3", dueAt });
+
+  it("re-arms both leads when the course grants an extension", () => {
+    // The failure this fixes: the 24h lead was spent on Tuesday's date, the
+    // course moves the deadline to Friday, and because the record survives
+    // nothing ever fires again for the deadline that now exists.
+    const before = dedupe([stated(at(8))], NO_OVERRIDES);
+    before[0]!.notified = { "24h": "2026-09-07T17:00:00Z", "2h": "2026-09-08T15:00:00Z" };
+
+    const after = dedupe([stated(at(11))], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.id).toBe(before[0]!.id);
+    expect(after[0]!.notified["24h"]).toBeUndefined();
+    expect(after[0]!.notified["2h"]).toBeUndefined();
+  });
+
+  it("records what it moved from, so the row can say so", () => {
+    const before = dedupe([stated(at(8))], NO_OVERRIDES);
+    const after = dedupe([stated(at(11))], NO_OVERRIDES, { previous: before });
+    expect(Date.parse(after[0]!.movedFrom!)).toBe(Date.parse(at(8)));
+  });
+
+  it("keeps the fired record when the deadline did not move", () => {
+    const before = dedupe([stated(at(8))], NO_OVERRIDES);
+    before[0]!.notified = { "24h": "2026-09-07T17:00:00Z" };
+    const after = dedupe([stated(at(8))], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.notified["24h"]).toBe("2026-09-07T17:00:00Z");
+    expect(after[0]!.movedFrom).toBeUndefined();
+  });
+
+  it("ignores a sub-minute shift from re-parsing the same page", () => {
+    const before = dedupe([stated("2026-09-08T17:00:00-05:00")], NO_OVERRIDES);
+    before[0]!.notified = { "24h": "2026-09-07T17:00:00Z" };
+    const after = dedupe([stated("2026-09-08T17:00:30-05:00")], NO_OVERRIDES, {
+      previous: before,
+    });
+    expect(after[0]!.notified["24h"]).toBe("2026-09-07T17:00:00Z");
+    expect(after[0]!.movedFrom).toBeUndefined();
+  });
+
+  it("does not blame the course when our own assumed 23:59 is replaced by a real time", () => {
+    // §4.5's runner invents 23:59 for a course page that prints a bare date.
+    // Learning the real time is this extension correcting itself (worker rule
+    // 3), so the reminders re-arm but the row must not claim a move.
+    const assumed = raw({
+      source: "site",
+      sourceId: "cs424:1",
+      title: "HW1",
+      dueAt: "2026-09-08T23:59:00-05:00",
+      extra: { timeAssumed: "true" },
+    });
+    const before = dedupe([assumed], NO_OVERRIDES);
+    expect(before[0]!.timeAssumed).toBe(true);
+    before[0]!.notified = { "24h": "2026-09-07T17:00:00Z" };
+
+    const real = raw({
+      source: "site",
+      sourceId: "cs424:1",
+      title: "HW1",
+      dueAt: "2026-09-08T17:00:00-05:00",
+    });
+    const after = dedupe([real], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.notified["24h"]).toBeUndefined();
+    expect(after[0]!.movedFrom).toBeUndefined();
+  });
+
+  it("marks the item, not the merged row, when only an assumed member changed", () => {
+    // A site row whose time was assumed, merged with a Canvas row that states
+    // one: the stated instant wins, so the Item is not assumed at all.
+    const site = raw({
+      source: "site",
+      sourceId: "cs424:1",
+      title: "Homework 1",
+      dueAt: "2026-09-08T23:59:00-05:00",
+      extra: { timeAssumed: "true" },
+    });
+    const cv = raw({
+      source: "canvas",
+      sourceId: "assignment:9",
+      title: "Homework 1",
+      dueAt: "2026-09-08T17:00:00-05:00",
+    });
+    const merged = dedupe([site, cv], NO_OVERRIDES);
+    expect(merged[0]!.members).toHaveLength(2);
+    expect(merged[0]!.timeAssumed).toBeUndefined();
+  });
+
+  it("leaves the daily booking nag alone when its window shifts", () => {
+    const booking = (day: number) =>
+      raw({
+        source: "prairietest",
+        sourceId: "quiz1:booking",
+        title: "Book a slot: Quiz 1",
+        kind: "booking",
+        dueAt: at(day, 0),
+      });
+    const before = dedupe([booking(21)], NO_OVERRIDES);
+    before[0]!.notified = { booking: "2026-09-10T15:00:00Z" };
+    const after = dedupe([booking(22)], NO_OVERRIDES, { previous: before });
+    // §7 repeats it daily anyway, and its dueAt is a window start rather than a
+    // deadline, so nothing was "fired for the wrong moment".
+    expect(after[0]!.notified.booking).toBe("2026-09-10T15:00:00Z");
+  });
+});

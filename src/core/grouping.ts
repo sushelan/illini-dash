@@ -111,6 +111,24 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
   );
 }
 
+/**
+ * "moved Tue → Fri" for a deadline the course changed since the last sync.
+ *
+ * Only the day is shown: the row already carries the new time, and the useful
+ * fact is that it is not where the student last saw it.
+ */
+export function movedText(item: Item): string | undefined {
+  if (!item.movedFrom) return undefined;
+  const from = new Date(item.movedFrom);
+  const instant = item.dueAt ?? item.lateDueAt;
+  if (Number.isNaN(from.getTime()) || instant === undefined) return undefined;
+  const to = new Date(instant);
+  if (Number.isNaN(to.getTime())) return undefined;
+  const day = (date: Date) =>
+    date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return `moved ${day(from)} → ${day(to)}`;
+}
+
 /** `Thu 11:59 PM · in 2d`, or `2d ago` once past (§8.1's row format). */
 export function formatDue(item: Item, now: Date): string {
   const instant = instantOf(item);

@@ -212,6 +212,56 @@ export function itemId(memberKeys: string[]): string {
   return `${shortHash(joined)}${shortHash(`${joined}#2`)}`;
 }
 
+/**
+ * Re-parsing the same page can shift an instant by a second; a deadline the
+ * course moved never moves by less than a minute.
+ */
+const MOVE_TOLERANCE_MS = 60_000;
+
+/** The instant the item is actually counting down to (§4.3, §8.1). */
+function effectiveInstant(item: Item): number | undefined {
+  const raw = item.dueAt ?? item.lateDueAt;
+  if (raw === undefined) return undefined;
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * What an item that survived this sync has already fired — and what it must
+ * fire again because the deadline underneath it moved.
+ *
+ * §7 records a lead as fired against a *moment*. When a course grants an
+ * extension, that moment stops existing, and keeping the record silences the
+ * reminder for the new deadline for good: the 24h lead was spent on Tuesday's
+ * date, the deadline is now Friday, and nothing will ever fire again. This is
+ * the case the extension is for, and it failed exactly when it mattered.
+ *
+ * The booking nag is left alone: it repeats daily by design and its `dueAt` is
+ * a window start rather than a deadline, so a shifted window is not a lead that
+ * was spent on the wrong moment.
+ */
+function carryNotified(before: Item, item: Item): Item["notified"] {
+  const wasAt = effectiveInstant(before);
+  const nowAt = effectiveInstant(item);
+  const moved =
+    wasAt !== undefined && nowAt !== undefined && Math.abs(nowAt - wasAt) > MOVE_TOLERANCE_MS;
+  if (!moved) return before.notified;
+
+  const carried = { ...before.notified };
+  delete carried["24h"];
+  delete carried["2h"];
+
+  // Say so in the UI only when the source stated both instants. An assumed
+  // 23:59 turning into a real 5 PM is this extension correcting its own
+  // placeholder (worker house rule 3), and "moved to 5 PM" would attribute it
+  // to the course. The reminders re-arm either way, because either way the
+  // moment they were fired for is gone.
+  if (!before.timeAssumed && !item.timeAssumed) {
+    item.movedFrom = new Date(wasAt!).toISOString();
+  }
+  return carried;
+}
+
 function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
   const ranked = byPrecedence(members);
   const keys = members.map((item) => memberKey(item.source, item.sourceId));
@@ -244,6 +294,10 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
     // the daily nag off it; otherwise the most specific kind wins.
     kind: members.find((item) => item.kind === "booking")?.kind ?? ranked[0]!.kind,
     dueAt: dated?.dueAt,
+    // Whether the *winning* member's time was invented, not whether any member's
+    // was: a CS 424 row merged with a dated Canvas one has a real instant, and
+    // `members.some(...)` would wrongly mark the merged row as assumed.
+    timeAssumed: dated?.extra?.["timeAssumed"] === "true" ? true : undefined,
     lateDueAt: late?.lateDueAt,
     url: ranked[0]!.url,
     status: canonicalStatus(members),
@@ -342,7 +396,7 @@ export function dedupe(
     // otherwise every sync would re-notify every item (§5.3, §7).
     const before = previousById.get(item.id);
     if (before) {
-      item.notified = before.notified;
+      item.notified = carryNotified(before, item);
     } else {
       // Union across members, so a merge does not re-fire either half.
       const inherited: Item["notified"] = {};

@@ -77,6 +77,26 @@ export interface Item {
   status: Status;
   hidden: boolean;
   notified: Partial<Record<"24h" | "2h" | "booking", string>>;
+  /**
+   * True when the instant in `dueAt` carries a time this extension invented
+   * rather than one the source printed (§4.5's runner fills in 23:59 for a
+   * course page that gives a bare date).
+   *
+   * Lifted from the winning member onto the Item because every consumer of
+   * `dueAt` needs it and none of them should have to re-derive which member
+   * won: the popup must not show it as fact, the calendar export must not
+   * write a hard 23:59 event, and a change between an assumed and a stated
+   * time is the extension correcting itself, not the course moving a deadline.
+   */
+  timeAssumed?: boolean;
+  /**
+   * The previous stated deadline, when this sync's differs from the last one's.
+   *
+   * Only ever set when the source stated *both* instants: an assumed 23:59
+   * being replaced by a real time is this extension learning the truth, and
+   * announcing it as "moved" would blame the course for our own placeholder.
+   */
+  movedFrom?: string;
 }
 
 export type SourceState =
