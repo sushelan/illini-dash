@@ -9,20 +9,39 @@
 import type { CaptureResult } from "./capture.js";
 import type { Gate0Result } from "./gate0.js";
 import type { ParserId } from "./sources/registry.js";
-import type { PageCtx, RawItem } from "./sources/types.js";
+import type { GradescopeCourse } from "./sources/gradescope.js";
+import type { SyncTrigger } from "./core/sync.js";
+import type {
+  Item,
+  PageCtx,
+  RawItem,
+  Settings,
+  Source,
+  SourceStatus,
+} from "./sources/types.js";
 
 /** UI → service worker. */
 export type Request =
   | { type: "ping" }
   | { type: "gate0" }
   | { type: "parse-selftest" }
-  | { type: "capture"; url: string };
+  | { type: "capture"; url: string }
+  | { type: "get-state" }
+  | { type: "sync"; trigger: SyncTrigger };
 
 export type Response =
   | { type: "pong"; at: string; buildId: string }
   | { type: "gate0"; results: Gate0Result[] }
   | { type: "parse-selftest"; cases: SelftestCase[] }
   | { type: "capture"; result: CaptureResult }
+  | {
+      type: "state";
+      items: Item[];
+      sources: Record<Source, SourceStatus>;
+      settings: Settings;
+      lastSyncAt?: string;
+    }
+  | { type: "synced"; skipped: boolean; outcomes: { source: Source; state: string }[] }
   | { type: "error"; message: string };
 
 export interface SelftestCase {
@@ -33,13 +52,12 @@ export interface SelftestCase {
 }
 
 /** Service worker → offscreen document. */
-export interface ParseRequest {
-  target: "offscreen";
-  type: "parse";
-  parserId: ParserId;
-  html: string;
-  page: PageCtx;
-}
+export type OffscreenRequest =
+  | { target: "offscreen"; type: "parse"; parserId: ParserId; html: string; page: PageCtx }
+  | { target: "offscreen"; type: "parse-gradescope-dashboard"; html: string };
+
+/** Kept as a name because the parse case is by far the common one. */
+export type ParseRequest = OffscreenRequest;
 
 /** Errors cannot cross a message boundary as Error objects; carry the shape. */
 export interface SerializedError {
@@ -49,6 +67,7 @@ export interface SerializedError {
 
 export type ParseResponse =
   | { ok: true; items: RawItem[] }
+  | { ok: true; courses: GradescopeCourse[] }
   | { ok: false; error: SerializedError };
 
 /**

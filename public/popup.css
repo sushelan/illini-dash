@@ -1,0 +1,36 @@
+/* §8.1: 400px wide, 600px max height. Ship ugly (§0 decision 6). */
+body { width: 400px; max-height: 600px; overflow-y: auto; padding: 0; }
+.bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg); z-index: 1;
+}
+.bar--right { display: flex; align-items: center; gap: 10px; }
+.link { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; text-decoration: none; }
+.link:hover { color: var(--fg); }
+.dots { display: flex; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; cursor: default; }
+.dot-ok { background: var(--ok); }
+.dot-needs_login { background: var(--warn); cursor: pointer; }
+.dot-parse_error, .dot-network_error { background: var(--err); }
+.dot-disabled { background: var(--line); }
+#status { padding: 6px 12px 0; margin: 0; }
+h2.section {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin: 14px 0 4px; padding: 0 12px;
+}
+.row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 7px 12px; cursor: pointer; border-top: 1px solid transparent;
+}
+.row:hover { background: rgba(127,127,127,.10); }
+.chip {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none;
+}
+.row--title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row--sources { font-size: 10px; color: var(--muted); flex: none; letter-spacing: .04em; }
+.row--due { font-size: 11px; color: var(--muted); flex: none; }
+.row-overdue .row--due { color: var(--err); }
+.row-booking .row--due { color: var(--warn); }
+.empty { padding: 24px 12px; text-align: center; }

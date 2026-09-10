@@ -4,12 +4,19 @@
     <meta charset="utf-8" />
     <title>Illini Due</title>
     <link rel="stylesheet" href="ui.css" />
-    <style>body { width: 380px; }</style>
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>Illini Due</h1>
-    <p class="muted" id="status">No sources wired up yet (build step 1).</p>
-    <p><a href="options.html" target="_blank" id="options-link">Open debug / options page</a></p>
+    <header class="bar">
+      <div id="dots" class="dots"></div>
+      <div class="bar--right">
+        <button id="sync" class="link">Sync now</button>
+        <a id="full" href="#" class="link">⤢ full view</a>
+        <a id="settings" href="#" class="link" title="Settings">⚙</a>
+      </div>
+    </header>
+    <p id="status" class="muted"></p>
+    <main id="list"></main>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

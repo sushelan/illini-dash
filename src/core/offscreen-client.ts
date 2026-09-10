@@ -3,7 +3,8 @@
  * first use, keeps it for later syncs, and re-creates it if Chrome tore it down.
  */
 
-import type { ParseRequest, ParseResponse } from "../messages.js";
+import type { OffscreenRequest, ParseResponse } from "../messages.js";
+import type { GradescopeCourse } from "../sources/gradescope.js";
 import type { ParserId } from "../sources/registry.js";
 import { ParseError, type PageCtx, type RawItem } from "../sources/types.js";
 
@@ -43,13 +44,25 @@ export async function parseHtml(
   html: string,
   page: PageCtx,
 ): Promise<RawItem[]> {
-  await ensureOffscreenDocument();
 
-  const request: ParseRequest = { target: "offscreen", type: "parse", parserId, html, page };
+  const response = await ask({ target: "offscreen", type: "parse", parserId, html, page });
+  if ("items" in response) return response.items;
+  throw new Error("offscreen document returned the wrong shape");
+}
+
+/** Gradescope's dashboard (§4.2 step 1), which returns courses rather than items. */
+export async function parseGradescopeDashboard(html: string): Promise<GradescopeCourse[]> {
+  const response = await ask({ target: "offscreen", type: "parse-gradescope-dashboard", html });
+  if ("courses" in response) return response.courses;
+  throw new Error("offscreen document returned the wrong shape");
+}
+
+async function ask(request: OffscreenRequest): Promise<Extract<ParseResponse, { ok: true }>> {
+  await ensureOffscreenDocument();
   const response = (await chrome.runtime.sendMessage(request)) as ParseResponse | undefined;
 
   if (!response) throw new Error("offscreen document did not respond");
-  if (response.ok) return response.items;
+  if (response.ok) return response;
 
   // Rebuild the error on this side so callers can tell a structural surprise
   // (ParseError → parse_error state, §6) from a plumbing bug.

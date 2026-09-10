@@ -6,6 +6,7 @@
  * It holds no state and makes no network requests.
  */
 
+import { currentTermCourses } from "./sources/gradescope.js";
 import { getParser } from "./sources/registry.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
 
@@ -14,10 +15,16 @@ chrome.runtime.onMessage.addListener(
     if (message?.target !== "offscreen") return false;
 
     try {
-      if (message.type !== "parse") throw new Error(`unknown offscreen message`);
       const doc = new DOMParser().parseFromString(message.html, "text/html");
-      const items = getParser(message.parserId)(doc, message.page);
-      sendResponse({ ok: true, items });
+      if (message.type === "parse") {
+        sendResponse({ ok: true, items: getParser(message.parserId)(doc, message.page) });
+      } else if (message.type === "parse-gradescope-dashboard") {
+        // The dashboard yields courses, not RawItems, so it needs its own op
+        // rather than being squeezed through the RawItem protocol.
+        sendResponse({ ok: true, courses: currentTermCourses(doc) });
+      } else {
+        throw new Error("unknown offscreen message");
+      }
     } catch (err) {
       sendResponse({
         ok: false,

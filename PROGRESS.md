@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (186 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (259 tests) all pass.
 
 ## Done
 
@@ -58,6 +58,9 @@ The DST path was entirely unpinned — hard-coding `-05:00` passed all 137 tests
 by a December date, the fall-back hour, and the previous-year candidate. Eleven mutations
 were tried; the two that survived the first pass have tests and now fail too.
 
+| 7 — normalize + dedupe | `src/core/normalize.ts` §5.2, `src/core/dedupe.ts` §5.3 union-find + overrides + §5.4 retention. 41 tests, table-driven from real fixture titles. |
+| 8 — store + sync + popup | `src/core/store.ts` (§3 schema, migrations, §6 backoff), `src/core/sync.ts` (§6 loop, injected fetch/parse/clock), `src/ui/grouping.ts` + `popup.ts` (§8.1). 32 tests, driven end-to-end by the real fixtures. Review in flight. |
+
 ## Review outcome — PrairieTest
 Three high-severity silent-failure paths. **A single reworded card heading deleted that
 card's entire contents** — the guard fired only when *both* cards were missing, two lines
@@ -87,9 +90,8 @@ Seven mutations were tried against the fixed code; all seven fail.
 | PrairieTest | `home-booked-none-available.html`, `home-booked-and-available.html` | Sep 3 and Sep 10. Between them the student rescheduled Quiz 1, so the pair is live evidence for the §3.1 amendment. The Sep 10 capture has the first available-card row ever seen. |
 
 ## Next
-Step 7 — `normalize.ts` §5.2 title normalization + `dedupe.ts` (union-find merge,
-overrides), then step 8 (store + sync loop + popup) where **G2 and G3** are decided.
-Sequential, per CLAUDE.md's parallelism note. Steps 9–12 can then run concurrently.
+**G2 and G3** — both hands-on, see below. Then steps 9–12, which CLAUDE.md notes can run
+in parallel: notifications, options/overrides UI, adapter runner, store assets.
 
 ## Shared parser primitives
 `src/core/parsing.ts` holds the rules that were previously written three or four times
@@ -99,12 +101,28 @@ elsewhere: `parseField` (a bad value costs its field, not the page), `KeyGuard`
 `nonEmpty`, `textOf`. Each is now pinned by tests from three or four different source
 test files at once. The house rules they encode are in CLAUDE.md.
 
-## Blocked on Sushi
-1. **Nothing blocking.** The last outstanding capture (a PrairieTest available-card row)
-   landed 2026-09-10.
-2. **No commits yet** — 60+ files, no history. Worth doing before step 7 touches the
-   dedupe core.
-3. Later: **G2 recall** and **G3 dedupe** at step 8 are hands-on and cannot be automated.
+## Blocked on Sushi — the gates
+The extension now syncs end to end. **G2 and G3 are next and neither can be automated.**
+
+- **G2 recall.** Open every source by hand, list every deadline visible for the next
+  3 weeks, and check the extension's list contains all of them. Recall must be 100%;
+  precision matters too (no phantom items). This is the gate that catches a silently
+  missing deadline, which §11 calls catastrophic.
+- **G3 dedupe.** On that same data, check the auto-merge groups are right. §9 allows
+  **≤ 2 manual corrections**; more than that and §5.3's threshold gets tuned before launch.
+
+Note for G2: Canvas will contribute **0 items** on this account and that is a pass, not a
+failure — 0 of 67 assignments carry a due date (docs/canvas-findings.md).
+
+## Spec amendment made in step 7 — needs G3 to confirm
+§5.3's "a subset match needs ≥ 2 tokens" rejected **both** pairs the spec names as its own
+purpose, because §5.2 step 3 collapses `Lab 3` into the single token `lab3`:
+`Lab 3`/`Lab 3 Report` (§5.3: "will merge, which is correct") and
+`Homework 3`/`HW3 Errors and Big-O` (§4.3: the badge match "is the point").
+`dedupe.ts` now also accepts a single *badge* token — letters bound to a number — which
+keeps every protection the ≥2 rule was for: bare `quiz` still cannot swallow
+`quiz1 linear algebra`, and `quiz1` is still not a subset of `quiz10`. §5.3 makes G3 the
+arbiter of this threshold, so it is written to be measured there.
 
 ## VERIFY (§12-style, needs your browser eventually)
 **Does PrairieTest render the "Exams available for reservations" card at all for a student
