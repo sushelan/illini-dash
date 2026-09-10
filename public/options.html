@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Illini Dash — debug</title>
+    <title>Illini Dash — Settings</title>
     <link rel="stylesheet" href="ui.css" />
     <style>body { max-width: 760px; }</style>
   </head>
   <body>
-    <h1>Illini Dash — debug</h1>
+    <h1>Illini Dash — Settings</h1>
     <p id="build-info" class="muted">Checking service worker…</p>
 
     <section id="settings-panel">
@@ -32,6 +32,7 @@
         without updating the extension. Enabling one asks Chrome for permission to
         read that site, which is why they are not requested up front.
       </p>
+      <div id="site-health" class="opt-note"></div>
       <div id="adapters"></div>
       <p>
         <button id="refresh-registry">Check for adapter updates</button>
@@ -93,7 +94,12 @@
     </section>
 
     <hr />
-    <h2>Debug tools</h2>
+    <details id="devtools">
+      <summary><strong>Developer tools</strong></summary>
+      <p class="muted">
+        Diagnostics for building and debugging the extension. Nothing here runs
+        on its own, and none of it is needed to use Illini Dash.
+      </p>
 
     <h2>Gate 0 — cookie-authenticated fetch from the service worker</h2>
     <p class="muted">
@@ -141,6 +147,8 @@
     <p id="capture-presets" class="muted"></p>
     <p id="capture-status" class="muted"></p>
     <div id="capture-result"></div>
+
+    </details>
 
     <script type="module" src="options.js"></script>
   </body>

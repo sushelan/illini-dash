@@ -472,6 +472,12 @@ async function refreshOptions(): Promise<void> {
   const sources = document.getElementById("sources")!;
   sources.replaceChildren();
   for (const [source, status] of Object.entries(state.sources)) {
+    // §4.5 owns this source through the adapter list below, and a second
+    // control with the same name is what sent the first live sync into a green
+    // dot with nothing behind it: Sushi ticked "Course websites" here, which
+    // enables the source, while every adapter stayed off. `set-adapter-enabled`
+    // sets this flag anyway. Its health is rendered under Course websites.
+    if (source === "site") continue;
     const row = checkboxRow(
       SOURCE_NAMES[source] ?? source,
       status.enabled,
@@ -497,6 +503,18 @@ async function refreshOptions(): Promise<void> {
       row.append(login);
     }
     sources.append(row);
+  }
+
+  // The site source's state still has to be visible somewhere, or a failing
+  // adapter loses its only signal (worker rule 2).
+  const siteHealth = document.getElementById("site-health")!;
+  siteHealth.replaceChildren();
+  const siteStatus = state.sources.site;
+  if (siteStatus) {
+    const shown = displayState(siteStatus);
+    const label = el("span", `Course websites — ${STATE_WORDS[shown] ?? shown}`, `state-${shown}`);
+    if (siteStatus.lastError) label.title = siteStatus.lastError;
+    siteHealth.append(label);
   }
 
   /* Courses (§8.2) */
