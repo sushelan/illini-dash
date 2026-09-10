@@ -12,9 +12,10 @@ import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
-import { formatDue, groupItems } from "./grouping.js";
+import { formatDue, groupItems } from "../core/grouping.js";
+import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
-import type { Item, Settings, Source, SourceStatus } from "../sources/types.js";
+import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 const ALLOWED_HOSTS = new Set([
   "canvas.illinois.edu",
@@ -55,28 +56,74 @@ const LOGIN_URL: Partial<Record<Source, string>> = {
 const listEl = document.getElementById("list")!;
 const dotsEl = document.getElementById("dots")!;
 const statusEl = document.getElementById("status")!;
+const staleEl = document.getElementById("stale")!;
+
+/** Wording for the state a dot is showing, since the raw enum is for the log. */
+const STATE_WORDS: Record<SourceState, string> = {
+  ok: "read successfully",
+  pending: "not checked yet",
+  needs_login: "needs you to sign in",
+  parse_error: "the page was not what we expected",
+  network_error: "could not be reached",
+  disabled: "switched off",
+};
 
 function renderDots(sources: Record<Source, SourceStatus>, lastSyncAt?: string): void {
   dotsEl.replaceChildren();
   for (const source of ALL_SOURCES) {
     const status = sources[source];
     if (!status) continue;
+    // Not `status.state`: a source that has never been attempted has no result
+    // to show, and rendering the seeded value painted a fresh install green.
+    const state = displayState(status);
     const dot = document.createElement("span");
-    dot.className = `dot dot-${status.enabled ? status.state : "disabled"}`;
+    dot.className = `dot dot-${state}`;
     const when = status.lastSuccessAt
-      ? `last ok ${new Date(status.lastSuccessAt).toLocaleString()}`
-      : "never synced";
-    dot.title = `${SOURCE_LABEL[source]} — ${status.enabled ? status.state : "disabled"}\n${when}${
+      ? `last read ${new Date(status.lastSuccessAt).toLocaleString()}`
+      : "never read successfully";
+    dot.title = `${SOURCE_LABEL[source]} — ${STATE_WORDS[state]}\n${when}${
       status.lastError ? `\n${status.lastError}` : ""
     }`;
-    if (status.state === "needs_login" && LOGIN_URL[source]) {
+    if (state === "needs_login" && LOGIN_URL[source]) {
       dot.addEventListener("click", () => chrome.tabs.create({ url: LOGIN_URL[source]! }));
     }
     dotsEl.append(dot);
   }
-  statusEl.textContent = lastSyncAt
-    ? `Synced ${new Date(lastSyncAt).toLocaleTimeString()} · build ${BUILD_ID}`
-    : "Not synced yet.";
+  // §8.1's line, from core so the "n of m" rule is testable: `lastSyncAt` is set
+  // whether or not any source succeeded, so "Synced 10:32" was equally cheerful
+  // after four failures.
+  statusEl.textContent = `${statusLine(sources, lastSyncAt, new Date())} · build ${BUILD_ID}`;
+}
+
+/**
+ * §11's catastrophic case, made visible: a source that failed keeps its old
+ * rows, so the list still looks complete while it silently stops updating.
+ */
+function renderStaleBanner(sources: Record<Source, SourceStatus>): void {
+  staleEl.replaceChildren();
+  const notice = staleNotice(sources, new Date());
+  if (!notice) {
+    staleEl.hidden = true;
+    return;
+  }
+  staleEl.hidden = false;
+
+  const age =
+    notice.hours === undefined
+      ? "has never been read successfully"
+      : `hasn't been read successfully for ${notice.hours}h`;
+  const text = document.createElement("span");
+  text.textContent = `${SOURCE_LABEL[notice.source]} ${age}. Anything it lists may be out of date.`;
+  staleEl.append(text);
+
+  const login = LOGIN_URL[notice.source];
+  if (notice.needsLogin && login) {
+    const button = document.createElement("button");
+    button.className = "link";
+    button.textContent = "Sign in";
+    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
+    staleEl.append(button);
+  }
 }
 
 function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
@@ -236,7 +283,12 @@ function bookingWindowText(item: Item): string | undefined {
   return `sessions ${fmt(start)}–${fmt(end)}, not booked`;
 }
 
-function render(items: Item[], settings: Settings, now: Date): void {
+function render(
+  items: Item[],
+  settings: Settings,
+  sources: Record<Source, SourceStatus>,
+  now: Date,
+): void {
   // An open menu closed over an Item from the previous list. Leaving it up
   // across a re-render lets it act on ids that no longer exist — and the popup
   // fires a sync on open, so that race is the common case, not a corner one.
@@ -246,10 +298,26 @@ function render(items: Item[], settings: Settings, now: Date): void {
   const sections = groupItems(items, now, settings);
 
   if (sections.length === 0) {
+    // "Nothing due in the next 60 days." is only true when every source was
+    // read and every source was empty. Said over an expired session it reads as
+    // "you are free" and means "I could not look" (§11).
+    const state = emptyStateFor(sources, items.length > 0);
     const empty = document.createElement("p");
     empty.className = "muted empty";
-    empty.textContent = "Nothing due in the next 60 days.";
+    empty.textContent = state.text;
     listEl.append(empty);
+    for (const source of state.logins) {
+      const url = LOGIN_URL[source];
+      if (!url) continue;
+      const button = document.createElement("button");
+      button.className = "link";
+      button.textContent = `Sign in to ${SOURCE_LABEL[source]}`;
+      button.addEventListener("click", () => chrome.tabs.create({ url }));
+      const line = document.createElement("p");
+      line.className = "empty";
+      line.append(button);
+      listEl.append(line);
+    }
     return;
   }
 
@@ -272,7 +340,8 @@ async function refresh(): Promise<void> {
     return;
   }
   renderDots(response.sources, response.lastSyncAt);
-  render(response.items, response.settings ?? DEFAULT_SETTINGS, new Date());
+  renderStaleBanner(response.sources);
+  render(response.items, response.settings ?? DEFAULT_SETTINGS, response.sources, new Date());
 }
 
 document.getElementById("sync")!.addEventListener("click", async () => {

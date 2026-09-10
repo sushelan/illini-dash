@@ -88,7 +88,10 @@ function defaultStatus(source: Source): SourceStatus {
     // §4.5: site adapters are off until the user enables one and grants the
     // host permission, so this source starts disabled while the rest do not.
     enabled: source !== "site",
-    state: source === "site" ? "disabled" : "ok",
+    // Not `ok`. Nothing has been fetched yet, and a state field that claims
+    // success before the first request is the fresh-install green dot — worker
+    // house rule 2. `core/health.ts` renders this grey and says "not checked".
+    state: source === "site" ? "disabled" : "pending",
     consecutiveFailures: 0,
   };
 }

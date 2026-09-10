@@ -6,7 +6,7 @@
  * in the renderer.
  */
 
-import { isItemDone } from "../core/dedupe.js";
+import { isItemDone } from "./dedupe.js";
 import type { Item, Settings } from "../sources/types.js";
 
 export type SectionName =

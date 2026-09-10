@@ -1,7 +1,7 @@
 /** §8.1's sections. The boundaries are the part that goes quietly wrong. */
 
 import { describe, expect, it } from "vitest";
-import { formatDue, groupItems, sectionFor } from "../src/ui/grouping.js";
+import { formatDue, groupItems, sectionFor } from "../src/core/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
 import type { Item, RawItem, Status } from "../src/sources/types.js";
 

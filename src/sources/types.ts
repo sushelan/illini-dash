@@ -84,7 +84,16 @@ export type SourceState =
   | "needs_login"
   | "parse_error"
   | "network_error"
-  | "disabled";
+  | "disabled"
+  /**
+   * Enabled, but not yet attempted — so nothing is known about it.
+   *
+   * AMENDED from §3. Without this, `defaultStatus` had to seed something, it
+   * seeded `ok`, and a fresh install showed four green dots before a single
+   * request had been made. Worker house rule 2 says a green dot means "I
+   * fetched, and it was fine"; this is the state for "I have not fetched".
+   */
+  | "pending";
 
 export interface SourceStatus {
   source: Source;

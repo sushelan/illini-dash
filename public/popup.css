@@ -14,7 +14,16 @@ body { width: 400px; max-height: 600px; overflow-y: auto; padding: 0; }
 .dot-needs_login { background: var(--warn); cursor: pointer; }
 .dot-parse_error, .dot-network_error { background: var(--err); }
 .dot-disabled { background: var(--line); }
+/* Never-fetched is hollow, not filled: at a glance it must not read as either
+   healthy or broken, because neither is known yet (worker house rule 2). */
+.dot-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
 #status { padding: 6px 12px 0; margin: 0; }
+.banner {
+  margin: 8px 12px 0; padding: 7px 9px;
+  border: 1px solid var(--warn); border-radius: 5px;
+  background: rgba(180, 130, 0, .10); font-size: 12px; line-height: 1.35;
+}
+.banner button { margin-left: 6px; }
 h2.section {
   font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); margin: 14px 0 4px; padding: 0 12px;

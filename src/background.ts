@@ -24,6 +24,7 @@ import {
   validateRegistry,
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
+import { badgeFor, statusAfterEnable } from "./core/health.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
@@ -238,8 +239,29 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
  * being torn down. Alarms for items that no longer exist are cleared, or a
  * deadline the student already dealt with would fire days later.
  */
+/**
+ * Paint the toolbar icon (§9 G4: "every parse error surfaced in the UI").
+ *
+ * Every decision — failure outranks the count, pending shows nothing, which
+ * items are urgent — is in `core/health.ts`; this only calls `chrome.action`,
+ * per worker house rule 1. Refreshed from `reschedule`, which is the hook every
+ * path that changes items or source health already goes through.
+ *
+ * The count is "today or overdue", so it drifts after local midnight until the
+ * next sync. That is at most one poll interval (default 30 min) and costs a
+ * dedicated midnight alarm to fix, which is not worth a worker path.
+ */
+async function refreshBadge(): Promise<void> {
+  const store = await loadStore();
+  const badge = badgeFor(store.items, store.sources, store.settings, new Date());
+  await chrome.action.setBadgeText({ text: badge.text });
+  await chrome.action.setBadgeBackgroundColor({ color: badge.color });
+  await chrome.action.setTitle({ title: badge.title });
+}
+
 async function reschedule(): Promise<void> {
   const store = await loadStore();
+  await refreshBadge();
   const planned = planNotifications(store.items, store.settings, new Date());
   const wanted = new Set(planned.map((p) => p.alarmName));
 
@@ -376,6 +398,10 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  // Badge text does not survive the worker being torn down, so repaint before
+  // the sync rather than only after it — otherwise a browser restart shows a
+  // blank icon over a source that is still failing.
+  void refreshBadge().catch(() => undefined);
   void scheduleAlarm().then(() => sync("alarm"));
 });
 
@@ -460,11 +486,9 @@ chrome.runtime.onMessage.addListener(
       const { source, enabled } = request;
       return answer(
         mutate((store) => {
-          store.sources[source] = {
-            ...store.sources[source],
-            enabled,
-            state: enabled ? "ok" : "disabled",
-          };
+          // The decision (never `ok` without a fetch) is in core so the suite
+          // can reach it; worker house rule 1.
+          store.sources[source] = statusAfterEnable(store.sources[source], enabled);
           // A source switched back on should not sit out a stale backoff.
           if (enabled) delete store.backoffUntil[source];
         }).then(() => ({ type: "ok" }) as const),

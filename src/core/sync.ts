@@ -22,6 +22,7 @@ import {
   type PageCtx,
   type RawItem,
   type Source,
+  type SourceState,
 } from "../sources/types.js";
 
 /** §4: 20 s per request, at most 4 concurrent per host. */
@@ -62,7 +63,18 @@ export type SyncTrigger = "alarm" | "popup" | "install" | "manual";
 
 export interface SourceOutcome {
   source: Source;
-  state: "ok" | "needs_login" | "parse_error" | "network_error" | "disabled";
+  /**
+   * `SourceState` rather than the five attempt results, because a source that
+   * is *resting* in §6's backoff reports the state that put it there without
+   * being attempted — and since `defaultStatus` now seeds `pending`, that
+   * carried-over state can in principle be `pending`.
+   *
+   * `syncOneSource` itself never returns `pending`: it always attempts, so it
+   * always has a result. The backoff branch in `runSync` pushes its outcome and
+   * `continue`s, so a `pending` outcome never reaches the ok / disabled /
+   * failure branches below and cannot be mistaken for a failed attempt.
+   */
+  state: SourceState;
   items: RawItem[];
   error?: string;
   requests: number;

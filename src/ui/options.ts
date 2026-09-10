@@ -9,10 +9,21 @@ import { BUILD_ID } from "../build-info.js";
 import { buildIcs } from "../core/ics.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
 import { isGrantedUpFront, originPattern, type CaptureResult } from "../capture.js";
+import { displayState } from "../core/health.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
 import { send } from "../messages.js";
+
+/** Plain wording for a source's state; the raw enum is for the console. */
+const STATE_WORDS: Record<string, string> = {
+  ok: "read successfully",
+  pending: "not checked yet",
+  needs_login: "needs you to sign in",
+  parse_error: "page was not what we expected",
+  network_error: "could not be reached",
+  disabled: "switched off",
+};
 
 const runButton = document.getElementById("run-gate0") as HTMLButtonElement;
 const copyButton = document.getElementById("copy-gate0") as HTMLButtonElement;
@@ -471,10 +482,14 @@ async function refreshOptions(): Promise<void> {
         );
       },
     );
-    const stateLabel = el("span", status.enabled ? status.state : "disabled", `opt-note state-${status.enabled ? status.state : "disabled"}`);
+    // `displayState`, not `status.state`: a source that has never been attempted
+    // has no result, and the stored value seeded before the first fetch used to
+    // render as a healthy "ok" here too.
+    const shown = displayState(status);
+    const stateLabel = el("span", STATE_WORDS[shown] ?? shown, `opt-note state-${shown}`);
     if (status.lastError) stateLabel.title = status.lastError;
     row.append(stateLabel);
-    if (status.state === "needs_login" && SOURCE_LOGIN[source]) {
+    if (shown === "needs_login" && SOURCE_LOGIN[source]) {
       const login = el("a", "log in");
       login.href = SOURCE_LOGIN[source]!;
       login.target = "_blank";
