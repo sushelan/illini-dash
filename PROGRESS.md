@@ -2,7 +2,10 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (371 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (388 tests) all pass.
+
+**Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
+from here.**
 
 ## Done
 
@@ -61,7 +64,7 @@ were tried; the two that survived the first pass have tests and now fail too.
 | 7 — normalize + dedupe | `src/core/normalize.ts` §5.2, `src/core/dedupe.ts` §5.3 union-find + overrides + §5.4 retention. 41 tests, table-driven from real fixture titles. |
 | 9 — notifications | `src/core/schedule.ts` §7: 24h/2h leads, quiet hours, the daily booking nag, alarms rebuilt after every sync. Plus the extension icons, without which `chrome.notifications.create` fails silently. |
 | 10 — options, overrides, calendar | §8.2's options page, §8.1's row menu (hide/split/merge/calendar) over `src/core/overrides.ts`, and §8.3's `.ics` + Google Calendar links in `src/core/ics.ts`. |
-| 11 — course-site adapters | §4.5's declarative runner (`src/sources/site.ts`), the registry trust boundary (`src/core/registry.ts`), the daily refresh and the runtime permission flow. Ships one real seed adapter, **cs424-fa26**. → [adapters.md](docs/adapters.md) |
+| 11 — course-site adapters | §4.5's declarative runner (`src/sources/site.ts`), the registry trust boundary (`src/core/registry.ts`), the daily refresh and the runtime permission flow. Ships one real seed adapter, **cs424-fa26**. Shipped inert: the bundled registry was copied to `dist/` and never read, so no adapter could be enabled at all until the first live run. → [adapters.md](docs/adapters.md) |
 | 12 — report, policy, listing | §8.2's report-a-broken-page flow, plus [privacy-policy.md](docs/store/privacy-policy.md) and [listing.md](docs/store/listing.md). |
 | 8 — store + sync + popup | `src/core/store.ts` (§3 schema, migrations, §6 backoff), `src/core/sync.ts` (§6 loop, injected fetch/parse/clock), `src/ui/grouping.ts` + `popup.ts` (§8.1). 32 tests, driven end-to-end by the real fixtures. Review in flight. |
 
@@ -147,8 +150,88 @@ Eight mutations tried against the fixes; all eight fail.
 | PrairieTest | `home-booked-none-available.html`, `home-booked-and-available.html` | Sep 3 and Sep 10. Between them the student rescheduled Quiz 1, so the pair is live evidence for the §3.1 amendment. The Sep 10 capture has the first available-card row ever seen. |
 
 ## Next
+
 **G4** — 10 beta users across ≥3 majors for a week, ≥7 saying they would keep it. Then
 **G5**, which §9 gates behind it.
+
+Worth doing before handing this to ten people:
+
+- **The popup shows invented times as fact.** Every CS 424 row reads 11:59 PM and the
+  course states no time at all. `extra.timeAssumed` stops it overriding a real deadline
+  (§5.3 amendment above) but the UI still displays it plainly. A tester will trust it and
+  miss a 5 PM cutoff — this is the §11 "silent missing deadline" risk wearing a different
+  hat. Natural to fold into the UI pass Sushi has asked for.
+- **`fixtures/sites/` has one seed and §4.5 wants 2–3.** One adapter is one shape of
+  course page; the second is where the schema's gaps show up. `splitTitle` only exists
+  because the first real page needed it.
+- **Two Options controls both read "Course websites"** — the per-source row and the
+  adapter list. Sushi ticked the wrong one, which is what sent the first live sync into a
+  green dot with nothing behind it. Rename or drop the source row: `set-adapter-enabled`
+  owns that flag anyway.
+- **G3 rests on a single merge.** See the gates section — the §5.3 BADGE_TOKEN trade is
+  still unexercised, and G4 is what measures it.
+
+## The first live run (2026-09-10)
+
+Four defects in one day, none caught by the 382 tests passing at the time, three of them
+in `background.ts`. Written up as house rules in CLAUDE.md; the short version:
+
+| Defect | Why no test caught it |
+|---|---|
+| Bundled registry never read — no adapter could be enabled | Nothing tested that `dist/`'s copy was *loaded*, only that it was valid |
+| `site: ok (0 items)` with no adapters enabled — a green dot over nothing | A test **asserted** `state: "ok"` for exactly this case |
+| An invented 23:59 outranked a real Canvas deadline | Needs two sources at once; every fixture test runs one |
+| Store queue deadlocked (`sync` → `reschedule` → `fireNotification`) | Lived in the worker, which the suite cannot reach |
+
+The last one was ~20 minutes from wedging the extension on Sushi's machine: it fires the
+first time a reminder comes due *during* a sync, and only default quiet hours (23:00–08:00)
+were holding it off. It was found by tracing one runtime path across parallel agents —
+bundle → storage → options → permission → sync → offscreen → popup — after reviewing
+`background.ts` as a file had found nothing across four steps.
+
+### The four defects, in detail
+- **§4.5 bundled registry was never read.** The build copied `adapters/registry.json`
+  into `dist/`, but the only code that filled `store.registry.adapters` was the daily
+  GitHub fetch — and nothing is published at that URL yet. The stored list stayed empty,
+  Options → Course websites listed nothing, and the CS 424 adapter could not be enabled,
+  so no item was ever labelled WEB. The worker now seeds from the bundle when the stored
+  list is empty; the remote fetch stays an *update*, never rolled back by the seed.
+
+- **`site: ok (0 items)` was a lie.** With no adapter enabled, `syncSites` returned `[]`
+  and the loop recorded `ok`, so the options page showed a green dot on a source that was
+  fetching nothing. It now raises `SourceDisabled` and the loop records `disabled` —
+  a third branch, because the failure branch would arm §6's backoff against a source that
+  is merely switched off. The old behaviour was *asserted by a test*, which is how it
+  survived a mutation-checked suite.
+- **The bundle seed returned silently** when the store already had adapters, so a healthy
+  store and a seed that never ran looked identical in the console. It logs both cases now.
+
+### §5.3 amendment: an assumed time is the last resort, not the first
+SOURCE_RANK puts `site` above `canvas` for `dueAt`, on the reasoning that the system a
+student submits in owns its deadline. That holds only while the site *states* a time.
+CS 424's schedule prints "HW1 Due" against a bare date, §4.5's runner fills in 23:59, and
+the merged CS424 HW1 row therefore showed an invented instant in place of the real Canvas
+one — looking authoritative while being wrong. `parseAdapterDateParts` now reports
+`timeAssumed` and the runner records it in `extra`; `dedupe` prefers any member with a
+stated instant and falls back to an assumed one only when it is the only instant there.
+A site that does print a time still wins, as §5.3 intends.
+
+### Three worker defects found by the path trace
+All three lived in `background.ts`, the one file the suite cannot reach. The store queue
+is now `core/queue.ts` so it can be.
+- **The store queue deadlocked.** `sync()` held it for a whole run and called
+  `reschedule()` → `fireNotification()`, which asked for it again; the inner request
+  chained onto a tail that could not resolve until the outer work returned. It wedged
+  permanently — `running` never cleared, so every later sync returned `skipped` until
+  Chrome tore the worker down. It fires the first time a reminder comes due *during* a
+  sync; on live data that was ~20 minutes away. `withStore` is now re-entrant.
+- **`set-adapter-enabled` wrote the store outside the queue**, so ticking a course site
+  while a sync was in flight was overwritten seconds later and the checkbox sprang back
+  with no error. Same for `refresh-registry`. Both queued now, and enabling an adapter
+  clears §6's backoff for the source.
+- **A failing registry refresh retried on every sync** (the seed leaves `fetchedAt`
+  unset by design). `registry.attemptedAt` now rests a failure without faking a success.
+
 
 ## Shared parser primitives
 `src/core/parsing.ts` holds the rules that were previously written three or four times
@@ -208,7 +291,7 @@ checking at G4 rather than now.
 - **§3.1 `sourceId`** (2026-09-03): amended per source, with costs, in
   [sourceid-decision.md](docs/sourceid-decision.md).
 
-## Open decision (due at step 8)
+## Open decision — still open, now due before G4
 **§4.1's concluded-course filter** cannot be built from what Canvas returns — the stale
 FA25 course reports `workflow_state: available`, a future `end_at` and an active
 enrolment. Only `enrollment_term_id` separates it. Options in
@@ -230,6 +313,10 @@ enrolment. Only `enrollment_term_id` separates it. Options in
 - **§4.2 / §3.1** — a Gradescope row is a `<button data-assignment-id>` before submission
   and an `<a>` after; both carry the same id. The hidden "Due Date" column is
   state-dependent and must not be used as `dueAt`.
+- **§5.3** — `SOURCE_RANK` assumes every instant is one its source *stated*. §4.5's runner
+  fills in 23:59 for a course page that prints a bare date, so a member whose time was
+  assumed is now the last resort for `dueAt`, not the first choice. A site that prints a
+  real time still outranks Canvas, as §5.3 intends. (2026-09-10, found on live data.)
 
 ## §12 open questions
 - ~~1. PrairieLearn access-details in fetched HTML~~ — **yes**, resolved 2026-09-03.
@@ -238,50 +325,6 @@ enrolment. Only `enrollment_term_id` separates it. Options in
 - 4. PrairieLearn credit-string shapes in other courses — only CS 357 captured.
 - 5. Any Moodle or client-rendered course sites this term — PrairieTest turned out to be
   server-rendered, so that worry is retired for it.
-
-## Fixed after the first real course site
-- **§4.5 bundled registry was never read.** The build copied `adapters/registry.json`
-  into `dist/`, but the only code that filled `store.registry.adapters` was the daily
-  GitHub fetch — and nothing is published at that URL yet. The stored list stayed empty,
-  Options → Course websites listed nothing, and the CS 424 adapter could not be enabled,
-  so no item was ever labelled WEB. The worker now seeds from the bundle when the stored
-  list is empty; the remote fetch stays an *update*, never rolled back by the seed.
-
-## Two follow-ups from the first live WEB sync
-- **`site: ok (0 items)` was a lie.** With no adapter enabled, `syncSites` returned `[]`
-  and the loop recorded `ok`, so the options page showed a green dot on a source that was
-  fetching nothing. It now raises `SourceDisabled` and the loop records `disabled` —
-  a third branch, because the failure branch would arm §6's backoff against a source that
-  is merely switched off. The old behaviour was *asserted by a test*, which is how it
-  survived a mutation-checked suite.
-- **The bundle seed returned silently** when the store already had adapters, so a healthy
-  store and a seed that never ran looked identical in the console. It logs both cases now.
-
-## §5.3 amendment: an assumed time is the last resort, not the first
-SOURCE_RANK puts `site` above `canvas` for `dueAt`, on the reasoning that the system a
-student submits in owns its deadline. That holds only while the site *states* a time.
-CS 424's schedule prints "HW1 Due" against a bare date, §4.5's runner fills in 23:59, and
-the merged CS424 HW1 row therefore showed an invented instant in place of the real Canvas
-one — looking authoritative while being wrong. `parseAdapterDateParts` now reports
-`timeAssumed` and the runner records it in `extra`; `dedupe` prefers any member with a
-stated instant and falls back to an assumed one only when it is the only instant there.
-A site that does print a time still wins, as §5.3 intends.
-
-## Three worker defects found by a path trace, not by tests
-All three lived in `background.ts`, the one file the suite cannot reach. The store queue
-is now `core/queue.ts` so it can be.
-- **The store queue deadlocked.** `sync()` held it for a whole run and called
-  `reschedule()` → `fireNotification()`, which asked for it again; the inner request
-  chained onto a tail that could not resolve until the outer work returned. It wedged
-  permanently — `running` never cleared, so every later sync returned `skipped` until
-  Chrome tore the worker down. It fires the first time a reminder comes due *during* a
-  sync; on live data that was ~20 minutes away. `withStore` is now re-entrant.
-- **`set-adapter-enabled` wrote the store outside the queue**, so ticking a course site
-  while a sync was in flight was overwritten seconds later and the checkbox sprang back
-  with no error. Same for `refresh-registry`. Both queued now, and enabling an adapter
-  clears §6's backoff for the source.
-- **A failing registry refresh retried on every sync** (the seed leaves `fetchedAt`
-  unset by design). `registry.attemptedAt` now rests a failure without faking a success.
 
 ## Dev-loop note
 Chrome caches the service worker until you press Reload on the extension card, so a
