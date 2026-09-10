@@ -8,7 +8,8 @@
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "scrub": "node scripts/scrub-file.mjs"
+    "scrub": "node scripts/scrub-file.mjs",
+    "package": "node build.mjs && node scripts/package.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",

@@ -210,6 +210,11 @@ One defect, and one superseded claim:
   shape on live ids. All four already worked. Still open: whether the
   first-fetch-after-reload failure recurs.
 
+**Tier 0b in progress.** Done: **17** (Canvas term filter, above) and **15** (beta
+install kit — `npm run package` produces `release/illini-dash-<version>-<build>.zip`
+with an `INSTALL.txt` inside, and [beta-install.md](docs/beta-install.md) is the
+tester-facing guide).
+
 **Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
 Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.
 

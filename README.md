@@ -12,8 +12,16 @@ npm run typecheck
 npm test
 ```
 
-Load `dist/` as an unpacked extension (see below). After `npm run build`, hit the
-reload icon on the extension card in `chrome://extensions`.
+Load `dist/` as an unpacked extension. After `npm run build`, hit the reload icon on the
+extension card in `chrome://extensions` — Chrome keeps the old service worker otherwise,
+and the popup will say **STALE SERVICE WORKER**.
+
+```
+npm run package     # -> release/illini-dash-<version>-<build>.zip, for beta testers
+```
+
+The zip carries an `INSTALL.txt`; the fuller tester-facing guide is
+[docs/beta-install.md](docs/beta-install.md).
 
 After ticking a course site in Options, Chrome prompts for that host — the adapter only
 runs once the permission is actually held.
