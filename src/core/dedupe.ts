@@ -219,7 +219,16 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>): Item {
 
   // §5.3: the submission system owns its own deadline, so dueAt and url follow
   // the same precedence rather than being picked independently.
-  const dated = ranked.find((item) => item.dueAt !== undefined);
+  // §5.3's rank orders sources by whose deadline is authoritative, which assumes
+  // every instant is one the source actually stated. A course site that prints
+  // "HW1 Due" against a bare date does not state a time, and §4.5's runner fills
+  // in 23:59 — so ranking it above Canvas, as SOURCE_RANK rightly does for a
+  // site that prints a real time, would let an invented instant overwrite a real
+  // one. A member whose time was assumed is therefore the last resort, not the
+  // first choice, however high its source ranks.
+  const dated =
+    ranked.find((item) => item.dueAt !== undefined && item.extra?.["timeAssumed"] !== "true") ??
+    ranked.find((item) => item.dueAt !== undefined);
   const late = ranked.find((item) => item.lateDueAt !== undefined);
   const longestTitle = members.reduce((best, item) =>
     item.title.length > best.title.length ? item : best,

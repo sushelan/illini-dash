@@ -8,7 +8,12 @@
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
-import { parseAdapterDate, runAdapter, supportedDateFormats } from "../src/sources/site.js";
+import {
+  parseAdapterDate,
+  parseAdapterDateParts,
+  runAdapter,
+  supportedDateFormats,
+} from "../src/sources/site.js";
 import {
   currentTermCode,
   isCurrentTerm,
@@ -18,6 +23,7 @@ import {
   validateRegistry,
 } from "../src/core/registry.js";
 import { normalizeTitle } from "../src/core/normalize.js";
+import { dedupe } from "../src/core/dedupe.js";
 import { ParseError, type Adapter, type PageCtx } from "../src/sources/types.js";
 
 const doc = (html: string) => parseHTML(html).document as unknown as Document;
@@ -276,6 +282,14 @@ describe("the CS 424 seed adapter, against its real captured page", () => {
     ]);
   });
 
+  it("marks every one of those times as assumed", () => {
+    // The page prints "HW1 Due" against a bare date and no time at all, so the
+    // 23:59 on every row is §4.5's default, not something CS 424 stated. The
+    // flag is what stops §5.3 preferring it over a real Canvas deadline, so the
+    // runner has to actually set it — not just be capable of setting it.
+    expect(items.every((i) => i.extra?.["timeAssumed"] === "true")).toBe(true);
+  });
+
   it("dates all of them, across the CDT→CST flip", () => {
     expect(items.every((i) => i.dueAt !== undefined)).toBe(true);
     expect(items.find((i) => i.title === "HW2 Due")!.dueAt).toBe("2026-09-23T23:59:00-05:00");
@@ -348,5 +362,78 @@ describe("the bundled registry", () => {
     // .crx; seeding over it would undo the fix the refresh exists to deliver.
     expect(shouldSeedFromBundle(adapters, adapters)).toBe(false);
     expect(shouldSeedFromBundle([], [])).toBe(false);
+  });
+});
+
+/**
+ * An assumed time must not outrank a real one (§5.3 + §4.5).
+ *
+ * Regression for a defect found on live data: CS 424's schedule page prints
+ * "HW1 Due" against a bare date and no time, §4.5's runner fills in 23:59, and
+ * SOURCE_RANK puts `site` above `canvas` — so the invented instant replaced the
+ * real Canvas deadline on the merged row, which then looked authoritative.
+ */
+describe("assumed times in a merge", () => {
+  const dueRow = (extra: Record<string, string>, dueAt: string) => ({
+    source: "site",
+    sourceId: `x:${dueAt}`,
+    courseRaw: "CS 424 course site",
+    courseCode: "CS424",
+    title: "HW1 Due",
+    kind: "assignment",
+    dueAt,
+    url: "https://courses.grainger.illinois.edu/cs424/",
+    status: "unknown",
+    extra,
+    fetchedAt: "2026-09-10T12:00:00.000Z",
+  });
+
+  const canvasRow = (dueAt: string) => ({
+    source: "canvas",
+    sourceId: "c1",
+    courseRaw: "CS 424",
+    courseCode: "CS424",
+    title: "Homework 1",
+    kind: "assignment",
+    dueAt,
+    url: "https://canvas.illinois.edu/courses/1/assignments/1",
+    status: "unknown",
+    extra: {},
+    fetchedAt: "2026-09-10T12:00:00.000Z",
+  });
+
+  const overrides = { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [] };
+
+  it("prefers Canvas's real instant over the runner's 23:59", () => {
+    const real = "2026-09-16T17:00:00.000-05:00";
+    const items = dedupe(
+      [dueRow({ timeAssumed: "true" }, "2026-09-16T23:59:00.000-05:00"), canvasRow(real)] as never,
+      overrides,
+    );
+    const row = items.find((i) => i.courseCode === "CS424")!;
+    expect(row.members).toHaveLength(2);
+    expect(row.dueAt).toBe(real);
+  });
+
+  it("still lets a site that prints a real time win, as §5.3 intends", () => {
+    const stated = "2026-09-16T17:00:00.000-05:00";
+    const items = dedupe(
+      [dueRow({}, stated), canvasRow("2026-09-16T23:59:00.000-05:00")] as never,
+      overrides,
+    );
+    expect(items.find((i) => i.courseCode === "CS424")!.dueAt).toBe(stated);
+  });
+
+  it("falls back to the assumed time when it is the only one", () => {
+    const assumed = "2026-09-16T23:59:00.000-05:00";
+    const items = dedupe([dueRow({ timeAssumed: "true" }, assumed)] as never, overrides);
+    expect(items[0]!.dueAt).toBe(assumed);
+  });
+
+  it("marks a bare date assumed and a stated time not assumed", () => {
+    const at = (raw: string) =>
+      parseAdapterDateParts(raw, "M/d", "America/Chicago", "2026-09-10T12:00:00.000Z");
+    expect(at("9/16")!.timeAssumed).toBe(true);
+    expect(at("9/16 5:00 pm")!.timeAssumed).toBe(false);
   });
 });

@@ -66,6 +66,29 @@ export function parseAdapterDate(
   timezone: string,
   reference: string,
 ): string | undefined {
+  return parseAdapterDateParts(raw, format, timezone, reference)?.iso;
+}
+
+export interface AdapterDate {
+  iso: string;
+  /**
+   * True when the source text carried a date but no time, so 23:59 local is
+   * this code's invention rather than anything the course stated.
+   *
+   * It has to travel with the instant: §5.3 ranks `site` above `canvas` for
+   * dueAt, which is right when the site prints a real time and wrong when it
+   * prints none — a made-up 23:59 would otherwise silently overwrite a real
+   * deadline an instructor set in Canvas, and the row would look authoritative.
+   */
+  timeAssumed: boolean;
+}
+
+export function parseAdapterDateParts(
+  raw: string,
+  format: string,
+  timezone: string,
+  reference: string,
+): AdapterDate | undefined {
   const pattern = DATE_FORMATS[format];
   if (!pattern) return undefined;
   const match = pattern.exec(raw.trim());
@@ -99,7 +122,7 @@ export function parseAdapterDate(
   }
 
   try {
-    return wallClockToIso({ ...parts, year }, timezone);
+    return { iso: wallClockToIso({ ...parts, year }, timezone), timeAssumed: !g["hour"] };
   } catch {
     return undefined;
   }
@@ -155,9 +178,10 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     if (titles.length === 0) continue;
 
     const rawDate = select(row, adapter.due);
-    const dueAt = rawDate
-      ? parseAdapterDate(rawDate, adapter.dateFormat, adapter.timezone, page.fetchedAt)
+    const parsed = rawDate
+      ? parseAdapterDateParts(rawDate, adapter.dateFormat, adapter.timezone, page.fetchedAt)
       : undefined;
+    const dueAt = parsed?.iso;
     const url = sameOriginHttpsUrl(
       adapter.link ? select(row, adapter.link) : undefined,
       new URL(adapter.url).origin,
@@ -173,6 +197,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
 
       const extra: Record<string, string> = { adapterId: adapter.id, term: adapter.term };
       if (rawDate && dueAt === undefined) extra["unparsedDate"] = rawDate.slice(0, 200);
+      if (parsed?.timeAssumed) extra["timeAssumed"] = "true";
       if (codes.length > 1) extra["altCodes"] = codes.join(" ");
 
       items.push({

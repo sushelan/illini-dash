@@ -251,6 +251,16 @@ enrolment. Only `enrollment_term_id` separates it. Options in
 - **The bundle seed returned silently** when the store already had adapters, so a healthy
   store and a seed that never ran looked identical in the console. It logs both cases now.
 
+## §5.3 amendment: an assumed time is the last resort, not the first
+SOURCE_RANK puts `site` above `canvas` for `dueAt`, on the reasoning that the system a
+student submits in owns its deadline. That holds only while the site *states* a time.
+CS 424's schedule prints "HW1 Due" against a bare date, §4.5's runner fills in 23:59, and
+the merged CS424 HW1 row therefore showed an invented instant in place of the real Canvas
+one — looking authoritative while being wrong. `parseAdapterDateParts` now reports
+`timeAssumed` and the runner records it in `extra`; `dedupe` prefers any member with a
+stated instant and falls back to an assumed one only when it is the only instant there.
+A site that does print a time still wins, as §5.3 intends.
+
 ## Dev-loop note
 Chrome caches the service worker until you press Reload on the extension card, so a
 rebuilt page can talk to an old worker. Every bundle carries a build id and the UI says
