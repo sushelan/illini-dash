@@ -103,12 +103,25 @@ async function enabledAdapters(): Promise<Adapter[]> {
   return usable;
 }
 
+/**
+ * §4.1's term filter runs mid-sync and its result has to outlive the sync, but
+ * the loop must not write the store itself (worker rule 4: every writer goes
+ * through the queue, and `runSync` is already inside it). So it hands the list
+ * back here and `sync()` saves it with everything else.
+ */
+let lastSetAsideCourses: Awaited<ReturnType<typeof loadStore>>["setAsideCourses"] = [];
+let keptCourseIds: ReadonlySet<string> = new Set();
+
 const deps: SyncDeps = {
   fetchPage,
   parseHtml: (source, html, page) => parseHtml(source as ParserId, html, page),
   parseGradescopeDashboard,
   runAdapter: runAdapterInOffscreen,
   enabledAdapters,
+  keptCourses: () => keptCourseIds,
+  reportSetAsideCourses: (courses) => {
+    lastSetAsideCourses = courses;
+  },
   now: () => new Date().toISOString(),
 };
 
@@ -216,9 +229,13 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   running = withStore(async () => {
     await maybeRefreshRegistry();
     const store = await loadStore();
+    // Read before the loop runs, written after: the loop is pure over its deps.
+    keptCourseIds = new Set(store.overrides.keptCourses);
+    lastSetAsideCourses = store.setAsideCourses;
     const result = await runSync(store, trigger, deps);
     skipped = result.skipped;
     if (!result.skipped) {
+      result.store.setAsideCourses = lastSetAsideCourses;
       await saveStore(result.store);
       // §7's alarms are derived from the item list, so they are rebuilt whenever
       // it changes — a deadline that moved, or an item that was submitted,
@@ -600,6 +617,7 @@ chrome.runtime.onMessage.addListener(
           doneItems: store.items
             .filter((item) => item.done)
             .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
+          setAsideCourses: store.setAsideCourses,
           lastSyncAt: store.lastSyncAt,
         }) as const),
       );
@@ -617,6 +635,24 @@ chrome.runtime.onMessage.addListener(
           // A source switched back on should not sit out a stale backoff.
           if (enabled) delete store.backoffUntil[source];
         }).then(() => ({ type: "ok" }) as const),
+      );
+    }
+    if (request?.type === "keep-course") {
+      const { courseId, keep } = request;
+      return answer(
+        mutate((store) => {
+          const kept = new Set(store.overrides.keptCourses);
+          if (keep) kept.add(courseId);
+          else kept.delete(courseId);
+          store.overrides = { ...store.overrides, keptCourses: [...kept] };
+          // Putting a course back has to take effect now, not after the next
+          // Canvas sync — the student has just told us the filter was wrong.
+          if (keep) {
+            store.setAsideCourses = store.setAsideCourses.filter((c) => c.id !== courseId);
+          }
+        })
+          .then(() => sync("manual"))
+          .then(() => ({ type: "ok" }) as const),
       );
     }
     if (request?.type === "set-course-disabled") {

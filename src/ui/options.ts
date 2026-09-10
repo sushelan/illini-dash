@@ -6,6 +6,7 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
+import { coursesUrl } from "../sources/canvas.js";
 import { buildIcs } from "../core/ics.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
 import {
@@ -227,7 +228,7 @@ const PRESETS: { label: string; url: string; note?: string }[] = [
   { label: "PrairieTest home", url: "https://us.prairietest.com/pt/" },
   {
     label: "Canvas courses",
-    url: "https://canvas.illinois.edu/api/v1/courses?enrollment_state=active&per_page=100",
+    url: coursesUrl(),
   },
   { label: "Canvas planner", url: plannerUrl() },
   {
@@ -600,6 +601,24 @@ async function refreshOptions(): Promise<void> {
       }
       adaptersEl.append(row);
     }
+  }
+
+  /* Older courses — §4.1's term filter, made visible and reversible */
+  const setAside = document.getElementById("set-aside")!;
+  setAside.replaceChildren();
+  if (state.setAsideCourses.length === 0) {
+    setAside.append(el("p", "None — every Canvas course is in the current term.", "muted"));
+  }
+  for (const course of state.setAsideCourses) {
+    const row = el("div", undefined, "opt-row");
+    row.append(el("span", `${course.courseCode ?? ""} ${course.name}`.trim()));
+    row.append(el("span", course.reason, "opt-note"));
+    const keep = el("button", "Put back");
+    keep.addEventListener("click", () => {
+      void send({ type: "keep-course", courseId: course.id, keep: true }).then(refreshOptions);
+    });
+    row.append(keep);
+    setAside.append(row);
   }
 
   /* Reminders (§7, §8.2) */

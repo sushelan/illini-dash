@@ -402,7 +402,7 @@ describe("assumed times in a merge", () => {
     fetchedAt: "2026-09-10T12:00:00.000Z",
   });
 
-  const overrides = { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [] };
+  const overrides = { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [] };
 
   it("prefers Canvas's real instant over the runner's 23:59", () => {
     const real = "2026-09-16T17:00:00.000-05:00";

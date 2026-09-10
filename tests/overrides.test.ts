@@ -25,6 +25,7 @@ const NO_OVERRIDES: Overrides = {
   hiddenKeys: [],
   disabledCourses: [],
   doneKeys: [],
+  keptCourses: [],
 };
 
 function raw(source: RawItem["source"], sourceId: string, title: string, dueAt?: string): RawItem {

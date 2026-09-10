@@ -18,6 +18,7 @@ import {
   sourcesToRetryAfterUpdate,
   type StoreV1Plus,
 } from "../src/core/store.js";
+import { coursesUrl } from "../src/sources/canvas.js";
 import { ParseError } from "../src/sources/types.js";
 import {
   POPUP_DEBOUNCE_MS,
@@ -40,7 +41,9 @@ const NOW = "2026-09-10T18:00:00.000Z";
 
 /** The real pages, keyed by the URL the sync loop will ask for. */
 const PAGES: Record<string, string> = {
-  "https://canvas.illinois.edu/api/v1/courses?enrollment_state=active&per_page=100":
+  // Keyed off the real builder, so a change to the query cannot silently turn
+  // every Canvas test into an "unexpected fetch" network error again.
+  [coursesUrl()]:
     fixture("canvas/courses-active.json"),
   "https://canvas.illinois.edu/api/v1/planner/items?start_date=2026-09-03&end_date=2026-11-09&per_page=100":
     fixture("canvas/planner-items-SYNTHETIC.json"),
@@ -54,6 +57,8 @@ const PAGES: Record<string, string> = {
 
 function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
   return {
+    keptCourses: () => new Set<string>(),
+    reportSetAsideCourses: () => undefined,
     async fetchPage(url) {
       const body = PAGES[url];
       if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
@@ -660,5 +665,54 @@ describe("a new build lifts §6's backoff (§11's fix-fast mitigation)", () => {
     const off = resting("parse_error");
     off.sources.gradescope = { ...off.sources.gradescope, enabled: false };
     expect(sourcesToRetryAfterUpdate(off)).toEqual([]);
+  });
+});
+
+describe("the term filter inside the loop (§4.1)", () => {
+  const inTerm = "2026-09-10T18:00:00.000Z";
+
+  it("drops planner rows belonging to a set-aside course", async () => {
+    // The stale FA25 course publishes nothing dated today, so this uses a
+    // planner row invented for it — the point is that the loop would list it.
+    const planner = JSON.stringify([
+      {
+        course_id: 58438,
+        plannable_id: 1,
+        plannable_type: "assignment",
+        plannable: { id: 1, title: "NDA acknowledgement", due_at: "2026-09-17T04:59:59Z" },
+        html_url: "/courses/58438/assignments/1",
+        context_name: "FA25 IBC NDA and Code of Conduct Forms",
+        submissions: { submitted: false, graded: false, missing: false, excused: false },
+      },
+    ]);
+    const reported: unknown[] = [];
+    const withStale = deps({
+      now: () => inTerm,
+      reportSetAsideCourses: (courses) => reported.push(...courses),
+      async fetchPage(url) {
+        if (url === coursesUrl()) return { url, finalUrl: url, status: 200, body: fixture("canvas/courses-active-term.json") };
+        if (url.includes("planner")) return { url, finalUrl: url, status: 200, body: planner };
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const { store } = await runSync(emptyStore(), "manual", withStale);
+    expect(Object.keys(store.raw).filter((k) => k.startsWith("canvas:"))).toEqual([]);
+    expect(reported).toHaveLength(1);
+  });
+
+  it("keeps rows for courses in the current term", async () => {
+    const kept = deps({
+      now: () => inTerm,
+      async fetchPage(url) {
+        if (url === coursesUrl()) return { url, finalUrl: url, status: 200, body: fixture("canvas/courses-active-term.json") };
+        if (url.includes("planner")) return { url, finalUrl: url, status: 200, body: fixture("canvas/planner-items.json") };
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const { store } = await runSync(emptyStore(), "manual", kept);
+    // CS 424's quiz, in term 262.
+    expect(Object.keys(store.raw).filter((k) => k.startsWith("canvas:"))).toEqual([
+      "canvas:quiz:438909",
+    ]);
   });
 });

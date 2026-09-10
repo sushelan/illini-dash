@@ -14,6 +14,7 @@ import {
   CANVAS_ORIGIN,
   courseMap,
   coursesUrl,
+  currentTermCourses,
   isLoginResponse,
   linkHeaderNext,
   mapKind,
@@ -413,5 +414,86 @@ describe("mapKind / mapStatus units", () => {
     expect(mapStatus(undefined)).toBe("not_submitted");
     expect(mapStatus(false)).toBe("not_submitted");
     expect(mapStatus("weird")).toBe("unknown");
+  });
+});
+
+describe("currentTermCourses — §4.1's concluded-course filter (real capture)", () => {
+  const courses = parseCourses(fixture("courses-active-term.json"));
+  // Mid-semester: inside term 262 (2026-03-30 → 2027-01-15).
+  const inTerm = new Date("2026-09-10T18:00:00.000Z");
+
+  it("holds back the year-old course and keeps the three real ones", () => {
+    const { current, setAside } = currentTermCourses(courses, inTerm);
+    expect(setAside.map((entry) => entry.course.id)).toEqual([58438]);
+    expect(current.map((c) => c.courseCode).sort()).toEqual(["CS357", "CS424", "CS425"]);
+  });
+
+  it("says why, naming the term rather than claiming the course ended", () => {
+    // The stale course's term is `OPEN` with null dates — unbounded, which in
+    // Canvas means always current. Saying "ended" would be false.
+    const { setAside } = currentTermCourses(courses, inTerm);
+    expect(setAside[0]!.reason).toContain("OPEN");
+    expect(setAside[0]!.reason).toContain("no dates");
+    expect(setAside[0]!.reason).not.toContain("ended");
+  });
+
+  it("fails open outside every term, rather than emptying the list", () => {
+    // §11: a hidden real deadline is catastrophic, a visible stale course is
+    // untidy. Between terms nothing can be shown to belong elsewhere.
+    const afterEveryTerm = new Date("2027-06-01T12:00:00.000Z");
+    const { current, setAside } = currentTermCourses(courses, afterEveryTerm);
+    expect(setAside).toEqual([]);
+    expect(current).toHaveLength(4);
+  });
+
+  it("fails open when no course carries term dates at all", () => {
+    const undated = courses.map((c) => ({ ...c, termStart: undefined, termEnd: undefined }));
+    expect(currentTermCourses(undated, inTerm).setAside).toEqual([]);
+  });
+
+  it("puts a course back when the student says the filter was wrong", () => {
+    // Someone enrolled across two terms is exactly who this is wrong about.
+    const { current, setAside } = currentTermCourses(courses, inTerm, new Set(["58438"]));
+    expect(setAside).toEqual([]);
+    expect(current).toHaveLength(4);
+  });
+
+  it("reads the term object off the real response", () => {
+    const stale = courses.find((c) => c.id === 58438)!;
+    const real = courses.find((c) => c.courseCode === "CS357")!;
+    expect(stale.termName).toBe("OPEN");
+    expect(stale.termStart).toBeUndefined();
+    expect(stale.termEnd).toBeUndefined();
+    expect(real.termName).toBe("2026 - Fall");
+    expect(real.termStart).toBe("2026-03-30T05:00:00Z");
+  });
+
+  it("does not claim a term ended when Canvas sent an unusable date", () => {
+    // House rule 5: `typeof x === "string"` accepts "" and "soon". Both parse to
+    // NaN, and every comparison against NaN is false in both directions — so an
+    // unusable date looks exactly like a term that finished, and the student is
+    // told their current course's term "ended". It is unbounded, not over.
+    for (const junk of ["", "soon", "2026-13-45"]) {
+      const mangled = parseCourses(
+        JSON.stringify([
+          { id: 1, name: "CS 357 Numerical Methods", enrollment_term_id: 9, term: { id: 9, name: "Weird", start_at: junk, end_at: junk } },
+          { id: 2, name: "CS 425 Distributed Systems", enrollment_term_id: 262, term: { id: 262, name: "2026 - Fall", start_at: "2026-03-30T05:00:00Z", end_at: "2027-01-15T06:00:00Z" } },
+        ]),
+      );
+      const { setAside } = currentTermCourses(mangled, inTerm);
+      expect(setAside, junk).toHaveLength(1);
+      expect(setAside[0]!.reason, junk).toContain("no dates");
+      expect(setAside[0]!.reason, junk).not.toContain("ended");
+    }
+  });
+
+  it("costs a course its term, not the page, when the term is missing", () => {
+    // House rule 1. `include[]=term` could be dropped by a future deployment.
+    const noTerm = courses.map((c) => ({ ...c, termName: undefined, termStart: undefined, termEnd: undefined }));
+    expect(() => currentTermCourses(noTerm, inTerm)).not.toThrow();
+  });
+
+  it("asks Canvas for the term in the first place", () => {
+    expect(coursesUrl()).toContain("include[]=term");
   });
 });

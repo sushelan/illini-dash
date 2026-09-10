@@ -182,6 +182,15 @@ export interface Overrides {
    * the row, and the stale key stays armed forever.
    */
   doneKeys: string[];
+  /**
+   * Canvas course ids (as strings) the student forced back in after §4.1's term
+   * filter held them aside.
+   *
+   * Someone legitimately enrolled across two terms — a year-long project course,
+   * a repeated class — is exactly who the filter is wrong about, so it has to be
+   * reversible from the UI.
+   */
+  keptCourses: string[];
 }
 
 export interface Settings {

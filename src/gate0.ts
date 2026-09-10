@@ -8,6 +8,7 @@
  */
 
 import type { Source } from "./sources/types.js";
+import { coursesUrl } from "./sources/canvas.js";
 
 export interface Gate0Target {
   source: Source;
@@ -45,7 +46,7 @@ export const GATE0_TARGETS: Gate0Target[] = [
   {
     source: "canvas",
     label: "Canvas (API /courses)",
-    url: "https://canvas.illinois.edu/api/v1/courses?enrollment_state=active&per_page=100",
+    url: coursesUrl(),
   },
   {
     source: "gradescope",

@@ -24,6 +24,11 @@ export interface CanvasCourse {
   courseCode?: string;
   altCodes: string[];
   termId?: number;
+  /** The term's own name, e.g. "2026 - Fall" or "OPEN". For the UI only. */
+  termName?: string;
+  /** Term bounds. **Both are null for an unbounded term** — see `currentTermCourses`. */
+  termStart?: string;
+  termEnd?: string;
   endAt?: string;
   /** Canvas reports a per-course zone; §3.2 otherwise assumes America/Chicago. */
   timeZone?: string;
@@ -34,7 +39,12 @@ export interface CanvasCourse {
 /* -------------------------------------------------------------------------- */
 
 export function coursesUrl(): string {
-  return `${CANVAS_ORIGIN}/api/v1/courses?enrollment_state=active&per_page=100`;
+  // `include[]=term` costs nothing extra in requests and is the only field that
+  // separates this year's courses from last year's: §4.1's concluded-course
+  // filter cannot be built from `workflow_state`, `end_at` or
+  // `enrollment_state`, all of which call a year-old course current
+  // (docs/canvas-findings.md).
+  return `${CANVAS_ORIGIN}/api/v1/courses?enrollment_state=active&include[]=term&per_page=100`;
 }
 
 /** The planner window is now−7d to now+60d (§4.1). */
@@ -148,11 +158,108 @@ export function parseCourses(body: string): CanvasCourse[] {
         typeof course["enrollment_term_id"] === "number"
           ? course["enrollment_term_id"]
           : undefined,
+      ...readTerm(course["term"]),
       endAt: typeof course["end_at"] === "string" ? course["end_at"] : undefined,
       timeZone: typeof course["time_zone"] === "string" ? course["time_zone"] : undefined,
     });
   }
   return courses;
+}
+
+/**
+ * The `term` object, when `include[]=term` was asked for and honoured.
+ *
+ * House rule 1: a course whose term is missing or malformed costs that course
+ * its term, not the whole courses page. `currentTermCourses` then treats it as
+ * unbounded, which is the cautious reading.
+ */
+function readTerm(value: unknown): Pick<CanvasCourse, "termName" | "termStart" | "termEnd"> {
+  if (!value || typeof value !== "object") return {};
+  const term = value as Record<string, unknown>;
+  // House rule 5: validate positively. `Date.parse(null)` is NaN and every
+  // comparison against NaN is false in both directions, which would silently
+  // make every term look non-current and disable the filter altogether.
+  const instant = (key: string) =>
+    typeof term[key] === "string" && isInstant(term[key] as string)
+      ? (term[key] as string)
+      : undefined;
+  return {
+    termName: typeof term["name"] === "string" ? term["name"] : undefined,
+    termStart: instant("start_at"),
+    termEnd: instant("end_at"),
+  };
+}
+
+export interface TermFilterResult {
+  /** Courses whose deadlines should be listed. */
+  current: CanvasCourse[];
+  /** Courses held back, and why — never dropped silently. */
+  setAside: { course: CanvasCourse; reason: string }[];
+}
+
+/**
+ * §4.1's concluded-course filter, and it is not the filter §4.1 describes.
+ *
+ * `enrollment_state=active` leaks a year-old course, and no field Canvas returns
+ * calls it concluded: `workflow_state` is `available`, `end_at` is in the
+ * future, the enrolment is `active`. The 2026-09-10 capture with `include[]=term`
+ * shows why. The real term (`2026 - Fall`) carries real dates; the stale
+ * course's term (`OPEN`) has **null start and end**, which in Canvas means
+ * *unbounded* — a self-paced container for compliance courses that are meant to
+ * stay open indefinitely. It is not concluded and never will be.
+ *
+ * So the answerable question is not "which courses have ended" but "which
+ * courses belong to the term my real coursework is in":
+ *
+ * 1. A term is **current** if it has both dates and they bracket now.
+ * 2. Keep every course in a current term.
+ * 3. A course in an **unbounded** term is undecidable by dates. Hold it back
+ *    only when a current term exists for it to be compared against.
+ * 4. **Fail open.** With no current term at all — between terms, or an account
+ *    whose terms all carry null dates — keep everything. §11 makes a hidden
+ *    real deadline catastrophic and a visible stale course merely untidy, and
+ *    §8.2's per-course checkbox already handles untidy.
+ */
+export function currentTermCourses(
+  courses: CanvasCourse[],
+  now: Date,
+  keptCourseIds: ReadonlySet<string> = new Set(),
+): TermFilterResult {
+  const bounded = (course: CanvasCourse) =>
+    course.termStart !== undefined && course.termEnd !== undefined;
+  const brackets = (course: CanvasCourse) =>
+    bounded(course) &&
+    Date.parse(course.termStart!) <= now.getTime() &&
+    now.getTime() < Date.parse(course.termEnd!);
+
+  const currentTermIds = new Set(
+    courses.filter(brackets).map((course) => course.termId),
+  );
+  // Rule 4. Without a single dated, current term there is nothing to compare
+  // against, so no course can be shown to belong to another one.
+  if (currentTermIds.size === 0) {
+    return { current: [...courses], setAside: [] };
+  }
+
+  const current: CanvasCourse[] = [];
+  const setAside: TermFilterResult["setAside"] = [];
+  for (const course of courses) {
+    if (currentTermIds.has(course.termId)) {
+      current.push(course);
+      continue;
+    }
+    if (keptCourseIds.has(String(course.id))) {
+      current.push(course);
+      continue;
+    }
+    setAside.push({
+      course,
+      reason: bounded(course)
+        ? `term ${course.termName ?? course.termId ?? "?"} ended`
+        : `term ${course.termName ?? course.termId ?? "?"} has no dates, and is not this term`,
+    });
+  }
+  return { current, setAside };
 }
 
 export function courseMap(courses: CanvasCourse[]): Map<number, CanvasCourse> {
@@ -285,6 +392,12 @@ export function parsePlannerItems(
     if (dueAt === undefined) {
       const rejected = plannable["due_at"] ?? entry["plannable_date"];
       if (typeof rejected === "string") extra["unparsedDate"] = rejected;
+    }
+    if (courseId !== undefined) {
+      // Recorded on every row, not just unknown ones: §4.1's term filter runs in
+      // the loop (it needs the whole course list) and this is what lets it match
+      // a planner row to the course it belongs to.
+      extra["canvasCourseId"] = String(courseId);
     }
     if (course === undefined && courseId !== undefined) {
       extra["unknownCourseId"] = String(courseId);

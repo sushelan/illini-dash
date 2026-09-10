@@ -352,15 +352,17 @@ checking at G4 rather than now.
 - **§3.1 `sourceId`** (2026-09-03): amended per source, with costs, in
   [sourceid-decision.md](docs/sourceid-decision.md).
 
-## Open decision — RESOLVED 2026-09-10, not yet implemented
+## Open decision — RESOLVED and IMPLEMENTED 2026-09-10 (Tier 0b.17)
 **§4.1's concluded-course filter.** `include[]=term` was captured
 (`fixtures/canvas/courses-active-term.json`) and it settles the design: the real term
 (262, `2026 - Fall`) carries real dates, while the stale course's term (109, `OPEN`)
 has **null start and end** — an unbounded term, which is never "concluded". So the
 filter keeps courses whose term brackets today, sets aside unbounded-term courses only
 when a current term exists, and fails open when none does. Details and the code
-consequences in [canvas-findings.md](docs/canvas-findings.md); it is Tier 0b item 17 in
-[roadmap-ideas.md](docs/roadmap-ideas.md).
+consequences in [canvas-findings.md](docs/canvas-findings.md). Shipped: `coursesUrl()`
+asks for `include[]=term`, `currentTermCourses` applies the rule, the loop drops planner
+rows for held-back courses, and Options → Courses → **Older courses** lists what was held
+back with a "Put back" button for anyone legitimately enrolled across two terms.
 
 ## Spec amendments forced by real data
 - **§4.1 / §5.3** — Canvas `course_code` is an opaque slug (`cs_357_120268_263847`), not

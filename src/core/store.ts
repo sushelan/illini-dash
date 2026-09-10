@@ -81,6 +81,15 @@ export interface StoreV1Plus extends StoreV1 {
   backoffUntil: Partial<Record<Source, string>>;
   /** §4.5: adapter ids the user switched on. The permission is checked separately. */
   enabledAdapters: string[];
+  /**
+   * Courses §4.1's term filter held back on the last Canvas sync.
+   *
+   * Persisted because they contribute no items, so `courseSummaries` — which is
+   * built from `raw` — has nothing to hang them on, and Options would show
+   * nothing at all. A filter the student cannot see is one they cannot correct,
+   * which is the silent-exclusion failure worker rule 2 is about.
+   */
+  setAsideCourses: { id: string; name: string; courseCode?: string; reason: string }[];
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -106,12 +115,13 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [] },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [] },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
     backoffUntil: {},
     enabledAdapters: [],
+    setAsideCourses: [],
   };
 }
 
@@ -222,6 +232,12 @@ export function migrate(stored: unknown): StoreV1Plus {
     enabledAdapters: Array.isArray(value.enabledAdapters)
       ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
       : [],
+    setAsideCourses: Array.isArray(value.setAsideCourses)
+      ? value.setAsideCourses.filter(
+          (entry): entry is StoreV1Plus["setAsideCourses"][number] =>
+            isRecord(entry) && typeof entry["id"] === "string" && typeof entry["name"] === "string",
+        )
+      : [],
   };
 }
 
@@ -238,6 +254,7 @@ function migrateOverrides(stored: unknown): Overrides {
     hiddenKeys: [],
     disabledCourses: [],
     doneKeys: [],
+    keptCourses: [],
   };
   if (!stored || typeof stored !== "object") return base;
   const value = stored as Record<string, unknown>;
@@ -254,6 +271,7 @@ function migrateOverrides(stored: unknown): Overrides {
     // Absent in stores written before the tick-off existed, which is why every
     // field here is filled in rather than switched on `schemaVersion`.
     doneKeys: strings(value["doneKeys"]),
+    keptCourses: strings(value["keptCourses"]),
   };
 }
 

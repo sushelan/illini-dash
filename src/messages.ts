@@ -35,6 +35,7 @@ export type Request =
   | { type: "update-settings"; settings: Partial<Settings> }
   | { type: "set-source-enabled"; source: Source; enabled: boolean }
   | { type: "set-course-disabled"; course: string; disabled: boolean }
+  | { type: "keep-course"; courseId: string; keep: boolean }
   | { type: "override"; action: OverrideAction }
   | { type: "export" }
   | { type: "reset" }
@@ -84,6 +85,7 @@ export type Response =
       itemCount: number;
       hiddenItems: { id: string; title: string; courseLabel: string }[];
       doneItems: { id: string; title: string; courseLabel: string }[];
+      setAsideCourses: { id: string; name: string; courseCode?: string; reason: string }[];
       lastSyncAt?: string;
     }
   | { type: "ok" }

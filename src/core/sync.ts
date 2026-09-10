@@ -46,6 +46,10 @@ export interface SyncDeps {
   runAdapter(adapter: Adapter, html: string, page: PageCtx): Promise<RawItem[]>;
   /** Enabled adapters whose host permission has actually been granted. */
   enabledAdapters(): Promise<Adapter[]>;
+  /** Canvas course ids the student forced back in past §4.1's term filter. */
+  keptCourses(): ReadonlySet<string>;
+  /** Records what the term filter held back, so the UI can offer it back. */
+  reportSetAsideCourses(courses: StoreV1Plus["setAsideCourses"]): void;
   /** One authenticated GET. Throws on network failure. */
   fetchPage(url: string): Promise<FetchedPage>;
   /** Runs a parser in the offscreen document (§2.1). */
@@ -163,15 +167,48 @@ async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
   if (canvas.isLoginResponse(coursesPage.status, coursesPage.finalUrl, coursesPage.body)) {
     throw new NeedsLogin(coursesPage);
   }
-  const courses = canvas.courseMap(canvas.parseCourses(coursesPage.body));
+
+  // §4.1's concluded-course filter. The map keeps *every* course, so a planner
+  // row for a held-back course still resolves its name rather than becoming an
+  // `unknownCourseId` — which means something different and would be a lie.
+  // The rows themselves are dropped below, and what was held back is reported
+  // so the loop can persist it for the UI.
+  const all = canvas.parseCourses(coursesPage.body);
+  const { setAside } = canvas.currentTermCourses(all, new Date(fetchedAt), deps.keptCourses());
+  const held = new Set(setAside.map((entry) => entry.course.id));
+  deps.reportSetAsideCourses(
+    setAside.map((entry) => ({
+      id: String(entry.course.id),
+      name: entry.course.name,
+      courseCode: entry.course.courseCode,
+      reason: entry.reason,
+    })),
+  );
+  if (setAside.length > 0) {
+    console.log(
+      `[canvas] ${setAside.length} course(s) set aside: ${setAside
+        .map((entry) => `${entry.course.courseCode ?? entry.course.name} (${entry.reason})`)
+        .join("; ")}`,
+    );
+  } else {
+    // Both branches (worker rule 5): "nothing was stale" and "the filter never
+    // ran" are otherwise the same silence.
+    console.log(`[canvas] term filter kept all ${all.length} course(s)`);
+  }
+  const courses = canvas.courseMap(all);
 
   const plannerPage = await deps.fetchPage(canvas.plannerUrl(new Date(fetchedAt)));
   if (canvas.isLoginResponse(plannerPage.status, plannerPage.finalUrl, plannerPage.body)) {
     throw new NeedsLogin(plannerPage);
   }
-  return canvas.parsePlannerItems(plannerPage.body, courses, {
+  const items = canvas.parsePlannerItems(plannerPage.body, courses, {
     url: plannerPage.finalUrl,
     fetchedAt,
+  });
+  if (held.size === 0) return items;
+  return items.filter((item) => {
+    const courseId = item.extra?.["canvasCourseId"];
+    return courseId === undefined || !held.has(Number(courseId));
   });
 }
 
