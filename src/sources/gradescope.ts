@@ -36,8 +36,22 @@ export interface GradescopeCourse {
 /* -------------------------------------------------------------------------- */
 
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  // §4.2: an expired session redirects the dashboard fetch to /login.
-  return looksLoggedOut(status, finalUrl, body, { loginPath: /gradescope\.com\/(login|auth)/ });
+  return looksLoggedOut(status, finalUrl, body, {
+    // §4.2: an *expired* session redirects the dashboard fetch to /login.
+    loginPath: /gradescope\.com\/(login|auth)/,
+    // A student who has **never** signed in gets something else entirely: 200,
+    // no redirect, `<title>Gradescope</title>`, and the marketing splash page.
+    // None of the generic tests catch that, so the parser ran on the splash,
+    // found no course cards, and threw — a red "the page changed" dot with no
+    // way to log in, for the one situation where logging in is the whole fix.
+    // §0 rule 2 exists for exactly this.
+    //
+    // `js-logInButton` is the hook on the splash page's Log In control. It is
+    // absent from the real logged-in dashboard capture, which is what makes it
+    // safe: a marker that appears on both would turn every healthy sync into a
+    // needs_login (house rule 6 — match the smallest specific thing).
+    bodyLooksLoggedOut: (page) => page.includes("js-logInButton"),
+  });
 }
 
 /* -------------------------------------------------------------------------- */

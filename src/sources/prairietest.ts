@@ -30,7 +30,18 @@ const EMPTY_CARD = [
 
 
 export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  return looksLoggedOut(status, finalUrl, body, { loginPath: /prairietest\.com\/pt\/login/ });
+  return looksLoggedOut(status, finalUrl, body, {
+    loginPath: /prairietest\.com\/pt\/login/,
+    // Like Gradescope, a student who has never signed in gets 200 at the
+    // unchanged URL with a normal-looking title ("Home — PrairieTest") and no
+    // exam cards at all — so §4.4's missing-card guard threw a ParseError and
+    // painted a red dot over what is only a missing session.
+    //
+    // The handoff link to PrairieLearn's auth endpoint is the marker: it is the
+    // page's whole purpose when signed out, and it appears in neither real
+    // logged-in capture.
+    bodyLooksLoggedOut: (page) => page.includes("/pl/prairietest/auth"),
+  });
 }
 
 

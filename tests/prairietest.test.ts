@@ -17,6 +17,11 @@ import {
 } from "../src/sources/prairietest.js";
 import { ParseError, type PageCtx } from "../src/sources/types.js";
 
+/** Raw fixture text, for the checks that run before any DOM parsing. */
+function fixture(name: string): string {
+  return readFileSync(new URL(`../fixtures/prairietest/${name}`, import.meta.url), "utf8");
+}
+
 function docOf(name: string): Document {
   const html = readFileSync(new URL(`../fixtures/prairietest/${name}`, import.meta.url), "utf8");
   return parseHTML(html).document as unknown as Document;
@@ -389,5 +394,37 @@ describe("isLoginResponse", () => {
         ),
       ),
     ).toBe(false);
+  });
+});
+
+describe("a student who has never signed in (§0 rule 2)", () => {
+  it("is needs_login, not a broken page", () => {
+    // 200 at the unchanged URL, a normal-looking title, and no exam cards — so
+    // §4.4's missing-card guard threw and painted a red dot over a missing
+    // session.
+    expect(isLoginResponse(200, "https://us.prairietest.com/pt/", fixture("signed-out.html"))).toBe(
+      true,
+    );
+  });
+
+  it("is not fooled by a page that merely mentions the product", () => {
+    // Adversarial for the same reason: "prairietest" appears in any URL on the
+    // site, so a bare-substring marker would report every healthy sync as a
+    // missing session. The marker is the auth *handoff path*, which only a
+    // signed-out page has a reason to link to.
+    const mentionsItself = fixture("home-booked-and-available.html").replace(
+      "Quiz 1",
+      "Quiz 1 — see us.prairietest.com for details",
+    );
+    expect(isLoginResponse(200, "https://us.prairietest.com/pt/", mentionsItself)).toBe(false);
+  });
+
+  it("does not call either real logged-in capture logged out", () => {
+    for (const name of ["home-booked-none-available.html", "home-booked-and-available.html"]) {
+      expect(
+        isLoginResponse(200, "https://us.prairietest.com/pt/", fixture(name)),
+        name,
+      ).toBe(false);
+    }
   });
 });

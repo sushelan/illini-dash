@@ -17,6 +17,11 @@ import {
 } from "../src/sources/gradescope.js";
 import { ParseError, type PageCtx } from "../src/sources/types.js";
 
+/** Raw fixture text, for the checks that run before any DOM parsing. */
+function fixture(name: string): string {
+  return readFileSync(new URL(`../fixtures/gradescope/${name}`, import.meta.url), "utf8");
+}
+
 function docOf(name: string): Document {
   const html = readFileSync(new URL(`../fixtures/gradescope/${name}`, import.meta.url), "utf8");
   return parseHTML(html).document as unknown as Document;
@@ -404,5 +409,43 @@ describe("isLoginResponse", () => {
       "utf8",
     );
     expect(isLoginResponse(200, `${GRADESCOPE_ORIGIN}/`, html)).toBe(false);
+  });
+});
+
+describe("a student who has never signed in (§0 rule 2)", () => {
+  const signedOut = fixture("signed-out.html");
+
+  it("is needs_login, not a broken page", () => {
+    // The real logged-out response: 200, no redirect, `<title>Gradescope</title>`,
+    // and the marketing splash. None of the generic tests catch it, so the parser
+    // ran on the splash, found no course cards and threw — a red "the page
+    // changed" dot with no way to log in, for the one case where logging in is
+    // the entire fix.
+    expect(isLoginResponse(200, "https://www.gradescope.com/", signedOut)).toBe(true);
+  });
+
+  it("does not call the real dashboard logged out", () => {
+    // The marker has to be absent from a healthy page, or every successful sync
+    // becomes a needs_login and the list silently stops updating.
+    expect(isLoginResponse(200, "https://www.gradescope.com/", fixture("dashboard.html"))).toBe(
+      false,
+    );
+  });
+
+  it("is not fooled by an assignment whose title contains the words", () => {
+    // Deliberately adversarial, because the real fixtures cannot show this:
+    // "Log Interpretation" contains "Log In", and a substring marker would call
+    // a perfectly healthy dashboard logged out — silently freezing the list at
+    // whatever it last held. House rule 6 is why the marker is a class hook on
+    // the login control rather than its label.
+    const withAwkwardTitle = fixture("dashboard.html").replace(
+      "PHYS435",
+      "Log Interpretation and Sign Into Systems",
+    );
+    expect(isLoginResponse(200, "https://www.gradescope.com/", withAwkwardTitle)).toBe(false);
+  });
+
+  it("still catches an expired session, which redirects instead", () => {
+    expect(isLoginResponse(200, "https://www.gradescope.com/login", "<html></html>")).toBe(true);
   });
 });
