@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (388 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (546 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -155,23 +155,44 @@ Eight mutations tried against the fixes; all eight fail.
 **G5**, which §9 gates behind it.
 
 The full pre-beta checklist, and 88 verified feature ideas ranked with audit and skeptic
-verdicts, are in [roadmap-ideas.md](docs/roadmap-ideas.md) (2026-09-10). The items below
-are the short version.
+verdicts, are in [roadmap-ideas.md](docs/roadmap-ideas.md) (2026-09-10).
+
+## Tier 0a — DONE 2026-09-10, all 13 items
+
+Everything that needed no capture, decision or tester. 388 → 546 tests. Each item was
+mutation-checked; six mutations survived a first pass and their tests were written before
+the item landed (recorded in the commits).
+
+| # | What changed |
+|---|---|
+| 1 | `SourceState` gains `pending`; no green dot before a fetch. `core/health.ts` owns the dots, the "3 of 4 sources OK" line, a stale-source banner and a **toolbar badge** — health outside an extension page for the first time. |
+| 2 | A Chrome-blocked extension no longer marks reminders delivered (which silenced them forever). Catch-up fires one toast per deadline, not one per lead, and the title comes from the clock rather than the alarm's name. |
+| 3 | A moved deadline re-arms its reminders and says "moved Tue → Fri". An assumed time turning into a stated one is not a move. |
+| 4 | A still-open late or reduced-credit window is listed, worded and reminded on its own instant, and painted amber rather than overdue red. |
+| 5 | An invented 23:59 is no longer shown as a clock, sorted as one, exported as a timed calendar event, or counted down to. |
+| 6 | `doneKeys`: the student can tick work off, which two sources can never do for them. A source saying `missing` overrides the tick. |
+| 7 | Not-for-credit work is chipped, sorted last and silent by default — §4.3 required this and nothing read the flag. |
+| 8 | `core/quality.ts` surfaces the nine `unparsed*` flags the parsers already wrote. A row whose date failed to parse leads the list instead of vanishing. |
+| 9 | Settings is titled Settings, developer tools are collapsed, and there is one "Course websites" control instead of two. |
+| 10 | A new build lifts §6's backoff for the sources a code change could have fixed. |
+| 11 | The adapter date grammar reads weekday prefixes, `at`/`@`, and 24-hour times; an ambiguous `5:00` is refused rather than guessed, and an unread tail is recorded. |
+| 12 | `migrate` validates `raw` and `items` instead of casting them; `fixtures/store/v1.json` pins that an older store survives. |
+| 13 | "Copy diagnostics" (counts and states, no titles or links) and a right-click "Report this page". |
+
+**Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
+Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.
 
 Worth doing before handing this to ten people:
 
-- **The popup shows invented times as fact.** Every CS 424 row reads 11:59 PM and the
-  course states no time at all. `extra.timeAssumed` stops it overriding a real deadline
-  (§5.3 amendment above) but the UI still displays it plainly. A tester will trust it and
-  miss a 5 PM cutoff — this is the §11 "silent missing deadline" risk wearing a different
-  hat. Natural to fold into the UI pass Sushi has asked for.
+- ~~**The popup shows invented times as fact.**~~ **Done** in Tier 0a.5, and in three
+  more places the note did not mention: the sort order, the calendar export and the
+  reminders. Tier 0a.11 also found that some of those 23:59s were never assumed at all —
+  the page stated a time and the date grammar matched past it.
 - **`fixtures/sites/` has one seed and §4.5 wants 2–3.** One adapter is one shape of
   course page; the second is where the schema's gaps show up. `splitTitle` only exists
   because the first real page needed it.
-- **Two Options controls both read "Course websites"** — the per-source row and the
-  adapter list. Sushi ticked the wrong one, which is what sent the first live sync into a
-  green dot with nothing behind it. Rename or drop the source row: `set-adapter-enabled`
-  owns that flag anyway.
+- ~~**Two Options controls both read "Course websites"**~~ — **done** in Tier 0a.9. The
+  per-source row is gone and the site source's health moved under Course websites.
 - **G3 rests on a single merge.** See the gates section — the §5.3 BADGE_TOKEN trade is
   still unexercised, and G4 is what measures it.
 

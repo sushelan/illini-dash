@@ -47,6 +47,10 @@ tester. Tier 1 is after the beta. Tier 2 needs a §0/§1 decision or a new permi
 
 ### Tier 0a — make what exists trustworthy (before any tester)
 
+> **All 13 items landed 2026-09-10** (commits `Tier 0a.1` … `Tier 0a.13`). 388 → 546
+> tests. See PROGRESS.md for the summary table.
+
+
 1. **Health that never lies** — grey dots until a source has succeeded once; status line
    "Checked 10:32 · 3 of 4 OK" plus a stale-source banner; toolbar badge with today's count and
    a red `!` on any failing source. (I17, I16, I03)

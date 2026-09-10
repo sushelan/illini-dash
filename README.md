@@ -24,9 +24,11 @@ runs once the permission is actually held.
   `core/`, which is the half the test suite can reach.
 - `src/core/` — everything with a decision in it: `sync` (§6 loop), `dedupe` (§5.3/5.4),
   `store` + `queue` (§3), `schedule` (§7), `registry` (§4.5 trust boundary), `dates`,
-  `normalize`, `parsing` (shared parser primitives), `ics` (§8.3), `overrides` (§8.1)
+  `normalize`, `parsing` (shared parser primitives), `ics` (§8.3), `overrides` (§8.1),
+  `grouping` (§8.1 sections), `health` (what the UI may claim about a source),
+  `quality` (what the parsers could not read), `diagnostics` (the paste-safe bundle)
 - `src/sources/` — one pure parser per source, plus `site.ts`, §4.5's declarative runner
-- `src/ui/` — popup, options, and the capture/debug page
+- `src/ui/` — popup and options (settings + collapsed developer tools)
 - `adapters/registry.json` — course-site adapter registry, bundled and seeded on install,
   refreshed daily from GitHub (see [docs/adapters.md](docs/adapters.md))
 - `fixtures/`, `tests/` — real captured pages and the tests driven by them
