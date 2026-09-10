@@ -123,10 +123,58 @@ export function emptyStore(): StoreV1Plus {
  * interrupted sync, or one written by a build that predates a field. Losing a
  * user's overrides to a missing key would be silent and unrecoverable.
  */
+/**
+ * A stored `RawItem` that is actually usable.
+ *
+ * Validated positively rather than cast. `value.raw as Record<string, RawItem>`
+ * asserted a shape nobody had checked, so a half-written entry — an interrupted
+ * sync, a build that predates a field — reached `dedupe`, `grouping` and
+ * `schedule` as if it were real, and the first thing to touch its missing `url`
+ * or `fetchedAt` threw somewhere far from the cause. House rule 5: `typeof x
+ * === "string"` is not validation, so the required strings must also be
+ * non-empty.
+ */
+function isUsableRaw(value: unknown): value is RawItem {
+  if (!isRecord(value)) return false;
+  const text = (key: string) => typeof value[key] === "string" && (value[key] as string) !== "";
+  return text("source") && text("sourceId") && text("title") && text("url") && text("fetchedAt");
+}
+
+/** A stored `Item` that is actually usable. */
+function isUsableItem(value: unknown): value is Item {
+  if (!isRecord(value)) return false;
+  if (typeof value["id"] !== "string" || value["id"] === "") return false;
+  if (!Array.isArray(value["members"])) return false;
+  if (typeof value["title"] !== "string") return false;
+  return true;
+}
+
+/**
+ * Migrations by stored `schemaVersion`, applied in order.
+ *
+ * Empty today, and the switch exists anyway: the repo has already changed a
+ * `sourceId` derivation once (PrairieTest, docs/sourceid-decision.md) and
+ * dropped stored hides once (`hiddenItemIds` → `hiddenKeys`). During a beta
+ * week those changes ship to stores nobody can see or reset, and the place to
+ * remap keys has to exist before it is needed rather than being invented in a
+ * hurry over someone else's data.
+ *
+ * A migration receives and returns a raw blob; the field-filling below runs
+ * afterwards either way, so a migration only has to handle what it changes.
+ */
+const MIGRATIONS: { to: number; apply: (blob: Record<string, unknown>) => Record<string, unknown> }[] =
+  [];
+
 export function migrate(stored: unknown): StoreV1Plus {
   const base = emptyStore();
   if (!stored || typeof stored !== "object") return base;
-  const value = stored as Partial<StoreV1Plus>;
+
+  let blob = stored as Record<string, unknown>;
+  const from = typeof blob["schemaVersion"] === "number" ? blob["schemaVersion"] : 0;
+  for (const migration of MIGRATIONS) {
+    if (from < migration.to) blob = migration.apply(blob);
+  }
+  const value = blob as Partial<StoreV1Plus>;
 
   const sources = { ...base.sources };
   for (const source of ALL_SOURCES) {
@@ -154,8 +202,10 @@ export function migrate(stored: unknown): StoreV1Plus {
 
   return {
     schemaVersion: SCHEMA_VERSION,
-    raw: isRecord(value.raw) ? (value.raw as Record<string, RawItem>) : {},
-    items: Array.isArray(value.items) ? (value.items as Item[]) : [],
+    raw: isRecord(value.raw)
+      ? Object.fromEntries(Object.entries(value.raw).filter(([, item]) => isUsableRaw(item)))
+      : {},
+    items: Array.isArray(value.items) ? value.items.filter(isUsableItem) : [],
     sources,
     overrides: migrateOverrides(value.overrides),
     settings,
