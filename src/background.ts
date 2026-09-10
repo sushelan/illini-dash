@@ -24,6 +24,7 @@ import {
   validateRegistry,
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
+import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
   hideItem,
@@ -151,7 +152,15 @@ async function seedRegistryFromBundle(): Promise<void> {
 async function maybeRefreshRegistry(): Promise<void> {
   await seedRegistryFromBundle();
   const store = await loadStore();
-  const last = store.registry.fetchedAt ? Date.parse(store.registry.fetchedAt) : 0;
+  // Seeding deliberately leaves `fetchedAt` unset so the first real refresh is
+  // not suppressed for a day — which left a *failing* refresh retrying on every
+  // sync, inside the store queue, for a URL that is not published yet. The
+  // attempt is timestamped separately so a failure rests without a success ever
+  // being faked.
+  const last = Math.max(
+    store.registry.fetchedAt ? Date.parse(store.registry.fetchedAt) : 0,
+    store.registry.attemptedAt ? Date.parse(store.registry.attemptedAt) : 0,
+  );
   if (Number.isFinite(last) && Date.now() - last < REGISTRY_REFRESH_MS) return;
 
   try {
@@ -171,6 +180,9 @@ async function maybeRefreshRegistry(): Promise<void> {
     console.log(`[registry] ${adapters.length} adapters, ${rejected.length} rejected`);
   } catch (err) {
     // The previous copy stays. §4.5 is explicit that this must not be fatal.
+    const failed = await loadStore();
+    failed.registry = { ...failed.registry, attemptedAt: new Date().toISOString() };
+    await saveStore(failed);
     console.warn("[registry] refresh failed, keeping the stored copy:", err);
   }
 }
@@ -185,12 +197,7 @@ async function maybeRefreshRegistry(): Promise<void> {
  * two corrections a semester. Holding the queue across a sync's fetches delays
  * a reminder by at most one sync; that is the right trade.
  */
-let storeQueue: Promise<unknown> = Promise.resolve();
-function withStore<T>(work: () => Promise<T>): Promise<T> {
-  const next = storeQueue.then(work, work);
-  storeQueue = next.catch(() => undefined);
-  return next;
-}
+const withStore = createStoreQueue();
 
 /** One sync at a time: two overlapping runs would race on the same store. */
 let running: Promise<void> | null = null;
@@ -525,18 +532,29 @@ chrome.runtime.onMessage.addListener(
             if (!granted) return { type: "permission", granted: false } as const;
           }
 
-          const fresh = await loadStore();
-          const set = new Set(fresh.enabledAdapters);
-          if (enabled) set.add(adapterId);
-          else set.delete(adapterId);
-          fresh.enabledAdapters = [...set];
-          // Enabling the first adapter is what switches the source on at all.
-          fresh.sources.site = {
-            ...fresh.sources.site,
-            enabled: fresh.enabledAdapters.length > 0,
-            state: fresh.enabledAdapters.length > 0 ? "ok" : "disabled",
-          };
-          await saveStore(fresh);
+          // Queued. This wrote the store directly, while sync() holds the
+          // queue across every network fetch of a run — so ticking the box
+          // during a sync was read, then overwritten by the sync's own copy
+          // seconds later, and the checkbox sprang back with no error. That is
+          // indistinguishable from "the feature is broken".
+          await withStore(async () => {
+            const fresh = await loadStore();
+            const set = new Set(fresh.enabledAdapters);
+            if (enabled) set.add(adapterId);
+            else set.delete(adapterId);
+            fresh.enabledAdapters = [...set];
+            // Enabling the first adapter is what switches the source on at all.
+            fresh.sources.site = {
+              ...fresh.sources.site,
+              enabled: fresh.enabledAdapters.length > 0,
+              state: fresh.enabledAdapters.length > 0 ? "ok" : "disabled",
+            };
+            // §6's ladder must not outlive the thing it was punishing: a site
+            // that failed while unconfigured would otherwise keep the source
+            // resting for up to four hours after the user finally enables it.
+            delete fresh.backoffUntil.site;
+            await saveStore(fresh);
+          });
           return { type: "permission", granted: true } as const;
         })(),
       );
@@ -544,10 +562,14 @@ chrome.runtime.onMessage.addListener(
     if (request?.type === "refresh-registry") {
       return answer(
         (async () => {
-          const store = await loadStore();
-          // Force it, rather than waiting out the daily window.
-          store.registry = { ...store.registry, fetchedAt: undefined };
-          await saveStore(store);
+          await withStore(async () => {
+            const store = await loadStore();
+            // Force it, rather than waiting out the daily window — and past the
+            // failure backoff too, since pressing the button is the user saying
+            // to try again now.
+            store.registry = { ...store.registry, fetchedAt: undefined, attemptedAt: undefined };
+            await saveStore(store);
+          });
           await maybeRefreshRegistry();
           return { type: "ok" } as const;
         })(),

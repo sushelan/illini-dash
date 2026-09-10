@@ -162,7 +162,13 @@ export interface StoreV1 {
   sources: Record<Source, SourceStatus>;
   overrides: Overrides;
   settings: Settings;
-  registry: { fetchedAt?: string; adapters: Adapter[] };
+  registry: {
+    /** Last *successful* refresh. Never set by the bundled seed. */
+    fetchedAt?: string;
+    /** Last attempt, successful or not, so a failing refresh rests too. */
+    attemptedAt?: string;
+    adapters: Adapter[];
+  };
 }
 
 /** §3.1 */

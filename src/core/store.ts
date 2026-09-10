@@ -139,6 +139,7 @@ export function migrate(stored: unknown): StoreV1Plus {
     settings,
     registry: {
       fetchedAt: value.registry?.fetchedAt,
+      attemptedAt: value.registry?.attemptedAt,
       adapters: Array.isArray(value.registry?.adapters)
         ? (value.registry!.adapters as Adapter[])
         : [],

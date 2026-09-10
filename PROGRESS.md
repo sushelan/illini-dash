@@ -261,6 +261,22 @@ one — looking authoritative while being wrong. `parseAdapterDateParts` now rep
 stated instant and falls back to an assumed one only when it is the only instant there.
 A site that does print a time still wins, as §5.3 intends.
 
+## Three worker defects found by a path trace, not by tests
+All three lived in `background.ts`, the one file the suite cannot reach. The store queue
+is now `core/queue.ts` so it can be.
+- **The store queue deadlocked.** `sync()` held it for a whole run and called
+  `reschedule()` → `fireNotification()`, which asked for it again; the inner request
+  chained onto a tail that could not resolve until the outer work returned. It wedged
+  permanently — `running` never cleared, so every later sync returned `skipped` until
+  Chrome tore the worker down. It fires the first time a reminder comes due *during* a
+  sync; on live data that was ~20 minutes away. `withStore` is now re-entrant.
+- **`set-adapter-enabled` wrote the store outside the queue**, so ticking a course site
+  while a sync was in flight was overwritten seconds later and the checkbox sprang back
+  with no error. Same for `refresh-registry`. Both queued now, and enabling an adapter
+  clears §6's backoff for the source.
+- **A failing registry refresh retried on every sync** (the seed leaves `fetchedAt`
+  unset by design). `registry.attemptedAt` now rests a failure without faking a success.
+
 ## Dev-loop note
 Chrome caches the service worker until you press Reload on the extension card, so a
 rebuilt page can talk to an old worker. Every bundle carries a build id and the UI says
