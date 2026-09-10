@@ -159,19 +159,24 @@ elsewhere: `parseField` (a bad value costs its field, not the page), `KeyGuard`
 test files at once. The house rules they encode are in CLAUDE.md.
 
 ## Blocked on Sushi — the gates
-The extension now syncs end to end. **G2 and G3 are next and neither can be automated.**
+- **G2 recall — PASSED.** 100% recall on live data, no phantom items. Canvas contributed
+  0 items and that was a pass, not a failure: 0 of 67 assignments carry a due date
+  (docs/canvas-findings.md).
+- **G3 dedupe — PASSES, on n=1.** Confirmed 2026-09-10, once course sites were finally
+  running. The list holds exactly **one** cross-source merge, `CS424 · Homework 1` from
+  Canvas + the CS 424 site (`CV WEB`), and Sushi confirmed it is the same assignment.
+  One merge opportunity, one correct merge, **zero corrections** — inside §9's budget of
+  two, but the budget was never tested. Nothing was under-merged either: no other item on
+  the list has a counterpart in a second source.
 
-- **G2 recall.** Open every source by hand, list every deadline visible for the next
-  3 weeks, and check the extension's list contains all of them. Recall must be 100%;
-  precision matters too (no phantom items). This is the gate that catches a silently
-  missing deadline, which §11 calls catastrophic.
-- **G3 dedupe.** On that same data, check the auto-merge groups are right. §9 allows
-  **≤ 2 manual corrections**; more than that and §5.3's threshold gets tuned before launch.
+  **This does not retire the threshold question.** §9's ≤2 corrections is meant to be
+  measured against many merge opportunities; one is not a sample. The BADGE_TOKEN trade
+  below is still unexercised in the wild — nothing on this account produced a `{mp2}` vs
+  `{mp2, checkpoint}` shape. G4's ten testers are what actually measures this, and §5.3's
+  threshold stays open until then.
+- **G4 beta / G5 store** — both need Sushi and neither can start from here.
 
-Note for G2: Canvas will contribute **0 items** on this account and that is a pass, not a
-failure — 0 of 67 assignments carry a due date (docs/canvas-findings.md).
-
-## Spec amendment made in step 7 — needs G3 to confirm
+## Spec amendment made in step 7 — still not confirmed by G3
 §5.3's "a subset match needs ≥ 2 tokens" rejected **both** pairs the spec names as its own
 purpose, because §5.2 step 3 collapses `Lab 3` into the single token `lab3`:
 `Lab 3`/`Lab 3 Report` (§5.3: "will merge, which is correct") and
@@ -185,7 +190,8 @@ also falsified by this repo's own fixture: CS 357 ships both `GA 0` and `GA00`, 
 §5.2 collapses to the same token. What keeps the trade survivable is the same-source
 group check added after the review — §5.3's "never two rows from one source" is a
 property of the *group*, and union-find was routing around the pairwise test.
-§5.3 makes G3 the arbiter of the threshold itself.
+§5.3 makes G3 the arbiter of the threshold itself — and G3 passed with a single
+merge, which does not exercise this trade at all. It remains G4's job.
 
 ## VERIFY (§12-style, needs your browser eventually)
 **Does PrairieTest render the "Exams available for reservations" card at all for a student
