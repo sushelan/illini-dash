@@ -13,6 +13,7 @@ import {
   parseAlarmName,
   planNotifications,
   shouldFireNow,
+  urgency,
 } from "../src/core/schedule.js";
 import { DEFAULT_SETTINGS, normalizeQuietHours } from "../src/core/store.js";
 import type { Item, RawItem, Settings, Status } from "../src/sources/types.js";
@@ -312,5 +313,95 @@ describe("regressions found by the steps 9–12 review", () => {
     // cleared input here, which is why the options page refuses to send a blank.
     expect(normalizeQuietHours({ start: 23, end: 0 })).toEqual({ start: 23, end: 0 });
     expect(normalizeQuietHours({ start: 22, end: 7 })).toEqual({ start: 22, end: 7 });
+  });
+});
+
+describe("catch-up after Chrome was closed (§7)", () => {
+  // The trace this exists for: the laptop has been shut since Tuesday and is
+  // opened at 08:30 on Thursday with CS 357 HW3 due at 09:00. Both the 24h and
+  // the 2h moment passed while it was closed.
+  const NOW_0830 = new Date(2026, 8, 10, 8, 30);
+  const dueAt0900 = new Date(2026, 8, 10, 9, 0).toISOString();
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+
+  it("fires one reminder, not one per overdue lead", () => {
+    const plans = planNotifications([item({ dueAt: dueAt0900 })], quiet, NOW_0830);
+    expect(plans).toHaveLength(1);
+  });
+
+  it("keeps the most urgent lead, which is the only one still saying anything true", () => {
+    const [plan] = planNotifications([item({ dueAt: dueAt0900 })], quiet, NOW_0830);
+    expect(plan!.lead).toBe("2h");
+    expect(plan!.superseded).toEqual(["24h"]);
+  });
+
+  it("words the title from the clock, not from which alarm fired", () => {
+    // The defect: the title was `lead === "24h" ? "tomorrow" : "in 2 hours"`, so
+    // a 24h lead firing 30 minutes before the deadline announced "due tomorrow".
+    const content = notificationContent(item({ dueAt: dueAt0900 }), "24h", NOW_0830);
+    expect(content.title).toBe("CS357 — due in 30 minutes");
+    expect(content.title).not.toContain("tomorrow");
+  });
+
+  it("leaves a lead whose moment is still ahead with its own alarm", () => {
+    // Due in 10 hours: the 24h moment has passed, the 2h moment has not, so
+    // there is nothing to collapse and the 2h reminder must survive.
+    const dueLater = new Date(2026, 8, 10, 18, 30).toISOString();
+    const plans = planNotifications([item({ dueAt: dueLater })], quiet, NOW_0830);
+    expect(plans.map((p) => p.lead).sort()).toEqual(["24h", "2h"]);
+    expect(plans.find((p) => p.lead === "24h")!.overdue).toBe(true);
+    expect(plans.find((p) => p.lead === "2h")!.overdue).toBe(false);
+    expect(plans.find((p) => p.lead === "24h")!.superseded).toEqual([]);
+  });
+
+  it("gives a booking nag an empty superseded list rather than undefined", () => {
+    const booking = planNotifications(
+      [item({ kind: "booking", dueAt: dueAt0900 })],
+      quiet,
+      NOW_0830,
+    );
+    expect(booking[0]!.superseded).toEqual([]);
+  });
+});
+
+describe("urgency", () => {
+  const now = new Date(2026, 8, 10, 18, 0);
+  const at = (m: number, d: number, h: number, min = 0) =>
+    new Date(2026, m, d, h, min);
+
+  it("counts minutes inside the hour", () => {
+    expect(urgency(at(8, 10, 18, 40), now)).toBe("in 40 minutes");
+    expect(urgency(at(8, 10, 18, 1), now)).toBe("in 1 minute");
+  });
+
+  it("prefers the clock over the calendar for something due within the hour", () => {
+    // 08:30 today, due 09:00 today — but the same rule must hold across
+    // midnight, which is where "tomorrow" used to win and lose the deadline.
+    const lateNight = new Date(2026, 8, 10, 23, 45);
+    expect(urgency(at(8, 11, 0, 15), lateNight)).toBe("in 30 minutes");
+  });
+
+  it("says tomorrow when it really is the next day", () => {
+    expect(urgency(at(8, 11, 17), now)).toBe("tomorrow");
+  });
+
+  it("does not call the day after tomorrow tomorrow, however few hours away", () => {
+    // 23:00 Monday + 25h is Wednesday, and an hours-based rule would say
+    // "tomorrow" for it.
+    const lateMonday = new Date(2026, 8, 7, 23, 0);
+    expect(urgency(at(8, 9, 0, 30), lateMonday)).toBe("in 2 days");
+  });
+
+  it("keeps hours for something later the same day", () => {
+    expect(urgency(at(8, 10, 23), now)).toBe("in 5 hours");
+  });
+
+  it("says now rather than a negative count once the deadline has passed", () => {
+    expect(urgency(at(8, 10, 17), now)).toBe("now");
+  });
+
+  it("does not throw on an unparseable instant", () => {
+    expect(urgency(new Date("nonsense"), now)).toBe("soon");
+    expect(urgency(undefined, now)).toBe("soon");
   });
 });

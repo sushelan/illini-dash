@@ -75,6 +75,18 @@ export interface PlannedNotification {
   fireAt: string;
   /** True when the moment has already passed and it should fire immediately. */
   overdue: boolean;
+  /**
+   * Other leads for this same item whose moment also passed, which this plan
+   * replaces rather than fires.
+   *
+   * §7's "Chrome was closed" catch-up used to fire every overdue lead: a laptop
+   * opened on Thursday morning with an assignment due at 09:00 produced *two*
+   * toasts for one deadline, and the 24h one said "due tomorrow" about
+   * something due in forty minutes. Only the most urgent lead has anything
+   * useful left to say, so the rest are recorded as handled without a toast —
+   * recorded, not dropped, or they would fire again on the next pass.
+   */
+  superseded: Lead[];
 }
 
 /** §7: never notify about something hidden, finished, or already notified. */
@@ -108,7 +120,42 @@ function planBooking(item: Item, settings: Settings, now: Date): PlannedNotifica
     lead: "booking",
     fireAt: fireAt.toISOString(),
     overdue,
+    // The daily nag has no other lead to collapse with.
+    superseded: [],
   };
+}
+
+/**
+ * Two overdue leads for one deadline are one reminder, not two.
+ *
+ * Both the 24h and the 2h moment have passed whenever Chrome was closed across
+ * them, and firing both says the same thing twice in the same second — with the
+ * older one carrying the more misleading wording. The most urgent surviving
+ * lead is the only one with anything true left to say, so it fires and the rest
+ * ride along in its `superseded` list to be recorded as handled.
+ *
+ * A lead that is *not* overdue is untouched: it still has a real moment in the
+ * future and must keep its own alarm.
+ */
+function collapseOverdue(plans: PlannedNotification[]): PlannedNotification[] {
+  const overdue = plans.filter((plan) => plan.overdue);
+  if (overdue.length <= 1) return plans;
+
+  // Most urgent = smallest lead window = closest to the deadline.
+  const ranked = [...overdue].sort(
+    (a, b) => (LEAD_MS[a.lead as "24h" | "2h"] ?? 0) - (LEAD_MS[b.lead as "24h" | "2h"] ?? 0),
+  );
+  const survivor = ranked[0]!;
+  const replaced = ranked.slice(1).map((plan) => plan.lead);
+  // `!plan.overdue` is unexercised with today's two lead times — if both 24h and
+  // 2h are overdue there is no third lead left to be in the future, so a
+  // mutation that drops this clause passes the whole suite. It is kept
+  // deliberately: custom lead times are a planned change, and the moment a third
+  // lead exists this is what stops a collapse from eating a reminder whose
+  // moment has not arrived.
+  return plans
+    .filter((plan) => !plan.overdue || plan === survivor)
+    .map((plan) => (plan === survivor ? { ...plan, superseded: replaced } : plan));
 }
 
 /**
@@ -144,6 +191,7 @@ export function planNotifications(
     // §7: past the deadline, a reminder is noise. Nothing fires stale.
     if (due <= now.getTime()) continue;
 
+    const forItem: PlannedNotification[] = [];
     for (const lead of settings.leadTimes) {
       if (item.notified[lead] !== undefined) continue;
       const moment = new Date(due - LEAD_MS[lead]);
@@ -152,14 +200,16 @@ export function planNotifications(
       // Deferring out of quiet hours must never push a reminder past the thing
       // it is reminding about.
       if (fireAt.getTime() >= due) continue;
-      planned.push({
+      forItem.push({
         alarmName: alarmName(item.id, lead),
         itemId: item.id,
         lead,
         fireAt: fireAt.toISOString(),
         overdue,
+        superseded: [],
       });
     }
+    planned.push(...collapseOverdue(forItem));
   }
 
   return planned;
@@ -194,6 +244,40 @@ function relative(due: Date, now: Date): string {
   return `in ${Math.round(hours / 24)}d`;
 }
 
+/**
+ * How far off the deadline actually is, in words.
+ *
+ * The title used to be keyed on which lead fired — `"24h" ? "tomorrow" : "in 2
+ * hours"` — which is true only if the reminder fires at the moment it was
+ * planned for. It does not, whenever Chrome was closed: §7's catch-up fires a
+ * 24h lead the instant the browser reopens, so a laptop opened at 08:30 for a
+ * 09:00 deadline announced "due tomorrow". The number the student acts on has
+ * to come from the clock, not from the alarm's name.
+ */
+export function urgency(due: Date | undefined, now: Date): string {
+  if (!due || Number.isNaN(due.getTime())) return "soon";
+  const ms = due.getTime() - now.getTime();
+  if (ms <= 0) return "now";
+
+  // The clock wins inside three hours, and it wins *before* the calendar does.
+  // That ordering is the fix: something due at 09:00 tomorrow, seen at 08:30
+  // today, is on the next calendar day and half an hour away, and "tomorrow"
+  // is the answer that loses the student the deadline.
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `in ${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.round(ms / 3_600_000);
+  if (hours < 3) return `in ${hours} hour${hours === 1 ? "" : "s"}`;
+
+  // Past that, the calendar reads better than an hour count: "tomorrow" beats
+  // "in 23 hours". Counted in whole local days from today's midnight, so it
+  // cannot call Wednesday "tomorrow" merely because it is 25 hours out.
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((due.getTime() - midnight.getTime()) / 86_400_000);
+  if (days <= 0) return `in ${hours} hour${hours === 1 ? "" : "s"}`;
+  if (days === 1) return "tomorrow";
+  return `in ${days} days`;
+}
+
 export function notificationContent(item: Item, lead: Lead, now: Date): NotificationContent {
   if (lead === "booking") {
     const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
@@ -222,7 +306,7 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
   // one — the same care §4.4 takes with a booking.
   const kindWord = item.dueAt === undefined ? "reduced credit" : "due";
   return {
-    title: `${item.courseLabel} — ${kindWord} ${lead === "24h" ? "tomorrow" : "in 2 hours"}`,
+    title: `${item.courseLabel} — ${kindWord} ${urgency(due, now)}`,
     message: `${item.title}${when ? `\n${when}` : ""}`,
     url: item.url,
   };

@@ -582,6 +582,36 @@ async function refreshOptions(): Promise<void> {
   /* Reminders (§7, §8.2) */
   const reminders = document.getElementById("reminders")!;
   reminders.replaceChildren();
+
+  // Chrome's own switch, which one click in any toast flips. While it is off,
+  // every reminder is created and dropped, so this section would otherwise
+  // describe settings that cannot possibly take effect.
+  if (state.notificationsBlocked) {
+    const warning = el(
+      "p",
+      "Chrome is blocking notifications from Illini Dash, so none of these will reach you. " +
+        "Turn them back on in Chrome's notification settings for this extension.",
+      "verdict-error",
+    );
+    reminders.append(warning);
+  }
+  const testRow = el("p", "", "muted");
+  const testButton = el("button", "Send a test reminder");
+  const testResult = el("span", "", "opt-note");
+  testButton.addEventListener("click", () => {
+    testResult.textContent = "Sending…";
+    void send({ type: "test-notification" }).then((response) => {
+      // Says which of the two things happened, rather than going quiet on the
+      // failure that matters (worker house rule 5, in the UI).
+      testResult.textContent =
+        response.type === "error"
+          ? response.message
+          : "Sent. If nothing appeared, Chrome or the operating system is hiding it.";
+    });
+  });
+  testRow.append(testButton, testResult);
+  reminders.append(testRow);
+
   for (const lead of ["24h", "2h"] as const) {
     reminders.append(
       checkboxRow(

@@ -57,6 +57,7 @@ const listEl = document.getElementById("list")!;
 const dotsEl = document.getElementById("dots")!;
 const statusEl = document.getElementById("status")!;
 const staleEl = document.getElementById("stale")!;
+const blockedEl = document.getElementById("blocked")!;
 
 /** Wording for the state a dot is showing, since the raw enum is for the log. */
 const STATE_WORDS: Record<SourceState, string> = {
@@ -124,6 +125,22 @@ function renderStaleBanner(sources: Record<Source, SourceStatus>): void {
     button.addEventListener("click", () => chrome.tabs.create({ url: login }));
     staleEl.append(button);
   }
+}
+
+/**
+ * Chrome's notification switch, which one click in any toast can flip.
+ *
+ * Worth a banner rather than a line in Settings: while it is off every reminder
+ * is silently dropped, and a student who never opens Settings would only find
+ * out by missing something.
+ */
+function renderBlockedBanner(blocked: boolean): void {
+  blockedEl.replaceChildren();
+  blockedEl.hidden = !blocked;
+  if (!blocked) return;
+  blockedEl.textContent =
+    "Chrome is blocking reminders from Illini Dash, so nothing will notify you. " +
+    "Turn them back on in Chrome's notification settings.";
 }
 
 function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
@@ -340,6 +357,7 @@ async function refresh(): Promise<void> {
     return;
   }
   renderDots(response.sources, response.lastSyncAt);
+  renderBlockedBanner(response.notificationsBlocked);
   renderStaleBanner(response.sources);
   render(response.items, response.settings ?? DEFAULT_SETTINGS, response.sources, new Date());
 }

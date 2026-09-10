@@ -40,7 +40,8 @@ export type Request =
   | { type: "reset" }
   | { type: "get-adapters" }
   | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
-  | { type: "refresh-registry" };
+  | { type: "refresh-registry" }
+  | { type: "test-notification" };
 
 export type OverrideAction =
   | { kind: "hide"; itemId: string }
@@ -59,11 +60,20 @@ export type Response =
       sources: Record<Source, SourceStatus>;
       settings: Settings;
       lastSyncAt?: string;
+      /**
+       * Chrome's own switch for this extension's notifications.
+       *
+       * Carried to the UI because a denied extension is otherwise completely
+       * silent: reminders are created, dropped by the browser, and every
+       * surface goes on looking healthy.
+       */
+      notificationsBlocked: boolean;
     }
   | { type: "synced"; skipped: boolean; outcomes: { source: Source; state: string }[] }
   | {
       type: "options-state";
       settings: Settings;
+      notificationsBlocked: boolean;
       sources: Record<Source, SourceStatus>;
       courses: CourseSummary[];
       overrides: Overrides;

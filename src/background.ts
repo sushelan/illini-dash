@@ -251,6 +251,29 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
  * next sync. That is at most one poll interval (default 30 min) and costs a
  * dedicated midnight alarm to fix, which is not worth a worker path.
  */
+/**
+ * Whether Chrome will actually show this extension's notifications.
+ *
+ * One click on "Turn off notifications from Illini Dash" in any toast sets this
+ * to `denied`, and from then on `notifications.create` resolves normally while
+ * showing nothing. Every reminder surface in the extension went on looking
+ * healthy — this is what lets the UI say otherwise.
+ */
+async function notificationsBlocked(): Promise<boolean> {
+  try {
+    // Callback form: this API is not promisified in the @types/chrome version
+    // pinned here, and calling it as a promise returns undefined, which would
+    // compare unequal to "granted" and report every install as blocked.
+    const level = await new Promise<string>((resolve) => {
+      chrome.notifications.getPermissionLevel((value) => resolve(String(value)));
+    });
+    return level !== "granted";
+  } catch {
+    // Never let a probe failure decide that reminders are broken.
+    return false;
+  }
+}
+
 async function refreshBadge(): Promise<void> {
   const store = await loadStore();
   const badge = badgeFor(store.items, store.sources, store.settings, new Date());
@@ -287,10 +310,23 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
   const item = store.items.find((candidate) => candidate.id === itemId);
   // The item may have been submitted, hidden or purged since the alarm was set.
   if (!item) return;
-  const stillWanted = planNotifications([item], store.settings, new Date()).some(
-    (plan) => plan.lead === lead,
+  const plan = planNotifications([item], store.settings, new Date()).find(
+    (candidate) => candidate.lead === lead,
   );
-  if (!stillWanted) return;
+  if (!plan) return;
+
+  // A notification the browser will not show is not a notification. Stamping
+  // `notified` after a dropped `create()` is how one click on "Turn off
+  // notifications from Illini Dash" silences every future reminder for good:
+  // each lead is marked delivered, never replanned, and every health surface
+  // goes on reporting the extension fine. Leaving it unstamped keeps the
+  // reminder pending, so it fires the moment notifications are allowed again.
+  if (await notificationsBlocked()) {
+    console.warn(
+      `[notify] Chrome is blocking notifications; "${item.title}" (${lead}) stays pending`,
+    );
+    return;
+  }
 
   const content = notificationContent(item, lead, new Date());
   const notificationId = `${itemId}:${lead}:${Date.now()}`;
@@ -302,7 +338,16 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
     message: content.message,
   });
 
-  item.notified = { ...item.notified, [lead]: new Date().toISOString() };
+  const at = new Date().toISOString();
+  item.notified = { ...item.notified, [lead]: at };
+  // The leads this one replaced are recorded as handled without a toast of
+  // their own, or the next pass plans them again and the burst returns one
+  // reminder at a time.
+  for (const replaced of plan.superseded) item.notified[replaced] = at;
+  console.log(
+    `[notify] fired ${lead} for "${item.title}"` +
+      (plan.superseded.length > 0 ? ` (superseding ${plan.superseded.join(", ")})` : ""),
+  );
   await saveStore(store);
   });
 }
@@ -460,14 +505,15 @@ chrome.runtime.onMessage.addListener(
               settings: store.settings,
               lastSyncAt: store.lastSyncAt,
             }) as const,
-        ),
+        ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
       );
     }
     if (request?.type === "get-options-state") {
       return answer(
-        loadStore().then((store) => ({
+        loadStore().then(async (store) => ({
           type: "options-state",
           settings: store.settings,
+          notificationsBlocked: await notificationsBlocked(),
           sources: store.sources,
           courses: courseSummaries(store.raw, store.overrides),
           overrides: store.overrides,
@@ -580,6 +626,27 @@ chrome.runtime.onMessage.addListener(
             await saveStore(fresh);
           });
           return { type: "permission", granted: true } as const;
+        })(),
+      );
+    }
+    if (request?.type === "test-notification") {
+      return answer(
+        (async () => {
+          if (await notificationsBlocked()) {
+            return {
+              type: "error",
+              message:
+                "Chrome is blocking notifications from Illini Dash. Turn them back on in " +
+                "chrome://settings/content/notifications, then try again.",
+            } as const;
+          }
+          await chrome.notifications.create(`test:${Date.now()}`, {
+            type: "basic",
+            iconUrl: chrome.runtime.getURL("icon128.png"),
+            title: "Illini Dash — test reminder",
+            message: "Reminders can reach you. This is the only notification you asked for.",
+          });
+          return { type: "ok" } as const;
         })(),
       );
     }
