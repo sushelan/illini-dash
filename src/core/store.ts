@@ -236,6 +236,28 @@ export function nextAttemptAt(consecutiveFailures: number, now: string): string 
   return new Date(Date.parse(now) + backoffMinutes(consecutiveFailures) * 60_000).toISOString();
 }
 
+/**
+ * The sources whose §6 backoff a new build should lift.
+ *
+ * §11's mitigation for a Gradescope or PrairieLearn redesign is "fix fast with
+ * a store update", but `onInstalled` fires `sync("install")` and `runSync`
+ * honours the backoff for every trigger except a manual one — so a source
+ * resting on the 240-minute rung stayed red for up to four hours after the fix
+ * that repaired it had already been installed. During a beta week, when fixes
+ * ship daily, that is most of the day.
+ *
+ * `needs_login` is deliberately left resting: no code change can log a student
+ * in, and pressing "Sync now" after logging in already bypasses the ladder.
+ */
+export function sourcesToRetryAfterUpdate(store: StoreV1Plus): Source[] {
+  return ALL_SOURCES.filter((source) => {
+    const status = store.sources[source];
+    if (!status?.enabled) return false;
+    if (store.backoffUntil[source] === undefined) return false;
+    return status.state === "parse_error" || status.state === "network_error";
+  });
+}
+
 export function inBackoff(store: StoreV1Plus, source: Source, now: string): boolean {
   const until = store.backoffUntil[source];
   return until !== undefined && Date.parse(until) > Date.parse(now);

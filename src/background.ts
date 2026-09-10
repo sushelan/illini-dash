@@ -40,6 +40,7 @@ import {
   loadStore,
   normalizeQuietHours,
   saveStore,
+  sourcesToRetryAfterUpdate,
   MAX_POLL_MINUTES,
   MIN_POLL_MINUTES,
 } from "./core/store.js";
@@ -441,9 +442,39 @@ async function scheduleAlarm(): Promise<void> {
   await chrome.alarms.create(SYNC_ALARM, { periodInMinutes });
 }
 
+/**
+ * §11: "fix fast with a store update". This is what makes the fix visible now
+ * rather than up to four hours from now.
+ */
+async function retryAfterUpdate(previousVersion: string | undefined): Promise<void> {
+  const version = chrome.runtime.getManifest().version;
+  await withStore(async () => {
+    const store = await loadStore();
+    const stale = sourcesToRetryAfterUpdate(store);
+    if (stale.length === 0) {
+      // Both branches, out loud: "nothing was resting" and "the clear never
+      // ran" were indistinguishable in the console, which is the ambiguity that
+      // cost two rounds of Sushi's time on the registry seed (worker rule 5).
+      console.log(`[update] ${previousVersion ?? "?"} → ${version}: no source was resting`);
+      return;
+    }
+    for (const source of stale) delete store.backoffUntil[source];
+    await saveStore(store);
+    console.log(
+      `[update] ${previousVersion ?? "?"} → ${version}: cleared backoff for ${stale.join(", ")}`,
+    );
+  });
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
-  void scheduleAlarm().then(() => sync("install"));
+  void scheduleAlarm()
+    .then(() =>
+      // Only on `update`. `install` has nothing resting yet, and
+      // `chrome_update` did not change this extension's code.
+      details.reason === "update" ? retryAfterUpdate(details.previousVersion) : undefined,
+    )
+    .then(() => sync("install"));
 });
 
 chrome.runtime.onStartup.addListener(() => {

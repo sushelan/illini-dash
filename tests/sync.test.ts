@@ -15,6 +15,7 @@ import {
   inBackoff,
   migrate,
   nextAttemptAt,
+  sourcesToRetryAfterUpdate,
   type StoreV1Plus,
 } from "../src/core/store.js";
 import { POPUP_DEBOUNCE_MS, runSync, syncOneSource, type SyncDeps } from "../src/core/sync.js";
@@ -545,5 +546,51 @@ describe("course-site adapters in the loop (§4.5)", () => {
     const { store } = await runSync(enableSite(emptyStore()), "alarm", withAdapters([]));
     expect(store.sources.site.state).toBe("disabled");
     expect(Object.keys(store.raw).some((k) => k.startsWith("site:"))).toBe(false);
+  });
+});
+
+describe("a new build lifts §6's backoff (§11's fix-fast mitigation)", () => {
+  function resting(state: "parse_error" | "network_error" | "needs_login") {
+    const store = emptyStore();
+    store.sources.gradescope = {
+      ...store.sources.gradescope,
+      enabled: true,
+      state,
+      consecutiveFailures: 4,
+    };
+    store.backoffUntil.gradescope = "2026-09-10T22:00:00.000Z";
+    return store;
+  }
+
+  it("retries a source whose page a code change could have fixed", () => {
+    // Without this, a source on the 240-minute rung stays red for up to four
+    // hours after the build that repaired it is already installed.
+    expect(sourcesToRetryAfterUpdate(resting("parse_error"))).toEqual(["gradescope"]);
+    expect(sourcesToRetryAfterUpdate(resting("network_error"))).toEqual(["gradescope"]);
+  });
+
+  it("leaves a session expiry resting, which no code change can fix", () => {
+    expect(sourcesToRetryAfterUpdate(resting("needs_login"))).toEqual([]);
+  });
+
+  it("ignores a source that is not resting at all", () => {
+    const healthy = emptyStore();
+    healthy.sources.gradescope = { ...healthy.sources.gradescope, state: "ok" };
+    expect(sourcesToRetryAfterUpdate(healthy)).toEqual([]);
+  });
+
+  it("ignores a failing source that has no backoff armed", () => {
+    // A failure whose ladder already expired, or was cleared by an earlier
+    // update. Nothing needs lifting, and naming it in the log would report
+    // work that did not happen — the ambiguity worker rule 5 exists to stop.
+    const noLadder = resting("parse_error");
+    delete noLadder.backoffUntil.gradescope;
+    expect(sourcesToRetryAfterUpdate(noLadder)).toEqual([]);
+  });
+
+  it("ignores a source the student switched off", () => {
+    const off = resting("parse_error");
+    off.sources.gradescope = { ...off.sources.gradescope, enabled: false };
+    expect(sourcesToRetryAfterUpdate(off)).toEqual([]);
   });
 });
