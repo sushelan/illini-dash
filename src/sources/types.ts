@@ -106,6 +106,15 @@ export interface Item {
    */
   timeAssumed?: boolean;
   /**
+   * False when a source marked this work as not counting toward the grade.
+   *
+   * §4.3: "Titles containing NOT FOR CREDIT, WILL NOT COUNT, or extra credit
+   * get `extra.forCredit = "false"`. They still appear, but the popup sorts
+   * them last within their day and a filter hides them. Don't drop them: some
+   * 'not for credit' surveys are required."
+   */
+  forCredit?: boolean;
+  /**
    * The previous stated deadline, when this sync's differs from the last one's.
    *
    * Only ever set when the source stated *both* instants: an assumed 23:59
@@ -181,6 +190,16 @@ export interface Settings {
   /** Default 23–8 local. */
   quietHours: { start: number; end: number } | null;
   hideSubmitted: boolean;
+  /**
+   * §4.3's filter for not-for-credit work.
+   *
+   * Off by default, and it only silences *reminders* — the rows stay in the
+   * list. §4.3 is explicit that some "not for credit" surveys are required, and
+   * CS 357's own fixture carries "S1 Select your group (NOT FOR CREDIT)", which
+   * is exactly that. Hiding those outright would be a silent miss; declining to
+   * interrupt someone about them is not.
+   */
+  remindNotForCredit: boolean;
   /** Default 30, min 15. */
   pollMinutes: number;
 }

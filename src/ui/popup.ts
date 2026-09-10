@@ -167,6 +167,16 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   title.textContent = item.title;
   title.title = item.title;
 
+  // §4.3: not-for-credit work stays visible — some of those surveys are
+  // required — but it is labelled, so half of a PrairieLearn course's page does
+  // not sit in Needs attention looking exactly like graded homework.
+  const practice = document.createElement("span");
+  if (item.forCredit === false) {
+    practice.className = "chip chip-practice";
+    practice.textContent = "practice";
+    practice.title = "The source says this does not count toward your grade";
+  }
+
   const sources = document.createElement("span");
   sources.className = "row--sources";
   // §5.3: a merged row shows both icons, so a false merge is visible and the
@@ -198,7 +208,9 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
     openRowMenu(item, menu);
   });
 
-  row.append(chip, title, sources, due, menu);
+  row.append(chip, title);
+  if (item.forCredit === false) row.append(practice);
+  row.append(sources, due, menu);
 
   const url = safeUrl(item.url);
   if (url) row.addEventListener("click", () => chrome.tabs.create({ url }));

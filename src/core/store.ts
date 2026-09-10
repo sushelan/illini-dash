@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   leadTimes: ["24h", "2h"],
   quietHours: { start: 23, end: 8 },
   hideSubmitted: true,
+  remindNotForCredit: false,
   pollMinutes: 30,
 };
 
@@ -143,6 +144,12 @@ export function migrate(stored: unknown): StoreV1Plus {
     Math.max(MIN_POLL_MINUTES, Number(settings.pollMinutes) || DEFAULT_SETTINGS.pollMinutes),
   );
   if (!Array.isArray(settings.leadTimes)) settings.leadTimes = [...DEFAULT_SETTINGS.leadTimes];
+  // `typeof x === "boolean"` rather than a truthiness test: a store written
+  // before this setting existed carries `undefined`, which must fall back to the
+  // default rather than silently reading as "off" by coincidence.
+  if (typeof settings.remindNotForCredit !== "boolean") {
+    settings.remindNotForCredit = DEFAULT_SETTINGS.remindNotForCredit;
+  }
   settings.quietHours = normalizeQuietHours(settings.quietHours);
 
   return {

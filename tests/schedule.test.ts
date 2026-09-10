@@ -534,3 +534,24 @@ describe("reminders for work the student ticked off", () => {
     expect(planNotifications([contradicted], quiet, new Date(2026, 8, 10, 12)).length).toBeGreaterThan(0);
   });
 });
+
+describe("reminders for not-for-credit work (§4.3)", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+  const now = new Date(2026, 8, 10, 12);
+  const practice = () =>
+    item({ dueAt: new Date(2026, 8, 11, 17).toISOString(), forCredit: false });
+
+  it("stays quiet by default", () => {
+    expect(planNotifications([practice()], quiet, now)).toEqual([]);
+  });
+
+  it("reminds when the student asks for it", () => {
+    const on = { ...quiet, remindNotForCredit: true };
+    expect(planNotifications([practice()], on, now).length).toBeGreaterThan(0);
+  });
+
+  it("still reminds about work that counts", () => {
+    const real = item({ dueAt: new Date(2026, 8, 11, 17).toISOString() });
+    expect(planNotifications([real], quiet, now).length).toBeGreaterThan(0);
+  });
+});

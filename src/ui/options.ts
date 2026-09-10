@@ -629,6 +629,18 @@ async function refreshOptions(): Promise<void> {
   }
   reminders.append(
     checkboxRow(
+      "Remind me about not-for-credit work",
+      state.settings.remindNotForCredit,
+      "Practice quizzes and surveys still appear in the list either way.",
+      (remindNotForCredit) => {
+        void send({ type: "update-settings", settings: { remindNotForCredit } }).then(
+          refreshOptions,
+        );
+      },
+    ),
+  );
+  reminders.append(
+    checkboxRow(
       "Hide submitted and graded work",
       state.settings.hideSubmitted,
       "",

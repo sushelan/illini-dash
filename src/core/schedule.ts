@@ -110,8 +110,12 @@ export interface PlannedNotification {
 }
 
 /** §7: never notify about something hidden, finished, ticked off, or already notified. */
-function isEligible(item: Item): boolean {
-  return !item.hidden && !isItemDone(item) && !isTickedDone(item);
+function isEligible(item: Item, settings: Settings): boolean {
+  if (item.hidden || isItemDone(item) || isTickedDone(item)) return false;
+  // §4.3's filter. The row stays in the list either way — this only decides
+  // whether the extension is willing to interrupt someone about it.
+  if (item.forCredit === false && !settings.remindNotForCredit) return false;
+  return true;
 }
 
 /**
@@ -225,7 +229,7 @@ export function planNotifications(
   const planned: PlannedNotification[] = [];
 
   for (const item of items) {
-    if (!isEligible(item)) continue;
+    if (!isEligible(item, settings)) continue;
 
     if (item.kind === "booking") {
       const booking = planBooking(item, settings, now);

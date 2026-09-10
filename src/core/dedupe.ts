@@ -303,6 +303,10 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>, doneKeys: Set<st
     // was: a CS 424 row merged with a dated Canvas one has a real instant, and
     // `members.some(...)` would wrongly mark the merged row as assumed.
     timeAssumed: dated?.extra?.["timeAssumed"] === "true" ? true : undefined,
+    // §4.3. Only when *every* member says so: one source failing to label a
+    // practice quiz is not evidence that it counts, but a row that some source
+    // grades really does count, and demoting it would bury real work.
+    forCredit: members.every((item) => item.extra?.["forCredit"] === "false") ? false : undefined,
     lateDueAt: late?.lateDueAt,
     url: ranked[0]!.url,
     status: canonicalStatus(members),
@@ -435,6 +439,9 @@ export function sortItems(items: Item[]): Item[] {
     if (b.dueAt === undefined) return -1;
     const gap = Date.parse(a.dueAt) - Date.parse(b.dueAt);
     if (gap !== 0) return gap;
+    // §4.3: "the popup sorts them last within their day".
+    const credit = Number(a.forCredit === false) - Number(b.forCredit === false);
+    if (credit !== 0) return credit;
     const assumed = Number(a.timeAssumed ?? false) - Number(b.timeAssumed ?? false);
     if (assumed !== 0) return assumed;
     return a.title.localeCompare(b.title);

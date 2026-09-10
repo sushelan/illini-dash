@@ -622,3 +622,50 @@ describe("the student's own tick (doneKeys)", () => {
     expect(result.overrides.doneKeys).toEqual(["gradescope:kept"]);
   });
 });
+
+describe("not-for-credit work (§4.3)", () => {
+  const practice = (sourceId: string) =>
+    raw({
+      source: "prairielearn",
+      sourceId,
+      title: "PQ1 Practice Quiz 1 (NOT FOR CREDIT)",
+      dueAt: "2026-09-11T17:00:00-05:00",
+      extra: { forCredit: "false" },
+    });
+  const graded = (title: string) =>
+    raw({
+      source: "prairielearn",
+      sourceId: "1:HW3",
+      title,
+      dueAt: "2026-09-11T17:00:00-05:00",
+    });
+
+  it("carries the parser's flag onto the item, which nothing read before", () => {
+    expect(dedupe([practice("1:PQ1")], NO_OVERRIDES)[0]!.forCredit).toBe(false);
+  });
+
+  it("sorts it last among things due at the same moment", () => {
+    // §4.3: "the popup sorts them last within their day". Alphabetically the
+    // practice quiz would come first, which is how half of CS 357's page ended
+    // up above real homework.
+    const sorted = dedupe([practice("1:AAA"), graded("ZZZ Homework 3")], NO_OVERRIDES);
+    expect(sorted.map((i) => i.title)).toEqual([
+      "ZZZ Homework 3",
+      "PQ1 Practice Quiz 1 (NOT FOR CREDIT)",
+    ]);
+  });
+
+  it("does not demote a merged row that some other source grades", () => {
+    // One source failing to label a practice quiz is not evidence that it
+    // counts; a source that grades it is evidence that it does.
+    const gs = raw({
+      source: "gradescope",
+      sourceId: "9",
+      title: "PQ1 Practice Quiz 1",
+      dueAt: "2026-09-11T17:00:00-05:00",
+    });
+    const merged = dedupe([practice("1:PQ1"), gs], NO_OVERRIDES);
+    expect(merged[0]!.members).toHaveLength(2);
+    expect(merged[0]!.forCredit).toBeUndefined();
+  });
+});
