@@ -186,61 +186,111 @@ export function movedText(item: Item): string | undefined {
   return `moved ${day(from)} → ${day(to)}`;
 }
 
-/** `Thu 11:59 PM · in 2d`, or `2d ago` once past (§8.1's row format). */
-export function formatDue(item: Item, now: Date): string {
-  const instant = instantOf(item);
-  if (instant === undefined) return "no date";
-  const due = new Date(instant);
-  if (Number.isNaN(due.getTime())) return "no date";
+export interface DueText {
+  /** Short enough to sit beside the title: "Thu 11:59 PM · in 2d". */
+  primary: string;
+  /**
+   * The qualifier, when there is one — a late window, an unstated time, a
+   * deadline that moved. Rendered on its own line under the title.
+   *
+   * Split from `primary` because Tier 0a made this column much wordier, one
+   * justified sentence at a time, and the row is a single flex line: "80% until
+   * Tue, Sep 22, 11:59 PM · 13d left" is 219px of a 400px popup, and the title
+   * beside it collapsed to 49. One row got **5 pixels** of title. Every one of
+   * those strings was right on its own; together they crowded out the thing
+   * that says which assignment the row is.
+   */
+  detail?: string;
+}
 
-  const clock = due.toLocaleString(undefined, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+/** A short weekday-and-clock, the common case: `Thu 11:59 PM`. */
+function clockOf(due: Date): string {
+  return due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+}
+
+/** `Sep 22`, for a date far enough out that a weekday alone is ambiguous. */
+function dayOf(due: Date): string {
+  return due.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Whole local days from today to `due`, negative for the past. */
+function daysAway(due: Date, now: Date): number {
+  return Math.round((startOfDay(due) - startOfDay(now)) / 86_400_000);
+}
+
+function relativeDays(delta: number): string {
+  if (delta === 0) return "today";
+  if (delta === 1) return "tomorrow";
+  return delta < 0 ? `${Math.abs(delta)}d ago` : `in ${delta}d`;
+}
+
+/**
+ * §8.1's row text, as a short line plus an optional qualifier.
+ *
+ * The split is a layout constraint made explicit: whatever goes in `primary`
+ * competes with the title for one line, and whatever goes in `detail` does not.
+ * So `primary` answers "when", in as few characters as will do, and `detail`
+ * carries anything the student needs to know *about* that answer.
+ */
+/**
+ * How much of the date the row still has to say, given the heading above it.
+ *
+ * A row under **TODAY** that reads "Thu 11:59 PM · in 4h" is spending its
+ * scarcest resource — the one line it shares with the title — restating the
+ * heading. In a 400px popup that cost real characters: with the date spelled
+ * out in full, eight of eleven titles were truncated.
+ *
+ * So the heading carries the coarse date and the row carries only what the
+ * heading leaves open.
+ */
+function precisionFor(section: SectionName | undefined): "relative" | "time" | "weekday" | "date" {
+  switch (section) {
+    case "Today":
+      // The clock and how long is left; the day is the heading.
+      return "time";
+    case "Tomorrow":
+      return "time";
+    case "This week":
+      // Which day is the open question here, the date is not.
+      return "weekday";
+    case "Later":
+      return "date";
+    default:
+      // Needs attention, or no section: how long ago is the whole point.
+      return "relative";
+  }
+}
+
+export function formatDue(item: Item, now: Date, section?: SectionName): DueText {
+  const instant = instantOf(item);
+  if (instant === undefined) return { primary: "no date" };
+  const due = new Date(instant);
+  if (Number.isNaN(due.getTime())) return { primary: "no date" };
 
   // §4.5's runner fills in 23:59 when a course page prints a bare date. Showing
   // that as "Fri 11:59 PM" is the §11 risk wearing a friendly face: it looks
   // like a stated deadline, and a student who trusts it misses a 5 PM cutoff.
-  // The date is real, the time is ours, and the row has to say which is which.
   if (item.timeAssumed) {
-    const day = due.toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-    const deltaDays = Math.round(
-      (startOfDay(due) - startOfDay(now)) / 86_400_000,
-    );
-    const when =
-      deltaDays === 0
-        ? "today"
-        : deltaDays === 1
-          ? "tomorrow"
-          : deltaDays < 0
-            ? `${Math.abs(deltaDays)}d ago`
-            : `in ${deltaDays}d`;
-    return `${day} · time not given · ${when}`;
+    return {
+      primary: `${dayOf(due)} · ${relativeDays(daysAway(due, now))}`,
+      detail: "the course site gives no time",
+    };
   }
 
-  // Full credit gone, late window still open: Gradescope's "Accepting late
+  // Full credit gone, late window still open: Gradescope's "accepting late
   // submissions until…" and PrairieLearn's next credit tier. The row used to
   // read "1d ago" in overdue red for this, which is the opposite of the truth.
   const live = liveDeadline(item, now);
   if (live?.late && live.at > now.getTime()) {
-    const until = new Date(live.at).toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const until = new Date(live.at);
     const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
       "creditRemaining"
     ];
     const left = Math.ceil((live.at - now.getTime()) / 86_400_000);
-    const remaining = left <= 1 ? "today" : `${left}d left`;
-    return credit ? `${credit}% until ${until} · ${remaining}` : `late until ${until} · ${remaining}`;
+    return {
+      primary: `${dayOf(until)} · ${left <= 1 ? "today" : `${left}d left`}`,
+      detail: credit ? `${credit}% credit until ${clockOf(until)}` : `late until ${clockOf(until)}`,
+    };
   }
 
   // §4.3's own wording for a row whose full-credit deadline has passed.
@@ -248,16 +298,37 @@ export function formatDue(item: Item, now: Date): string {
     const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
       "creditRemaining"
     ];
-    if (credit) return `${credit}% until ${clock}`;
-    return `late due ${clock}`;
+    return {
+      primary: clockOf(due),
+      detail: credit ? `${credit}% credit remaining` : "late deadline",
+    };
   }
+
   const deltaMs = due.getTime() - now.getTime();
   const past = deltaMs < 0;
   const abs = Math.abs(deltaMs);
   const days = Math.floor(abs / 86_400_000);
   const hours = Math.floor(abs / 3_600_000);
   const minutes = Math.floor(abs / 60_000);
-
   const span = days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : `${minutes}m`;
-  return `${clock} · ${past ? `${span} ago` : `in ${span}`}`;
+
+  const time = due.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  switch (precisionFor(section)) {
+    case "time":
+      // Under Today, "in 4h" is the part that changes what you do next; under
+      // Tomorrow nothing is imminent, so the clock alone is enough.
+      return { primary: section === "Today" ? `${time} · in ${span}` : time };
+    case "weekday":
+      return { primary: clockOf(due) };
+    case "date":
+      // A month and day, because two rows both reading "Thu" can be eight days
+      // apart, and "in 14d" adds nothing a date does not already say.
+      return { primary: dayOf(due) };
+    default:
+      // Needs attention. Once something is more than a day late the clock has
+      // stopped mattering — how late it is, is the whole question — and the
+      // date places it. Inside a day the clock is still the useful half.
+      if (past && days >= 1) return { primary: `${dayOf(due)} · ${span} ago` };
+      return { primary: `${clockOf(due)} · ${past ? `${span} ago` : `in ${span}`}` };
+  }
 }

@@ -20,7 +20,13 @@ and the popup will say **STALE SERVICE WORKER**.
 
 ```
 npm run package     # -> release/illini-dash-<version>-<build>.zip, for beta testers
+npm run preview     # -> dist/preview.html, the real popup over canned data
 ```
+
+`npm run preview` renders the actual popup renderer against one row of every shape it
+has to handle — a late window, a moved deadline, an unreadable date — because those are
+exactly the states a real account rarely shows all at once, and the ones a layout breaks
+on. Serve `dist/` and open `preview.html`.
 
 The zip carries an `INSTALL.txt`; the fuller tester-facing guide is
 [docs/beta-install.md](docs/beta-install.md).

@@ -143,11 +143,13 @@ describe("unreadableDeadline", () => {
 });
 
 describe("unreadableSummary", () => {
-  it("names the source and the field", () => {
+  it("names the source and the field, without repeating the row's own word", () => {
+    // The row's date column already reads "unreadable"; saying it twice on one
+    // row spends the second line on nothing.
     const flags = unreadableDeadline(
       item({ members: [member("gradescope", { unparsedDueDate: "junk" })] }),
     );
-    expect(unreadableSummary(flags)).toBe("gradescope: due date unreadable");
+    expect(unreadableSummary(flags)).toBe("gradescope: due date");
   });
 
   it("counts the rest rather than listing them all in a 400px row", () => {

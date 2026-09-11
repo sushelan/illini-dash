@@ -1,7 +1,13 @@
 /** §8.1's sections. The boundaries are the part that goes quietly wrong. */
 
 import { describe, expect, it } from "vitest";
-import { formatDue, groupItems, liveDeadline, sectionFor } from "../src/core/grouping.js";
+import {
+  formatDue,
+  groupItems,
+  liveDeadline,
+  sectionFor,
+  type SectionName,
+} from "../src/core/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
 import type { Item, RawItem, Status } from "../src/sources/types.js";
 
@@ -178,7 +184,7 @@ describe("regressions found by the dedupe/sync review", () => {
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
     expect(sectionFor(late, NOW)).toBe("Later");
-    expect(formatDue(late, NOW)).toMatch(/^80% until /);
+    expect(formatDue(late, NOW, "Later").detail).toBe("80% credit until Tue 12:00 PM");
   });
 
   it("labels a late-due row without a credit figure as a still-open late window", () => {
@@ -189,21 +195,31 @@ describe("regressions found by the dedupe/sync review", () => {
     // weekday any more.
     const late = item({ lateDueAt: at(2026, 8, 12), members: [member("not_submitted")] });
     expect(sectionFor(late, NOW)).toBe("This week");
-    expect(formatDue(late, NOW)).toMatch(/^late until /);
-    expect(formatDue(late, NOW)).toMatch(/2d left$/);
+    expect(formatDue(late, NOW, "This week").primary).toBe("Sep 12 · 2d left");
+    expect(formatDue(late, NOW, "This week").detail).toBe("late until Sat 12:00 PM");
   });
 });
 
 describe("formatDue", () => {
   it("shows a clock time and a relative span", () => {
-    expect(formatDue(item({ dueAt: at(2026, 8, 12, 18) }), NOW)).toMatch(/·\s+in 2d$/);
-    expect(formatDue(item({ dueAt: at(2026, 8, 10, 20) }), NOW)).toMatch(/·\s+in 2h$/);
-    expect(formatDue(item({ dueAt: at(2026, 8, 8, 18) }), NOW)).toMatch(/·\s+2d ago$/);
+    // With no section the row says everything, which is what the overdue
+    // "Needs attention" case needs.
+    expect(formatDue(item({ dueAt: at(2026, 8, 8, 18) }), NOW).primary).toMatch(/·\s+2d ago$/);
+    // Under a heading the row drops what the heading already said. Repeating
+    // "Thu" under TODAY cost the title eight of eleven rows' worth of width.
+    expect(formatDue(item({ dueAt: at(2026, 8, 10, 20) }), NOW, "Today").primary).toBe(
+      "8:00 PM · in 2h",
+    );
+    expect(formatDue(item({ dueAt: at(2026, 8, 11, 18) }), NOW, "Tomorrow").primary).toBe("6:00 PM");
+    expect(formatDue(item({ dueAt: at(2026, 8, 12, 18) }), NOW, "This week").primary).toBe(
+      "Sat 6:00 PM",
+    );
+    expect(formatDue(item({ dueAt: at(2026, 8, 24, 18) }), NOW, "Later").primary).toBe("Sep 24");
   });
 
   it("says so when there is no date", () => {
-    expect(formatDue(item({}), NOW)).toBe("no date");
-    expect(formatDue(item({ dueAt: "nonsense" }), NOW)).toBe("no date");
+    expect(formatDue(item({}), NOW).primary).toBe("no date");
+    expect(formatDue(item({ dueAt: "nonsense" }), NOW).primary).toBe("no date");
   });
 });
 
@@ -228,8 +244,9 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
   });
 
   it("says the window is open and how long is left", () => {
-    expect(formatDue(gradescopeLate, NOW)).toMatch(/^late until /);
-    expect(formatDue(gradescopeLate, NOW)).toMatch(/6d left$/);
+    const text = formatDue(gradescopeLate, NOW, "Later");
+    expect(text.primary).toBe("Sep 16 · 6d left");
+    expect(text.detail).toBe("late until Wed 5:00 PM");
   });
 
   it("keeps the row past the 7-day overdue window while the late window is open", () => {
@@ -244,7 +261,7 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
     });
     const nineDaysLater = new Date(2026, 8, 17, 12);
     expect(sectionFor(plLadder, nineDaysLater)).toBe("Later");
-    expect(formatDue(plLadder, nineDaysLater)).toMatch(/^80% until /);
+    expect(formatDue(plLadder, nineDaysLater, "Later").detail).toContain("80% credit");
   });
 
   it("falls back to the full-credit instant once both have passed", () => {
@@ -262,7 +279,7 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
       lateDueAt: at(2026, 8, 22, 23),
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
-    expect(formatDue(pl, NOW)).toMatch(/^80% until /);
+    expect(formatDue(pl, NOW, "Later").detail).toContain("80% credit");
   });
 });
 
@@ -272,27 +289,32 @@ describe("times this extension invented (§4.5, worker rule 3)", () => {
   const assumed = item({ dueAt: at(2026, 8, 18, 23, 59), timeAssumed: true });
 
   it("never shows an invented time as a clock", () => {
-    const text = formatDue(assumed, NOW);
-    expect(text).not.toContain("11:59");
-    expect(text).toContain("time not given");
+    const text = formatDue(assumed, NOW, "Later");
+    expect(text.primary).not.toContain("11:59");
+    expect(text.detail).not.toContain("11:59");
+    // The invented time is not shown at all; the second line says why.
+    expect(text.detail).toBe("the course site gives no time");
   });
 
   it("still shows the date, which the course site did state", () => {
-    expect(formatDue(assumed, NOW)).toContain("Sep 18");
+    expect(formatDue(assumed, NOW, "Later").primary).toContain("Sep 18");
   });
 
   it("counts whole days rather than a false hour precision", () => {
-    expect(formatDue(assumed, NOW)).toMatch(/in 8d$/);
-    expect(formatDue(item({ dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }), NOW)).toMatch(
-      /today$/,
-    );
-    expect(formatDue(item({ dueAt: at(2026, 8, 11, 23, 59), timeAssumed: true }), NOW)).toMatch(
-      /tomorrow$/,
-    );
+    expect(formatDue(assumed, NOW, "Later").primary).toMatch(/in 8d$/);
+    expect(
+      formatDue(item({ dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }), NOW, "Today").primary,
+    ).toMatch(/today$/);
+    expect(
+      formatDue(item({ dueAt: at(2026, 8, 11, 23, 59), timeAssumed: true }), NOW, "Tomorrow")
+        .primary,
+    ).toMatch(/tomorrow$/);
   });
 
   it("leaves a stated time alone", () => {
-    expect(formatDue(item({ dueAt: at(2026, 8, 18, 17) }), NOW)).toContain("5:00");
+    expect(formatDue(item({ dueAt: at(2026, 8, 18, 17) }), NOW, "This week").primary).toContain(
+      "5:00",
+    );
   });
 });
 
@@ -363,5 +385,47 @@ describe("a date the parser could not read (§0 rule 3, §11)", () => {
     const overdue = item({ id: "o", dueAt: at(2026, 8, 8), members: [member("not_submitted")] });
     const sections = groupItems([overdue, unreadable], NOW, DEFAULT_SETTINGS);
     expect(sections.map((s) => s.name)).toEqual(["Couldn't read", "Needs attention"]);
+  });
+});
+
+describe("the row text fits beside a title (§8.1's one line)", () => {
+  // Tier 0a made this column wordier one justified sentence at a time, and the
+  // row is one line shared with the title: at its worst a title had five
+  // pixels. These cap what `primary` may cost. They are crude on purpose —
+  // character count is the thing the layout actually spends.
+  const LIMIT = 18;
+
+  it("keeps every primary short enough to sit beside a title", () => {
+    const cases: [Item, SectionName][] = [
+      [item({ dueAt: at(2026, 8, 10, 23, 59) }), "Today"],
+      [item({ dueAt: at(2026, 8, 11, 23, 59) }), "Tomorrow"],
+      [item({ dueAt: at(2026, 8, 13, 23, 59) }), "This week"],
+      [item({ dueAt: at(2026, 8, 24, 23, 59) }), "Later"],
+      [item({ dueAt: at(2026, 8, 8, 17) }), "Needs attention"],
+      [item({ dueAt: at(2026, 8, 24, 23, 59), timeAssumed: true }), "Later"],
+      [
+        item({
+          dueAt: at(2026, 8, 9, 17),
+          lateDueAt: at(2026, 8, 22, 23),
+          members: [member("not_submitted", { creditRemaining: "80" })],
+        }),
+        "Later",
+      ],
+    ];
+    for (const [row, section] of cases) {
+      const { primary } = formatDue(row, NOW, section);
+      expect(primary.length, `${section}: ${primary}`).toBeLessThanOrEqual(LIMIT);
+    }
+  });
+
+  it("puts the long explanation on the second line, not beside the title", () => {
+    const late = item({
+      dueAt: at(2026, 8, 9, 17),
+      lateDueAt: at(2026, 8, 22, 23),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    const { primary, detail } = formatDue(late, NOW, "Later");
+    expect(primary).toBe("Sep 22 · 13d left");
+    expect(detail).toBe("80% credit until Tue 11:00 PM");
   });
 });

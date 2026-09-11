@@ -28,7 +28,10 @@ body { width: 400px; max-height: 600px; overflow-y: auto; padding: 0; }
 .row--moved { color: var(--warn); font-size: 10px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
-.row--unreadable { color: var(--err); white-space: normal; text-align: right; }
+/* The name cell: title shrinks, chip does not. */
+.row--name { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.row--name .chip-practice { flex: none; }
+.row--unreadable { color: var(--err); }
 .row--flag { color: var(--warn); font-weight: 700; cursor: help; }
 .row-late { border-left: 3px solid var(--warn); }
 .row-late .row--due { color: var(--warn); }
@@ -36,24 +39,53 @@ h2.section {
   font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); margin: 14px 0 4px; padding: 0 12px;
 }
+/*
+ * Two lines, and the second one only exists when there is something to put on
+ * it. Line 1 is chip / title / labels / when, line 2 is the qualifier — a late
+ * window, an unstated time, a deadline that moved.
+ *
+ * A grid rather than a flex row because the title must be the only thing that
+ * shrinks: as a single flex line, Tier 0a's wordier "when" strings squeezed one
+ * title down to five pixels, and the title is what says which assignment it is.
+ */
 .row {
-  display: flex; align-items: baseline; gap: 8px;
+  display: grid;
+  /* Fixed tracks for everything except the title, so the columns line up down
+     the whole list. Each row is its own grid — headings sit between them, so a
+     single grid over the list is not available — and with `auto` tracks that
+     meant the source labels and dates landed at a different x on every row,
+     which is what makes a list tiring to scan. The widths come from measuring
+     the longest real value: `PHYS435`, `GS CV`, `Sep 24 11:59 PM · in 14d`. */
+  /* Widths from measuring the longest real value against a full list:
+     `PHYS435`, `GS CV`, and — now that the heading carries the coarse date —
+     `11:59 PM · in 4h` rather than `Sep 24 11:59 PM · in 14d`. */
+  grid-template-columns: 60px minmax(0, 1fr) 38px 92px 16px;
+  align-items: baseline;
+  gap: 2px 6px;
   padding: 7px 12px; cursor: pointer; border-top: 1px solid transparent;
 }
+.row--detail {
+  grid-column: 2 / -1;
+  font-size: 11px; color: var(--muted); line-height: 1.3;
+}
+.row--detail-moved { color: var(--warn); }
+.row--detail-error { color: var(--err); }
 .row:hover { background: rgba(127,127,127,.10); }
 .chip {
+  justify-self: start;
   font-size: 10px; font-weight: 600; color: var(--muted);
   border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none;
 }
-.row--title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row--sources { font-size: 10px; color: var(--muted); flex: none; letter-spacing: .04em; }
-.row--due { font-size: 11px; color: var(--muted); flex: none; }
+/* The only thing that shrinks. `minmax(0, 1fr)` on its grid column is what
+   lets it actually reach zero-and-ellipsis rather than forcing the row wider. */
+.row--title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row--sources { font-size: 10px; color: var(--muted); white-space: nowrap; letter-spacing: .04em; text-align: right; }
+.row--due { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right; }
 .row-overdue .row--due { color: var(--err); }
 .row-booking .row--due { color: var(--warn); }
 .empty { padding: 24px 12px; text-align: center; }
 
-.row--menu {
-  flex: none; background: none; border: 0; color: var(--muted);
+.row--menu { background: none; border: 0; color: var(--muted);
   font: inherit; cursor: pointer; padding: 0 2px; line-height: 1; opacity: 0;
 }
 .row:hover .row--menu, .row--menu:focus { opacity: 1; }

@@ -96,10 +96,14 @@ export function unreadableDeadline(item: Item): QualityFlag[] {
   return qualityFlags(item).filter((flag) => flag.blocksDate);
 }
 
-/** One line for the row: "Gradescope: due date unreadable". */
+/**
+ * The detail line for a row whose date could not be read: "gradescope: due
+ * date". The row's own date column already says *that* it is unreadable, so
+ * this says which source and which field, and does not repeat the word.
+ */
 export function unreadableSummary(flags: QualityFlag[]): string | undefined {
   if (flags.length === 0) return undefined;
   const first = flags[0]!;
   const more = flags.length > 1 ? ` (+${flags.length - 1} more)` : "";
-  return `${first.source}: ${first.field} unreadable${more}`;
+  return `${first.source}: ${first.field}${more}`;
 }

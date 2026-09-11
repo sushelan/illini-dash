@@ -12,7 +12,13 @@ import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
-import { formatDue, groupItems, liveDeadline, movedText } from "../core/grouping.js";
+import {
+  formatDue,
+  groupItems,
+  liveDeadline,
+  movedText,
+  type SectionName,
+} from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
@@ -146,7 +152,12 @@ function renderBlockedBanner(blocked: boolean): void {
     "Turn them back on in Chrome's notification settings.";
 }
 
-function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
+function renderRow(
+  item: Item,
+  now: Date,
+  section: SectionName,
+  dueText?: { primary: string; detail?: string },
+): HTMLElement {
   const row = document.createElement("div");
   row.className = "row";
   if (item.kind === "booking") {
@@ -174,8 +185,9 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   // required — but it is labelled, so half of a PrairieLearn course's page does
   // not sit in Needs attention looking exactly like graded homework.
   const practice = document.createElement("span");
+  practice.className = "row--practice";
   if (item.forCredit === false) {
-    practice.className = "chip chip-practice";
+    practice.classList.add("chip", "chip-practice");
     practice.textContent = "practice";
     practice.title = "The source says this does not count toward your grade";
   }
@@ -186,47 +198,58 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
   // user knows there is something to split.
   sources.textContent = [...new Set(item.members.map((m) => SOURCE_LABEL[m.source]))].join(" ");
 
+  // The row is a two-line grid: title and "when" compete for line one, and
+  // everything that qualifies the deadline goes on line two, which nothing else
+  // is competing for. Before this the qualifiers shared the line and one row
+  // was left with five pixels of title.
   const due = document.createElement("span");
   due.className = "row--due";
-  // A row whose date could not be read says so where the date would be, rather
-  // than reading "no date" — which is what a genuinely undated row says, and
-  // the two mean opposite things.
+  const details: { text: string; className: string; title?: string }[] = [];
+
   const unreadable = unreadableDeadline(item);
   if (unreadable.length > 0) {
+    // A row whose date could not be read says so, rather than reading "no date"
+    // — which is what a genuinely undated row says, and the two are opposites.
     due.classList.add("row--unreadable");
-    due.textContent = unreadableSummary(unreadable)!;
-    // The raw text the parser could not make sense of, inserted as text so a
-    // hostile page cannot use this path (§8.1's rendering rule).
-    due.title = unreadable
-      .map((flag) => `${flag.source} ${flag.field}: ${flag.detail ?? "(no value)"}`)
-      .join("\n");
+    due.textContent = "unreadable";
+    details.push({
+      text: unreadableSummary(unreadable)!,
+      className: "row--detail row--detail-error",
+      // The raw text the parser could not make sense of, as text so a hostile
+      // page cannot use this path (§8.1's rendering rule).
+      title: unreadable
+        .map((flag) => `${flag.source} ${flag.field}: ${flag.detail ?? "(no value)"}`)
+        .join("\n"),
+    });
+  } else if (dueText !== undefined) {
+    due.textContent = dueText.primary;
+    if (dueText.detail) details.push({ text: dueText.detail, className: "row--detail" });
   } else {
-    due.textContent = dueText ?? formatDue(item, now);
-    const soft = qualityFlags(item).filter((flag) => !flag.blocksDate);
-    if (soft.length > 0) {
-      // Dated, but something else on the row did not parse. Worth a mark, not a
-      // section: the deadline itself is intact.
-      const mark = document.createElement("span");
-      mark.className = "row--flag";
-      mark.textContent = "!";
-      mark.title = soft
-        .map((flag) => `${flag.source} ${flag.field}${flag.detail ? `: ${flag.detail}` : ""}`)
-        .join("\n");
-      due.append(document.createTextNode(" "), mark);
+    const formatted = formatDue(item, now, section);
+    due.textContent = formatted.primary;
+    if (formatted.detail) {
+      details.push({ text: formatted.detail, className: "row--detail" });
     }
   }
 
-  // A deadline that moved since the last sync says so on the row. Without this
-  // the change is absorbed silently: the row simply reads differently than it
-  // did yesterday, and a student who had planned around the old date has no
-  // reason to look twice.
-  const moved = movedText(item);
-  if (moved) {
-    const flag = document.createElement("span");
-    flag.className = "row--moved";
-    flag.textContent = moved;
-    due.append(document.createTextNode(" "), flag);
+  const soft = qualityFlags(item).filter((flag) => !flag.blocksDate);
+  if (soft.length > 0 && unreadable.length === 0) {
+    // Dated, but something else on the row did not parse. A mark, not a
+    // section: the deadline itself is intact.
+    const mark = document.createElement("span");
+    mark.className = "row--flag";
+    mark.textContent = "!";
+    mark.title = soft
+      .map((flag) => `${flag.source} ${flag.field}${flag.detail ? `: ${flag.detail}` : ""}`)
+      .join("\n");
+    due.append(document.createTextNode(" "), mark);
   }
+
+  // A deadline that moved since the last sync says so. Without it the change is
+  // absorbed silently: the row simply reads differently than it did yesterday,
+  // and a student who planned around the old date has no reason to look twice.
+  const moved = movedText(item);
+  if (moved) details.push({ text: moved, className: "row--detail row--detail-moved" });
 
   const menu = document.createElement("button");
   menu.className = "row--menu";
@@ -237,9 +260,26 @@ function renderRow(item: Item, now: Date, dueText?: string): HTMLElement {
     openRowMenu(item, menu);
   });
 
-  row.append(chip, title);
-  if (item.forCredit === false) row.append(practice);
-  row.append(sources, due, menu);
+  // The practice chip lives *inside* the name cell rather than in a track of
+  // its own. A conditional grid child shifts every column after it, and an
+  // empty track still sizes differently from a filled one — either way the
+  // dates stop lining up, which is the one thing fixed tracks are for. In the
+  // name cell only the rows that have a chip pay for it, out of their own
+  // title width.
+  const name = document.createElement("span");
+  name.className = "row--name";
+  name.append(title);
+  if (item.forCredit === false) name.append(practice);
+
+  row.append(chip, name, sources, due, menu);
+
+  for (const detail of details) {
+    const line = document.createElement("span");
+    line.className = detail.className;
+    line.textContent = detail.text;
+    if (detail.title) line.title = detail.title;
+    row.append(line);
+  }
 
   const url = safeUrl(item.url);
   if (url) row.addEventListener("click", () => chrome.tabs.create({ url }));
@@ -368,13 +408,15 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
  * "due Sep 21" — the date is deliberately early because slots fill, and
  * presenting it as a deadline would be a lie.
  */
-function bookingWindowText(item: Item): string | undefined {
+function bookingWindowText(item: Item): { primary: string; detail?: string } {
   const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
   const end = item.members.find((m) => m.extra?.["windowEnd"])?.extra?.["windowEnd"];
-  if (!start || !end) return undefined;
+  // "not booked" is the part that needs to be next to the title; the window is
+  // the explanation, and it goes on the second line like every other qualifier.
+  if (!start || !end) return { primary: "not booked" };
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return `sessions ${fmt(start)}–${fmt(end)}, not booked`;
+  return { primary: "not booked", detail: `sessions ${fmt(start)}–${fmt(end)}` };
 }
 
 function render(
@@ -422,7 +464,7 @@ function render(
     listEl.append(heading);
     for (const item of section.items) {
       const dueText = item.kind === "booking" ? bookingWindowText(item) : undefined;
-      listEl.append(renderRow(item, now, dueText));
+      listEl.append(renderRow(item, now, section.name, dueText));
     }
   }
 }
