@@ -34,8 +34,10 @@ const items = [
   // is exactly the difference a layout fails on.
   item({ courseLabel: "CS357", title: "Book a slot: CS 357: Quiz 2", kind: "booking",
          members: [member("prairietest", { windowStart: at(10, 0, 1), windowEnd: at(12, 23, 59) })] }),
+  // §4.4's room and duration, which the parser has recorded all along.
   item({ courseLabel: "CS357", title: "CS 357: Quiz 1", dueAt: at(0, 21, 0), kind: "exam",
-         members: [member("prairietest")] }),
+         members: [member("prairietest", { location: "Grainger Library",
+                                           locationDetail: "Room 57", duration: "50min" })] }),
   // ECE 374 guided problem sets, listed but not yet open. Real titles and real
   // opening times from the assessments page, 2026-09-11. Eight of these led the
   // list under "Couldn't read" before the parser knew the shape.
@@ -159,4 +161,17 @@ const sources = {
     openOptionsPage: () => undefined,
   },
   tabs: { create: () => undefined },
+  // Present because the real page has it, not because the preview needs it.
+  // The live-refresh listener threw here and the harness said nothing — the
+  // same shape as every other bug this preview has missed: a state it could
+  // not reach. `fireStorageChange()` on the console drives a redraw.
+  storage: {
+    local: { get: async () => ({}), set: async () => undefined },
+    onChanged: {
+      addListener: (fn: (changes: unknown, area: string) => void) => {
+        (globalThis as unknown as { fireStorageChange: () => void }).fireStorageChange = () =>
+          fn({ illiniDue: { newValue: {} } }, "local");
+      },
+    },
+  },
 };

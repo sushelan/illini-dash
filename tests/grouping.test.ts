@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  examDetail,
   formatDue,
   groupItems,
   liveDeadline,
@@ -536,5 +537,63 @@ describe("the row text fits beside a title (§8.1's one line)", () => {
     const { primary, detail } = formatDue(late, NOW, "Later");
     expect(primary).toBe("Sep 22 · 13d left");
     expect(detail).toBe("80% credit until Tue 11:00 PM");
+  });
+});
+
+describe("examDetail — parsed since §4.4 was written, never shown", () => {
+  /*
+   * PrairieTest has recorded `location`, `locationDetail` and `duration` since
+   * the source existed, and nothing ever read them. An exam is the one deadline
+   * where *where* is a question with a wrong answer: knowing a midterm is at
+   * 7 PM and not knowing it is at Grainger is most of the way to missing it.
+   */
+  const exam = (extra: Record<string, string>) =>
+    item({ kind: "exam", members: [member("not_submitted", extra)] });
+
+  it("puts the building, the room and the length on one line", () => {
+    expect(
+      examDetail(
+        exam({ location: "Grainger Library", locationDetail: "Room 57", duration: "50min" }),
+      ),
+    ).toBe("Grainger Library · Room 57 · 50min");
+  });
+
+  it("says what it has when the room is missing", () => {
+    expect(examDetail(exam({ location: "Grainger Library", duration: "50min" }))).toBe(
+      "Grainger Library · 50min",
+    );
+  });
+
+  it("still gives the length for an exam with no room stated", () => {
+    // Half an answer beats none, and beats printing "undefined" for the rest.
+    expect(examDetail(exam({ duration: "110min" }))).toBe("110min");
+  });
+
+  it("says nothing at all when there is nothing to say", () => {
+    expect(examDetail(exam({}))).toBeUndefined();
+    expect(examDetail(item())).toBeUndefined();
+  });
+
+  it("ignores an empty string, which is not a location", () => {
+    // House rule 5 at the display layer: `""` is a string and would otherwise
+    // render as a separator with nothing either side of it.
+    expect(examDetail(exam({ location: "", duration: "50min" }))).toBe("50min");
+  });
+
+  it("falls back to the room when the building came back empty", () => {
+    // The case that makes the empty-string check load-bearing rather than
+    // tidy. Treating `""` as a value makes the building win the `??`, and the
+    // room — the half that actually tells you where to go — is discarded.
+    expect(
+      examDetail(exam({ location: "", locationDetail: "Room 57", duration: "50min" })),
+    ).toBe("Room 57 · 50min");
+  });
+
+  it("reads across members, because a merged row keeps both", () => {
+    const merged = item({
+      kind: "exam",
+      members: [member("not_submitted"), member("not_submitted", { location: "CBTF" })],
+    });
+    expect(examDetail(merged)).toBe("CBTF");
   });
 });

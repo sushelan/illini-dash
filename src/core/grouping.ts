@@ -196,6 +196,33 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
 }
 
 /**
+ * Where an exam is and how long it runs.
+ *
+ * §4.4 has parsed these since the PrairieTest source was written — `location`,
+ * `locationDetail`, `duration` — and nothing has ever displayed them. That is
+ * the same defect `core/quality.ts` exists for one field over: a parser
+ * carefully records something and no reader was written, so the work is done
+ * and invisible.
+ *
+ * They belong on the row rather than behind a click, because an exam is the one
+ * deadline where *where* is a question with a wrong answer. Knowing a midterm
+ * is at 7 PM and not knowing it is at Grainger is most of the way to missing it.
+ */
+export function examDetail(item: Item): string | undefined {
+  const read = (key: string) =>
+    item.members.map((member) => member.extra?.[key]).find((value) => value && value !== "");
+
+  const location = read("location");
+  const room = read("locationDetail");
+  const duration = read("duration");
+
+  const where = location && room ? `${location} · ${room}` : (location ?? room);
+  // Both, one, or neither: an exam with no room stated still has a length worth
+  // knowing, and saying "undefined" for the other half is worse than silence.
+  return [where, duration].filter(Boolean).join(" · ") || undefined;
+}
+
+/**
  * "moved Tue → Fri" for a deadline the course changed since the last sync.
  *
  * Only the day is shown: the row already carries the new time, and the useful

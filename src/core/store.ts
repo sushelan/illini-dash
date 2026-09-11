@@ -38,7 +38,7 @@ export const SCHEMA_VERSION = 2 as const;
  * If it is ever renamed, it needs a read-old-write-new migration and a test
  * that loads a store written under the old key.
  */
-const STORAGE_KEY = "illiniDue";
+export const STORAGE_KEY = "illiniDue";
 
 export const ALL_SOURCES: Source[] = [
   "canvas",

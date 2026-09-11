@@ -460,3 +460,5 @@ h2.section {
 .fold--summary::before { content: "▸ "; }
 .fold[open] .fold--summary::before { content: "▾ "; }
 .fold--summary:hover { color: var(--fg); }
+/* Where the exam is. Not warn-coloured: it is information, not a problem. */
+.row--detail-exam { color: var(--muted); }

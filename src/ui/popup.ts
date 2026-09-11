@@ -40,10 +40,16 @@ import {
   visibleItems,
   weekContents,
 } from "../core/calendar.js";
-import { formatDue, liveDeadline, movedText, type SectionName } from "../core/grouping.js";
+import {
+  examDetail,
+  formatDue,
+  liveDeadline,
+  movedText,
+  type SectionName,
+} from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
-import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
+import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 const ALLOWED_HOSTS = new Set([
@@ -331,6 +337,11 @@ function renderRow(
   // A deadline that moved since the last sync says so. Without it the change is
   // absorbed silently: the row simply reads differently than it did yesterday,
   // and a student who planned around the old date has no reason to look twice.
+  // §4.4's room and duration, parsed since the source was written and never
+  // shown. An exam is the one deadline where "where" has a wrong answer.
+  const exam = examDetail(item);
+  if (exam) details.push({ text: exam, className: "row--detail row--detail-exam" });
+
   const moved = movedText(item);
   if (moved) details.push({ text: moved, className: "row--detail row--detail-moved" });
 
@@ -1456,3 +1467,54 @@ document.getElementById("settings")!.addEventListener("click", (event) => {
 void refresh();
 // §6: opening the popup triggers a sync, debounced to 5 minutes worker-side.
 void send({ type: "sync", trigger: "popup" }).then(refresh).catch(() => undefined);
+
+/* -------------------------------------------------------------------------- */
+/* Keeping an open view honest                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Redraw when the store changes underneath.
+ *
+ * §6's alarm has always synced in the background; what was missing is that
+ * nothing told the open page. A popup mostly gets away with it because it
+ * closes on focus loss, but the full view is a tab — left open it kept showing
+ * whatever it drew when it opened, so a deadline that arrived, moved or was
+ * submitted half an hour ago was simply not there.
+ *
+ * Guarded on a menu being open: the row menu closes over an Item, and pulling
+ * the list out from under an open menu is how a click lands on the wrong row.
+ */
+chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area !== "local" || !(STORAGE_KEY in changes)) return;
+  if (document.querySelector(".menu")) return;
+  void refresh();
+});
+
+/**
+ * And redraw on the clock, because half of what a row says is relative.
+ *
+ * "in 4h", "6d ago", the red now-line and the word "Today" are all answers to
+ * a question whose answer changes while nobody touches anything. A tab left
+ * open overnight showed yesterday under a heading reading Today, which is the
+ * one thing a calendar must never do.
+ *
+ * Only when the minute actually changes, and only while the page is visible:
+ * a redraw a second is a redraw that fights every scroll.
+ */
+const TICK_MS = 30_000;
+let lastMinute = new Date().getMinutes();
+setInterval(() => {
+  if (document.hidden) return;
+  const minute = new Date().getMinutes();
+  if (minute === lastMinute) return;
+  lastMinute = minute;
+  if (document.querySelector(".menu")) return;
+  void refresh();
+}, TICK_MS);
+
+// Coming back to a tab that sat hidden for hours is the case the tick above
+// cannot cover, because a hidden page is throttled to roughly once a minute at
+// best and frozen at worst.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) void refresh();
+});
