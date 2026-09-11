@@ -2,163 +2,222 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Illini Dash — colour schemes</title>
+<title>Illini Dash — colour, rebuilt</title>
 <style>
-/* All dark. Sushi's machine is dark and that is the only mode these get seen in. */
+/*
+ * ============================================================================
+ * What was wrong with the last set
+ * ============================================================================
+ *
+ * The colours did not fit together because they were never picked together.
+ * Three separate mistakes, and the third is the one that actually hurt:
+ *
+ * 1. The course colours were lifted from a generic UI library — six vivid hues
+ *    with no relationship to each other or to anything else on screen.
+ *
+ * 2. They were picked in hex, so they had wildly different perceived
+ *    brightness. #38d9a9 and #da77f2 are nowhere near the same lightness, so
+ *    one course shouted and another whispered for no reason.
+ *
+ * 3. **Course labels were as loud as the warnings.** A saturated purple sitting
+ *    beside an overdue red means the screen has no hierarchy at all. Which
+ *    course a thing belongs to is a *label*. Being late is a *meaning*. They
+ *    cannot compete.
+ *
+ * ============================================================================
+ * The system below
+ * ============================================================================
+ *
+ * Everything is oklch(), which is perceptually uniform: two colours with the
+ * same L and C genuinely look equally bright, whatever the hue. That single
+ * property is what makes a set of colours read as siblings instead of as a
+ * pile.
+ *
+ *   Surfaces   one neutral ramp, one slight hue cast, six steps
+ *   Courses    L 74%, C 0.075 — same for all eight, hue is the only variable
+ *   Meanings   L 70%, C 0.17  — more than twice the chroma of a label
+ *   Today      the one accent, and the only orange on the screen
+ *
+ * The gap between C 0.075 and C 0.17 is the hierarchy. It is the thing the
+ * last attempt did not have.
+ */
+
 body {
-  margin: 0; padding: 26px; background: #101010; color: #e6e6e6;
-  font: 13px/1.45 system-ui, -apple-system, sans-serif;
+  margin: 0; padding: 26px;
+  background: oklch(16% 0.006 255); color: oklch(92% 0.01 255);
+  font: 13px/1.5 system-ui, -apple-system, sans-serif;
 }
 .page { max-width: 1180px; margin: 0 auto; }
-h1 { font-size: 17px; margin: 0 0 4px; }
-.sub { color: #9a9a9a; margin: 0 0 24px; max-width: 76ch; }
-.panel { margin: 0 0 34px; }
+h1 { font-size: 17px; margin: 0 0 6px; }
+.sub { color: oklch(66% 0.015 255); margin: 0 0 8px; max-width: 78ch; }
+.why {
+  border-left: 2px solid oklch(70% 0.17 45); padding: 2px 0 2px 14px; margin: 0 0 26px;
+  color: oklch(72% 0.015 255); max-width: 78ch; font-size: 12.5px;
+}
+.why b { color: oklch(92% 0.01 255); font-weight: 600; }
+.panel { margin: 0 0 32px; }
 .panel > h2 { font-size: 13px; margin: 0 0 2px; }
-.panel > .note { color: #9a9a9a; font-size: 12px; margin: 0 0 10px; max-width: 80ch; line-height: 1.45; }
-.frame { border-radius: 10px; overflow: hidden; border: 1px solid #333; }
+.panel > .note { color: oklch(66% 0.015 255); font-size: 12px; margin: 0 0 10px; max-width: 84ch; }
+.frame { border-radius: 10px; overflow: hidden; border: 1px solid oklch(30% 0.01 255); }
 
-/* ---- the structure, identical in every scheme ---- */
-.app { background: var(--bg); color: var(--fg); }
+/* ---- structure, identical in every scheme ---- */
+.app { background: var(--s1); color: var(--fg); }
 .bar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 9px 14px; background: var(--bar); color: var(--bar-ink);
 }
 .dots { display: flex; gap: 7px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; }
-.bar--right { display: flex; gap: 12px; font-size: 12px; opacity: .85; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.dot.off { background: var(--s4); }
+.bar--right { display: flex; gap: 12px; font-size: 12px; opacity: .8; }
 
-.tabs { display: flex; gap: 2px; padding: 6px 10px 0; background: var(--tint); }
-.tab {
-  font-size: 12.5px; padding: 6px 12px 7px; color: var(--muted);
-  border-radius: 6px 6px 0 0; border: 1px solid transparent; border-bottom: 0;
-}
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; background: var(--s2); }
+.tab { font-size: 12.5px; padding: 6px 12px 7px; color: var(--muted); border-radius: 6px 6px 0 0; }
 .tab.on {
-  color: var(--fg); font-weight: 600; background: var(--bg);
-  border-color: var(--line); box-shadow: inset 0 2px 0 0 var(--accent);
+  color: var(--fg); font-weight: 600; background: var(--s1);
+  box-shadow: inset 0 2px 0 0 var(--accent);
 }
-.chips { display: flex; gap: 5px; padding: 7px 12px; background: var(--tint); }
+.chips { display: flex; gap: 5px; padding: 7px 12px; background: var(--s2); }
 .chip {
-  display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
-  border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px 2px 6px;
+  display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 2px 9px 2px 6px;
 }
-.chip i { width: 7px; height: 7px; border-radius: 50%; }
+.chip i { width: 7px; height: 7px; border-radius: 2px; }
 .nav {
   display: flex; align-items: center; gap: 10px; padding: 8px 14px;
-  background: var(--tint); border-bottom: 1px solid var(--line);
+  background: var(--s2); border-bottom: 1px solid var(--line);
 }
 .nav b { font-size: 13px; }
 .nav span { color: var(--muted); }
 
-.mhead { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--tint); }
+.mhead { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--s2); }
 .mhead div {
-  font-size: 9.5px; letter-spacing: .07em; color: var(--muted);
+  font-size: 9.5px; letter-spacing: .08em; color: var(--muted);
   text-align: center; padding: 7px 0; text-transform: uppercase;
 }
 .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .cell {
-  min-height: 88px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  min-height: 86px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
   padding: 5px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
 }
 .cell:nth-child(7n + 1) { border-left: 0; }
-.cell.out { background: var(--tint); }
-.num { font-size: 11px; font-weight: 600; color: var(--muted); }
-.out .num { opacity: .45; }
-.cell.today { background: var(--today); }
-.today .num {
-  color: var(--today-ink); background: var(--accent); border-radius: 50%;
-  width: 19px; height: 19px; display: grid; place-items: center; font-size: 10.5px;
-}
+.cell.out { background: var(--s2); }
+.num { font-size: 11px; color: var(--muted); }
+.out .num { opacity: .5; }
+/*
+ * Today is a ring, not a wash.
+ *
+ * The filled block was pulling the eye harder than any cell with work in it,
+ * which is backwards: today is a position, and the work is the content.
+ */
+.cell.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.today .num { color: var(--accent); font-weight: 700; }
+
+/* A label is a 3px edge and nothing else. No fill, no tint — the cell stays
+   the surface colour, so eight courses on one screen cannot turn it into a
+   patchwork. */
 .pill {
-  display: flex; gap: 4px; align-items: baseline; min-width: 0;
-  border-left: 3px solid var(--c); background: var(--pill);
-  padding: 2px 4px; border-radius: 3px; font-size: 10.5px; line-height: 1.3;
+  display: flex; gap: 5px; align-items: baseline; min-width: 0;
+  border-left: 3px solid var(--c); padding: 1px 0 1px 6px;
+  font-size: 10.5px; line-height: 1.35;
 }
-.pill b { font-weight: 700; font-size: 9px; color: var(--muted); flex: none; letter-spacing: .02em; }
-.pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill.exam { background: var(--exam); }
+.pill b { font-weight: 600; font-size: 9px; color: var(--muted); flex: none; }
+.pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+/* A meaning gets the fill a label never does. */
+.pill.exam { background: var(--exam-bg); border-left-color: var(--warn); border-radius: 0 3px 3px 0; }
+.pill.late span { color: var(--err); }
 
-/* ================= schemes ================= */
+/* ================= three schemes, one system ================= */
 
-/* A — what ships today */
-.illini {
-  --bg: #1c1c1c; --fg: #e6e6e6; --muted: #9a9a9a; --line: #3a3a3a;
-  --bar: #1b3a6b; --bar-ink: #fff; --accent: #ff8534;
-  --tint: #26292e; --today: #35271f; --today-ink: #1c1c1c;
-  --pill: #2b2f36; --exam: #3a3123;
-  --c1: #748ffc; --c2: #38d9a9; --c3: #ff922b; --c4: #da77f2;
+/*
+ * A — Slate. Neutral ramp with a cool cast, navy only in the bar.
+ */
+.slate {
+  --s1: oklch(19% 0.012 255); --s2: oklch(23% 0.014 255); --s4: oklch(38% 0.015 255);
+  --line: oklch(29% 0.014 255);
+  --fg: oklch(93% 0.008 255); --muted: oklch(66% 0.015 255);
+  --bar: oklch(32% 0.062 258); --bar-ink: oklch(97% 0.01 255);
+  --accent: oklch(72% 0.17 48);
+  --ok: oklch(72% 0.16 150); --warn: oklch(78% 0.14 78); --err: oklch(68% 0.18 25);
+  --exam-bg: oklch(30% 0.045 78);
+  --c1: oklch(74% 0.075 255); --c2: oklch(74% 0.075 155);
+  --c3: oklch(74% 0.075 55); --c4: oklch(74% 0.075 330);
 }
-/* B — the whole app on navy, not just the bar */
+
+/*
+ * B — Navy. The same system with every surface lifted onto the blue, so the
+ * bar is not a hat on a grey box.
+ */
 .navy {
-  --bg: #0e1a2b; --fg: #e8edf5; --muted: #93a4bd; --line: #24354c;
-  --bar: #16304f; --bar-ink: #fff; --accent: #ff8534;
-  --tint: #142640; --today: #33281f; --today-ink: #0e1a2b;
-  --pill: #1a2e4a; --exam: #3a3123;
-  --c1: #74a9ff; --c2: #3ddba4; --c3: #ff9d4d; --c4: #e08ef5;
+  --s1: oklch(20% 0.032 258); --s2: oklch(24% 0.038 258); --s4: oklch(40% 0.03 258);
+  --line: oklch(29% 0.035 258);
+  --fg: oklch(94% 0.012 258); --muted: oklch(68% 0.025 258);
+  --bar: oklch(31% 0.065 258); --bar-ink: oklch(97% 0.01 255);
+  --accent: oklch(74% 0.17 48);
+  --ok: oklch(74% 0.15 152); --warn: oklch(80% 0.13 80); --err: oklch(70% 0.17 25);
+  --exam-bg: oklch(30% 0.05 80);
+  --c1: oklch(76% 0.072 250); --c2: oklch(76% 0.072 158);
+  --c3: oklch(76% 0.072 58); --c4: oklch(76% 0.072 325);
 }
-/* C — orange chrome, blue for "you are here" */
-.orange {
-  --bg: #1a1a1a; --fg: #eeeeee; --muted: #9d9d9d; --line: #3b3b3b;
-  --bar: #c2410c; --bar-ink: #fff; --accent: #7cb0ff;
-  --tint: #2a2320; --today: #1e2a3d; --today-ink: #0d1420;
-  --pill: #2c2c2c; --exam: #3a3123;
-  --c1: #74a9ff; --c2: #38d9a9; --c3: #ffa94d; --c4: #da77f2;
+
+/*
+ * C — Warm. The same system rotated to a warm neutral, which sits closer to
+ * Illini Orange without ever making the interface orange.
+ */
+.warm {
+  --s1: oklch(19% 0.009 60); --s2: oklch(23% 0.012 60); --s4: oklch(39% 0.012 60);
+  --line: oklch(29% 0.012 60);
+  --fg: oklch(93% 0.008 60); --muted: oklch(67% 0.014 60);
+  --bar: oklch(30% 0.058 258); --bar-ink: oklch(97% 0.01 255);
+  --accent: oklch(73% 0.18 48);
+  --ok: oklch(73% 0.15 150); --warn: oklch(79% 0.14 78); --err: oklch(69% 0.18 25);
+  --exam-bg: oklch(30% 0.048 78);
+  --c1: oklch(75% 0.075 252); --c2: oklch(75% 0.075 155);
+  --c3: oklch(75% 0.075 52); --c4: oklch(75% 0.075 328);
 }
-/* D — almost no chrome colour at all */
-.midnight {
-  --bg: #0f1115; --fg: #e2e6ec; --muted: #8b94a3; --line: #242832;
-  --bar: #161a22; --bar-ink: #e2e6ec; --accent: #ff8534;
-  --tint: #171b23; --today: #2b2118; --today-ink: #0f1115;
-  --pill: #1c212b; --exam: #332b1e;
-  --c1: #7aa2f7; --c2: #45d9a6; --c3: #ff9e64; --c4: #c99ef5;
-}
-/* E — built for telling things apart */
-.contrast {
-  --bg: #000; --fg: #fff; --muted: #c2c2c2; --line: #6e6e6e;
-  --bar: #0b1b33; --bar-ink: #fff; --accent: #ff9b52;
-  --tint: #17202e; --today: #3d2a16; --today-ink: #000;
-  --pill: #1c1c1c; --exam: #3d3319;
-  --c1: #56b4e9; --c2: #33d6a6; --c3: #ff7f2a; --c4: #f29ec4;
-}
-.legend { color: #9a9a9a; font-size: 12px; margin: 26px 0 0; padding-top: 16px; border-top: 1px solid #333; }
+
+.swatches { display: flex; gap: 0; margin: 10px 0 0; border-radius: 6px; overflow: hidden; width: max-content; }
+.sw { width: 74px; padding: 7px 8px 9px; font-size: 9px; line-height: 1.3; }
+.sw b { display: block; font-size: 10px; font-weight: 700; }
 </style>
 </head>
 <body>
 <div class="page">
-<h1>Illini Dash — colour schemes</h1>
-<p class="sub">The same September, the same rows, five schemes. All dark, because that is the
-only mode you see. Tell me a letter and I will make it the default; the others can stay as
-presets in Settings.</p>
+<h1>Colour, rebuilt on one system</h1>
+<p class="sub">Same September, same rows. Three schemes that are variations of one palette
+rather than three separate moods.</p>
+<p class="why"><b>What was wrong before.</b> The course colours came from a generic UI
+library, so they had no relationship to each other or to the brand — and picked in hex,
+they were not even equally bright, so one course shouted and another whispered at random.
+Worst of all they were <b>as saturated as the warnings</b>, so which course a thing belongs
+to competed with whether it is late. A course is a label. Being late is a meaning. Below,
+labels sit at one fixed lightness and low chroma, meanings get more than double the
+chroma, and that gap is the entire hierarchy.</p>
 <div id="panels"></div>
-<p class="legend">Course colours stay distinct within each scheme. The amber wash on Sep 23
-is an exam, which is a meaning rather than a decoration and does not change between schemes.</p>
 </div>
 
 <script>
 const SCHEMES = [
-  { cls: "illini", name: "A · Illini (what ships today)",
-    note: "Navy bar, orange for today. Everything below the bar is near-black, so the colour lives almost entirely in one strip." },
-  { cls: "navy", name: "B · Deep navy",
-    note: "The whole surface goes navy, not just the bar. The strongest read as an Illini product, and the one that stops looking like a grey box with a blue hat." },
-  { cls: "orange", name: "C · Orange chrome",
-    note: "Illini Orange takes the bar and blue becomes the accent, so today reads cool against warm chrome. The boldest, and the most likely to tire." },
-  { cls: "midnight", name: "D · Midnight",
-    note: "Almost no chrome colour. Structure comes from surface steps rather than hue, and orange appears only on today. Quietest to work in." },
-  { cls: "contrast", name: "E · High contrast",
-    note: "Pure black, brighter text, heavier grid lines, and course colours chosen to stay apart under red-green colour blindness." },
+  { cls: "slate", name: "A · Slate",
+    note: "Cool neutral surfaces, navy in the bar only. The most restrained, and the closest to what a tool you stare at daily usually looks like." },
+  { cls: "navy", name: "B · Navy",
+    note: "Every surface lifted onto the blue, so the bar belongs to the thing beneath it. Reads most clearly as an Illini product." },
+  { cls: "warm", name: "C · Warm",
+    note: "The same system rotated to a warm neutral. Sits closer to Illini Orange without ever making the interface orange." },
 ];
 
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-// September 2026 starts on a Tuesday; the rows match the screenshot.
 const CELLS = [
-  { n:30, out:1 }, { n:31, out:1 }, { n:1, items:[["CS357",1,"L2 Introduction to Python"],["CS357",1,"L3 Errors, Big-O notation"],["CS357",1,"HW2 Introduction to Python"]] },
+  { n:30, out:1 }, { n:31, out:1 },
+  { n:1, items:[["CS357",1,"L2 Introduction to Python"],["CS357",1,"L3 Errors, Big-O notation"],["CS357",1,"HW2 Introduction to Python"]] },
   { n:2, items:[["PHYS435",4,"Homework 1"]] }, { n:3, items:[["CS357",1,"HW3 Errors and Big-O"]] }, { n:4 }, { n:5 },
-  { n:6 }, { n:7 }, { n:8 }, { n:9 }, { n:10 }, { n:11, today:1 }, { n:12 },
+  { n:6 }, { n:7 }, { n:8, items:[["CS357",1,"HW4a Floating point","late"]] }, { n:9 }, { n:10 }, { n:11, today:1 }, { n:12 },
   { n:13, items:[["CS425",3,"MP1 Report (4cr only, EXCEPT…"]] }, { n:14 },
   { n:15, items:[["CS357",1,"L5 Rounding and Cancellation"],["CS357",1,"L6 Taylor Series"],["CS357",1,"HW5 Rounding and Cancel…"]] },
   { n:16, items:[["PHYS435",4,"Homework 3"],["CS424",2,"Homework 1"]] },
   { n:17, items:[["CS357",1,"HW6 Taylor Series"]] }, { n:18 }, { n:19 },
   { n:20, items:[["CS425",3,"HW1"]] }, { n:21 }, { n:22 },
-  { n:23, items:[["CS357",1,"CS 357: Quiz 2",1]] }, { n:24 }, { n:25 }, { n:26 },
+  { n:23, items:[["CS357",1,"CS 357: Quiz 2","exam"]] }, { n:24 }, { n:25 }, { n:26 },
   { n:27 }, { n:28 }, { n:29 }, { n:30 }, { n:1, out:1 }, { n:2, out:1 }, { n:3, out:1 },
 ];
 const COURSES = [["CS357",1],["CS424",2],["CS425",3],["PHYS435",4]];
@@ -173,34 +232,38 @@ for (const scheme of SCHEMES) {
   frame.className = "frame";
   const app = document.createElement("div");
   app.className = `app ${scheme.cls}`;
-
   app.innerHTML = `
     <div class="bar">
-      <div class="dots">
-        <i class="dot" style="background:#4ac26b"></i><i class="dot" style="background:#4ac26b"></i>
-        <i class="dot" style="background:#4ac26b"></i><i class="dot" style="background:#4ac26b"></i>
-        <i class="dot" style="background:#6b6b6b"></i><i class="dot" style="background:#4ac26b"></i>
-      </div>
+      <div class="dots"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot off"></i><i class="dot"></i></div>
       <div class="bar--right"><span>Sync now</span><span>⚙</span></div>
     </div>
     <div class="tabs">
       <span class="tab">Day</span><span class="tab">Week</span>
       <span class="tab on">Month</span><span class="tab">Exams</span><span class="tab">Attention</span>
     </div>
-    <div class="chips">${COURSES.map(([c, i]) =>
-      `<span class="chip"><i style="background:var(--c${i})"></i>${c}</span>`).join("")}</div>
+    <div class="chips">${COURSES.map(([c,i]) => `<span class="chip"><i style="background:var(--c${i})"></i>${c}</span>`).join("")}</div>
     <div class="nav"><span>‹</span><b>September 2026</b><span style="flex:1"></span><span>›</span></div>
     <div class="mhead">${DAYS.map((d) => `<div>${d}</div>`).join("")}</div>
     <div class="mgrid">${CELLS.map((cell) => {
       const classes = ["cell", cell.out ? "out" : "", cell.today ? "today" : ""].filter(Boolean).join(" ");
-      const pills = (cell.items ?? []).map(([code, colour, title, exam]) =>
-        `<div class="pill${exam ? " exam" : ""}" style="--c:var(--c${colour})"><b>${code}</b><span>${title}</span></div>`).join("");
+      const pills = (cell.items ?? []).map(([code, colour, title, kind]) =>
+        `<div class="pill ${kind ?? ""}" style="--c:var(--c${colour})"><b>${code}</b><span>${title}</span></div>`).join("");
       return `<div class="${classes}"><div class="num">${cell.n}</div>${pills}</div>`;
     }).join("")}</div>
   `;
-
   frame.append(app);
-  panel.append(frame);
+
+  const swatches = document.createElement("div");
+  swatches.className = `swatches ${scheme.cls}`;
+  swatches.innerHTML = [
+    ["--c1", "label", "C .075"], ["--c2", "label", "C .075"],
+    ["--c3", "label", "C .075"], ["--c4", "label", "C .075"],
+    ["--err", "overdue", "C .18"], ["--warn", "open", "C .14"],
+    ["--ok", "read", "C .16"], ["--accent", "today", "C .17"],
+  ].map(([v, name, c]) =>
+    `<div class="sw" style="background:var(${v}); color:#101010"><b>${name}</b>${c}</div>`).join("");
+
+  panel.append(frame, swatches);
   panels.append(panel);
 }
 </script>
