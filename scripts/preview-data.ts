@@ -29,28 +29,47 @@ const item = (o: Record<string, unknown>) => ({
 });
 
 const items = [
+  // Real titles and shapes from Sushi's account, 2026-09-11. Invented titles
+  // were consistently shorter than the ones UIUC courses actually use, which
+  // is exactly the difference a layout fails on.
+  item({ courseLabel: "CS357", title: "Book a slot: CS 357: Quiz 2", kind: "booking",
+         members: [member("prairietest", { windowStart: at(10, 0, 1), windowEnd: at(12, 23, 59) })] }),
+  item({ courseLabel: "CS357", title: "CS 357: Quiz 1", dueAt: at(0, 21, 0), kind: "exam",
+         members: [member("prairietest")] }),
+  item({ courseLabel: "CS425", title: "MP1 Report (4cr only, EXCEPT for students in MC3)",
+         dueAt: at(3, 23, 59), members: [member("gradescope")] }),
+  item({ courseLabel: "CS357", title: "L5 Rounding and Cancellation", dueAt: at(4, 23),
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "CS357", title: "L6 Taylor Series", dueAt: at(4, 23),
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "CS357", title: "HW5 Rounding and Cancellation", dueAt: at(4, 23),
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "PHYS435", title: "Homework 3", dueAt: at(5, 17),
+         members: [member("gradescope")] }),
+  item({ courseLabel: "CS424", title: "Homework 1", dueAt: at(5, 23, 59),
+         members: [member("canvas"), member("site")] }),
+  item({ courseLabel: "CS357", title: "HW6 Taylor Series", dueAt: at(6, 23),
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "CS425", title: "HW1", dueAt: at(9, 23, 59),
+         members: [member("gradescope")] }),
+  item({ courseLabel: "CS424", title: "HW2 Due", dueAt: at(12, 23, 59), timeAssumed: true,
+         members: [member("site", { timeAssumed: "true" })] }),
+  // Shapes his account does not currently have, kept so the layout is still
+  // exercised against them: a still-open late window, a reduced-credit ladder,
+  // an 8 AM smartPhysics checkpoint, a practice quiz, a moved deadline, and a
+  // date the parser could not read.
   item({ courseLabel: "PHYS435", title: "Homework 2", dueAt: at(-1, 17, 0),
          lateDueAt: at(6, 17, 0), members: [member("gradescope")] }),
   item({ courseLabel: "CS357", title: "L4a Floating Point", dueAt: at(-2, 11),
          lateDueAt: at(12, 23), members: [member("prairielearn", { creditRemaining: "80" })] }),
-  item({ courseLabel: "CS357", title: "Book a slot: Quiz 2", kind: "booking",
-         members: [member("prairietest", { windowStart: at(11, 0, 1), windowEnd: at(13, 23, 59) })] }),
-  item({ courseLabel: "CS425", title: "MP1 Distributed Logging", dueAt: at(0, 23, 59),
-         members: [member("gradescope"), member("canvas")] }),
   item({ courseLabel: "PHYS214", title: "Harmonic waves — Checkpoint", dueAt: at(0, 8, 0),
          kind: "quiz", members: [member("smartphysics", { creditRemaining: "100" })] }),
-  item({ courseLabel: "CS424", title: "HW2", dueAt: at(1, 23, 59), timeAssumed: true,
-         members: [member("site", { timeAssumed: "true" })] }),
   item({ courseLabel: "CS357", title: "PQ1 Practice Quiz 1 (NOT FOR CREDIT)", dueAt: at(1, 23),
          forCredit: false, members: [member("prairielearn")] }),
-  item({ courseLabel: "CS357", title: "HW4a Errors and Big-O", dueAt: at(3, 23),
+  item({ courseLabel: "CS357", title: "HW4a Errors and Big-O", dueAt: at(2, 23),
          movedFrom: at(1, 23), members: [member("prairielearn")] }),
-  item({ courseLabel: "ECE310", title: "Homework 3", dueAt: at(6, 23, 59),
-         members: [member("site")] }),
   item({ courseLabel: "CS425", title: "Reading response 4",
          members: [member("gradescope", { unparsedDueDate: "2026-09-31 17:00:00 -0500" })] }),
-  item({ courseLabel: "CS357", title: "GA 5 Linear Systems", dueAt: at(14, 23),
-         members: [member("prairielearn")] }),
 ];
 
 const sources = {

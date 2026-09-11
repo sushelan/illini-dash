@@ -301,7 +301,10 @@ describe("times this extension invented (§4.5, worker rule 3)", () => {
   });
 
   it("counts whole days rather than a false hour precision", () => {
-    expect(formatDue(assumed, NOW, "Later").primary).toMatch(/in 8d$/);
+    // Under Later the heading already places it, so the row is just the date —
+    // the same shape every other Later row has. Under a nearer heading the
+    // relative count is what the student acts on.
+    expect(formatDue(assumed, NOW, "Later").primary).toBe("Sep 18");
     expect(
       formatDue(item({ dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }), NOW, "Today").primary,
     ).toMatch(/today$/);

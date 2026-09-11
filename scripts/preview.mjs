@@ -49,12 +49,20 @@ writeFileSync(
     <link rel="stylesheet" href="ui.css" />
     <link rel="stylesheet" href="popup.css" />
     <style>
-      /* Harness chrome only. Everything inside .frame is the real popup. */
-      body { width: auto; max-height: none; background: #ecedf0; margin: 0; padding: 16px; }
-      @media (prefers-color-scheme: dark) { body { background: #16171a; } }
+      /*
+       * Harness chrome only. Everything inside .frame is the real popup.
+       *
+       * The frame is 400px and must NOT hide overflow: Chrome sizes a popup
+       * window to its content's preferred width, so anything wider than 400px
+       * makes the real popup open at up to 800px with the list stranded in the
+       * left half. An overflow:hidden here would conceal exactly that.
+       */
+      html { background: #ecedf0; }
+      body { width: auto; max-height: none; background: transparent; margin: 0; padding: 16px; }
+      @media (prefers-color-scheme: dark) { html { background: #16171a; } }
       .frame {
         width: 400px; margin: 0 auto; background: var(--bg);
-        border: 1px solid rgba(127,127,127,.35); border-radius: 10px; overflow: hidden;
+        border: 1px solid rgba(127,127,127,.35); border-radius: 10px;
       }
     </style>
   </head>
@@ -79,6 +87,16 @@ writeFileSync(
 `,
 );
 
-console.log("preview built -> dist/preview.html");
+// A faithful copy of popup.html — same `body { width: 400px }`, no wrapper —
+// pointed at the stubbed bundle. The framed preview above is for looking at the
+// list; this one is for the question the frame cannot answer, which is how wide
+// Chrome will make the popup window.
+writeFileSync(
+  join(dist, "preview-popup.html"),
+  readFileSync(join(dist, "popup.html"), "utf8").replace("popup.js", "preview.js"),
+);
+
+console.log("preview built -> dist/preview.html  (framed, for looking at the list)");
+console.log("             -> dist/preview-popup.html  (exact popup, for sizing)");
 console.log("  npx http-server dist -p 8731   (or any static server)");
 console.log("  then open http://localhost:8731/preview.html");

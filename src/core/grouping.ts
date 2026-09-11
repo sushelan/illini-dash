@@ -271,8 +271,15 @@ export function formatDue(item: Item, now: Date, section?: SectionName): DueText
   // that as "Fri 11:59 PM" is the §11 risk wearing a friendly face: it looks
   // like a stated deadline, and a student who trusts it misses a 5 PM cutoff.
   if (item.timeAssumed) {
+    // Section-aware like every other branch. Without this an assumed-time row
+    // under Later read "Sep 23 · in 13d" while every row beside it read
+    // "Sep 15", which looks like the two mean different things. They do not:
+    // the difference is only that this one's *time* is unknown, and the second
+    // line is where that is said.
+    const day = dayOf(due);
     return {
-      primary: `${dayOf(due)} · ${relativeDays(daysAway(due, now))}`,
+      primary:
+        precisionFor(section) === "date" ? day : `${day} · ${relativeDays(daysAway(due, now))}`,
       detail: "the course site gives no time",
     };
   }

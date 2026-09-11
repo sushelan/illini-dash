@@ -62,6 +62,13 @@ const LOGIN_URL: Partial<Record<Source, string>> = {
   smartphysics: "https://smart.physics.illinois.edu/",
 };
 
+// Set before the first paint so the full view never flashes at popup width.
+if (new URLSearchParams(location.search).get("view") === "full") {
+  document.documentElement.classList.add("view-full");
+  // A tab has a title bar of its own to name; the popup does not.
+  document.title = "Illini Dash — everything due";
+}
+
 const listEl = document.getElementById("list")!;
 const dotsEl = document.getElementById("dots")!;
 const statusEl = document.getElementById("status")!;
@@ -194,9 +201,15 @@ function renderRow(
 
   const sources = document.createElement("span");
   sources.className = "row--sources";
-  // §5.3: a merged row shows both icons, so a false merge is visible and the
-  // user knows there is something to split.
-  sources.textContent = [...new Set(item.members.map((m) => SOURCE_LABEL[m.source]))].join(" ");
+  // §5.3 wants these so "a false merge is visible and the user knows there is
+  // something to split" — which is a fact about *merged* rows. A lone "PL" on a
+  // single-source row serves nothing and costs the title 44px, on a list where
+  // real UIUC titles ("HW5 Rounding and Cancellation") are already being cut.
+  // The label the student needs is on the row that has two.
+  const labels = [...new Set(item.members.map((m) => SOURCE_LABEL[m.source]))];
+  if (labels.length > 1) sources.textContent = labels.join(" ");
+  // Still reachable for a single source, just not spending a column on it.
+  else if (labels[0]) sources.title = labels[0];
 
   // The row is a two-line grid: title and "when" compete for line one, and
   // everything that qualifies the deadline goes on line two, which nothing else
@@ -489,9 +502,15 @@ document.getElementById("sync")!.addEventListener("click", async () => {
 document.getElementById("full")!.addEventListener("click", (event) => {
   event.preventDefault();
   // §8.1: popups close on focus loss, which is maddening while cross-checking
-  // against a course page.
-  chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
+  // against a course page. The marker is what lets the stylesheet tell a tab
+  // from a popup — Chrome tells the page nothing, and inferring it from the
+  // window width would feed back into how Chrome sizes the popup.
+  chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
 });
+if (document.documentElement.classList.contains("view-full")) {
+  // Already there. Offering it again just opens a duplicate tab.
+  document.getElementById("full")!.remove();
+}
 document.getElementById("settings")!.addEventListener("click", (event) => {
   event.preventDefault();
   chrome.runtime.openOptionsPage();
