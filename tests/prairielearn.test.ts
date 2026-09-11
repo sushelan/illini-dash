@@ -12,6 +12,7 @@ import {
   isLoginResponse,
   mapStatus,
   parseAssessments,
+  parseAvailableCell,
   parseCreditCell,
   parseCreditSchedule,
 } from "../src/sources/prairielearn.js";
@@ -174,6 +175,77 @@ describe("deadlinesFromSchedule", () => {
   });
 });
 
+describe("parseAvailableCell — an assessment that has not opened", () => {
+  /*
+   * Real cells from an ECE 374 assessments page, 2026-09-11. Eight guided
+   * problem sets carried this shape, did not match the credit cell, and were
+   * filed under "Couldn't read" as `prairielearn: credit` — at the very top of
+   * the list, above everything actually due.
+   *
+   * Nothing about the text is unreadable. It answers a different question.
+   */
+  const reference = "2026-09-11T05:00:00.000Z";
+
+  it("reads the opening instant in the course zone", () => {
+    expect(parseAvailableCell("Available 09:00, Sat, Sep 12", reference)).toBe(
+      "2026-09-12T09:00:00-05:00",
+    );
+  });
+
+  it("reads every one of the eight real cells", () => {
+    const real = [
+      "Available 09:00, Sat, Sep 12",
+      "Available 09:00, Sat, Sep 26",
+      "Available 09:00, Sat, Oct 3",
+      "Available 09:00, Sat, Oct 10",
+      "Available 09:00, Sat, Oct 17",
+      "Available 09:00, Sat, Oct 24",
+      "Available 09:00, Sat, Nov 7",
+      "Available 09:00, Sat, Nov 28",
+    ];
+    for (const text of real) expect(parseAvailableCell(text, reference), text).toBeDefined();
+  });
+
+  it("crosses into standard time with the rest of the calendar", () => {
+    // Nov 28 is CST. A fixed -05:00 would place it an hour early, and the
+    // opening time is the only instant these rows have.
+    expect(parseAvailableCell("Available 09:00, Sat, Nov 28", reference)).toBe(
+      "2026-11-28T09:00:00-06:00",
+    );
+  });
+
+  it("is not the credit cell, and the credit cell is not it", () => {
+    // Both shapes end identically. Matching either loosely would let a
+    // deadline be read as an opening time, which is the more dangerous
+    // direction: the row would stop being due.
+    expect(parseAvailableCell("100% until 21:15, Mon, Sep 14", reference)).toBeUndefined();
+    expect(parseCreditCell("Available 09:00, Sat, Sep 12", reference)).toBeUndefined();
+  });
+
+  it("refuses a date that does not exist rather than inventing one", () => {
+    for (const bad of [
+      "",
+      "Available soon",
+      "Available 09:00, Sat, Sep 31",
+      "Available 25:00, Sat, Sep 12",
+      "Available 09:00, Sep 12",
+      "Not available",
+      "Not Available 09:00, Sat, Sep 12",
+      "Available 09:00, Sat, Sep 12 (extended)",
+    ]) {
+      expect(parseAvailableCell(bad, reference), bad).toBeUndefined();
+    }
+  });
+
+  it("uses the weekday to correct a wrong year guess, like the credit cell", () => {
+    // The shared instant resolution is the point: one copy, so loosening it
+    // cannot be masked by the other shape staying strict.
+    expect(parseAvailableCell("Available 09:00, Sun, Sep 12", reference)).toBe(
+      "2027-09-12T09:00:00-05:00",
+    );
+  });
+});
+
 describe("parseCreditCell (§4.3 fallback)", () => {
   const reference = "2026-09-03T05:00:00.000Z";
 
@@ -212,6 +284,43 @@ describe("credit-cell fallback inside a full row", () => {
         `<td><a href="/pl/course_instance/1/assessment/5">Thing</a></td>` +
         `<td>${credit}</td><td>Not started</td></tr></table>`,
     );
+
+  it("routes an unopened assessment to its opening time, not to unreadable", () => {
+    // The wiring, not the matcher: the eight ECE 374 rows reached the list as
+    // `unparsedCredit` and led it under "Couldn't read". Nothing here is
+    // unreadable, so neither the flag nor the warning belongs on the row.
+    const [item] = parseAssessments(wrap("Available 09:00, Sat, Sep 12"), bare);
+    expect(item!.extra?.["releasedAt"]).toBe("2026-09-12T09:00:00-05:00");
+    expect(item!.extra?.["unparsedCredit"]).toBeUndefined();
+  });
+
+  it("invents no deadline from an opening time", () => {
+    // Worker rule 3. §5.3 ranks instants across sources, so a fabricated
+    // `dueAt` here would outrank a real deadline Canvas states for the same
+    // work — and the row would claim to be due on the day it opens.
+    const [item] = parseAssessments(wrap("Available 09:00, Sat, Sep 12"), bare);
+    expect(item!.dueAt).toBeUndefined();
+    expect(item!.lateDueAt).toBeUndefined();
+  });
+
+  it("accepts the cell only when that is the whole of it (house rule 12)", () => {
+    // `creditText` is the entire cell. Matching a fragment of it means reading
+    // an opening time off a cell that also says something else — and whatever
+    // that something else is, it has just been discarded silently.
+    //
+    // Both strings are deliberately adversarial and absent from every capture,
+    // which is the case house rule 12 says a real fixture cannot cover. The
+    // prefix one is the dangerous direction: a fragment match turns the string
+    // that means "you cannot start this" into a precise opening time.
+    for (const text of [
+      "Not Available 09:00, Sat, Sep 12",
+      "Available 09:00, Sat, Sep 12 (extended)",
+    ]) {
+      const [item] = parseAssessments(wrap(text), bare);
+      expect(item!.extra?.["releasedAt"], text).toBeUndefined();
+      expect(item!.extra?.["unparsedCredit"], text).toBe(text);
+    }
+  });
 
   it("treats a 100% cell as the due date", () => {
     const [item] = parseAssessments(wrap("100% until 23:59, Tue, Sep 8"), bare);

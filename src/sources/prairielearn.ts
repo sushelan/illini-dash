@@ -132,6 +132,10 @@ export function deadlinesFromSchedule(tiers: CreditTier[]): {
 const CREDIT_CELL =
   /^(\d{1,3})% until (\d{1,2}):(\d{2}), (Sun|Mon|Tue|Wed|Thu|Fri|Sat), ([A-Z][a-z]{2}) (\d{1,2})$/;
 
+/** The same shape, for an assessment that has not opened yet. */
+const AVAILABLE_CELL =
+  /^Available (\d{1,2}):(\d{2}), (Sun|Mon|Tue|Wed|Thu|Fri|Sat), ([A-Z][a-z]{2}) (\d{1,2})$/;
+
 export interface CreditCell {
   credit: number;
   instant: string;
@@ -142,12 +146,23 @@ export interface CreditCell {
  * year and no zone. The zone is the course instance's (America/Chicago) and the
  * year is inferred with the weekday as a check (§3.2).
  */
-export function parseCreditCell(text: string, reference: string): CreditCell | undefined {
-  const match = CREDIT_CELL.exec(text.trim());
-  if (!match) return undefined;
-  const [, credit, hour, minute, weekday, month, day] = match;
-
-  const monthNumber = monthIndex(month!);
+/**
+ * `21:15, Mon, Sep 14` → an instant, or `undefined` if it is not a real one.
+ *
+ * Shared by both cell shapes below. They differ only in what precedes the
+ * time, and writing the resolution out twice is the mistake `resolveColumn`
+ * was extracted to fix: two copies of one decision, where loosening either is
+ * masked by the other staying strict.
+ */
+function instantFromCell(
+  hour: string,
+  minute: string,
+  weekday: string,
+  month: string,
+  day: string,
+  reference: string,
+): string | undefined {
+  const monthNumber = monthIndex(month);
   if (monthNumber === undefined) return undefined;
 
   const parts = {
@@ -156,7 +171,7 @@ export function parseCreditCell(text: string, reference: string): CreditCell | u
     hour: Number(hour),
     minute: Number(minute),
   };
-  // The regex admits Sep 31, Sep 0, 25:00 and 99:99. Rejecting them here sends
+  // The regexes admit Sep 31, Sep 0, 25:00 and 99:99. Rejecting them here sends
   // the row down the `unparsedCredit` path instead of storing a date that does
   // not exist or throwing a RangeError that would take the page with it.
   if (!isRealWallClock({ ...parts, year: 2000 })) return undefined;
@@ -164,7 +179,33 @@ export function parseCreditCell(text: string, reference: string): CreditCell | u
   const year = inferYear(parts, weekday, reference, COURSE_ZONE);
   // The weekday contradicted every candidate year (§3.2's cross-check failing).
   if (year === undefined) return undefined;
-  return { credit: Number(credit), instant: wallClockToIso({ ...parts, year }, COURSE_ZONE) };
+  return wallClockToIso({ ...parts, year }, COURSE_ZONE);
+}
+
+export function parseCreditCell(text: string, reference: string): CreditCell | undefined {
+  const match = CREDIT_CELL.exec(text.trim());
+  if (!match) return undefined;
+  const [, credit, hour, minute, weekday, month, day] = match;
+  const instant = instantFromCell(hour!, minute!, weekday!, month!, day!, reference);
+  return instant === undefined ? undefined : { credit: Number(credit), instant };
+}
+
+/**
+ * `Available 09:00, Sat, Sep 12` — the cell an assessment shows *before* it
+ * opens.
+ *
+ * This is an opening time, not a deadline, and it was the single largest
+ * source of noise in a real list: eight ECE 374 guided problem sets sat under
+ * "Couldn't read" flagged `prairielearn: credit`, because the shape did not
+ * match the credit cell and the row fell down house rule 1's unreadable path.
+ * Nothing about it is unreadable. It simply answers a different question, and
+ * a due date must never be invented from it (worker rule 3).
+ */
+export function parseAvailableCell(text: string, reference: string): string | undefined {
+  const match = AVAILABLE_CELL.exec(text.trim());
+  if (!match) return undefined;
+  const [, hour, minute, weekday, month, day] = match;
+  return instantFromCell(hour!, minute!, weekday!, month!, day!, reference);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -355,11 +396,19 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
         extra["creditRemaining"] = String(cell.credit);
       }
     } else if (!tiers && creditText) {
-      // §4.3: one unreadable row must not take the whole course down. The row is
-      // still emitted, undated, with the raw text kept.
-      extra["unparsedCredit"] = creditText;
-      // §4.3 requires the unreadable row to be logged with its raw text.
-      console.warn(`[prairielearn] unreadable credit cell for ${badge}: ${creditText}`);
+      const opens = parseAvailableCell(creditText, page.fetchedAt);
+      if (opens !== undefined) {
+        // Not yet open. It has no deadline to state, and none is invented from
+        // the opening time — §5.3 would rank an invented instant against real
+        // ones from other sources.
+        extra["releasedAt"] = opens;
+      } else {
+        // §4.3: one unreadable row must not take the whole course down. The row
+        // is still emitted, undated, with the raw text kept.
+        extra["unparsedCredit"] = creditText;
+        // §4.3 requires the unreadable row to be logged with its raw text.
+        console.warn(`[prairielearn] unreadable credit cell for ${badge}: ${creditText}`);
+      }
     }
 
     items.push({

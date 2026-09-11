@@ -36,6 +36,13 @@ const items = [
          members: [member("prairietest", { windowStart: at(10, 0, 1), windowEnd: at(12, 23, 59) })] }),
   item({ courseLabel: "CS357", title: "CS 357: Quiz 1", dueAt: at(0, 21, 0), kind: "exam",
          members: [member("prairietest")] }),
+  // ECE 374 guided problem sets, listed but not yet open. Real titles and real
+  // opening times from the assessments page, 2026-09-11. Eight of these led the
+  // list under "Couldn't read" before the parser knew the shape.
+  item({ courseLabel: "ECE374", title: "GPS4 Language Transformations, and CFGs",
+         members: [member("prairielearn", { releasedAt: at(1, 9, 0) })] }),
+  item({ courseLabel: "ECE374", title: "GPS5 Divide and Conquer, Recursion, and Recurrences",
+         members: [member("prairielearn", { releasedAt: at(15, 9, 0) })] }),
   // Canvas calendar events, from the same real list. The recurring one is the
   // point: four instances of this block and two class Zoom links were sitting
   // in "Needs attention", where nothing could ever clear them.

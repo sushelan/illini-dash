@@ -97,6 +97,60 @@ describe("sectionFor (§8.1)", () => {
   });
 });
 
+describe("an assessment that has not opened yet", () => {
+  /*
+   * PrairieLearn prints `Available 09:00, Sat, Sep 12` for work that is listed
+   * but not yet open. It has no deadline, so before this every such row either
+   * sat under "Couldn't read" (when the cell text was kept as unreadable) or
+   * vanished from the list entirely (when it was not) — eight ECE 374 problem
+   * sets, in the first case.
+   */
+  const opens = (iso: string, rest: Partial<Item> = {}) =>
+    item({ title: "GPS4 Language Transformations", members: [member("not_submitted", { releasedAt: iso })], ...rest });
+
+  it("places the row by when it opens", () => {
+    expect(sectionFor(opens(at(2026, 8, 11, 9)), NOW)).toBe("Tomorrow");
+    expect(sectionFor(opens(at(2026, 8, 25, 9)), NOW)).toBe("Later");
+  });
+
+  it("says when it opens instead of 'no date'", () => {
+    const text = formatDue(opens(at(2026, 8, 25, 9)), NOW, "Later");
+    expect(text.primary).toBe("opens Sep 25");
+    expect(text.detail).toBe("not open yet");
+  });
+
+  it("never invents a deadline from the opening time", () => {
+    // Worker rule 3: §5.3 ranks instants across sources, and an invented one
+    // would outrank a real deadline another source states for the same work.
+    const row = opens(at(2026, 8, 25, 9));
+    expect(row.dueAt).toBeUndefined();
+    expect(row.lateDueAt).toBeUndefined();
+  });
+
+  it("drops the row once the opening time has passed", () => {
+    // By then the source states a real deadline, or the row has nothing to say.
+    expect(sectionFor(opens(at(2026, 8, 10, 9)), NOW)).toBeUndefined();
+  });
+
+  it("stays out of the list past the 60-day horizon", () => {
+    expect(sectionFor(opens(at(2026, 11, 20, 9)), NOW)).toBeUndefined();
+  });
+
+  it("lets a real deadline win over an opening time on the same row", () => {
+    // Gradescope records `releasedAt` for work that is already open and dated.
+    // The deadline is what the student acts on.
+    const both = opens(at(2026, 8, 25, 9), { dueAt: at(2026, 8, 11, 23, 59) });
+    expect(sectionFor(both, NOW)).toBe("Tomorrow");
+    expect(formatDue(both, NOW, "Tomorrow").primary).not.toContain("opens");
+  });
+
+  it("still says 'no date' for a row that genuinely has none", () => {
+    expect(formatDue(item({ members: [member("not_submitted")] }), NOW, "Later").primary).toBe(
+      "no date",
+    );
+  });
+});
+
 describe("a calendar event is not unfinished work", () => {
   /*
    * From a real list: "Needs attention" held seven rows, and six were Canvas

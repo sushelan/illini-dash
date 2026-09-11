@@ -17,11 +17,13 @@ import {
   dedupe,
   isTickedDone,
   itemId,
+  opensAt,
   sameCourse,
   shouldMerge,
+  sortItems,
   titlesCompatible,
 } from "../src/core/dedupe.js";
-import type { Overrides, RawItem } from "../src/sources/types.js";
+import type { Item, Overrides, RawItem } from "../src/sources/types.js";
 
 const NO_OVERRIDES: Overrides = {
   mergeGroups: [],
@@ -668,5 +670,48 @@ describe("not-for-credit work (§4.3)", () => {
     const merged = dedupe([practice("1:PQ1"), gs], NO_OVERRIDES);
     expect(merged[0]!.members).toHaveLength(2);
     expect(merged[0]!.forCredit).toBeUndefined();
+  });
+});
+
+describe("ordering rows that have not opened yet", () => {
+  const row = (title: string, releasedAt?: string, dueAt?: string): Item => ({
+    id: title,
+    members: releasedAt ? [raw({ source: "prairielearn", sourceId: title, title, extra: { releasedAt } })] : [],
+    courseLabel: "ECE374",
+    title,
+    kind: "assignment",
+    dueAt,
+    url: "https://us.prairielearn.com/",
+    status: "not_submitted",
+    hidden: false,
+    done: false,
+    notified: {},
+  });
+
+  it("reads the opening instant off whichever member states one", () => {
+    expect(opensAt(row("GPS4", "2026-09-12T09:00:00-05:00"))).toBe(
+      Date.parse("2026-09-12T09:00:00-05:00"),
+    );
+    expect(opensAt(row("GPS4"))).toBeUndefined();
+  });
+
+  it("orders them by when they open, not by title", () => {
+    // The real list: GPS4 opens Sep 12 and GPS11 opens Nov 28. Sorting undated
+    // rows on title alone put Undecidability above Language Transformations,
+    // and both below everything else.
+    const order = sortItems([
+      row("GPS11 Undecidability", "2026-11-28T09:00:00-06:00"),
+      row("GPS4 Language Transformations", "2026-09-12T09:00:00-05:00"),
+    ]).map((i) => i.title);
+    expect(order[0]).toContain("GPS4");
+  });
+
+  it("still sorts a row with no instant at all to the end", () => {
+    const order = sortItems([
+      row("undated"),
+      row("GPS4", "2026-09-12T09:00:00-05:00"),
+      row("due", undefined, "2026-09-11T23:59:00-05:00"),
+    ]).map((i) => i.title);
+    expect(order).toEqual(["due", "GPS4", "undated"]);
   });
 });

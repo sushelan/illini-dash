@@ -430,6 +430,30 @@ export function dedupe(
 }
 
 /**
+ * When a source said this becomes available, if it has not already.
+ *
+ * PrairieLearn prints `Available 09:00, Sat, Sep 12` for an assessment that has
+ * not opened. That is a real, stated instant and the row's only one — it has no
+ * deadline yet — so without this the row has nothing to sort by and is dropped
+ * from the list entirely. Eight ECE 374 problem sets were in exactly that
+ * position.
+ *
+ * The earliest across members, because a merged row opens when its first source
+ * says it opens.
+ */
+export function opensAt(item: Item): number | undefined {
+  let earliest: number | undefined;
+  for (const member of item.members) {
+    const raw = member.extra?.["releasedAt"];
+    if (raw === undefined) continue;
+    const at = Date.parse(raw);
+    if (Number.isNaN(at)) continue;
+    if (earliest === undefined || at < earliest) earliest = at;
+  }
+  return earliest;
+}
+
+/**
  * Undated last, then by instant, then by title so the order is stable.
  *
  * An assumed time sorts after a stated one at the same instant. §4.5's runner
@@ -438,11 +462,25 @@ export function dedupe(
  * actually trust is not the one on top.
  */
 export function sortItems(items: Item[]): Item[] {
+  /*
+   * A row that has not opened has no deadline, but it does have a stated
+   * instant, and it is displayed by it. Sorting those on title alone put the
+   * problem set that opens in November above the one that opens next week.
+   */
+  const key = (item: Item): number | undefined => {
+    if (item.dueAt !== undefined) {
+      const at = Date.parse(item.dueAt);
+      return Number.isNaN(at) ? undefined : at;
+    }
+    return opensAt(item);
+  };
   return [...items].sort((a, b) => {
-    if (a.dueAt === undefined && b.dueAt === undefined) return a.title.localeCompare(b.title);
-    if (a.dueAt === undefined) return 1;
-    if (b.dueAt === undefined) return -1;
-    const gap = Date.parse(a.dueAt) - Date.parse(b.dueAt);
+    const ka = key(a);
+    const kb = key(b);
+    if (ka === undefined && kb === undefined) return a.title.localeCompare(b.title);
+    if (ka === undefined) return 1;
+    if (kb === undefined) return -1;
+    const gap = ka - kb;
     if (gap !== 0) return gap;
     // §4.3: "the popup sorts them last within their day".
     const credit = Number(a.forCredit === false) - Number(b.forCredit === false);

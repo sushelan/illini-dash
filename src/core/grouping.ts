@@ -6,7 +6,7 @@
  * in the renderer.
  */
 
-import { isItemDone, isTickedDone } from "./dedupe.js";
+import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -111,6 +111,21 @@ export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
   return undefined;
 }
 
+/**
+ * §8.1's forward sections for one future instant.
+ *
+ * Extracted so a deadline and an opening time are placed by the same rule. Two
+ * copies would drift, and the mutation lesson from `resolveColumn` is that a
+ * second copy of a decision also hides the first from its tests.
+ */
+function sectionByInstant(at: number, now: Date): SectionName | undefined {
+  if (at < startOfDay(now, 1)) return "Today";
+  if (at < startOfDay(now, 2)) return "Tomorrow";
+  if (at < endOfWeek(now)) return "This week";
+  if (at < startOfDay(now) + HORIZON_DAYS * 86_400_000) return "Later";
+  return undefined;
+}
+
 export function sectionFor(item: Item, now: Date): SectionName | undefined {
   // Before anything else: a row whose date could not be read has no instant to
   // section by, so every branch below would drop it — which is how a row kept
@@ -131,10 +146,17 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
   }
 
   const live = liveDeadline(item, now);
-  if (live === undefined) return undefined;
+  if (live === undefined) {
+    // No deadline stated. If a source said when it opens and that is still
+    // ahead, this is upcoming work and belongs in the list — dropping it is
+    // the silent loss §11 ranks worst. An opening time already past says
+    // nothing useful on its own, so those still fall out.
+    const opens = opensAt(item);
+    if (opens === undefined || opens <= now.getTime()) return undefined;
+    return sectionByInstant(opens, now);
+  }
   const due = live.at;
 
-  const today = startOfDay(now);
   if (due < now.getTime()) {
     // Past due. Only unfinished work needs attention, and only for a week.
     if (isItemDone(item)) return undefined;
@@ -143,11 +165,7 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
       : undefined;
   }
 
-  if (due < startOfDay(now, 1)) return "Today";
-  if (due < startOfDay(now, 2)) return "Tomorrow";
-  if (due < endOfWeek(now)) return "This week";
-  if (due < today + HORIZON_DAYS * 86_400_000) return "Later";
-  return undefined;
+  return sectionByInstant(due, now);
 }
 
 /**
@@ -272,7 +290,23 @@ function precisionFor(section: SectionName | undefined): "relative" | "time" | "
 
 export function formatDue(item: Item, now: Date, section?: SectionName): DueText {
   const instant = instantOf(item);
-  if (instant === undefined) return { primary: "no date" };
+  if (instant === undefined) {
+    // A row with no deadline but a stated opening time. "no date" would be a
+    // lie by omission: the source told us something specific, and "opens Sep
+    // 12" is the answer to the only question this row can answer yet.
+    const opens = opensAt(item);
+    if (opens !== undefined && opens > now.getTime()) {
+      const at = new Date(opens);
+      const when =
+        precisionFor(section) === "date"
+          ? dayOf(at)
+          : precisionFor(section) === "weekday"
+            ? clockOf(at)
+            : at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      return { primary: `opens ${when}`, detail: "not open yet" };
+    }
+    return { primary: "no date" };
+  }
   const due = new Date(instant);
   if (Number.isNaN(due.getTime())) return { primary: "no date" };
 
