@@ -7,6 +7,27 @@
   --ok: #1a7f37;
   --warn: #9a6700;
   --err: #b42318;
+
+  /*
+   * Illini Blue and Illini Orange, the university's own pair.
+   *
+   * Structural only. They name the app; they never carry meaning, because the
+   * meanings are already taken — red is overdue, amber is a window still open,
+   * green is a source that answered. A brand colour that also means something
+   * is a brand colour that will eventually contradict it.
+   */
+  --brand: #13294b;
+  --brand-ink: #ffffff;
+  --accent: #ff5f05;
+
+  /*
+   * Where you are, which is not an error.
+   *
+   * Today's date ring and the now-line were both `--err`. That reads as an
+   * alert about the present moment, and it spent the one colour that should
+   * only ever mean "this is late" on the one thing that is never late.
+   */
+  --now: var(--accent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -17,6 +38,53 @@
     --ok: #4ac26b;
     --warn: #d4a72c;
     --err: #f0736a;
+    /* Lifted off the official value: #13294b on a near-black page is a bar you
+       cannot see. Same hue, enough lightness to read as a surface. */
+    --brand: #1b3a6b;
+    --accent: #ff8534;
+  }
+}
+
+/* ---- Neutral: what this looked like before it had a palette ---- */
+.theme-neutral {
+  --brand: transparent;
+  --brand-ink: var(--fg);
+  --accent: var(--muted);
+  --now: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  .theme-neutral { --now: #f0736a; }
+}
+
+/*
+ * ---- High contrast ----
+ *
+ * Two separate problems, and both are about being able to tell things apart.
+ * Text and borders go stronger, and the course palette is replaced with one
+ * chosen to stay distinguishable under red-green colour blindness — which the
+ * default palette is not, and which is common enough in a CS lecture hall that
+ * "it looks fine to me" is not evidence.
+ */
+.theme-contrast {
+  --fg: #000;
+  --muted: #444;
+  --line: #949494;
+  --ok: #0b6b2c;
+  --warn: #7a4f00;
+  --err: #96140b;
+  --brand: #0b1b33;
+  --accent: #c24500;
+}
+@media (prefers-color-scheme: dark) {
+  .theme-contrast {
+    --fg: #fff;
+    --muted: #c2c2c2;
+    --bg: #000;
+    --line: #6e6e6e;
+    --ok: #5ee27f;
+    --warn: #f0c33c;
+    --err: #ff8f85;
+    --accent: #ff9b52;
   }
 }
 body {

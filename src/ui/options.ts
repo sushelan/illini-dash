@@ -6,6 +6,14 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
+import {
+  DEFAULT_THEME,
+  THEMES,
+  THEME_KEY,
+  allThemeClasses,
+  normalizeTheme,
+  themeClass,
+} from "../core/theme.js";
 import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
@@ -40,6 +48,25 @@ const statusEl = document.getElementById("gate0-status")!;
 const resultsEl = document.getElementById("gate0-results")!;
 
 let lastResults: Gate0Result[] = [];
+
+/* ---- Colour scheme ----
+ * Read before the first paint, which is why it is in `localStorage` and not the
+ * store: anything in the store costs a message to the service worker, and that
+ * is a flash of the wrong colours on every single open.
+ */
+applyStoredTheme();
+
+function applyStoredTheme(): void {
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(THEME_KEY);
+  } catch {
+    /* A blocked storage accessor throws on read; the default is fine. */
+  }
+  const root = document.documentElement;
+  root.classList.remove(...allThemeClasses());
+  root.classList.add(themeClass(normalizeTheme(stored)));
+}
 
 /* ---- Build identity -------------------------------------------------------
  * Chrome reloads this page from disk but keeps the old service worker until the
@@ -1243,3 +1270,48 @@ function buildAdapter(
     minExtensionVersion: "0.1.0",
   };
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* Appearance                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function renderThemes(): void {
+  const host = document.getElementById("themes");
+  if (!host) return;
+  let current: string | null = null;
+  try {
+    current = window.localStorage.getItem(THEME_KEY);
+  } catch {
+    /* Default it is. */
+  }
+  const chosen = normalizeTheme(current);
+
+  host.replaceChildren();
+  for (const theme of THEMES) {
+    const row = el("div", undefined, "opt-row");
+    const radio = el("input") as HTMLInputElement;
+    radio.type = "radio";
+    radio.name = "theme";
+    radio.id = `theme-${theme.name}`;
+    radio.checked = theme.name === chosen;
+    radio.addEventListener("change", () => {
+      try {
+        window.localStorage.setItem(THEME_KEY, theme.name);
+      } catch {
+        /* Nothing to do: the choice simply will not persist. */
+      }
+      // Applied here rather than on reload, so the page recolours under the
+      // click. A theme you have to reload to see is one nobody tries twice.
+      document.documentElement.classList.remove(...allThemeClasses());
+      document.documentElement.classList.add(themeClass(theme.name));
+    });
+    const label = el("label", theme.label);
+    label.htmlFor = radio.id;
+    row.append(radio, label, el("span", theme.hint, "opt-note"));
+    host.append(row);
+  }
+  void DEFAULT_THEME;
+}
+
+renderThemes();
