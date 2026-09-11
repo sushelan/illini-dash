@@ -210,7 +210,10 @@ One defect, and one superseded claim:
   shape on live ids. All four already worked. Still open: whether the
   first-fetch-after-reload failure recurs.
 
-**Tier 0b in progress.** Done: **17** (Canvas term filter, above) and **15** (beta
+**Tier 0b in progress.** Done: **14** (repo pushed to
+https://github.com/sushelan/illini-dash and made public 2026-09-10 — the registry URL
+now returns 200, so an adapter reaches every tester within a day without a new zip),
+**17** (Canvas term filter, above) and **15** (beta
 install kit — `npm run package` produces `release/illini-dash-<version>-<build>.zip`
 with an `INSTALL.txt` inside, and [beta-install.md](docs/beta-install.md) is the
 tester-facing guide).

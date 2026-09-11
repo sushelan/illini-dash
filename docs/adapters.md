@@ -95,6 +95,12 @@ The page also proves the fetch path end to end: it is Shibboleth-protected and a
 §4.5 asks for 2–3 seed adapters. One (`cs424-fa26`) now ships; a second and third still
 need real pages, which need a logged-in browser.
 
+**Delivery is live as of 2026-09-10.** The registry is published at
+`https://raw.githubusercontent.com/sushelan/illini-dash/main/adapters/registry.json`
+and returns 200. Adding a course is therefore: edit that one JSON file, push, and every
+installed copy picks it up on its next daily refresh — no new build, no reinstall, no
+store review. That is the whole reason §0 decision 4 makes adapters data.
+
 **To seed one**, capture the page with the options-page capture tool (it accepts any
 `*.illinois.edu` URL), then send it over. From the saved HTML the selectors are usually
 obvious in a couple of minutes. Good candidates are courses whose real schedule lives on
