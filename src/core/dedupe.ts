@@ -62,8 +62,13 @@ const SOURCE_RANK: Record<Source, number> = {
   gradescope: 0,
   prairielearn: 1,
   prairietest: 2,
-  site: 3,
-  canvas: 4,
+  // Above `site` and below the other submission systems: smartPhysics is where
+  // the work is actually submitted, and it states a real clock time, so its
+  // instant is authoritative. It sits under Gradescope and PrairieLearn only
+  // because no course uses both for the same item.
+  smartphysics: 3,
+  site: 4,
+  canvas: 5,
 };
 
 /** §5.3: "most done" wins, so a Canvas row that has not synced cannot undo it. */

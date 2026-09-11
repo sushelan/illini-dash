@@ -15,6 +15,7 @@ import * as canvas from "../sources/canvas.js";
 import * as gradescope from "../sources/gradescope.js";
 import * as prairielearn from "../sources/prairielearn.js";
 import * as prairietest from "../sources/prairietest.js";
+import * as smartphysics from "../sources/smartphysics.js";
 import {
   ParseError,
   memberKey,
@@ -60,6 +61,8 @@ export interface SyncDeps {
    * the loop has no hidden globals.
    */
   parseGradescopeDashboard(html: string): Promise<gradescope.GradescopeCourse[]>;
+  /** Same shape: the enrolment list yields courses, not items. */
+  parseSmartPhysicsCourses(html: string): Promise<smartphysics.SmartPhysicsCourse[]>;
   now(): string;
 }
 
@@ -280,6 +283,49 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
 }
 
 /**
+ * smartPhysics, in two stages like Gradescope.
+ *
+ * Every course page is addressed by a per-student enrolment id, so the list has
+ * to be discovered rather than configured — which is why this is a source and
+ * not a §4.5 adapter.
+ */
+async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
+  const fetchedAt = deps.now();
+  const home = await deps.fetchPage(`${smartphysics.SMARTPHYSICS_ORIGIN}/`);
+  if (smartphysics.isLoginResponse(home.status, home.finalUrl, home.body)) {
+    throw new NeedsLogin(home);
+  }
+
+  const courses = await deps.parseSmartPhysicsCourses(home.body);
+  const active = courses.filter((course) => course.active);
+  if (active.length === 0) {
+    // Not a ParseError. A student with no current PHYS 21x enrolment — most
+    // students, most terms — has a legitimately empty active list, and calling
+    // that a broken page would put a red dot on every non-physics tester.
+    // Worker rule 2's third branch: report *that*, do not report `ok` with
+    // nothing behind it either.
+    throw new SourceDisabled(
+      courses.length === 0
+        ? "no smartPhysics enrolments"
+        : `no active smartPhysics course (${courses.length} inactive)`,
+    );
+  }
+
+  const pages = await fetchAll(
+    active.map((course) => smartphysics.courseUrl(course.enrollmentId)),
+    deps,
+    smartphysics.isLoginResponse,
+  );
+  const items: RawItem[] = [];
+  for (const page of pages) {
+    items.push(
+      ...(await deps.parseHtml("smartphysics", page.body, { url: page.finalUrl, fetchedAt })),
+    );
+  }
+  return items;
+}
+
+/**
  * §4.5: every enabled adapter, each isolated.
  *
  * One adapter's failure must not take the others down — that is the whole
@@ -347,6 +393,7 @@ const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<RawItem[]>>> = {
   gradescope: syncGradescope,
   prairielearn: syncPrairieLearn,
   prairietest: syncPrairieTest,
+  smartphysics: syncSmartPhysics,
   site: syncSites,
 };
 

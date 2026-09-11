@@ -37,6 +37,7 @@ export const ALL_SOURCES: Source[] = [
   "gradescope",
   "prairielearn",
   "prairietest",
+  "smartphysics",
   "site",
 ];
 
@@ -96,12 +97,16 @@ function defaultStatus(source: Source): SourceStatus {
   return {
     source,
     // §4.5: site adapters are off until the user enables one and grants the
-    // host permission, so this source starts disabled while the rest do not.
-    enabled: source !== "site",
+    // host permission. smartPhysics is off for a different reason: it serves
+    // PHYS 211–214 only, and a student who has never signed in there would
+    // otherwise get a yellow "sign in" dot and a banner for a site they do not
+    // use — the opposite of the honest-health work in `core/health.ts`. The
+    // beta guide tells PHYS testers to switch it on.
+    enabled: source !== "site" && source !== "smartphysics",
     // Not `ok`. Nothing has been fetched yet, and a state field that claims
     // success before the first request is the fresh-install green dot — worker
     // house rule 2. `core/health.ts` renders this grey and says "not checked".
-    state: source === "site" ? "disabled" : "pending",
+    state: source === "site" || source === "smartphysics" ? "disabled" : "pending",
     consecutiveFailures: 0,
   };
 }

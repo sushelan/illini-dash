@@ -7,6 +7,7 @@
  */
 
 import { currentTermCourses } from "./sources/gradescope.js";
+import { parseCourseList as parseSmartPhysicsCourseList } from "./sources/smartphysics.js";
 import { getParser } from "./sources/registry.js";
 import { runAdapter } from "./sources/site.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
@@ -23,6 +24,10 @@ chrome.runtime.onMessage.addListener(
         // The dashboard yields courses, not RawItems, so it needs its own op
         // rather than being squeezed through the RawItem protocol.
         sendResponse({ ok: true, courses: currentTermCourses(doc) });
+      } else if (message.type === "parse-smartphysics-courses") {
+        // Same reason as the Gradescope dashboard: the enrolment list yields
+        // courses, not RawItems.
+        sendResponse({ ok: true, smartPhysicsCourses: parseSmartPhysicsCourseList(doc) });
       } else if (message.type === "run-adapter") {
         // §4.5's runner needs the adapter alongside the DOM, which the RawItem
         // protocol does not carry, so it gets its own op.

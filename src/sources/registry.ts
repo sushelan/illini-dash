@@ -8,6 +8,7 @@
 import { parseCoursePage as parseGradescopeCoursePage } from "./gradescope.js";
 import { parseAssessments as parsePrairieLearnAssessments } from "./prairielearn.js";
 import { parseHome as parsePrairieTestHome } from "./prairietest.js";
+import { parseAssignments as parseSmartPhysicsAssignments } from "./smartphysics.js";
 import { ROUNDTRIP_PARSER_ID, parseRoundtrip } from "./roundtrip.js";
 import type { ParseFn, Source } from "./types.js";
 
@@ -20,6 +21,9 @@ export const PARSERS: Partial<Record<ParserId, ParseFn>> = {
   gradescope: parseGradescopeCoursePage,
   prairielearn: parsePrairieLearnAssessments,
   prairietest: parsePrairieTestHome,
+  // Like Gradescope, the enrolment list is parsed during planning (it yields
+  // courses, not items), so only the course page runs through here.
+  smartphysics: parseSmartPhysicsAssignments,
   // `site` is absent deliberately: an adapter parse needs the adapter itself,
   // which the RawItem protocol does not carry, so it has its own offscreen op.
 };

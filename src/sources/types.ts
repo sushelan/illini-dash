@@ -5,6 +5,7 @@ export type Source =
   | "gradescope"
   | "prairielearn"
   | "prairietest"
+  | "smartphysics"
   | "site";
 
 export type Kind = "assignment" | "quiz" | "exam" | "booking" | "other";

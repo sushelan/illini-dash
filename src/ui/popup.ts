@@ -44,6 +44,7 @@ const SOURCE_LABEL: Record<Source, string> = {
   gradescope: "GS",
   prairielearn: "PL",
   prairietest: "PT",
+  smartphysics: "SP",
   site: "WEB",
 };
 
@@ -52,6 +53,7 @@ const LOGIN_URL: Partial<Record<Source, string>> = {
   gradescope: "https://www.gradescope.com/login",
   prairielearn: "https://us.prairielearn.com/pl/",
   prairietest: "https://us.prairietest.com/pt/",
+  smartphysics: "https://smart.physics.illinois.edu/",
 };
 
 const listEl = document.getElementById("list")!;

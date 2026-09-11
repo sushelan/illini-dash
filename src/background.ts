@@ -13,6 +13,7 @@ import { runParseSelftest } from "./core/parse-selftest.js";
 import {
   parseGradescopeDashboard,
   parseHtml,
+  parseSmartPhysicsCourses,
   runAdapterInOffscreen,
 } from "./core/offscreen-client.js";
 import {
@@ -116,6 +117,7 @@ const deps: SyncDeps = {
   fetchPage,
   parseHtml: (source, html, page) => parseHtml(source as ParserId, html, page),
   parseGradescopeDashboard,
+  parseSmartPhysicsCourses,
   runAdapter: runAdapterInOffscreen,
   enabledAdapters,
   keptCourses: () => keptCourseIds,

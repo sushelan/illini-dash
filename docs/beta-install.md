@@ -48,6 +48,11 @@ not already. The extension can only read what you can read.
 **If you do not use one of them** — plenty of people never touch PrairieTest — open
 Settings with the gear icon and switch that source off. It stops being counted.
 
+**If you take PHYS 211, 212, 213 or 214**, switch **smartPhysics** on in Settings. It is
+off by default because most people are not in those courses, and it would otherwise sit
+there asking them to sign into a site they have never used. Its deadlines are at 8:00 AM
+rather than 11:59 PM, which is exactly the kind the usual habit misses.
+
 ## What to expect in the first week
 
 - The list only goes 60 days out.

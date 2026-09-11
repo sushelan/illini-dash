@@ -10,6 +10,7 @@ import type { CaptureResult } from "./capture.js";
 import type { Gate0Result } from "./gate0.js";
 import type { ParserId } from "./sources/registry.js";
 import type { GradescopeCourse } from "./sources/gradescope.js";
+import type { SmartPhysicsCourse } from "./sources/smartphysics.js";
 import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
 import type {
@@ -109,6 +110,7 @@ export interface SelftestCase {
 export type OffscreenRequest =
   | { target: "offscreen"; type: "parse"; parserId: ParserId; html: string; page: PageCtx }
   | { target: "offscreen"; type: "parse-gradescope-dashboard"; html: string }
+  | { target: "offscreen"; type: "parse-smartphysics-courses"; html: string }
   | {
       target: "offscreen";
       type: "run-adapter";
@@ -129,6 +131,9 @@ export interface SerializedError {
 export type ParseResponse =
   | { ok: true; items: RawItem[] }
   | { ok: true; courses: GradescopeCourse[] }
+  // Named separately from `courses` so the two cannot be confused at the
+  // boundary: both are "a list of courses" and neither is the other's shape.
+  | { ok: true; smartPhysicsCourses: SmartPhysicsCourse[] }
   | { ok: false; error: SerializedError };
 
 /**

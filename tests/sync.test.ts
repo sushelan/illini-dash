@@ -30,6 +30,7 @@ import {
 import { currentTermCourses, parseCoursePage } from "../src/sources/gradescope.js";
 import { parseAssessments } from "../src/sources/prairielearn.js";
 import { parseHome } from "../src/sources/prairietest.js";
+import { parseCourseList as parseSmartPhysicsCourseList } from "../src/sources/smartphysics.js";
 import { runAdapter } from "../src/sources/site.js";
 import type { PageCtx, RawItem, Source } from "../src/sources/types.js";
 
@@ -59,6 +60,9 @@ function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
   return {
     keptCourses: () => new Set<string>(),
     reportSetAsideCourses: () => undefined,
+    async parseSmartPhysicsCourses(html: string) {
+      return parseSmartPhysicsCourseList(doc(html));
+    },
     async fetchPage(url) {
       const body = PAGES[url];
       if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
@@ -90,7 +94,14 @@ describe("migrate (§3)", () => {
       const store = migrate(junk);
       expect(store.schemaVersion).toBe(1);
       expect(store.settings.pollMinutes).toBe(30);
-      expect(Object.keys(store.sources)).toHaveLength(5);
+      expect(Object.keys(store.sources).sort()).toEqual([
+        "canvas",
+        "gradescope",
+        "prairielearn",
+        "prairietest",
+        "site",
+        "smartphysics",
+      ]);
     }
   });
 
@@ -192,8 +203,9 @@ describe("syncOneSource against the real fixtures", () => {
 describe("runSync (§6)", () => {
   it("collects every source into one deduped list", async () => {
     const { store, outcomes } = await runSync(emptyStore(), "alarm", deps());
-    // `site` starts disabled (§4.5: it needs a permission grant), so it is
-    // skipped entirely rather than reporting an outcome.
+    // `site` and `smartphysics` both start disabled — one needs a permission
+    // grant (§4.5), the other serves PHYS 211–214 only — so neither is
+    // attempted and neither reports an outcome.
     expect(outcomes.map((o) => o.state)).toEqual(["ok", "ok", "ok", "ok"]);
     expect(Object.keys(store.raw).length).toBeGreaterThan(20);
     expect(store.items.length).toBeGreaterThan(0);

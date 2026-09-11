@@ -418,6 +418,7 @@ const SOURCE_NAMES: Record<string, string> = {
   gradescope: "Gradescope",
   prairielearn: "PrairieLearn",
   prairietest: "PrairieTest",
+  smartphysics: "smartPhysics",
   site: "Course websites",
 };
 
@@ -426,6 +427,7 @@ const SOURCE_LOGIN: Record<string, string> = {
   gradescope: "https://www.gradescope.com/login",
   prairielearn: "https://us.prairielearn.com/pl/",
   prairietest: "https://us.prairietest.com/pt/",
+  smartphysics: "https://smart.physics.illinois.edu/",
 };
 
 const PRIVACY_TEXT =
