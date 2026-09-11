@@ -30,6 +30,7 @@
     "https://www.gradescope.com/*",
     "https://us.prairielearn.com/*",
     "https://us.prairietest.com/*",
+    "https://smart.physics.illinois.edu/*",
     "https://raw.githubusercontent.com/*"
   ],
   "optional_host_permissions": [

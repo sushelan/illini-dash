@@ -31,11 +31,20 @@ const TIMEOUT_MS = 20_000;
  * work at all — without it the request falls back to ordinary CORS rules and is
  * blocked by the browser, with an error that says nothing about permissions.
  */
+/**
+ * Hosts the manifest grants up front, so no runtime request is needed.
+ *
+ * Must stay in step with `host_permissions`. `tests/manifest.test.ts` asserts
+ * that every source this extension fetches is covered, because the one that was
+ * not — smartPhysics — failed with a bare "TypeError: Failed to fetch" and
+ * nothing in the UI could say why.
+ */
 const ALLOWED_HOSTS = [
   "canvas.illinois.edu",
   "www.gradescope.com",
   "us.prairielearn.com",
   "us.prairietest.com",
+  "smart.physics.illinois.edu",
 ];
 
 export function isAllowedCaptureUrl(raw: string): boolean {
