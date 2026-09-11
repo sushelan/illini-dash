@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Illini Dash — colour schemes</title>
+<style>
+/* All dark. Sushi's machine is dark and that is the only mode these get seen in. */
+body {
+  margin: 0; padding: 26px; background: #101010; color: #e6e6e6;
+  font: 13px/1.45 system-ui, -apple-system, sans-serif;
+}
+.page { max-width: 1180px; margin: 0 auto; }
+h1 { font-size: 17px; margin: 0 0 4px; }
+.sub { color: #9a9a9a; margin: 0 0 24px; max-width: 76ch; }
+.panel { margin: 0 0 34px; }
+.panel > h2 { font-size: 13px; margin: 0 0 2px; }
+.panel > .note { color: #9a9a9a; font-size: 12px; margin: 0 0 10px; max-width: 80ch; line-height: 1.45; }
+.frame { border-radius: 10px; overflow: hidden; border: 1px solid #333; }
+
+/* ---- the structure, identical in every scheme ---- */
+.app { background: var(--bg); color: var(--fg); }
+.bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; background: var(--bar); color: var(--bar-ink);
+}
+.dots { display: flex; gap: 7px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; }
+.bar--right { display: flex; gap: 12px; font-size: 12px; opacity: .85; }
+
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; background: var(--tint); }
+.tab {
+  font-size: 12.5px; padding: 6px 12px 7px; color: var(--muted);
+  border-radius: 6px 6px 0 0; border: 1px solid transparent; border-bottom: 0;
+}
+.tab.on {
+  color: var(--fg); font-weight: 600; background: var(--bg);
+  border-color: var(--line); box-shadow: inset 0 2px 0 0 var(--accent);
+}
+.chips { display: flex; gap: 5px; padding: 7px 12px; background: var(--tint); }
+.chip {
+  display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
+  border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px 2px 6px;
+}
+.chip i { width: 7px; height: 7px; border-radius: 50%; }
+.nav {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  background: var(--tint); border-bottom: 1px solid var(--line);
+}
+.nav b { font-size: 13px; }
+.nav span { color: var(--muted); }
+
+.mhead { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--tint); }
+.mhead div {
+  font-size: 9.5px; letter-spacing: .07em; color: var(--muted);
+  text-align: center; padding: 7px 0; text-transform: uppercase;
+}
+.mgrid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cell {
+  min-height: 88px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  padding: 5px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.cell:nth-child(7n + 1) { border-left: 0; }
+.cell.out { background: var(--tint); }
+.num { font-size: 11px; font-weight: 600; color: var(--muted); }
+.out .num { opacity: .45; }
+.cell.today { background: var(--today); }
+.today .num {
+  color: var(--today-ink); background: var(--accent); border-radius: 50%;
+  width: 19px; height: 19px; display: grid; place-items: center; font-size: 10.5px;
+}
+.pill {
+  display: flex; gap: 4px; align-items: baseline; min-width: 0;
+  border-left: 3px solid var(--c); background: var(--pill);
+  padding: 2px 4px; border-radius: 3px; font-size: 10.5px; line-height: 1.3;
+}
+.pill b { font-weight: 700; font-size: 9px; color: var(--muted); flex: none; letter-spacing: .02em; }
+.pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill.exam { background: var(--exam); }
+
+/* ================= schemes ================= */
+
+/* A — what ships today */
+.illini {
+  --bg: #1c1c1c; --fg: #e6e6e6; --muted: #9a9a9a; --line: #3a3a3a;
+  --bar: #1b3a6b; --bar-ink: #fff; --accent: #ff8534;
+  --tint: #26292e; --today: #35271f; --today-ink: #1c1c1c;
+  --pill: #2b2f36; --exam: #3a3123;
+  --c1: #748ffc; --c2: #38d9a9; --c3: #ff922b; --c4: #da77f2;
+}
+/* B — the whole app on navy, not just the bar */
+.navy {
+  --bg: #0e1a2b; --fg: #e8edf5; --muted: #93a4bd; --line: #24354c;
+  --bar: #16304f; --bar-ink: #fff; --accent: #ff8534;
+  --tint: #142640; --today: #33281f; --today-ink: #0e1a2b;
+  --pill: #1a2e4a; --exam: #3a3123;
+  --c1: #74a9ff; --c2: #3ddba4; --c3: #ff9d4d; --c4: #e08ef5;
+}
+/* C — orange chrome, blue for "you are here" */
+.orange {
+  --bg: #1a1a1a; --fg: #eeeeee; --muted: #9d9d9d; --line: #3b3b3b;
+  --bar: #c2410c; --bar-ink: #fff; --accent: #7cb0ff;
+  --tint: #2a2320; --today: #1e2a3d; --today-ink: #0d1420;
+  --pill: #2c2c2c; --exam: #3a3123;
+  --c1: #74a9ff; --c2: #38d9a9; --c3: #ffa94d; --c4: #da77f2;
+}
+/* D — almost no chrome colour at all */
+.midnight {
+  --bg: #0f1115; --fg: #e2e6ec; --muted: #8b94a3; --line: #242832;
+  --bar: #161a22; --bar-ink: #e2e6ec; --accent: #ff8534;
+  --tint: #171b23; --today: #2b2118; --today-ink: #0f1115;
+  --pill: #1c212b; --exam: #332b1e;
+  --c1: #7aa2f7; --c2: #45d9a6; --c3: #ff9e64; --c4: #c99ef5;
+}
+/* E — built for telling things apart */
+.contrast {
+  --bg: #000; --fg: #fff; --muted: #c2c2c2; --line: #6e6e6e;
+  --bar: #0b1b33; --bar-ink: #fff; --accent: #ff9b52;
+  --tint: #17202e; --today: #3d2a16; --today-ink: #000;
+  --pill: #1c1c1c; --exam: #3d3319;
+  --c1: #56b4e9; --c2: #33d6a6; --c3: #ff7f2a; --c4: #f29ec4;
+}
+.legend { color: #9a9a9a; font-size: 12px; margin: 26px 0 0; padding-top: 16px; border-top: 1px solid #333; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Illini Dash — colour schemes</h1>
+<p class="sub">The same September, the same rows, five schemes. All dark, because that is the
+only mode you see. Tell me a letter and I will make it the default; the others can stay as
+presets in Settings.</p>
+<div id="panels"></div>
+<p class="legend">Course colours stay distinct within each scheme. The amber wash on Sep 23
+is an exam, which is a meaning rather than a decoration and does not change between schemes.</p>
+</div>
+
+<script>
+const SCHEMES = [
+  { cls: "illini", name: "A · Illini (what ships today)",
+    note: "Navy bar, orange for today. Everything below the bar is near-black, so the colour lives almost entirely in one strip." },
+  { cls: "navy", name: "B · Deep navy",
+    note: "The whole surface goes navy, not just the bar. The strongest read as an Illini product, and the one that stops looking like a grey box with a blue hat." },
+  { cls: "orange", name: "C · Orange chrome",
+    note: "Illini Orange takes the bar and blue becomes the accent, so today reads cool against warm chrome. The boldest, and the most likely to tire." },
+  { cls: "midnight", name: "D · Midnight",
+    note: "Almost no chrome colour. Structure comes from surface steps rather than hue, and orange appears only on today. Quietest to work in." },
+  { cls: "contrast", name: "E · High contrast",
+    note: "Pure black, brighter text, heavier grid lines, and course colours chosen to stay apart under red-green colour blindness." },
+];
+
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+// September 2026 starts on a Tuesday; the rows match the screenshot.
+const CELLS = [
+  { n:30, out:1 }, { n:31, out:1 }, { n:1, items:[["CS357",1,"L2 Introduction to Python"],["CS357",1,"L3 Errors, Big-O notation"],["CS357",1,"HW2 Introduction to Python"]] },
+  { n:2, items:[["PHYS435",4,"Homework 1"]] }, { n:3, items:[["CS357",1,"HW3 Errors and Big-O"]] }, { n:4 }, { n:5 },
+  { n:6 }, { n:7 }, { n:8 }, { n:9 }, { n:10 }, { n:11, today:1 }, { n:12 },
+  { n:13, items:[["CS425",3,"MP1 Report (4cr only, EXCEPT…"]] }, { n:14 },
+  { n:15, items:[["CS357",1,"L5 Rounding and Cancellation"],["CS357",1,"L6 Taylor Series"],["CS357",1,"HW5 Rounding and Cancel…"]] },
+  { n:16, items:[["PHYS435",4,"Homework 3"],["CS424",2,"Homework 1"]] },
+  { n:17, items:[["CS357",1,"HW6 Taylor Series"]] }, { n:18 }, { n:19 },
+  { n:20, items:[["CS425",3,"HW1"]] }, { n:21 }, { n:22 },
+  { n:23, items:[["CS357",1,"CS 357: Quiz 2",1]] }, { n:24 }, { n:25 }, { n:26 },
+  { n:27 }, { n:28 }, { n:29 }, { n:30 }, { n:1, out:1 }, { n:2, out:1 }, { n:3, out:1 },
+];
+const COURSES = [["CS357",1],["CS424",2],["CS425",3],["PHYS435",4]];
+
+const panels = document.getElementById("panels");
+for (const scheme of SCHEMES) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.innerHTML = `<h2>${scheme.name}</h2><p class="note">${scheme.note}</p>`;
+
+  const frame = document.createElement("div");
+  frame.className = "frame";
+  const app = document.createElement("div");
+  app.className = `app ${scheme.cls}`;
+
+  app.innerHTML = `
+    <div class="bar">
+      <div class="dots">
+        <i class="dot" style="background:#4ac26b"></i><i class="dot" style="background:#4ac26b"></i>
+        <i class="dot" style="background:#4ac26b"></i><i class="dot" style="background:#4ac26b"></i>
+        <i class="dot" style="background:#6b6b6b"></i><i class="dot" style="background:#4ac26b"></i>
+      </div>
+      <div class="bar--right"><span>Sync now</span><span>⚙</span></div>
+    </div>
+    <div class="tabs">
+      <span class="tab">Day</span><span class="tab">Week</span>
+      <span class="tab on">Month</span><span class="tab">Exams</span><span class="tab">Attention</span>
+    </div>
+    <div class="chips">${COURSES.map(([c, i]) =>
+      `<span class="chip"><i style="background:var(--c${i})"></i>${c}</span>`).join("")}</div>
+    <div class="nav"><span>‹</span><b>September 2026</b><span style="flex:1"></span><span>›</span></div>
+    <div class="mhead">${DAYS.map((d) => `<div>${d}</div>`).join("")}</div>
+    <div class="mgrid">${CELLS.map((cell) => {
+      const classes = ["cell", cell.out ? "out" : "", cell.today ? "today" : ""].filter(Boolean).join(" ");
+      const pills = (cell.items ?? []).map(([code, colour, title, exam]) =>
+        `<div class="pill${exam ? " exam" : ""}" style="--c:var(--c${colour})"><b>${code}</b><span>${title}</span></div>`).join("");
+      return `<div class="${classes}"><div class="num">${cell.n}</div>${pills}</div>`;
+    }).join("")}</div>
+  `;
+
+  frame.append(app);
+  panel.append(frame);
+  panels.append(panel);
+}
+</script>
+</body>
+</html>
