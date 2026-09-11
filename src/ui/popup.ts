@@ -18,6 +18,7 @@ import {
   type DayContents,
   type PlacedItem,
   type ViewName,
+  allTimed,
   attentionCount,
   attentionGroups,
   bookings,
@@ -857,11 +858,54 @@ function renderPlaced(placed: PlacedItem, now: Date, colours: Map<string, number
   return row;
 }
 
+/**
+ * Due today, at no hour anyone chose. Above the grid, not at the bottom of it.
+ *
+ * Sushi's report, and it was a flaw in the reasoning behind the grid rather
+ * than a bug in it: the module comment says the 11:59 PM pile-up "is worth
+ * seeing", and the layout then put it below the fold of a 600px popup. A
+ * deadline you have to scroll to find is one you do not know about.
+ */
+function renderEndOfDay(
+  placed: PlacedItem[],
+  now: Date,
+  colours: Map<string, number>,
+): HTMLElement | undefined {
+  if (placed.length === 0) return undefined;
+  const box = document.createElement("div");
+  box.className = "band band--eod";
+  const heading = document.createElement("p");
+  heading.className = "band--head";
+  heading.textContent = "By end of day";
+  box.append(heading);
+  for (const one of placed) box.append(renderPlaced(one, now, colours));
+  return box;
+}
+
 function renderDayView(items: Item[], now: Date, colours: Map<string, number>): void {
   const day = anchorDate(now);
   const contents = dayContents(items, day, now);
+
+  // Riskiest first. An invented time can hide a 5 PM cutoff; a stated 11:59 PM
+  // cannot — the same reason "Couldn't read" leads the Attention tab.
   const band = renderUntimedBand(contents.untimed, now, colours);
   if (band) viewEl.append(band);
+  const eod = renderEndOfDay(contents.endOfDay, now, colours);
+  if (eod) viewEl.append(eod);
+
+  if (contents.timed.length === 0) {
+    // No grid at all rather than ten empty ruled hours, which say nothing and
+    // push what is above them off the screen.
+    const note = document.createElement("p");
+    note.className = "muted empty";
+    note.textContent =
+      contents.endOfDay.length + contents.untimed.length > 0
+        ? "Nothing else at a set time today."
+        : "Nothing due this day.";
+    viewEl.append(note);
+    return;
+  }
+
   const { grid, fit } = renderDayGrid(contents, now, colours);
   viewEl.append(grid);
   // Only measurable once it is in the document.
@@ -890,7 +934,7 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
 
     const box = document.createElement("div");
     box.className = "witems";
-    const timed = day.contents.timed.flat();
+    const timed = allTimed(day.contents);
     if (timed.length === 0 && day.contents.untimed.length === 0) {
       box.classList.add("witems--empty");
       box.textContent = "—";

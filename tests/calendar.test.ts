@@ -18,6 +18,7 @@ import {
   bookings,
   courseColours,
   coursesIn,
+  allTimed,
   dayContents,
   dayKey,
   hourRange,
@@ -133,10 +134,9 @@ describe("dayContents", () => {
   });
 
   it("stacks everything that lands on the same minute", () => {
-    // Three things at 11:59 PM is the commonest shape in this data. Side-by-side
-    // columns would make all three unreadable and imply they compete for the
-    // same hour, which deadlines do not.
-    const due = at(2026, 8, 10, 23, 59);
+    // Side-by-side columns would make all three unreadable and imply they
+    // compete for the same hour, which deadlines do not.
+    const due = at(2026, 8, 10, 17, 0);
     const contents = dayContents(
       [
         item({ title: "GA:2", dueAt: due }),
@@ -153,8 +153,8 @@ describe("dayContents", () => {
   it("stacks times close enough to read as one pile", () => {
     const contents = dayContents(
       [
-        item({ title: "a", dueAt: at(2026, 8, 10, 23, 0) }),
-        item({ title: "b", dueAt: at(2026, 8, 10, 23, 5) }),
+        item({ title: "a", dueAt: at(2026, 8, 10, 16, 0) }),
+        item({ title: "b", dueAt: at(2026, 8, 10, 16, 5) }),
       ],
       SEP10,
       NOW,
@@ -166,7 +166,7 @@ describe("dayContents", () => {
     const contents = dayContents(
       [
         item({ title: "morning", dueAt: at(2026, 8, 10, 8, 0) }),
-        item({ title: "night", dueAt: at(2026, 8, 10, 23, 59) }),
+        item({ title: "evening", dueAt: at(2026, 8, 10, 17, 0) }),
       ],
       SEP10,
       NOW,
@@ -191,6 +191,64 @@ describe("dayContents", () => {
   });
 });
 
+describe("end of day is not an hour anyone chose", () => {
+  /*
+   * Sushi, on a real list: an item due at 11:59 PM is one "the user won't know
+   * about unless they scroll". The module comment claimed the pile-up was
+   * worth seeing, and the layout then put it below the fold of a 600px popup.
+   */
+  const onSep10 = (...items: Item[]) => dayContents(items, SEP10, NOW);
+
+  it("hoists 11:59 PM off the axis", () => {
+    const contents = onSep10(item({ title: "MP1", dueAt: at(2026, 8, 10, 23, 59) }));
+    expect(contents.timed).toEqual([]);
+    expect(contents.endOfDay.map((p) => p.item.title)).toEqual(["MP1"]);
+  });
+
+  it("treats 11:00 PM the same way, because the argument is about position", () => {
+    // Both are at the bottom of the axis and both mean "by today". The row
+    // still carries its own clock, so nothing is lost by moving it.
+    expect(onSep10(item({ dueAt: at(2026, 8, 10, 23, 0) })).endOfDay).toHaveLength(1);
+  });
+
+  it("leaves a genuine evening deadline on the axis", () => {
+    // 10:59 PM is a time somebody set. The cut has to fall somewhere, and it
+    // must not swallow hours a course actually chose.
+    const contents = onSep10(item({ dueAt: at(2026, 8, 10, 22, 59) }));
+    expect(contents.endOfDay).toEqual([]);
+    expect(contents.timed).toHaveLength(1);
+  });
+
+  it("keeps an invented 23:59 in the untimed group, not this one", () => {
+    // The two look identical on the clock and mean different things: one is a
+    // stated deadline, the other is §4.5 filling in a blank. Only the second
+    // needs "check the course page".
+    const contents = onSep10(
+      item({ title: "invented", dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }),
+    );
+    expect(contents.endOfDay).toEqual([]);
+    expect(contents.untimed.map((i) => i.title)).toEqual(["invented"]);
+  });
+
+  it("orders end-of-day items among themselves", () => {
+    const contents = onSep10(
+      item({ title: "later", dueAt: at(2026, 8, 10, 23, 59) }),
+      item({ title: "earlier", dueAt: at(2026, 8, 10, 23, 30) }),
+    );
+    expect(contents.endOfDay.map((p) => p.item.title)).toEqual(["earlier", "later"]);
+  });
+
+  it("still hands both to views that have no hour axis, in time order", () => {
+    // A week row and a month cell are agendas. Splitting the buckets must not
+    // drop the end-of-day items from either.
+    const contents = onSep10(
+      item({ title: "eod", dueAt: at(2026, 8, 10, 23, 59) }),
+      item({ title: "noon", dueAt: at(2026, 8, 10, 12, 0) }),
+    );
+    expect(allTimed(contents).map((p) => p.item.title)).toEqual(["noon", "eod"]);
+  });
+});
+
 describe("hourRange", () => {
   const contentsFor = (...items: Item[]) => dayContents(items, SEP10, NOW);
 
@@ -206,9 +264,25 @@ describe("hourRange", () => {
     expect(hourRange(contentsFor(item({ dueAt: at(2026, 8, 10, 7, 0) }))).start).toBe(7);
   });
 
-  it("leaves room below an 11:59 PM deadline to draw it in", () => {
+  it("leaves room below the last item to draw it in", () => {
     // Ending the axis at the same hour the item sits in draws it on the border.
-    expect(hourRange(contentsFor(item({ dueAt: at(2026, 8, 10, 23, 59) }))).end).toBe(24);
+    expect(hourRange(contentsFor(item({ dueAt: at(2026, 8, 10, 21, 0) }))).end).toBe(22);
+  });
+
+  it("stops in the evening, because nothing late is drawn on it any more", () => {
+    // Five empty ruled hours between 6 PM and midnight did nothing but push
+    // what was above them out of a 600px popup.
+    expect(hourRange(contentsFor(item({ dueAt: at(2026, 8, 10, 23, 59) }))).end).toBe(
+      DEFAULT_DAY_END,
+    );
+  });
+
+  it("is not stretched by an end-of-day deadline, which is not on it", () => {
+    const contents = contentsFor(
+      item({ title: "eod", dueAt: at(2026, 8, 10, 23, 59) }),
+      item({ title: "noon", dueAt: at(2026, 8, 10, 12, 0) }),
+    );
+    expect(hourRange(contents)).toEqual({ start: DEFAULT_DAY_START, end: DEFAULT_DAY_END });
   });
 
   it("is not widened by an untimed row, which is not on the axis at all", () => {

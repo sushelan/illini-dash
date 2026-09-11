@@ -383,3 +383,16 @@ h2.section {
 
 /* Sticky under the bar; `top` is set from the bar's measured height. */
 .tabs { position: sticky; z-index: 1; background: var(--bg); }
+
+/*
+ * "By end of day", above the grid.
+ *
+ * 11:59 PM is a default, not an hour anyone picked, and at the bottom of a
+ * sixteen-hour axis it was below the fold — so the commonest deadline there is
+ * had to be scrolled to. It is hoisted, and the axis stops in the evening.
+ */
+.band--eod { background: transparent; }
+.band--head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin: 0; padding: 8px 12px 2px; font-weight: 600;
+}

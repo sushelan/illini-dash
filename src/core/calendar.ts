@@ -119,10 +119,36 @@ export interface PlacedItem {
 }
 
 export interface DayContents {
-  /** Stacks of items that share a slot, earliest first. */
+  /** Stacks of items that share a slot, earliest first. Excludes end-of-day. */
   timed: PlacedItem[][];
-  /** A day was stated and a time was not. Drawn in the band, never on the axis. */
+  /**
+   * Due at the end of the day rather than at an hour anyone chose.
+   *
+   * 11:59 PM is a default, not a decision. It means "by Tuesday", and putting
+   * it at the bottom of a sixteen-hour axis gave it a precision it does not
+   * have *and* pushed it below the fold of a 600px popup — so the commonest
+   * deadline there is became the one you had to scroll to find. Hoisted above
+   * the grid instead, which is where "by end of today" belongs.
+   */
+  endOfDay: PlacedItem[];
+  /** A day was stated and a time was not. Never on the axis. */
   untimed: Item[];
+}
+
+/**
+ * From this minute on, a deadline is "end of day" rather than an hour.
+ *
+ * 11:00 PM rather than 11:59 exactly, because the argument is about position
+ * and not about the string: anything this late is both effectively "by end of
+ * today" and at the very bottom of the axis. Nothing is lost by hoisting it —
+ * the row still shows its own clock, so a real 11:00 PM deadline still reads
+ * as 11:00 PM.
+ */
+export const END_OF_DAY_MINUTES = 23 * 60;
+
+/** Everything with a clock, in order, for views that have no hour axis. */
+export function allTimed(contents: DayContents): PlacedItem[] {
+  return [...contents.timed.flat(), ...contents.endOfDay];
 }
 
 /**
@@ -143,16 +169,22 @@ export function dayContents(items: Item[], day: Date, now: Date): DayContents {
   const timed: PlacedItem[] = [];
   const untimed: Item[] = [];
 
+  const endOfDay: PlacedItem[] = [];
+
   for (const item of items) {
     const anchor = anchorOf(item, now);
     if (anchor === undefined) continue;
     const at = new Date(anchor.at);
     if (dayKey(at) !== key) continue;
     if (anchor.assumed) untimed.push(item);
+    else if (minutesInto(at) >= END_OF_DAY_MINUTES) endOfDay.push({ item, anchor });
     else timed.push({ item, anchor });
   }
 
-  timed.sort((a, b) => a.anchor.at - b.anchor.at || a.item.title.localeCompare(b.item.title));
+  const byTime = (a: PlacedItem, b: PlacedItem) =>
+    a.anchor.at - b.anchor.at || a.item.title.localeCompare(b.item.title);
+  timed.sort(byTime);
+  endOfDay.sort(byTime);
 
   const stacks: PlacedItem[][] = [];
   for (const placed of timed) {
@@ -167,7 +199,7 @@ export function dayContents(items: Item[], day: Date, now: Date): DayContents {
   }
 
   untimed.sort((a, b) => a.title.localeCompare(b.title));
-  return { timed: stacks, untimed };
+  return { timed: stacks, endOfDay, untimed };
 }
 
 /**
@@ -182,18 +214,26 @@ export function dayContents(items: Item[], day: Date, now: Date): DayContents {
  * kind of row that must not be the one thing off the edge of the grid.
  */
 export const DEFAULT_DAY_START = 8;
-export const DEFAULT_DAY_END = 24;
+/**
+ * The axis runs to the evening, not to midnight.
+ *
+ * It ended at midnight when end-of-day deadlines were drawn on it. They are
+ * hoisted above the grid now, so the last five hours were empty ruled lines
+ * whose only effect was to push everything below them out of a 600px popup.
+ */
+export const DEFAULT_DAY_END = 18;
 
 export function hourRange(contents: DayContents): { start: number; end: number } {
   let start = DEFAULT_DAY_START;
+  let end = DEFAULT_DAY_END;
   for (const stack of contents.timed) {
     const hour = Math.floor(minutesInto(new Date(stack[0]!.anchor.at)) / 60);
     if (hour < start) start = hour;
+    // The hour *after* the item, so it is drawn inside the grid rather than on
+    // its bottom border.
+    if (hour + 1 > end) end = hour + 1;
   }
-  // Only the start moves. The end is midnight and an hour index cannot exceed
-  // 23, so a matching "widen the end" branch could never fire — it survived
-  // every mutation because nothing could reach it.
-  return { start, end: DEFAULT_DAY_END };
+  return { start, end };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -257,7 +297,7 @@ export function monthCells(items: Item[], anchor: Date, now: Date): MonthCell[] 
       // Untimed last: a stated time is the more useful thing to fit in a cell
       // that only holds three rows.
       items: [
-        ...contents.timed.flat(),
+        ...allTimed(contents),
         ...contents.untimed.map((item) => ({
           item,
           anchor: { at: Date.parse(item.dueAt ?? ""), assumed: true, opening: false },
