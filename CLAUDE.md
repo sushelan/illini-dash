@@ -64,6 +64,25 @@ them **before** asking for a review, so reviews find new classes instead of thes
     Realistic fixture values often make a wrong implementation indistinguishable from a
     right one; where that happens, make a fixture row deliberately unrealistic and say so
     in the fixture's README.
+11. **"Never signed in" is not "session expired", and both are `needs_login`.** §4.2 and
+    §4.4 were written for an expiry, which redirects or answers 401. A student who has
+    never signed in gets **200 at the unchanged URL** with an ordinary title — Gradescope
+    serves its marketing splash, PrairieTest serves a page with no exam cards — so the
+    parser runs, finds nothing, and throws. That is `parse_error`, which means "the page
+    changed, go fix the selectors" and offers nothing to click, in the one case where
+    signing in is the entire fix. Every hosted source needs a *positive* signed-out marker.
+    (Found 2×, on a real beta build.)
+12. **A marker must be absent from the healthy page, and the fixtures usually cannot show
+    it.** A signed-out marker that also matches a signed-in page turns every successful
+    sync into `needs_login` and freezes the list at whatever it last held — silently, which
+    is worse than the bug it was added to fix. `"Log In"` is not safe: an assignment called
+    *Log Interpretation* contains it. Anchor on a class hook or a path, and since both the
+    loose and the correct marker are absent from a real capture, make one deliberately
+    adversarial (rule 10's case, in its most dangerous form).
+13. **A per-student URL means a source, not a §4.5 adapter.** An adapter has one fixed
+    `url`, so anything addressed by an enrolment or account id — smartPhysics's
+    `/Course?enrollmentID=…` — cannot be served by one. Check the URL shape before writing
+    selectors; it decides whether the answer is a JSON entry or a two-stage fetch plan.
 
 ## House rules for the worker and the loop
 
@@ -84,6 +103,20 @@ here is a parsing mistake, and no fixture could have caught any of it.
    fetching nothing. This is house rule 2 one level up: silent empty is the worst outcome
    at the source level too, and it cost a real user two rounds of "why don't I see any
    rows".
+
+   Three more of these turned up in one pass, so the rule generalises past the dot:
+   `defaultStatus` seeded `state: "ok"` before any request, so a cold install showed four
+   green dots under the words "Not synced yet"; `set-source-enabled` painted `ok` on a
+   source the user had merely switched on; and the status line read `Synced 10:32` off
+   `lastSyncAt`, which the loop sets whether or not anything succeeded. **Anything the UI
+   asserts about a source must be derived from an attempt that happened.** `pending` is a
+   real state, `core/health.ts` owns the derivation, and it is re-derived from
+   `lastAttemptAt` rather than trusted from disk so an old store cannot claim success.
+
+   The same rule decides *which* failure to report. `syncSites` threw `ParseError` whenever
+   every adapter failed, so a `TypeError: Failed to fetch` was announced as "the page
+   changed" — sending someone to debug selectors that were fine. §6 has two branches for a
+   reason; classify before you report.
 3. **A value this code invented is not a value the source stated.** §4.5's runner fills
    in 23:59 when a course page prints a bare date; §5.3 then ranked that invention above
    a real Canvas deadline, because the ranks assume every instant is stated. Mark what was
@@ -110,6 +143,57 @@ here is a parsing mistake, and no fixture could have caught any of it.
    sources, or a queue, or a browser. When something finally runs for real, read the
    output as evidence rather than as confirmation.
 
+## House rules for mutation checks
+
+Parser rule 10 says to mutate before calling a behaviour covered. Doing that across ~60
+mutations in one day taught three things about the *procedure* itself.
+
+1. **Verify the mutation applied.** Twice, a `sed` reported "survived" when it had never
+   patched anything — once the pattern omitted an optional-chaining dot
+   (`item.extra?.["k"]` vs `item.extra?["k"]`), once the leading whitespace was wrong.
+   Both mutations, applied properly, failed instantly. A false "survived" is worse than no
+   mutation test: it says a behaviour is unpinned when it is pinned, and the natural
+   response is to write a redundant test or delete a live guard. Always assert the match
+   count first:
+
+   ```python
+   assert s.count(old) == 1, f"count={s.count(old)}"
+   ```
+
+2. **A survivor has three possible meanings; decide which before acting.**
+   - *Untested* — the common case. Write the test. Six of today's survivors were this, and
+     every one was a behaviour a student would notice first.
+   - *Unreachable* — the mutation cannot be triggered by any input the code accepts. With
+     two lead times a third lead cannot exist, so `collapseOverdue`'s "leave a future lead
+     alone" clause is unexercised. Keep it, and say in a comment that it is unreachable
+     today and why it stays.
+   - *Redundant* — a second guard rejects exactly what the first does. `isRealWallClock`
+     before `wallClockToIso`, which already throws the same error for the same inputs.
+     **Delete it.** An unreachable branch that duplicates a reachable one is not defence,
+     it is a second thing to read.
+
+3. **A survivor sometimes indicts the design, not the suite.** `cellByHeader` and
+   `headerExists` each wrote out the header-matching rule, so loosening one was masked by
+   the other staying strict, and no test could reach it. The fix was not a cleverer test —
+   it was one `resolveColumn` used by both. When a mutation cannot be reached because
+   another copy of the same decision compensates, that is the finding.
+
+## When live data contradicts a document
+
+`docs/canvas-findings.md` said Canvas "contributes zero deadlines for this account, and
+cannot contribute any". A live sync returned one. The first fix appended a "superseded"
+note under the sentence, and Sushi rejected it: that leaves the false claim as the thing a
+reader sees first and buries the correction.
+
+**Rewrite the claim, and ask whether it was wrong when written rather than only whether it
+is stale now.** It was: the evidence was 67 undated assignments on one day, which supports
+"none of these is dated today" and nothing about whether an instructor will set a date.
+
+Then **follow what was inferred from it**, because those are usually wrong too. Two were,
+and both were load-bearing: G2's "Canvas contributing 0 is a pass" exemption, and G1's
+"no non-empty planner fixture is obtainable" — which had quietly left `parsePlannerItems`
+the only parser in the project never checked against a real response.
+
 ## Review policy
 
 Full adversarial review is expensive (~20 min, ~1.5M tokens) and its yield is falling now
@@ -118,7 +202,7 @@ that the house rules above are written down. So:
 - **Full review** — `core/dedupe.ts` and the sync loop (steps 7–8). That is where G2 and
   G3 risk lives and where a defect is hardest to see by hand.
 - **Light or no review** — behaviour-preserving refactors, UI, and anything the existing
-  388-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
+  612-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
 - Any review prompt should include the house rules above and be told to hunt for
   *new* classes.
 - When a review's refuters fail (API errors), findings that could not be judged are

@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (546 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (612 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -210,15 +210,51 @@ One defect, and one superseded claim:
   shape on live ids. All four already worked. Still open: whether the
   first-fetch-after-reload failure recurs.
 
-**Tier 0b in progress.** Done: **14** (repo pushed to
-https://github.com/sushelan/illini-dash and made public 2026-09-10 — the registry URL
-now returns 200, so an adapter reaches every tester within a day without a new zip),
-**17** (Canvas term filter, above) and **15** (beta
-install kit — `npm run package` produces `release/illini-dash-<version>-<build>.zip`
-with an `INSTALL.txt` inside, and [beta-install.md](docs/beta-install.md) is the
-tester-facing guide).
+## Tier 0b — 4 of 7 done
 
-**Next: Tier 0b**, which needs Sushi — see the roadmap. Adapters two and three, the
+| # | State |
+|---|---|
+| 14 — repo + registry | **Done.** Pushed to https://github.com/sushelan/illini-dash and made public. The registry URL returns 200, so **an adapter now reaches every installed copy within a day, with no new build and no store review.** Until then the daily refresh was dead code. |
+| 15 — beta install kit | **Done.** `npm run package` → `release/illini-dash-<version>-<build>.zip`, build id in the filename, `INSTALL.txt` inside. [beta-install.md](docs/beta-install.md) is the tester-facing guide. The unlisted-store route was declined: it reorders §9 and a mid-week fix would wait days on review. |
+| 16 — adapters 2 and 3 | **Half done.** ECE 310 shipped (13 homeworks, verified by running the shipped runner over a real capture). A third is cheap now — see "Adapters" below. |
+| 17 — Canvas term filter | **Done**, see the resolved decision above. |
+| 18 — non-CS first look | Not started. Publisher-host naming + a Canvas "No date" section. |
+| 19 — PL/PT "not used by you" | Not started; the cheap half needs nothing from Sushi. |
+| 20 — first-run page | Not started. |
+| 21 — run G4 | Sushi's. |
+
+## Two sources and an adapter mechanism added after Tier 0a
+
+- **smartPhysics is a fifth source** (`src/sources/smartphysics.ts`), for PHYS 211–214,
+  whose deadlines are at **8:00 AM** — the ones a 11:59 PM habit misses. It is a *source*
+  and not an adapter because every course page is addressed by a per-student enrolment id,
+  so no fixed adapter URL could serve two people; it gets a two-stage plan like
+  Gradescope. Off by default, so a student who has never used it does not get a yellow
+  "sign in" dot for a site they do not know. **Open:** the capture is a Fall 2025 course,
+  because the account has no active enrolment, so the parser has never seen a live term.
+- **`Adapter.columns`** reads a table's own header row instead of counting cells —
+  house rule 3 in declarative form. It is what makes a table-shaped course page a
+  five-minute job. It stops short of blind autodetection deliberately: ECE 310's own page
+  has a column headed `Assessment Due` whose cells hold `HW1`, so anything scanning for a
+  due-ish header reads an assignment name as a deadline.
+- **Never-signed-in detection** for Gradescope and PrairieTest. Both answer 200 at the
+  unchanged URL when the student has never signed in, so the parsers threw and the UI
+  showed a red dot with nothing to click — see parser rules 11 and 12 in CLAUDE.md.
+
+## Adapters — the delivery loop, now that the registry is live
+
+Adding a course is: capture the page (public ones need no login), write the entry, push.
+Every installed copy has it on its next daily refresh.
+
+Shipped: `cs424-fa26`, `ece310-fa26`.
+
+What is *not* generic, and why: course sites have no API, no feed and no shared markup, so
+the judgement of which table and which column holds a deadline still needs a person once
+per course. `columns` removes the mechanical half of that. The remaining per-course cost
+is minutes for a table-shaped page; a prose page (CS 425 lists deadlines mid-sentence in
+`<li>` items) still needs a schema field that does not exist yet.
+
+**Next: Tier 0b items 18–20**, none of which need Sushi. Adapters two and three, the
 Canvas term filter (now unblocked, see canvas-findings.md), the beta install kit, and G4.
 
 Worth doing before handing this to ten people:

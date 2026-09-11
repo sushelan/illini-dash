@@ -1,6 +1,8 @@
 # illini-dash
 
-Chrome extension (MV3) that aggregates UIUC deadlines. Design: [SPEC.md](SPEC.md).
+Chrome extension (MV3) that aggregates UIUC deadlines from Canvas, Gradescope,
+PrairieLearn, PrairieTest, smartPhysics and course websites. Design: [SPEC.md](SPEC.md),
+progress and what is blocked in [PROGRESS.md](PROGRESS.md).
 
 ## Develop
 
@@ -35,7 +37,8 @@ runs once the permission is actually held.
   `normalize`, `parsing` (shared parser primitives), `ics` (§8.3), `overrides` (§8.1),
   `grouping` (§8.1 sections), `health` (what the UI may claim about a source),
   `quality` (what the parsers could not read), `diagnostics` (the paste-safe bundle)
-- `src/sources/` — one pure parser per source, plus `site.ts`, §4.5's declarative runner
+- `src/sources/` — one pure parser per source (`canvas`, `gradescope`, `prairielearn`,
+  `prairietest`, `smartphysics`), plus `site.ts`, §4.5's declarative runner
 - `src/ui/` — popup and options (settings + collapsed developer tools)
 - `adapters/registry.json` — course-site adapter registry, bundled and seeded on install,
   refreshed daily from GitHub (see [docs/adapters.md](docs/adapters.md))
