@@ -28,6 +28,20 @@
    * only ever mean "this is late" on the one thing that is never late.
    */
   --now: var(--accent);
+
+  /*
+   * Tinted surfaces, derived from the brand rather than from grey.
+   *
+   * Everything structural — gutters, headings, the strip behind the tabs, a
+   * hover — used a neutral `rgba(127,127,127,…)`. That is why painting the bar
+   * blue changed almost nothing: the bar was the only surface in the interface
+   * that had a colour at all, and the other twenty were grey.
+   */
+  --tint: rgba(19, 41, 75, .055);
+  --tint-strong: rgba(19, 41, 75, .10);
+  --hover: rgba(19, 41, 75, .085);
+  /* Today, at a weight that can sit behind text. */
+  --today-tint: rgba(255, 95, 5, .10);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -42,6 +56,10 @@
        cannot see. Same hue, enough lightness to read as a surface. */
     --brand: #1b3a6b;
     --accent: #ff8534;
+    --tint: rgba(120, 170, 255, .06);
+    --tint-strong: rgba(120, 170, 255, .11);
+    --hover: rgba(120, 170, 255, .10);
+    --today-tint: rgba(255, 133, 52, .12);
   }
 }
 
@@ -51,6 +69,10 @@
   --brand-ink: var(--fg);
   --accent: var(--muted);
   --now: #b42318;
+  --tint: rgba(127, 127, 127, .06);
+  --tint-strong: rgba(127, 127, 127, .11);
+  --hover: rgba(127, 127, 127, .10);
+  --today-tint: rgba(127, 127, 127, .09);
 }
 @media (prefers-color-scheme: dark) {
   .theme-neutral { --now: #f0736a; }
@@ -74,6 +96,10 @@
   --err: #96140b;
   --brand: #0b1b33;
   --accent: #c24500;
+  --tint: rgba(11, 27, 51, .09);
+  --tint-strong: rgba(11, 27, 51, .16);
+  --hover: rgba(11, 27, 51, .14);
+  --today-tint: rgba(194, 69, 0, .16);
 }
 @media (prefers-color-scheme: dark) {
   .theme-contrast {
