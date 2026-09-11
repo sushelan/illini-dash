@@ -18,6 +18,25 @@
         "include": "\\bdue\\b"
       },
       "minExtensionVersion": "0.1.0"
+    },
+    {
+      "id": "ece310-fa26",
+      "label": "ECE 310 course site",
+      "courseCode": "ECE310",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece310/fa2026/",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "#homework table.timetable tbody tr",
+      "columns": {
+        "title": "Exercises",
+        "due": "Due Date|Deadline",
+        "link": "Exercises"
+      },
+      "title": "td:nth-child(1)",
+      "due": "td:nth-child(2)",
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "0.1.0"
     }
   ]
 }

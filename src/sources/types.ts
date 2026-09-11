@@ -236,6 +236,22 @@ export interface Adapter {
   splitTitle?: string;
   due: string;
   link?: string;
+  /**
+   * Column *headers* to read instead of CSS selectors, for a table that has a
+   * header row — which most course schedules do.
+   *
+   * `{ "title": "Exercises", "due": "Due Date|Deadline" }` resolves each name
+   * against the table's own `<th>` row on every parse, so an added column
+   * cannot silently shift the date to the solutions column (house rule 3, which
+   * cost 14 items the one time it was ignored). Alternatives are separated by
+   * `|` because the same column is called different things across courses.
+   *
+   * When present it takes precedence over `title` / `due` / `link`, which stay
+   * as the fallback for pages that are not tables — CS 424's rowspan grid, a
+   * list of prose items — and as the escape hatch when a header is missing or
+   * ambiguous.
+   */
+  columns?: { title: string; due: string; link?: string };
   dateFormat: string;
   timezone: string;
   filter?: { include?: string; exclude?: string };

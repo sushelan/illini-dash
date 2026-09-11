@@ -90,6 +90,23 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
     return fail(`unsupported dateFormat (${supportedDateFormats().join(", ")})`);
   }
 
+  // §4.5's trust boundary: `columns` is remote data that decides which cell a
+  // deadline is read from, so it is validated as strictly as everything else.
+  const columns = a["columns"];
+  if (columns !== undefined) {
+    if (typeof columns !== "object" || columns === null || Array.isArray(columns)) {
+      return fail("bad columns");
+    }
+    const c = columns as Record<string, unknown>;
+    for (const key of ["title", "due"]) {
+      if (!isPlainString(c[key], 120)) return fail(`columns.${key} must be a header name`);
+    }
+    if (c["link"] !== undefined && !isPlainString(c["link"], 120)) return fail("bad columns.link");
+    for (const key of Object.keys(c)) {
+      if (!["title", "due", "link"].includes(key)) return fail(`unknown columns.${key}`);
+    }
+  }
+
   const filter = a["filter"];
   if (filter !== undefined) {
     if (typeof filter !== "object" || filter === null) return fail("bad filter");

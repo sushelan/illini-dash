@@ -90,6 +90,31 @@ The page also proves the fetch path end to end: it is Shibboleth-protected and a
 **401 in place** rather than redirecting to an SSO host, which is why the runner checks
 `looksLoggedOut` before its status test.
 
+## Name the column, do not count to it
+
+`columns` reads a table's own header row instead of a CSS selector:
+
+```json
+"rows": "#homework table.timetable tbody tr",
+"columns": { "title": "Exercises", "due": "Due Date|Deadline", "link": "Exercises" }
+```
+
+This is house rule 3 in declarative form. `td:nth-child(2)` is wrong the moment a
+course adds a column, and it fails *silently*: the date column becomes the solutions
+column and every row lands undated, or dated from the wrong text. A header name is
+re-resolved on every parse, so an added column costs nothing. Alternatives are separated
+by `|`, because the same column is called different things across courses and an adapter
+should not need editing when only the wording differs.
+
+Matched **exactly** after whitespace and case are normalised — never by substring. The
+ECE 310 page is its own counterexample: its schedule table has a column headed
+`Assessment Due` whose cells hold `HW1`, while its homework table has `Due Date` whose
+cells hold the dates. A substring match on `due` reads an assignment name as a deadline.
+
+A named column that is not on the page throws for that adapter, naming the column, so
+the fix is one registry edit. `title` / `due` / `link` stay required and are the fallback
+for pages that are not tables — CS 424's rowspan grid, a list of prose items.
+
 ## Seeding another one
 
 §4.5 asks for 2–3 seed adapters. One (`cs424-fa26`) now ships; a second and third still

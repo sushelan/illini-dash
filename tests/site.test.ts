@@ -523,3 +523,110 @@ describe("adapter date grammar against real fa26 course pages (§4.5)", () => {
     expect(local(parse("September 11 at 5pm", "MMM d, h:mm a")!.iso)).toBe("Sep 11, 17:00");
   });
 });
+
+describe("header-anchored columns, against the real ECE 310 page", () => {
+  const ADAPTER = {
+    id: "ece310-fa26",
+    label: "ECE 310 course site",
+    courseCode: "ECE310",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/ece310/fa2026/",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "#homework table.timetable tbody tr",
+    columns: { title: "Exercises", due: "Due Date|Deadline", link: "Exercises" },
+    title: "td:nth-child(1)",
+    due: "td:nth-child(2)",
+    dateFormat: "M/d",
+    timezone: "America/Chicago",
+    minExtensionVersion: "0.1.0",
+  } as unknown as Adapter;
+
+  const doc = () =>
+    parseHTML(
+      readFileSync(new URL("../fixtures/sites/ece310-fa2026-index.html", import.meta.url), "utf8"),
+    ).document as unknown as Document;
+  const page = { url: ADAPTER.url, fetchedAt: "2026-09-10T18:00:00.000Z" };
+  const local = (iso: string) =>
+    new Date(iso).toLocaleString("en-US", {
+      timeZone: "America/Chicago",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+  it("reads every homework off the real page", () => {
+    expect(runAdapter(ADAPTER, doc(), page)).toHaveLength(13);
+  });
+
+  it("gets the dates right, and the time the page actually states", () => {
+    // "09/04 @ 11:59pm". Before the `@` separator was understood, the format
+    // matched "09/04", threw the time away and invented 23:59 — landing on the
+    // right instant only by the coincidence that the two agree.
+    const items = runAdapter(ADAPTER, doc(), page);
+    expect(local(items[0]!.dueAt!)).toBe("09/04, 23:59");
+    expect(local(items[1]!.dueAt!)).toBe("09/11, 23:59");
+    expect(items.every((i) => i.extra?.["timeAssumed"] === undefined)).toBe(true);
+  });
+
+  it("survives a column being inserted, which nth-child does not", () => {
+    // House rule 3, the whole reason `columns` exists. A course adding a
+    // "Points" column shifts every index by one; the header is re-read each
+    // parse, so nothing moves.
+    const shifted = doc();
+    for (const row of shifted.querySelectorAll("#homework table.timetable tr")) {
+      const cell = shifted.createElement(row.querySelector("th") ? "th" : "td");
+      cell.textContent = row.querySelector("th") ? "Points" : "10";
+      row.insertBefore(cell, row.firstChild);
+    }
+    const items = runAdapter(ADAPTER, shifted, page);
+    expect(items).toHaveLength(13);
+    expect(local(items[0]!.dueAt!)).toBe("09/04, 23:59");
+    // The title has to move with it. Reading nth-child(1) here would name every
+    // row after the inserted cell.
+    expect(items[0]!.title).toBe("Homework 1");
+
+    // And the positional fallback really would have broken, which is what makes
+    // the point above worth anything.
+    const positional = { ...ADAPTER, columns: undefined } as unknown as Adapter;
+    expect(local(runAdapter(positional, shifted, page)[0]!.dueAt!)).not.toBe("09/04, 23:59");
+  });
+
+  it("does not pick a column whose header merely contains 'due'", () => {
+    // This very page is the counterexample: its *schedule* table has a header
+    // "Assessment Due" whose cells hold "HW1", not dates. A substring match on
+    // "due" reads an assignment name as a deadline (house rule 6).
+    const wrong = { ...ADAPTER, columns: { title: "Exercises", due: "Due" } } as unknown as Adapter;
+    expect(() => runAdapter(wrong, doc(), page)).toThrow(ParseError);
+  });
+
+  it("throws when a named column is gone, rather than parsing nothing", () => {
+    const renamed = {
+      ...ADAPTER,
+      columns: { title: "Exercises", due: "Deadline" },
+    } as unknown as Adapter;
+    // §0 rule 3: the header vanishing is a redesign, and the error has to name
+    // the column so the fix is one registry edit.
+    expect(() => runAdapter(renamed, doc(), page)).toThrow(/Deadline/);
+  });
+
+  it("takes the first of two identically named columns, not the last", () => {
+    // A table with two columns of one name is ambiguous, and silently taking
+    // whichever came last is a coin flip that changes with a page edit.
+    const doubled = parseHTML(`<table>
+      <thead><tr><th>Exercises</th><th>Due Date</th><th>Due Date</th></tr></thead>
+      <tbody><tr><td>Homework 1</td><td>09/04 @ 11:59pm</td><td>12/25 @ 11:59pm</td></tr></tbody>
+    </table>`).document as unknown as Document;
+    const simple = { ...ADAPTER, rows: "tbody tr" } as unknown as Adapter;
+    expect(local(runAdapter(simple, doubled, page)[0]!.dueAt!)).toBe("09/04, 23:59");
+  });
+
+  it("falls back to the adapter URL, because the page links over http", () => {
+    // The homework PDFs are linked as `http://…`. House rule 7: an insecure or
+    // off-origin href is not silently upgraded, it is the fallback.
+    for (const item of runAdapter(ADAPTER, doc(), page)) {
+      expect(item.url).toBe(ADAPTER.url);
+    }
+  });
+});

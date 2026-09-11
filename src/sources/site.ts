@@ -25,6 +25,99 @@ function select(row: Element, spec: string): string | undefined {
   return value?.trim() || undefined;
 }
 
+/**
+ * Column indices resolved from a table's own header row.
+ *
+ * House rule 3 in declarative form. `td:nth-child(2)` is wrong the moment a
+ * course adds a column, and it fails *silently* — the date column becomes the
+ * solutions column and every row lands undated or, worse, dated from the wrong
+ * text. Naming the header instead means the index is re-derived on every parse,
+ * so an added column costs nothing.
+ *
+ * Labels are matched **exactly** after whitespace and case are normalised, not
+ * by substring (house rule 6). This page is its own counterexample: ECE 310's
+ * schedule table has a header called "Assessment Due" whose cells hold "HW1",
+ * while its homework table has "Due Date" whose cells hold the dates. A
+ * substring match on "due" picks the first and dates every row from an
+ * assignment name.
+ */
+export function headerIndex(table: Element): Map<string, number> {
+  const headerRow =
+    table.querySelector("thead tr") ??
+    // Some pages skip <thead>; the first row that is all <th> is the header.
+    [...table.querySelectorAll("tr")].find(
+      (row) => row.querySelector("th") && !row.querySelector("td"),
+    );
+  const map = new Map<string, number>();
+  if (!headerRow) return map;
+  const cells = [...headerRow.querySelectorAll("th, td")];
+  cells.forEach((cell, index) => {
+    const label = textOf(cell).replace(/\s+/g, " ").trim().toLowerCase();
+    // First wins: a table with two identically-named columns is ambiguous, and
+    // silently taking the last would be a coin flip.
+    if (label && !map.has(label)) map.set(label, index);
+  });
+  return map;
+}
+
+/**
+ * The index of the column an adapter named, or undefined.
+ *
+ * The single place the matching rule lives. It was briefly written out twice —
+ * once here and once in the "is this column present at all" guard — and a
+ * mutation that loosened one was masked by the other still being strict, which
+ * is a good sign that two copies of one decision is one copy too many.
+ *
+ * Exact after normalising whitespace and case, never a substring: see
+ * `headerIndex` for the "Assessment Due" counterexample on this very page.
+ */
+function resolveColumn(headers: Map<string, number>, name: string): number | undefined {
+  return headers.get(name.replace(/\s+/g, " ").trim().toLowerCase());
+}
+
+/**
+ * One row's cell for a named column, or undefined when the header is absent.
+ *
+ * `wanted` may list alternatives (`"Due Date|Deadline"`), because the same
+ * column is called different things across courses and an adapter should not
+ * need editing when only the wording differs.
+ */
+function cellByHeader(row: Element, wanted: string, attribute?: string): string | undefined {
+  const table = row.closest("table");
+  if (!table) return undefined;
+  const headers = headerIndex(table);
+  const cells = [...row.querySelectorAll("th, td")];
+  for (const name of wanted.split("|")) {
+    const index = resolveColumn(headers, name);
+    if (index === undefined) continue;
+    const cell = cells[index];
+    if (!cell) continue;
+    if (attribute) {
+      const node = cell.querySelector(`[${attribute}]`);
+      const value = node?.getAttribute(attribute) ?? cell.getAttribute(attribute);
+      if (value?.trim()) return value.trim();
+      continue;
+    }
+    const text = textOf(cell).trim();
+    if (text) return text;
+  }
+  return undefined;
+}
+
+/**
+ * Whether any of a column spec's alternatives exists in this row's table.
+ *
+ * Used to tell "the column is there and this row's cell is empty" — normal, a
+ * header row or a week with no homework — from "the column is gone", which is
+ * a redesign and must be loud (§0 rule 3).
+ */
+function headerExists(row: Element, wanted: string): boolean {
+  const table = row.closest("table");
+  if (!table) return false;
+  const headers = headerIndex(table);
+  return wanted.split("|").some((name) => resolveColumn(headers, name) !== undefined);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Declarative date formats                                                    */
 /* -------------------------------------------------------------------------- */
@@ -245,9 +338,28 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   const keys = new KeyGuard();
   const codes = extractCourseCodes(adapter.courseCode);
 
+  // A `columns` adapter whose named header is nowhere on the page is a redesign,
+  // not an empty week: without this the loop would find no titled row and
+  // report a generic "no titles" error that says nothing about the cause.
+  if (adapter.columns) {
+    const first = rows[0]!;
+    for (const [field, spec] of [
+      ["title", adapter.columns.title],
+      ["due", adapter.columns.due],
+    ] as const) {
+      if (!headerExists(first, spec)) {
+        throw new ParseError(
+          `adapter ${adapter.id}: no ${field} column headed ${JSON.stringify(spec)} in this table`,
+        );
+      }
+    }
+  }
+
   let sawTitledRow = false;
   for (const row of rows) {
-    const cell = select(row, adapter.title);
+    const cell = adapter.columns
+      ? cellByHeader(row, adapter.columns.title)
+      : select(row, adapter.title);
     // The `continue` stays: a header row legitimately has no title cell.
     if (!cell) continue;
     sawTitledRow = true;
@@ -261,13 +373,20 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       .filter((part) => matchesFilter(part, adapter.filter));
     if (titles.length === 0) continue;
 
-    const rawDate = select(row, adapter.due);
+    const rawDate = adapter.columns
+      ? cellByHeader(row, adapter.columns.due)
+      : select(row, adapter.due);
     const parsed = rawDate
       ? parseAdapterDateParts(rawDate, adapter.dateFormat, adapter.timezone, page.fetchedAt)
       : undefined;
     const dueAt = parsed?.iso;
+    const linkHref = adapter.columns?.link
+      ? cellByHeader(row, adapter.columns.link, "href")
+      : adapter.link
+        ? select(row, adapter.link)
+        : undefined;
     const url = sameOriginHttpsUrl(
-      adapter.link ? select(row, adapter.link) : undefined,
+      linkHref,
       new URL(adapter.url).origin,
       adapter.url,
     );
