@@ -216,21 +216,23 @@ function renderRow(
   // single-source row serves nothing and costs the title 44px, on a list where
   // real UIUC titles ("HW5 Rounding and Cancellation") are already being cut.
   // The label the student needs is on the row that has two.
+  // Shown on every row, not only merged ones.
+  //
+  // §5.3 gives one reason for these — "a merged row shows both icons, so a
+  // false merge is visible" — and for a while that was read as the *only*
+  // reason, so single-source rows dropped theirs to buy title width. That was
+  // wrong twice over. Where an assignment lives is what tells a student which
+  // site to open, and it is most of what makes a row believable; and the width
+  // it was bought with came back anyway once the date column stopped repeating
+  // the section heading.
   const distinct = [...new Set(item.members.map((m) => m.source))];
-  if (distinct.length > 1) {
-    sources.textContent = distinct.map((source) => SOURCE_LABEL[source]).join(" ");
-    // Now that single-source rows show nothing, a lone pair of letters is the
-    // only thing in the column and reads as an anomaly rather than a signal.
-    // §5.3 leans on the student noticing a wrong merge and splitting it in one
-    // click, which they cannot do if the mark does not say what it means.
-    sources.title =
-      `One deadline, seen by ${distinct.length} sources: ` +
-      `${distinct.map((source) => SOURCE_NAME[source]).join(" and ")}. ` +
-      `If they are not really the same thing, use ⋯ → Split.`;
-  } else if (distinct[0]) {
-    // Still reachable, just not spending a column on it.
-    sources.title = `from ${SOURCE_NAME[distinct[0]]}`;
-  }
+  sources.textContent = distinct.map((source) => SOURCE_LABEL[source]).join(" ");
+  sources.title =
+    distinct.length > 1
+      ? `One deadline, seen by ${distinct.length} sources: ` +
+        `${distinct.map((source) => SOURCE_NAME[source]).join(" and ")}. ` +
+        `If they are not really the same thing, use ⋯ → Split.`
+      : `On ${SOURCE_NAME[distinct[0]!]}${item.url ? " — click the row to open it" : ""}`;
 
   // The row is a two-line grid: title and "when" compete for line one, and
   // everything that qualifies the deadline goes on line two, which nothing else
