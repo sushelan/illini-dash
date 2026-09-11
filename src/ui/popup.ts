@@ -27,6 +27,7 @@ import {
   allTimed,
   attentionCount,
   attentionGroups,
+  isActionable,
   bookings,
   courseColours,
   coursesIn,
@@ -1226,7 +1227,8 @@ const ATTENTION_NOTE: Record<AttentionName, string> = {
   Overdue: "Past its deadline in the last week.",
   "Couldn't read":
     "The source printed a date this extension could not make sense of, so these have no place on the calendar. They are the deadlines it is least sure about.",
-  "No date at all": "Listed by a source with no deadline anywhere on it.",
+  "No date at all":
+    "Listed by a source with no deadline on it anywhere. Usually an ungraded survey, a Canvas shell, or work whose instructor has not set a date yet. Nothing to do — kept so that nothing a source told us about is silently dropped.",
 };
 
 function renderAttentionView(items: Item[], now: Date, colours: Map<string, number>): void {
@@ -1239,6 +1241,14 @@ function renderAttentionView(items: Item[], now: Date, colours: Map<string, numb
     return;
   }
   for (const group of groups) {
+    if (!isActionable(group.name)) {
+      // Folded away. It never empties — undated rows accumulate all semester —
+      // so left open it buries the two groups that are actually asking for
+      // something. Still here, because dropping a row a source listed is the
+      // silent loss §11 ranks worst.
+      viewEl.append(renderFoldedGroup(group, now, colours));
+      continue;
+    }
     const heading = document.createElement("h2");
     heading.className = "section";
     if (group.name === "Couldn't read") heading.classList.add("section--err");
@@ -1249,6 +1259,30 @@ function renderAttentionView(items: Item[], now: Date, colours: Map<string, numb
       viewEl.append(renderRow(item, now, "Needs attention", undefined, colours));
     }
   }
+}
+
+function renderFoldedGroup(
+  group: { name: AttentionName; items: Item[] },
+  now: Date,
+  colours: Map<string, number>,
+): HTMLElement {
+  const fold = document.createElement("details");
+  fold.className = "fold";
+  const summary = document.createElement("summary");
+  summary.className = "fold--summary";
+  summary.textContent = `${group.name} (${group.items.length})`;
+  summary.title = ATTENTION_NOTE[group.name];
+  fold.append(summary);
+
+  const note = document.createElement("p");
+  note.className = "fold--note";
+  note.textContent = ATTENTION_NOTE[group.name];
+  fold.append(note);
+
+  for (const item of group.items) {
+    fold.append(renderRow(item, now, "Needs attention", undefined, colours));
+  }
+  return fold;
 }
 
 /* -------------------------------------------------------------------------- */

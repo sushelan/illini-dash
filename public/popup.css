@@ -443,3 +443,21 @@ h2.section {
   background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px;
 }
 .setup--brand { font-size: 12px; font-weight: 600; }
+
+/*
+ * A group that is present but not asking for anything.
+ *
+ * Undated rows never age out, so left open they bury the two groups that do
+ * need something. Folded, counted in its own heading, and excluded from the
+ * tab's badge — a tab reading 11 when one thing is late is a tab nobody reads.
+ */
+.fold { border-top: 1px solid var(--line); margin-top: 10px; }
+.fold--summary {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); padding: 10px 12px; cursor: pointer; list-style: none;
+}
+.fold--summary::-webkit-details-marker { display: none; }
+.fold--summary::before { content: "▸ "; }
+.fold[open] .fold--summary::before { content: "▾ "; }
+.fold--summary:hover { color: var(--fg); }
+.fold--note { font-size: 11px; color: var(--muted); margin: 0 12px 6px; line-height: 1.4; }

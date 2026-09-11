@@ -66,6 +66,15 @@ const items = [
          members: [member("prairielearn")] }),
   item({ courseLabel: "CS425", title: "HW1", dueAt: at(9, 23, 59),
          members: [member("gradescope")] }),
+  // Listed by a source with no date on it anywhere. Three of them, so the
+  // folded group has something to fold — it is the shape that made Attention
+  // read "11" when one thing was actually late.
+  item({ courseLabel: "CS357", title: "Research study survey (extra credit)",
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "CS357", title: "Select your group (NOT FOR CREDIT)",
+         members: [member("prairielearn")] }),
+  item({ courseLabel: "CS411", title: "Course syllabus acknowledgement",
+         members: [member("canvas")] }),
   // Today at 11:59 PM — the commonest deadline there is, and the one the
   // harness was missing. An item on the last minute of the grid is drawn one
   // pixel before the bottom edge, and its wrapped lines landed on top of the

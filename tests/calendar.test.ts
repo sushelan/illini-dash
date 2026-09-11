@@ -22,6 +22,7 @@ import {
   dayContents,
   dayKey,
   hourRange,
+  isActionable,
   minutesInto,
   monthCells,
   visibleItems,
@@ -499,13 +500,44 @@ describe("attentionGroups", () => {
     expect(groups[0]!.items.map((i) => i.title)).toEqual(["newer", "older"]);
   });
 
-  it("counts everything the tab's badge stands for", () => {
+  it("counts only what is actually asking for something", () => {
+    /*
+     * Sushi's question: should "no date at all" be in the attention category?
+     *
+     * Not in its number. Overdue work is late and an unreadable date may be
+     * hiding a deadline — both are things to do. A row with no date anywhere on
+     * it asks for nothing, and it is the only group that never empties, so
+     * counting it makes the badge creep upward all semester until it means
+     * nothing. Worker rule 2 applied to a number: what the UI asserts has to be
+     * true.
+     */
+    const items = [
+      item({ title: "late", dueAt: at(2026, 8, 8, 12) }),
+      item({ title: "undated" }),
+      item({ title: "also undated", id: "b" }),
+    ];
+    expect(attentionCount(items, NOW)).toBe(1);
+    // But still present. Dropping a row a source listed is the silent loss
+    // §11 ranks worst, and it is the bug the PrairieLearn empty-credit cells
+    // already caused once.
+    const groups = attentionGroups(items, NOW);
+    expect(groups.find((g) => g.name === "No date at all")!.items).toHaveLength(2);
+  });
+
+  it("says which groups are asking for something", () => {
+    expect(isActionable("Overdue")).toBe(true);
+    expect(isActionable("Couldn't read")).toBe(true);
+    expect(isActionable("No date at all")).toBe(false);
+  });
+
+  it("counts an unreadable date, which may be a deadline in hiding", () => {
     expect(
-      attentionCount(
-        [item({ title: "late", dueAt: at(2026, 8, 8, 12) }), item({ title: "undated" })],
-        NOW,
-      ),
-    ).toBe(2);
+      attentionCount([item({ members: [member({ unparsedDueDate: "?" })] })], NOW),
+    ).toBe(1);
+  });
+
+  it("shows nothing on the badge when only undated rows exist", () => {
+    expect(attentionCount([item({ title: "undated" })], NOW)).toBe(0);
   });
 });
 

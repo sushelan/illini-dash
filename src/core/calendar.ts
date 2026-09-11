@@ -316,6 +316,30 @@ export type AttentionName = "Overdue" | "Couldn't read" | "No date at all";
 
 export const ATTENTION_ORDER: AttentionName[] = ["Overdue", "Couldn't read", "No date at all"];
 
+/**
+ * The groups that are actually asking for something.
+ *
+ * "No date at all" is not one of them, and putting it in the tab's count was
+ * wrong. Overdue work is late and unreadable dates may be hiding a deadline —
+ * both are things to do. A row a source listed with no date anywhere on it asks
+ * for nothing: often there is nothing to do, because it is an ungraded survey,
+ * a Canvas shell, or an assessment whose instructor has not set a date yet.
+ *
+ * It is also the only group that never empties. Overdue work ages out after a
+ * week and an unreadable date gets fixed in a build, but undated rows
+ * accumulate all semester — so a badge that counts them creeps upward forever
+ * and stops meaning anything. That is worker rule 2's principle applied to a
+ * number instead of a dot: what the UI asserts has to be true.
+ *
+ * They stay *visible*, because a row a source listed and this extension then
+ * dropped is the silent loss §11 ranks worst. Last, quiet, and uncounted.
+ */
+export const ATTENTION_ACTIONABLE: AttentionName[] = ["Overdue", "Couldn't read"];
+
+export function isActionable(name: AttentionName): boolean {
+  return ATTENTION_ACTIONABLE.includes(name);
+}
+
 export interface AttentionGroup {
   name: AttentionName;
   items: Item[];
@@ -368,9 +392,16 @@ export function attentionGroups(items: Item[], now: Date): AttentionGroup[] {
   );
 }
 
-/** The number the Attention tab wears. */
+/**
+ * The number the Attention tab wears.
+ *
+ * Only the groups asking for something. A tab reading 11 when one deadline is
+ * actually late is a tab nobody reads twice.
+ */
 export function attentionCount(items: Item[], now: Date): number {
-  return attentionGroups(items, now).reduce((total, group) => total + group.items.length, 0);
+  return attentionGroups(items, now)
+    .filter((group) => isActionable(group.name))
+    .reduce((total, group) => total + group.items.length, 0);
 }
 
 /* -------------------------------------------------------------------------- */
