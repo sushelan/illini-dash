@@ -233,6 +233,29 @@ harness that wrapped the list in a fixed-width `<div>` — which cannot reproduc
 `preview-popup.html`, the real `popup.html` with only `chrome.*` stubbed. **When the
 symptom is about the window, the harness has to be the real document.**
 
+## Check it in the mode Sushi actually uses
+
+Sushi's machine is dark. Every screenshot taken to verify a colour change was
+light, so the one person who had to be convinced was looking at something nobody had
+looked at — "u didnt rly change anything at all" arrived about a build that had, in a
+mode he never sees.
+
+**Two things follow, and the second is the one worth remembering.**
+
+Dark mode is the default for verification, not the afterthought. `resize_window` takes a
+`colorScheme`, so there is no excuse.
+
+And a tint does *different work at each end of the range*. A wash composites toward its
+own luminance, so the same alpha is not the same change: 5.5% of navy on white drops the
+surface 12 points out of 255, while 6% of pale blue on `#1c1c1c` lifted it 8 — and the eye
+is far less sensitive to lightening near-black than to darkening white. The dark tints are
+roughly double the light ones, and that is arithmetic rather than taste. **Measure the
+composited luminance rather than trusting the alpha**, which is one line in the console:
+
+```js
+getComputedStyle(el).backgroundColor  // then composite it against the body yourself
+```
+
 ## Review policy
 
 Full adversarial review is expensive (~20 min, ~1.5M tokens) and its yield is falling now

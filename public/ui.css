@@ -56,10 +56,19 @@
        cannot see. Same hue, enough lightness to read as a surface. */
     --brand: #1b3a6b;
     --accent: #ff8534;
-    --tint: rgba(120, 170, 255, .06);
-    --tint-strong: rgba(120, 170, 255, .11);
-    --hover: rgba(120, 170, 255, .10);
-    --today-tint: rgba(255, 133, 52, .12);
+    /*
+     * Roughly twice the light-mode alpha, and not by taste.
+     *
+     * A wash is composited toward its own luminance, so the same alpha does
+     * very different work at each end. On white, 5.5% of navy drops the surface
+     * 12 points out of 255; on #1c1c1c, 6% of pale blue lifted it 8 — and the
+     * eye is far less sensitive to lightening near-black than to darkening
+     * white. The header was measurably tinted in dark mode and invisibly so.
+     */
+    --tint: rgba(120, 170, 255, .13);
+    --tint-strong: rgba(120, 170, 255, .20);
+    --hover: rgba(120, 170, 255, .11);
+    --today-tint: rgba(255, 133, 52, .18);
   }
 }
 
@@ -75,7 +84,13 @@
   --today-tint: rgba(127, 127, 127, .09);
 }
 @media (prefers-color-scheme: dark) {
-  .theme-neutral { --now: #f0736a; }
+  .theme-neutral {
+    --now: #f0736a;
+    --tint: rgba(255, 255, 255, .07);
+    --tint-strong: rgba(255, 255, 255, .11);
+    --hover: rgba(255, 255, 255, .09);
+    --today-tint: rgba(255, 255, 255, .08);
+  }
 }
 
 /*
@@ -111,6 +126,10 @@
     --warn: #f0c33c;
     --err: #ff8f85;
     --accent: #ff9b52;
+    --tint: rgba(150, 195, 255, .17);
+    --tint-strong: rgba(150, 195, 255, .26);
+    --hover: rgba(150, 195, 255, .15);
+    --today-tint: rgba(255, 155, 82, .24);
   }
 }
 body {
