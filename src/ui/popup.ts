@@ -766,7 +766,24 @@ function hourLabel(hour: number): string {
   return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
 }
 
-function renderDayGrid(contents: DayContents, now: Date, colours: Map<string, number>): HTMLElement {
+/**
+ * The grid, and a callback that sizes it once it is in the document.
+ *
+ * Stacks are absolutely positioned, so they do not grow their container — and
+ * an 11:59 PM deadline starts one pixel before the bottom of a grid that ends
+ * at midnight, then draws its two wrapped lines straight over the status line
+ * underneath. The overlap was worst for exactly the commonest deadline there
+ * is, which is why it survived the preview: the fixture day had nothing at
+ * 11:59 PM on it.
+ *
+ * The height cannot be computed up front because a row's height depends on how
+ * its title wraps, which depends on layout. So it is measured after insertion.
+ */
+function renderDayGrid(
+  contents: DayContents,
+  now: Date,
+  colours: Map<string, number>,
+): { grid: HTMLElement; fit: () => void } {
   const { start, end } = hourRange(contents);
   const grid = document.createElement("div");
   grid.className = "grid";
@@ -801,17 +818,32 @@ function renderDayGrid(contents: DayContents, now: Date, colours: Map<string, nu
     slots.append(box);
   }
 
-  // Where "now" is, but only on the day that actually is now: on any other day
-  // the line would be a red mark at an hour that means nothing.
-  if (dayOffset === 0) {
+  // Where "now" is — on today, and only when now is on the axis at all.
+  //
+  // The axis starts at 8 AM, so between midnight and then the line's offset is
+  // negative and it draws *above* the grid, straight across the booking strip.
+  // At 12:30 AM it was a red rule through "not booked", which reads as a
+  // strikethrough on the one control that matters most.
+  const nowHour = minutesInto(now) / 60;
+  if (dayOffset === 0 && nowHour >= start && nowHour < end) {
     const line = document.createElement("div");
     line.className = "grid--now";
-    line.style.top = `${(minutesInto(now) / 60 - start) * HOUR_PX}px`;
+    line.style.top = `${(nowHour - start) * HOUR_PX}px`;
     slots.append(line);
   }
 
   grid.append(hours, slots);
-  return grid;
+  const floor = (end - start) * HOUR_PX;
+  return {
+    grid,
+    fit: () => {
+      let lowest = floor;
+      for (const box of slots.querySelectorAll<HTMLElement>(".grid--stack")) {
+        lowest = Math.max(lowest, box.offsetTop + box.offsetHeight);
+      }
+      slots.style.height = `${lowest}px`;
+    },
+  };
 }
 
 function renderPlaced(placed: PlacedItem, now: Date, colours: Map<string, number>): HTMLElement {
@@ -830,7 +862,10 @@ function renderDayView(items: Item[], now: Date, colours: Map<string, number>): 
   const contents = dayContents(items, day, now);
   const band = renderUntimedBand(contents.untimed, now, colours);
   if (band) viewEl.append(band);
-  viewEl.append(renderDayGrid(contents, now, colours));
+  const { grid, fit } = renderDayGrid(contents, now, colours);
+  viewEl.append(grid);
+  // Only measurable once it is in the document.
+  fit();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1050,6 +1085,11 @@ function render(
 
   renderBookingStrip(items);
   renderTabs(attentionCount(onGrid, now));
+  // The header bar is sticky, so without this the tabs slide under it and
+  // switching views means scrolling back to the top of a sixteen-hour grid.
+  // Measured rather than hard-coded: the bar's height is a font metric.
+  const bar = document.querySelector<HTMLElement>(".bar");
+  if (bar) tabsEl.style.top = `${bar.offsetHeight}px`;
   renderFilters(visibleItems(items, settings), colours);
 
   const nav = navFor(view, now);

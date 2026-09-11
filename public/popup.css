@@ -38,12 +38,25 @@ body { width: 400px; max-width: 100%; padding: 0; }
 html.view-full,
 .view-full body {
   width: auto;
-  max-width: 760px;
+  max-width: none;
   max-height: none;
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
 }
-.view-full body { padding: 0 0 32px; }
+/*
+ * The full view fills the window.
+ *
+ * It was capped at 760px, which is what a month grid *needs* rather than what
+ * it should get: opening a tab called "full view" and finding a narrow column
+ * in the middle of a black screen reads as broken. More width is strictly
+ * better for the month, where every extra pixel is title that stops being
+ * truncated.
+ *
+ * The cap is only there so an agenda row on a very wide monitor does not end up
+ * with its clock a foot away from its title, which is the scanning problem the
+ * row's fixed tracks exist to prevent.
+ */
+.view-full body { padding: 0 0 32px; max-width: 1400px; margin: 0 auto; }
 .view-full .bar { border-radius: 0; }
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -367,3 +380,6 @@ h2.section {
 .row-opening .row--due { font-style: italic; }
 /* One colour vocabulary everywhere, so the Attention tab reads like the grid. */
 .row[class*="course-"] { border-left: 3px solid var(--course); padding-left: 9px; }
+
+/* Sticky under the bar; `top` is set from the bar's measured height. */
+.tabs { position: sticky; z-index: 1; background: var(--bg); }

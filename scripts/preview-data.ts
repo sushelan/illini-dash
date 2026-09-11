@@ -66,6 +66,13 @@ const items = [
          members: [member("prairielearn")] }),
   item({ courseLabel: "CS425", title: "HW1", dueAt: at(9, 23, 59),
          members: [member("gradescope")] }),
+  // Today at 11:59 PM — the commonest deadline there is, and the one the
+  // harness was missing. An item on the last minute of the grid is drawn one
+  // pixel before the bottom edge, and its wrapped lines landed on top of the
+  // status line underneath. The fixture day had nothing at 11:59 PM, so the
+  // preview could not reproduce it and Sushi found it on real data instead.
+  item({ courseLabel: "CS425", title: "MP1 Report (4cr only, EXCEPT Coursera)",
+         dueAt: at(0, 23, 59), members: [member("gradescope")] }),
   // Today, so the untimed band has something in it: the band is the row shape
   // that is hardest to see in the extension and easiest to get wrong.
   item({ courseLabel: "CS424", title: "Homework 1", dueAt: at(0, 23, 59), timeAssumed: true,
