@@ -23,11 +23,14 @@ import {
   isCurrentTerm,
   shouldSeedFromBundle,
   validateRegistry,
+  validateAdapter,
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, statusAfterEnable } from "./core/health.js";
 import { needsSetup, setupRows } from "./core/setup.js";
+import { detectInOffscreen } from "./core/offscreen-client.js";
+import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
@@ -89,13 +92,28 @@ async function fetchPage(url: string): Promise<FetchedPage> {
  * is actually held. The permission can be revoked from Chrome's own UI at any
  * time, so it is checked per sync rather than trusted from when it was granted.
  */
+/**
+ * Published and self-added adapters as one list.
+ *
+ * A locally added entry wins a duplicate id: the student chose theirs, and a
+ * published entry arriving later must not silently replace what they are
+ * already using without them noticing.
+ */
+function allAdapters(store: Awaited<ReturnType<typeof loadStore>>): Adapter[] {
+  const local = new Set(store.localAdapters.map((adapter) => adapter.id));
+  return [
+    ...store.localAdapters,
+    ...store.registry.adapters.filter((adapter) => !local.has(adapter.id)),
+  ];
+}
+
 async function enabledAdapters(): Promise<Adapter[]> {
   const store = await loadStore();
   const on = new Set(store.enabledAdapters);
   const term = currentTermCode(new Date());
   const usable: Adapter[] = [];
 
-  for (const adapter of store.registry.adapters) {
+  for (const adapter of allAdapters(store)) {
     if (!on.has(adapter.id)) continue;
     if (!isCurrentTerm(adapter, term)) continue;
     if (await chrome.permissions.contains({ origins: [adapter.hostPattern] })) {
@@ -604,6 +622,67 @@ chrome.runtime.onMessage.addListener(
         ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
       );
     }
+    if (request?.type === "detect-adapter") {
+      return answer(
+        (async () => {
+          const result = await capture(request.url);
+          if (result.needsLogin) {
+            return {
+              type: "error",
+              message:
+                "That fetch landed on a sign-in page. Sign in to the site in this browser, then try again.",
+            } as const;
+          }
+          const { candidates, reason } = await detectInOffscreen(
+            result.body,
+            new Date().toISOString(),
+            SITE_TIMEZONE,
+          );
+          return {
+            type: "detected",
+            candidates,
+            reason,
+            url: result.finalUrl,
+            courseCodeGuess: guessCourseCode(result.finalUrl),
+          } as const;
+        })(),
+      );
+    }
+    if (request?.type === "add-local-adapter") {
+      return answer(
+        (async () => {
+          // The same trust boundary a published adapter clears. Typed by the
+          // student rather than fetched from GitHub changes nothing about what
+          // a bad `url` or `hostPattern` could do.
+          const { adapter, reason } = validateAdapter(request.adapter);
+          if (!adapter) return { type: "error", message: reason ?? "invalid adapter" } as const;
+
+          await withStore(async () => {
+            const fresh = await loadStore();
+            fresh.localAdapters = [
+              ...fresh.localAdapters.filter((existing) => existing.id !== adapter.id),
+              adapter,
+            ];
+          });
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "remove-local-adapter") {
+      const { adapterId } = request;
+      return answer(
+        withStore(async () => {
+          const fresh = await loadStore();
+          fresh.localAdapters = fresh.localAdapters.filter((a) => a.id !== adapterId);
+          fresh.enabledAdapters = fresh.enabledAdapters.filter((id) => id !== adapterId);
+          fresh.sources.site = {
+            ...fresh.sources.site,
+            enabled: fresh.enabledAdapters.length > 0,
+            state: fresh.enabledAdapters.length > 0 ? fresh.sources.site.state : "disabled",
+          };
+        }).then(() => ({ type: "ok" }) as const),
+      );
+    }
     if (request?.type === "get-setup") {
       return answer(
         loadStore().then((store) => ({
@@ -717,9 +796,10 @@ chrome.runtime.onMessage.addListener(
           const on = new Set(store.enabledAdapters);
           const term = currentTermCode(new Date());
           const adapters = await Promise.all(
-            store.registry.adapters.map(async (adapter) => ({
+            allAdapters(store).map(async (adapter) => ({
               ...adapter,
               enabled: on.has(adapter.id),
+              local: store.localAdapters.some((local) => local.id === adapter.id),
               granted: await chrome.permissions.contains({ origins: [adapter.hostPattern] }),
               currentTerm: isCurrentTerm(adapter, term),
             })),
@@ -733,7 +813,7 @@ chrome.runtime.onMessage.addListener(
       return answer(
         (async () => {
           const store = await loadStore();
-          const adapter = store.registry.adapters.find((a) => a.id === adapterId);
+          const adapter = allAdapters(store).find((a) => a.id === adapterId);
           if (!adapter) return { type: "error", message: `unknown adapter ${adapterId}` } as const;
 
           if (enabled) {

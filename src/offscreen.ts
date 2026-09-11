@@ -10,6 +10,7 @@ import { currentTermCourses } from "./sources/gradescope.js";
 import { parseCourseList as parseSmartPhysicsCourseList } from "./sources/smartphysics.js";
 import { getParser } from "./sources/registry.js";
 import { runAdapter } from "./sources/site.js";
+import { detectCandidates, noCandidateReason } from "./core/detect.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
 
 chrome.runtime.onMessage.addListener(
@@ -32,6 +33,16 @@ chrome.runtime.onMessage.addListener(
         // §4.5's runner needs the adapter alongside the DOM, which the RawItem
         // protocol does not carry, so it gets its own op.
         sendResponse({ ok: true, items: runAdapter(message.adapter, doc, message.page) });
+      } else if (message.type === "detect-adapter") {
+        // §4.5 self-serve: propose selectors for a page nobody has an adapter
+        // for. Here rather than in the worker for the same reason as every
+        // other op — there is no DOMParser in a service worker.
+        const candidates = detectCandidates(doc, message.reference, message.timezone);
+        sendResponse({
+          ok: true,
+          candidates,
+          reason: candidates.length === 0 ? noCandidateReason(doc) : undefined,
+        });
       } else {
         throw new Error("unknown offscreen message");
       }

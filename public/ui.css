@@ -84,3 +84,9 @@ input[type="number"] { width: 5em; font: inherit; padding: 2px 4px; }
   color: var(--muted); text-decoration: none;
 }
 .back:hover { color: var(--fg); text-decoration: underline; }
+
+/* The sample rows a proposed adapter would extract, which is what the student
+   actually checks before approving it. */
+.preview { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+.preview td { border: 1px solid var(--line); padding: 3px 8px; }
+.preview td:last-child { color: var(--muted); white-space: nowrap; }

@@ -115,6 +115,36 @@ A named column that is not on the page throws for that adapter, naming the colum
 the fix is one registry edit. `title` / `due` / `link` stay required and are the fallback
 for pages that are not tables — CS 424's rowspan grid, a list of prose items.
 
+## Adding one yourself
+
+Settings → Course websites → **Add a course site**. Paste the page that lists the
+deadlines, press **Read this page**, and it shows the rows it found — assignment names
+on the left, the dates it read on the right — before anything is saved.
+
+That preview is the whole safety argument. `src/core/detect.ts` proposes; it does not
+decide. A wrong column produces visibly wrong titles and dates, and the student taking
+the course is the only one who can tell. It is also why the count is shown above the
+rows: "13 of 13" and "6 of 20" are different answers, and the second means the page is
+not fully covered.
+
+The proposal is a search, not a guess. For every column of every table it asks whether
+the cells parse as a date the runner already supports, and keeps the columns where most
+of the rows do. That is why it needs no model: the question has a checkable answer.
+It reaches the hand-written `ece310-fa26` entry unaided — same table, same two columns,
+same format, 13 of 13 rows. It proposes nothing for CS 424, whose schedule has no header
+row and packs two events into one cell, and says so rather than inventing something
+plausible.
+
+A saved adapter goes in `store.localAdapters`, apart from the fetched registry so a daily
+refresh cannot overwrite it, and through `validateAdapter` exactly like a published one.
+Typed by a student rather than fetched from GitHub changes nothing about what a bad `url`
+or `hostPattern` could do.
+
+**Copy for sharing** puts the entry on the clipboard. A locally added adapter helps one
+person; pasting it into this registry helps everyone in the course. There is no automatic
+submission and there should not be: accepting an entry means trusting a URL and a set of
+selectors written by a stranger, and a human reading the paste is that check.
+
 ## Seeding another one
 
 §4.5 asks for 2–3 seed adapters. One (`cs424-fa26`) now ships; a second and third still

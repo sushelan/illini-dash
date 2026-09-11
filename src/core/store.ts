@@ -16,6 +16,7 @@ import type {
   SourceStatus,
   StoreV1,
 } from "../sources/types.js";
+import { validateAdapter } from "./registry.js";
 
 /**
  * 2 since the first-run screen landed.
@@ -106,6 +107,18 @@ export interface StoreV1Plus extends StoreV1 {
    * this puts a setup screen in front of every beta tester who set up days ago.
    */
   setupDoneAt?: string;
+  /**
+   * Course-site adapters this student added themselves (§4.5, self-serve).
+   *
+   * Kept apart from `registry.adapters`, which the daily refresh replaces
+   * wholesale — a locally added course must survive that, and must never be
+   * silently overwritten by a published entry the student did not choose.
+   *
+   * They go through `validateAdapter` exactly like a published one. It is the
+   * same trust boundary: a URL and a set of selectors that decide what gets
+   * fetched, whoever typed them.
+   */
+  localAdapters: Adapter[];
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -141,6 +154,7 @@ export function emptyStore(): StoreV1Plus {
     misses: {},
     backoffUntil: {},
     enabledAdapters: [],
+    localAdapters: [],
     setAsideCourses: [],
   };
 }
@@ -288,6 +302,14 @@ export function migrate(stored: unknown): StoreV1Plus {
       ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
       : [],
     setupDoneAt: migrateSetupDoneAt(value, sources),
+    // Validated on the way back in, not merely cast: a stored adapter decides
+    // what this extension fetches, so a half-written or hand-edited entry has
+    // to clear the same bar a published one does.
+    localAdapters: Array.isArray(value.localAdapters)
+      ? value.localAdapters
+          .map((entry) => validateAdapter(entry).adapter)
+          .filter((adapter): adapter is Adapter => adapter !== undefined)
+      : [],
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>

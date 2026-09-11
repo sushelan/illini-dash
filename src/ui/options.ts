@@ -6,6 +6,8 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
+import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
+import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { buildIcs } from "../core/ics.js";
@@ -1067,3 +1069,177 @@ void (() => {
       "Filled in from the page you right-clicked. Press Prepare report to fetch and scrub it.";
   }
 })();
+
+/* -------------------------------------------------------------------------- */
+/* Adding a course site yourself (§4.5, self-serve)                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The whole flow: read a page, show what was found, save what is approved.
+ *
+ * Adding a course used to mean capturing a page, sending it to the maintainer,
+ * waiting for someone to read the markup and push. That made one person the
+ * bottleneck for every course at the university, and it is why two adapters
+ * exist rather than two hundred.
+ *
+ * Nothing is saved until the student has looked at the rows. That is the whole
+ * safety argument: a wrong column produces visibly wrong titles and dates, and
+ * the person who takes the course is the only one who can tell.
+ */
+const addSiteUrl = document.getElementById("add-site-url") as HTMLInputElement;
+const addSiteStatus = document.getElementById("add-site-status")!;
+const addSiteResult = document.getElementById("add-site-result")!;
+
+document.getElementById("add-site-go")!.addEventListener("click", async () => {
+  const url = addSiteUrl.value.trim();
+  addSiteResult.replaceChildren();
+  if (!url) {
+    addSiteStatus.textContent = "Paste the address of the page first.";
+    return;
+  }
+  // Inside the click, because Chrome refuses a permission prompt without a
+  // user gesture and a gesture does not survive an await.
+  if (!(await ensureHostPermission(url))) {
+    addSiteStatus.textContent = `Chrome did not grant access to ${url}, so it cannot be read.`;
+    return;
+  }
+  addSiteStatus.textContent = "Reading…";
+  const response = await send({ type: "detect-adapter", url });
+  if (response.type === "error") {
+    addSiteStatus.textContent = response.message;
+    return;
+  }
+  if (response.type !== "detected") return;
+
+  if (response.candidates.length === 0) {
+    addSiteStatus.textContent = "Nothing found on that page.";
+    const why = el("p", response.reason ?? "", "muted");
+    addSiteResult.append(why);
+    return;
+  }
+  addSiteStatus.textContent =
+    response.candidates.length === 1
+      ? "Found one table that looks like a schedule."
+      : `Found ${response.candidates.length} tables that could be the schedule.`;
+  renderCandidates(response.candidates, response.url, response.courseCodeGuess);
+});
+
+function renderCandidates(candidates: Candidate[], url: string, codeGuess?: string): void {
+  addSiteResult.replaceChildren();
+
+  const code = el("input") as HTMLInputElement;
+  code.type = "text";
+  code.value = codeGuess ?? "";
+  code.placeholder = "CS225";
+  code.id = "add-site-code";
+  const codeRow = el("p", undefined, "muted");
+  const codeLabel = el("label", "Course code ");
+  codeLabel.htmlFor = code.id;
+  codeRow.append(codeLabel, code);
+  addSiteResult.append(codeRow);
+
+  for (const candidate of candidates) {
+    const box = el("div", undefined, "result");
+    const heading = el("h3", `${candidate.columns.title} · ${candidate.columns.due}`);
+    box.append(heading);
+
+    // The count, before the rows. "13 of 13" and "6 of 20" are different
+    // answers and the second one means this page is not fully covered.
+    box.append(
+      el(
+        "p",
+        `${candidate.dated} of ${candidate.total} rows have a date this can read.`,
+        candidate.dated === candidate.total ? "muted" : "verdict-needs_login",
+      ),
+    );
+
+    const table = document.createElement("table");
+    table.className = "preview";
+    for (const row of candidate.sample) {
+      const tr = document.createElement("tr");
+      const name = document.createElement("td");
+      name.textContent = row.title;
+      const due = document.createElement("td");
+      due.textContent = row.due;
+      tr.append(name, due);
+      table.append(tr);
+    }
+    box.append(table);
+
+    const use = el("button", "Use this one");
+    const status = el("span", "", "opt-note");
+    use.addEventListener("click", async () => {
+      const courseCode = code.value.trim().toUpperCase();
+      if (!/^[A-Z]{2,4}\d{3}$/.test(courseCode)) {
+        status.textContent = "Course code should look like CS225.";
+        return;
+      }
+      use.disabled = true;
+      status.textContent = "Saving…";
+      const adapter = buildAdapter(candidate, url, courseCode);
+      const saved = await send({ type: "add-local-adapter", adapter });
+      if (saved.type === "error") {
+        status.textContent = saved.message;
+        use.disabled = false;
+        return;
+      }
+      await send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled: true });
+      await send({ type: "sync", trigger: "manual" });
+      addSiteResult.replaceChildren();
+      addSiteStatus.textContent = `${courseCode} added. Its deadlines appear after the next sync.`;
+      await refreshOptions();
+    });
+
+    const share = el("button", "Copy for sharing");
+    share.style.marginLeft = "8px";
+    share.title =
+      "Puts this entry on your clipboard. Send it to whoever maintains Illini Dash and " +
+      "everyone in the course gets it, instead of each person adding it themselves.";
+    share.addEventListener("click", async () => {
+      const courseCode = code.value.trim().toUpperCase() || "COURSE";
+      await navigator.clipboard.writeText(
+        JSON.stringify(buildAdapter(candidate, url, courseCode), null, 2),
+      );
+      status.textContent = "Copied. Send it over and everyone in the course gets it.";
+    });
+
+    const actions = el("p");
+    actions.append(use, share, status);
+    box.append(actions);
+    addSiteResult.append(box);
+  }
+}
+
+/**
+ * The registry entry for a candidate the student approved.
+ *
+ * `hostPattern` is derived from the URL rather than asked for, because the
+ * validator requires it to be exactly the URL's own host — a wildcard would be
+ * a prompt that covers every illinois.edu site at once, and a later edit could
+ * then repoint the adapter anywhere under it with no second prompt.
+ */
+function buildAdapter(
+  candidate: Candidate,
+  url: string,
+  courseCode: string,
+): Record<string, unknown> & { id: string } {
+  const host = new URL(url).origin;
+  const term = currentTermCode(new Date());
+  return {
+    id: `${courseCode.toLowerCase()}-${term}-local`,
+    label: `${courseCode} course site`,
+    courseCode,
+    term,
+    url,
+    hostPattern: `${host}/*`,
+    rows: candidate.rows,
+    columns: candidate.columns,
+    // Required by the schema and the fallback when a header is missing at
+    // parse time; the named columns are what actually resolve.
+    title: "td:nth-child(1)",
+    due: "td:nth-child(2)",
+    dateFormat: candidate.dateFormat,
+    timezone: SITE_TIMEZONE,
+    minExtensionVersion: "0.1.0",
+  };
+}

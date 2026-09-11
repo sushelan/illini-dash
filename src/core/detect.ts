@@ -246,3 +246,27 @@ export function noCandidateReason(doc: Document): string {
     `formats are ${supportedDateFormats().join(", ")}.`
   );
 }
+
+/** §4.5 adapters are all UIUC, and UIUC runs on one clock. */
+export const SITE_TIMEZONE = "America/Chicago";
+
+/**
+ * A course code read off the URL, as a starting point for the student to fix.
+ *
+ * UIUC course sites are overwhelmingly `/<dept><number>/<term>/`, so this is
+ * right far more often than not — and it is a prefilled field rather than a
+ * decision, because the student is looking straight at it.
+ */
+export function guessCourseCode(url: string): string | undefined {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return undefined;
+  }
+  for (const segment of path.split("/")) {
+    const match = /^([a-z]{2,4})[\s_-]?(\d{3})$/i.exec(segment);
+    if (match) return `${match[1]!.toUpperCase()}${match[2]}`;
+  }
+  return undefined;
+}

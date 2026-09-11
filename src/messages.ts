@@ -14,6 +14,7 @@ import type { SmartPhysicsCourse } from "./sources/smartphysics.js";
 import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
 import type { SetupRow } from "./core/setup.js";
+import type { Candidate } from "./core/detect.js";
 import type {
   Adapter,
   Item,
@@ -29,6 +30,9 @@ import type {
 export type Request =
   | { type: "ping" }
   | { type: "get-setup" }
+  | { type: "detect-adapter"; url: string }
+  | { type: "add-local-adapter"; adapter: unknown }
+  | { type: "remove-local-adapter"; adapterId: string }
   | { type: "complete-setup" }
   | { type: "restart-setup" }
   | { type: "gate0" }
@@ -95,6 +99,15 @@ export type Response =
     }
   | { type: "ok" }
   | {
+      type: "detected";
+      candidates: Candidate[];
+      /** Present when there were none, saying which of the three dead ends it is. */
+      reason?: string;
+      /** Echoed back so the page can build an entry without re-parsing the URL. */
+      url: string;
+      courseCodeGuess?: string;
+    }
+  | {
       type: "setup";
       /** Absent means setup is finished and the calendar should be drawn. */
       rows?: SetupRow[];
@@ -126,6 +139,13 @@ export type OffscreenRequest =
       adapter: Adapter;
       html: string;
       page: PageCtx;
+    }
+  | {
+      target: "offscreen";
+      type: "detect-adapter";
+      html: string;
+      reference: string;
+      timezone: string;
     };
 
 /** Kept as a name because the parse case is by far the common one. */
@@ -143,6 +163,7 @@ export type ParseResponse =
   // Named separately from `courses` so the two cannot be confused at the
   // boundary: both are "a list of courses" and neither is the other's shape.
   | { ok: true; smartPhysicsCourses: SmartPhysicsCourse[] }
+  | { ok: true; candidates: Candidate[]; reason?: string }
   | { ok: false; error: SerializedError };
 
 /**

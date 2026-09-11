@@ -7,6 +7,7 @@ import type { OffscreenRequest, ParseResponse } from "../messages.js";
 import type { GradescopeCourse } from "../sources/gradescope.js";
 import type { SmartPhysicsCourse } from "../sources/smartphysics.js";
 import type { Adapter } from "../sources/types.js";
+import type { Candidate } from "./detect.js";
 import type { ParserId } from "../sources/registry.js";
 import { ParseError, type PageCtx, type RawItem } from "../sources/types.js";
 
@@ -95,4 +96,21 @@ async function ask(request: OffscreenRequest): Promise<Extract<ParseResponse, { 
 
 export async function closeOffscreenDocument(): Promise<void> {
   if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
+}
+
+/** §4.5 self-serve: candidate adapters for a page, proposed from its markup. */
+export async function detectInOffscreen(
+  html: string,
+  reference: string,
+  timezone: string,
+): Promise<{ candidates: Candidate[]; reason?: string }> {
+  const response = await ask({
+    target: "offscreen",
+    type: "detect-adapter",
+    html,
+    reference,
+    timezone,
+  });
+  if (!("candidates" in response)) throw new Error("offscreen returned the wrong shape");
+  return { candidates: response.candidates, reason: response.reason };
 }
