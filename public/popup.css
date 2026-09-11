@@ -135,6 +135,14 @@ h2.section {
 .row--due { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right; }
 .row-overdue .row--due { color: var(--err); }
 .row-booking .row--due { color: var(--warn); }
+
+/*
+ * An event is furniture: it tells you the day has a thing in it, and it must
+ * not compete with work that is owed. Dimmed rather than hidden, because
+ * Canvas told us about it and dropping what a source said is the failure §11
+ * ranks worst.
+ */
+.row-event .row--title, .row-event .row--due { color: var(--muted); font-weight: 400; }
 .empty { padding: 24px 12px; text-align: center; }
 
 .row--menu { background: none; border: 0; color: var(--muted);

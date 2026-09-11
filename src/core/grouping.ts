@@ -121,6 +121,15 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
   // the student has looked, and §7 nags daily until it is gone.
   if (item.kind === "booking") return "Needs attention";
 
+  // An event is over when it is over. It has no submission, so `isItemDone` is
+  // never true for one and the overdue branch below would hold it in "Needs
+  // attention" for a week — which is how four instances of one office-hours
+  // block and two class Zoom links came to outnumber the real work there.
+  if (item.kind === "event") {
+    const at = liveDeadline(item, now);
+    if (at === undefined || at.at < now.getTime()) return undefined;
+  }
+
   const live = liveDeadline(item, now);
   if (live === undefined) return undefined;
   const due = live.at;

@@ -205,7 +205,11 @@ describe("parsePlannerItems — synthetic fixture (see fixtures/canvas/README.md
     expect(byId("assignment:9002").kind).toBe("assignment");
     expect(byId("discussion_topic:9008").kind).toBe("assignment");
     expect(byId("calendar_event:9006").kind).toBe("exam"); // "Midterm Exam 1"
-    expect(byId("calendar_event:9007").kind).toBe("other"); // "Guest lecture"
+    // A guest lecture is an event, not work. This asserted "other" until a real
+    // list showed four instances of one office-hours block and two class Zoom
+    // links sitting in "Needs attention" — `other` behaves like an assignment,
+    // and an event has no submission, so nothing could ever clear them.
+    expect(byId("calendar_event:9007").kind).toBe("event"); // "Guest lecture"
   });
 
   it("emits an unknown plannable_type as other rather than dropping it", () => {
@@ -407,7 +411,7 @@ describe("field hygiene", () => {
 describe("mapKind / mapStatus units", () => {
   it("matches exam words only as whole words", () => {
     expect(mapKind("calendar_event", "Final Review")).toBe("exam");
-    expect(mapKind("calendar_event", "Examine the data")).toBe("other");
+    expect(mapKind("calendar_event", "Examine the data")).toBe("event");
   });
 
   it("treats a missing submissions field as not submitted", () => {

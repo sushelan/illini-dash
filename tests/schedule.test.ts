@@ -115,6 +115,22 @@ describe("planNotifications (§7)", () => {
     expect(plans.map((p) => p.lead).sort()).toEqual(["24h", "2h"]);
   });
 
+  it("never interrupts anyone about a calendar event", () => {
+    // Nothing is owed for an event, so there is nothing to be late for. The
+    // block that prompted this recurred daily, so leaving events eligible is
+    // two toasts a day about office hours — the fastest way to get muted.
+    expect(planNotifications([item({ kind: "event", dueAt: dueFri })], DEFAULT_SETTINGS, NOW))
+      .toEqual([]);
+  });
+
+  it("still interrupts about an exam taken from the same calendar feed", () => {
+    // §4.1 promotes a calendar_event whose title says exam. That is the one
+    // calendar row worth a reminder, and this change must not silence it.
+    expect(
+      planNotifications([item({ kind: "exam", dueAt: dueFri })], DEFAULT_SETTINGS, NOW).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("honours the lead-time setting", () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, leadTimes: ["2h"] };
     expect(planNotifications([item({ dueAt: dueFri })], settings, NOW).map((p) => p.lead)).toEqual([

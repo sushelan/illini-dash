@@ -36,6 +36,13 @@ const items = [
          members: [member("prairietest", { windowStart: at(10, 0, 1), windowEnd: at(12, 23, 59) })] }),
   item({ courseLabel: "CS357", title: "CS 357: Quiz 1", dueAt: at(0, 21, 0), kind: "exam",
          members: [member("prairietest")] }),
+  // Canvas calendar events, from the same real list. The recurring one is the
+  // point: four instances of this block and two class Zoom links were sitting
+  // in "Needs attention", where nothing could ever clear them.
+  item({ courseLabel: "CS411", title: "Fall 2026 Office Hours", dueAt: at(0, 20, 0),
+         kind: "event", members: [member("canvas")] }),
+  item({ courseLabel: "CS411", title: "Class Zoom (only for students with excused absence)",
+         dueAt: at(1, 14, 0), kind: "event", members: [member("canvas")] }),
   item({ courseLabel: "CS425", title: "MP1 Report (4cr only, EXCEPT for students in MC3)",
          dueAt: at(3, 23, 59), members: [member("gradescope")] }),
   item({ courseLabel: "CS357", title: "L5 Rounding and Cancellation", dueAt: at(4, 23),

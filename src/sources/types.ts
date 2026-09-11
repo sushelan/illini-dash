@@ -8,7 +8,21 @@ export type Source =
   | "smartphysics"
   | "site";
 
-export type Kind = "assignment" | "quiz" | "exam" | "booking" | "other";
+/**
+ * `event` is a thing that happens at a time, not work that is owed.
+ *
+ * Canvas planner returns office hours, review sessions and class Zoom links as
+ * `calendar_event`, which mapped to `other` and therefore behaved exactly like
+ * an assignment: it sat in "Needs attention" for a week after it happened,
+ * because an event has no submission and so nothing could ever mark it done.
+ * Six of seven rows in that section were recurring office hours. An event that
+ * has passed is over, the way a meeting is over; it is not unfinished work.
+ *
+ * Kept separate from `other`, which stays the deliberate catch-all for a
+ * plannable type §4.1 does not list — those may well be work, and §11 ranks a
+ * silently dropped deadline above every other failure.
+ */
+export type Kind = "assignment" | "quiz" | "exam" | "booking" | "event" | "other";
 
 export type Status =
   | "not_submitted"

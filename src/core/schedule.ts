@@ -112,6 +112,10 @@ export interface PlannedNotification {
 /** §7: never notify about something hidden, finished, ticked off, or already notified. */
 function isEligible(item: Item, settings: Settings): boolean {
   if (item.hidden || isItemDone(item) || isTickedDone(item)) return false;
+  // Nothing is owed for an event, so there is nothing to be late for. A
+  // recurring office-hours block would otherwise fire two reminders a day,
+  // every day, which is the fastest way to get an extension muted.
+  if (item.kind === "event") return false;
   // §4.3's filter. The row stays in the list either way — this only decides
   // whether the extension is willing to interrupt someone about it.
   if (item.forCredit === false && !settings.remindNotForCredit) return false;

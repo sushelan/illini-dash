@@ -280,7 +280,10 @@ export function mapKind(plannableType: string, title: string): Kind | undefined 
     case "discussion_topic":
       return "assignment";
     case "calendar_event":
-      return /\b(exam|midterm|final)\b/i.test(title) ? "exam" : "other";
+      // An exam on the course calendar is a deadline by any other name, and is
+      // the one calendar event worth interrupting someone about. Everything
+      // else — office hours, review sessions, a class Zoom link — is an event.
+      return /\b(exam|midterm|final)\b/i.test(title) ? "exam" : "event";
     case "planner_note":
     case "announcement":
     case "wiki_page":

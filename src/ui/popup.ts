@@ -180,6 +180,11 @@ function renderRow(
   row.className = "row";
   if (item.kind === "booking") {
     row.classList.add("row-booking");
+  } else if (item.kind === "event") {
+    // An event is something that happens, not something owed. It reads as
+    // background so a list of deadlines still looks like a list of deadlines —
+    // and it can never be overdue, so it takes neither of the classes below.
+    row.classList.add("row-event");
   } else {
     // Overdue red is for work that can no longer be handed in. A row whose full
     // credit has gone but whose late or reduced-credit window is still open is

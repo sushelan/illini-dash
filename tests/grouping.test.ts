@@ -97,6 +97,53 @@ describe("sectionFor (§8.1)", () => {
   });
 });
 
+describe("a calendar event is not unfinished work", () => {
+  /*
+   * From a real list: "Needs attention" held seven rows, and six were Canvas
+   * calendar events — the same "Fall 2026 Office Hours" block on four days, and
+   * a class Zoom link twice. An event has no submission, so `isItemDone` is
+   * never true and the overdue branch held each one for a full week. The one
+   * row that actually needed attention was outnumbered six to one.
+   */
+  const event = (dueAt: string) => item({ kind: "event", title: "Office Hours", dueAt });
+
+  it("drops an event once it has happened", () => {
+    expect(sectionFor(event(at(2026, 8, 10, 15)), NOW)).toBeUndefined();
+  });
+
+  it("never files an event under Needs attention, however recent", () => {
+    // One minute past is the case the overdue window is most eager to keep.
+    expect(sectionFor(event(at(2026, 8, 10, 17, 59)), NOW)).not.toBe("Needs attention");
+  });
+
+  it("still shows an event that has not happened yet", () => {
+    expect(sectionFor(event(at(2026, 8, 11, 15)), NOW)).toBe("Tomorrow");
+    expect(sectionFor(event(at(2026, 8, 10, 20)), NOW)).toBe("Today");
+  });
+
+  it("leaves overdue assignments exactly where they were", () => {
+    // The guard is keyed on `kind`, and widening it to every undone row would
+    // empty the section this whole change exists to protect.
+    expect(sectionFor(item({ dueAt: at(2026, 8, 10, 15) }), NOW)).toBe("Needs attention");
+  });
+
+  it("does not rescue an unknown plannable type, which may be real work", () => {
+    // §4.1 maps an unlisted plannable_type to `other` deliberately: it might be
+    // a deadline, and §11 ranks a silently dropped deadline worst of all.
+    expect(sectionFor(item({ kind: "other", dueAt: at(2026, 8, 10, 15) }), NOW)).toBe(
+      "Needs attention",
+    );
+  });
+
+  it("keeps an exam on the course calendar in the list", () => {
+    // §4.1 promotes a calendar_event whose title says exam, and that promotion
+    // has to survive this change or a midterm silently becomes furniture.
+    expect(sectionFor(item({ kind: "exam", dueAt: at(2026, 8, 10, 15) }), NOW)).toBe(
+      "Needs attention",
+    );
+  });
+});
+
 describe("groupItems", () => {
   it("omits empty sections and keeps §8.1's order", () => {
     const sections = groupItems(
