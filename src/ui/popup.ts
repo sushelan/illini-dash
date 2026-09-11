@@ -14,12 +14,25 @@ import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import {
-  formatDue,
-  groupItems,
-  liveDeadline,
-  movedText,
-  type SectionName,
-} from "../core/grouping.js";
+  type AttentionName,
+  type DayContents,
+  type PlacedItem,
+  type ViewName,
+  attentionCount,
+  attentionGroups,
+  bookings,
+  courseColours,
+  coursesIn,
+  dayContents,
+  dayKey,
+  hourRange,
+  minutesInto,
+  monthCells,
+  startOfDay,
+  visibleItems,
+  weekContents,
+} from "../core/calendar.js";
+import { formatDue, liveDeadline, movedText, type SectionName } from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS } from "../core/store.js";
@@ -80,7 +93,11 @@ if (new URLSearchParams(location.search).get("view") === "full") {
   document.title = "Illini Dash — everything due";
 }
 
-const listEl = document.getElementById("list")!;
+const viewEl = document.getElementById("view")!;
+const tabsEl = document.getElementById("tabs")!;
+const filtersEl = document.getElementById("filters")!;
+const dateNavEl = document.getElementById("nav")!;
+const bookingEl = document.getElementById("booking")!;
 const dotsEl = document.getElementById("dots")!;
 const statusEl = document.getElementById("status")!;
 const staleEl = document.getElementById("stale")!;
@@ -173,11 +190,18 @@ function renderBlockedBanner(blocked: boolean): void {
 function renderRow(
   item: Item,
   now: Date,
-  section: SectionName,
+  section: SectionName | undefined,
   dueText?: { primary: string; detail?: string },
+  colours?: Map<string, number>,
 ): HTMLElement {
   const row = document.createElement("div");
   row.className = "row";
+  // The course colour is on the row, not only in the legend: a chip strip you
+  // have to look up is a lookup table, and the point of colour is to answer
+  // "whose is this" without reading.
+  if (colours?.has(item.courseLabel)) {
+    row.classList.add(`course-${colours.get(item.courseLabel)!}`);
+  }
   if (item.kind === "booking") {
     row.classList.add("row-booking");
   } else if (item.kind === "event") {
@@ -264,6 +288,9 @@ function renderRow(
         .join("\n"),
     });
   } else if (dueText !== undefined) {
+    // An empty primary is the untimed band's case: the band already said what
+    // the column would, and §8.1's whole width argument is that a column
+    // repeating its heading is spending the title's characters.
     due.textContent = dueText.primary;
     if (dueText.detail) details.push({ text: dueText.detail, className: "row--detail" });
   } else {
@@ -467,6 +494,544 @@ function bookingWindowText(item: Item): { primary: string; detail?: string } {
   return { primary: "not booked", detail: `sessions ${fmt(start)}–${fmt(end)}` };
 }
 
+/* -------------------------------------------------------------------------- */
+/* View state                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Which view is showing, which day it is anchored on, and which courses the
+ * student has switched off.
+ *
+ * Kept in `localStorage` rather than the store: a popup closes on focus loss,
+ * so losing the tab on every open would make the calendar unusable, and none of
+ * it is worth a round trip to the worker. Every access is guarded because the
+ * accessor itself throws in a profile with site data blocked.
+ */
+const VIEW_KEY = "illini-dash.view";
+const HIDDEN_KEY = "illini-dash.hiddenCourses";
+
+function readStored(key: string): string | undefined {
+  try {
+    return window.localStorage.getItem(key) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+function writeStored(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* A remembered tab is a convenience, never a requirement. */
+  }
+}
+
+const VIEWS: ViewName[] = ["day", "week", "month", "attention"];
+const VIEW_LABEL: Record<ViewName, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+  attention: "Attention",
+};
+
+/**
+ * The month is the one view a 400px popup cannot hold.
+ *
+ * Seven columns need about 100px each to carry a course code and enough title
+ * to recognise, which is 760px — nearly twice the popup. Rather than render it
+ * badly, the tab opens the full view, which already exists.
+ */
+const FULL_VIEW_ONLY: ReadonlySet<ViewName> = new Set<ViewName>(["month"]);
+const isFullView = document.documentElement.classList.contains("view-full");
+
+function storedView(): ViewName {
+  const raw = readStored(VIEW_KEY);
+  return VIEWS.includes(raw as ViewName) ? (raw as ViewName) : "day";
+}
+
+let view: ViewName = storedView();
+if (!isFullView && FULL_VIEW_ONLY.has(view)) view = "day";
+
+/** Whole days from today. The popup always opens on today; this moves with ‹ ›. */
+let dayOffset = 0;
+
+function hiddenCourses(): Set<string> {
+  const raw = readStored(HIDDEN_KEY);
+  if (!raw) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+let hidden = hiddenCourses();
+
+/* -------------------------------------------------------------------------- */
+/* Chrome above the views                                                      */
+/* -------------------------------------------------------------------------- */
+
+function renderTabs(attention: number): void {
+  tabsEl.replaceChildren();
+  for (const name of VIEWS) {
+    const tab = document.createElement("button");
+    tab.className = "tab";
+    if (name === "attention" && attention > 0) tab.classList.add("tab-err");
+    tab.setAttribute("aria-selected", String(name === view));
+    tab.textContent = VIEW_LABEL[name];
+    if (name === "attention" && attention > 0) {
+      const count = document.createElement("span");
+      count.className = "tab--count";
+      count.textContent = String(attention);
+      tab.append(" ", count);
+    }
+    if (!isFullView && FULL_VIEW_ONLY.has(name)) {
+      tab.title = "Opens the full view — a month needs more width than a popup has";
+    }
+    tab.addEventListener("click", () => {
+      if (!isFullView && FULL_VIEW_ONLY.has(name)) {
+        // Remembered first, so the tab that opens is the one just clicked.
+        writeStored(VIEW_KEY, name);
+        chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
+        return;
+      }
+      view = name;
+      dayOffset = 0;
+      writeStored(VIEW_KEY, name);
+      void refresh();
+    });
+    tabsEl.append(tab);
+  }
+}
+
+/**
+ * The course chips: the colour legend and the filter, as one control.
+ *
+ * Course visibility used to be reachable only from Settings, which nobody
+ * opens. Once courses carry colours the legend has to be on screen anyway, so
+ * making it the filter costs no space that was not already spent.
+ *
+ * A switched-off course stays on screen, hollow and struck through, with a
+ * count of what it is hiding. A filter that silently removes work is the
+ * failure §11 ranks worst, and this one persists across popup opens.
+ */
+function renderFilters(items: Item[], colours: Map<string, number>): void {
+  filtersEl.replaceChildren();
+  const courses = coursesIn(items);
+  if (courses.length < 2) return; // Nothing to filter between.
+
+  for (const course of courses) {
+    const on = !hidden.has(course);
+    const chip = document.createElement("button");
+    chip.className = `fchip course-${colours.get(course) ?? 0}`;
+    chip.setAttribute("aria-pressed", String(on));
+    chip.title = on ? `Hide ${course}` : `Show ${course} again`;
+    const dot = document.createElement("i");
+    const label = document.createElement("span");
+    label.textContent = course;
+    chip.append(dot, label);
+    chip.addEventListener("click", () => {
+      if (hidden.has(course)) hidden.delete(course);
+      else hidden.add(course);
+      writeStored(HIDDEN_KEY, JSON.stringify([...hidden]));
+      void refresh();
+    });
+    filtersEl.append(chip);
+  }
+
+  const buried = items.filter((item) => hidden.has(item.courseLabel)).length;
+  if (buried > 0) {
+    const note = document.createElement("span");
+    note.className = "fhidden";
+    note.textContent = `${buried} hidden`;
+    note.title = "Switched off here, not gone. Click a struck-through course to bring it back.";
+    filtersEl.append(note);
+  }
+}
+
+/** §4.4's booking, pinned above the tabs because the window closes regardless. */
+function renderBookingStrip(items: Item[]): void {
+  bookingEl.replaceChildren();
+  for (const item of bookings(items)) {
+    const strip = document.createElement("div");
+    strip.className = "book";
+    const text = document.createElement("span");
+    text.className = "book--text";
+    const title = document.createElement("b");
+    title.textContent = item.title.replace(/^Book a slot:\s*/i, "");
+    const when = document.createElement("span");
+    const window_ = bookingWindowText(item);
+    when.textContent = window_.detail ? `${window_.detail} · not booked` : "not booked";
+    text.append(title, when);
+
+    const go = document.createElement("button");
+    go.className = "book--go";
+    go.textContent = "Book";
+    const url = safeUrl(item.url);
+    if (url) go.addEventListener("click", () => chrome.tabs.create({ url }));
+    else go.disabled = true;
+
+    strip.append(text, go);
+    bookingEl.append(strip);
+  }
+}
+
+function anchorDate(now: Date): Date {
+  return startOfDay(now, dayOffset);
+}
+
+function renderDateNav(label: string, step: number): void {
+  dateNavEl.replaceChildren();
+  dateNavEl.hidden = step === 0;
+  if (step === 0) return;
+
+  const back = document.createElement("button");
+  back.className = "datenav--arrow";
+  back.textContent = "‹";
+  back.title = "Back";
+  back.addEventListener("click", () => {
+    dayOffset -= step;
+    void refresh();
+  });
+
+  const text = document.createElement("span");
+  text.className = "datenav--label";
+  text.textContent = label;
+
+  const forward = document.createElement("button");
+  forward.className = "datenav--arrow";
+  forward.textContent = "›";
+  forward.title = "Forward";
+  forward.addEventListener("click", () => {
+    dayOffset += step;
+    void refresh();
+  });
+
+  dateNavEl.append(back, text, forward);
+
+  if (dayOffset !== 0) {
+    const today = document.createElement("button");
+    today.className = "datenav--today";
+    today.textContent = "Today";
+    today.addEventListener("click", () => {
+      dayOffset = 0;
+      void refresh();
+    });
+    dateNavEl.append(today);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* The untimed band                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Said once, above the rows it applies to.
+ *
+ * A course site with five bare dates produced five consecutive rows each
+ * carrying the same sentence. The fact belongs to the group, not the row.
+ *
+ * Never "all day": that is the calendar convention and it is wrong here. It
+ * tells a student they have until midnight, when the real cutoff may be 5 PM,
+ * which is the whole reason this distinction exists.
+ */
+const UNTIMED_NOTE = "The course site posted a day, not a time — check the page for the cutoff.";
+
+function renderUntimedBand(items: Item[], now: Date, colours: Map<string, number>): HTMLElement | undefined {
+  if (items.length === 0) return undefined;
+  const band = document.createElement("div");
+  band.className = "band";
+  const note = document.createElement("p");
+  note.className = "band--note";
+  note.textContent = UNTIMED_NOTE;
+  band.append(note);
+  for (const item of items) {
+    band.append(renderRow(item, now, undefined, { primary: "" }, colours));
+  }
+  return band;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Day                                                                         */
+/* -------------------------------------------------------------------------- */
+
+const HOUR_PX = 26;
+
+function clockOf(at: number): string {
+  return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function hourLabel(hour: number): string {
+  if (hour === 12) return "noon";
+  if (hour === 0 || hour === 24) return "12 AM";
+  return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+function renderDayGrid(contents: DayContents, now: Date, colours: Map<string, number>): HTMLElement {
+  const { start, end } = hourRange(contents);
+  const grid = document.createElement("div");
+  grid.className = "grid";
+
+  const hours = document.createElement("div");
+  hours.className = "grid--hours";
+  for (let hour = start; hour < end; hour += 1) {
+    const cell = document.createElement("div");
+    cell.className = "grid--hour";
+    cell.textContent = hourLabel(hour);
+    hours.append(cell);
+  }
+
+  const slots = document.createElement("div");
+  slots.className = "grid--slots";
+  slots.style.height = `${(end - start) * HOUR_PX}px`;
+  for (let hour = start; hour < end; hour += 1) {
+    const line = document.createElement("div");
+    line.className = "grid--line";
+    line.style.top = `${(hour - start) * HOUR_PX}px`;
+    slots.append(line);
+  }
+
+  for (const stack of contents.timed) {
+    const box = document.createElement("div");
+    box.className = "grid--stack";
+    const minutes = minutesInto(new Date(stack[0]!.anchor.at));
+    box.style.top = `${(minutes / 60 - start) * HOUR_PX - 2}px`;
+    for (const placed of stack) {
+      box.append(renderPlaced(placed, now, colours));
+    }
+    slots.append(box);
+  }
+
+  // Where "now" is, but only on the day that actually is now: on any other day
+  // the line would be a red mark at an hour that means nothing.
+  if (dayOffset === 0) {
+    const line = document.createElement("div");
+    line.className = "grid--now";
+    line.style.top = `${(minutesInto(now) / 60 - start) * HOUR_PX}px`;
+    slots.append(line);
+  }
+
+  grid.append(hours, slots);
+  return grid;
+}
+
+function renderPlaced(placed: PlacedItem, now: Date, colours: Map<string, number>): HTMLElement {
+  // The clock alone: the grid already says which day, and "opens" cost the
+  // title thirty pixels to repeat what the dashed edge and the tooltip say.
+  const row = renderRow(placed.item, now, undefined, { primary: clockOf(placed.anchor.at) }, colours);
+  if (placed.anchor.opening) {
+    row.classList.add("row-opening");
+    row.title = `Not open yet — opens ${clockOf(placed.anchor.at)}`;
+  }
+  return row;
+}
+
+function renderDayView(items: Item[], now: Date, colours: Map<string, number>): void {
+  const day = anchorDate(now);
+  const contents = dayContents(items, day, now);
+  const band = renderUntimedBand(contents.untimed, now, colours);
+  if (band) viewEl.append(band);
+  viewEl.append(renderDayGrid(contents, now, colours));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Week                                                                        */
+/* -------------------------------------------------------------------------- */
+
+function renderWeekView(items: Item[], now: Date, colours: Map<string, number>): void {
+  for (const day of weekContents(items, anchorDate(now), now)) {
+    const row = document.createElement("div");
+    row.className = "wrow";
+    if (day.isToday) row.classList.add("wrow--today");
+
+    const head = document.createElement("div");
+    head.className = "wday";
+    const dow = document.createElement("div");
+    dow.className = "wday--dow";
+    dow.textContent = day.date.toLocaleDateString(undefined, { weekday: "short" });
+    const num = document.createElement("div");
+    num.className = "wday--num";
+    num.textContent = String(day.date.getDate());
+    head.append(dow, num);
+
+    const box = document.createElement("div");
+    box.className = "witems";
+    const timed = day.contents.timed.flat();
+    if (timed.length === 0 && day.contents.untimed.length === 0) {
+      box.classList.add("witems--empty");
+      box.textContent = "—";
+    } else {
+      for (const placed of timed) box.append(renderPlaced(placed, now, colours));
+      if (day.contents.untimed.length > 0) {
+        const label = document.createElement("div");
+        label.className = "wuntimed";
+        label.textContent = "time not posted —";
+        label.title = UNTIMED_NOTE;
+        box.append(label);
+        for (const item of day.contents.untimed) {
+          box.append(renderRow(item, now, undefined, { primary: "" }, colours));
+        }
+      }
+    }
+
+    row.append(head, box);
+    viewEl.append(row);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Month                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** How many rows fit a month cell before it has to say "+N more". */
+const MONTH_CELL_ROWS = 3;
+
+function renderMonthView(items: Item[], now: Date, colours: Map<string, number>): void {
+  const anchor = anchorDate(now);
+  const head = document.createElement("div");
+  head.className = "mhead";
+  for (let i = 0; i < 7; i += 1) {
+    const label = document.createElement("div");
+    label.textContent = startOfDay(new Date(2026, 8, 6), i).toLocaleDateString(undefined, {
+      weekday: "short",
+    });
+    head.append(label);
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "mgrid";
+  for (const cell of monthCells(items, anchor, now)) {
+    const box = document.createElement("div");
+    box.className = "mcell";
+    if (!cell.inMonth) box.classList.add("mcell--out");
+    if (cell.isToday) box.classList.add("mcell--today");
+
+    const num = document.createElement("div");
+    num.className = "mnum";
+    num.textContent = String(cell.date.getDate());
+    box.append(num);
+
+    for (const placed of cell.items.slice(0, MONTH_CELL_ROWS)) {
+      box.append(renderMonthPill(placed, colours));
+    }
+    if (cell.items.length > MONTH_CELL_ROWS) {
+      const more = document.createElement("button");
+      more.className = "mmore";
+      more.textContent = `+${cell.items.length - MONTH_CELL_ROWS} more`;
+      more.addEventListener("click", () => {
+        // The day view is where the rest fits, so go there rather than growing
+        // a cell that would push five other weeks off the screen.
+        dayOffset = Math.round((cell.date.getTime() - startOfDay(now).getTime()) / 86_400_000);
+        view = "day";
+        writeStored(VIEW_KEY, view);
+        void refresh();
+      });
+      box.append(more);
+    }
+    grid.append(box);
+  }
+  viewEl.append(head, grid);
+}
+
+/**
+ * A month cell is 100px, so a pill is a course code and as much title as fits.
+ *
+ * Truncation is deliberate here: three recognisable rows beat one complete one,
+ * because the question a month answers is "which days are heavy", and the full
+ * title is one click away in the day view.
+ */
+function renderMonthPill(placed: PlacedItem, colours: Map<string, number>): HTMLElement {
+  const { item, anchor } = placed;
+  const pill = document.createElement("div");
+  pill.className = `mpill course-${colours.get(item.courseLabel) ?? 0}`;
+  if (item.kind === "event") pill.classList.add("mpill--event");
+  else if (item.kind === "exam") pill.classList.add("mpill--exam");
+  if (anchor.opening) pill.classList.add("mpill--opening");
+  if (anchor.assumed) pill.classList.add("mpill--untimed");
+
+  const code = document.createElement("span");
+  code.className = "mpill--code";
+  code.textContent = item.courseLabel;
+  const name = document.createElement("span");
+  name.className = "mpill--name";
+  name.textContent = item.title;
+  pill.append(code, name);
+
+  pill.title = anchor.assumed
+    ? `${item.title} — ${UNTIMED_NOTE}`
+    : `${item.title} — ${anchor.opening ? "opens " : ""}${clockOf(anchor.at)}`;
+
+  const url = safeUrl(item.url);
+  if (url) pill.addEventListener("click", () => chrome.tabs.create({ url }));
+  return pill;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Attention                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const ATTENTION_NOTE: Record<AttentionName, string> = {
+  Overdue: "Past its deadline in the last week.",
+  "Couldn't read":
+    "The source printed a date this extension could not make sense of, so these have no place on the calendar. They are the deadlines it is least sure about.",
+  "No date at all": "Listed by a source with no deadline anywhere on it.",
+};
+
+function renderAttentionView(items: Item[], now: Date, colours: Map<string, number>): void {
+  const groups = attentionGroups(items, now);
+  if (groups.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted empty";
+    empty.textContent = "Nothing needs attention.";
+    viewEl.append(empty);
+    return;
+  }
+  for (const group of groups) {
+    const heading = document.createElement("h2");
+    heading.className = "section";
+    if (group.name === "Couldn't read") heading.classList.add("section--err");
+    heading.textContent = `${group.name} (${group.items.length})`;
+    heading.title = ATTENTION_NOTE[group.name];
+    viewEl.append(heading);
+    for (const item of group.items) {
+      viewEl.append(renderRow(item, now, "Needs attention", undefined, colours));
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* The whole popup                                                             */
+/* -------------------------------------------------------------------------- */
+
+function navFor(view_: ViewName, now: Date): { label: string; step: number } {
+  const anchor = anchorDate(now);
+  switch (view_) {
+    case "day":
+      return {
+        label:
+          dayOffset === 0
+            ? `Today · ${anchor.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`
+            : anchor.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+        step: 1,
+      };
+    case "week": {
+      const days = weekContents([], anchor, now);
+      const first = days[0]!.date;
+      const last = days[6]!.date;
+      const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      return { label: `${fmt(first)} – ${fmt(last)}`, step: 7 };
+    }
+    case "month":
+      return {
+        label: anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+        // Whole weeks, so ‹ › lands on the same weekday and the grid does not
+        // jump by a variable number of days.
+        step: 28,
+      };
+    default:
+      return { label: "", step: 0 };
+  }
+}
+
 function render(
   items: Item[],
   settings: Settings,
@@ -478,43 +1043,52 @@ function render(
   // fires a sync on open, so that race is the common case, not a corner one.
   closeMenus();
   currentItems = items;
-  listEl.replaceChildren();
-  const sections = groupItems(items, now, settings);
+  viewEl.replaceChildren();
 
-  if (sections.length === 0) {
-    // "Nothing due in the next 60 days." is only true when every source was
-    // read and every source was empty. Said over an expired session it reads as
-    // "you are free" and means "I could not look" (§11).
+  const onGrid = visibleItems(items, settings, hidden);
+  const colours = courseColours(coursesIn(visibleItems(items, settings)));
+
+  renderBookingStrip(items);
+  renderTabs(attentionCount(onGrid, now));
+  renderFilters(visibleItems(items, settings), colours);
+
+  const nav = navFor(view, now);
+  renderDateNav(nav.label, nav.step);
+
+  if (view === "attention") {
+    renderAttentionView(onGrid, now, colours);
+    return;
+  }
+
+  // "Nothing due in the next 60 days." is only true when every source was read
+  // and every source was empty. Said over an expired session it reads as "you
+  // are free" and means "I could not look" (§11).
+  if (onGrid.length === 0) {
     const state = emptyStateFor(sources, items.length > 0);
     const empty = document.createElement("p");
     empty.className = "muted empty";
-    empty.textContent = state.text;
-    listEl.append(empty);
-    for (const source of state.logins) {
-      const url = LOGIN_URL[source];
-      if (!url) continue;
-      const button = document.createElement("button");
-      button.className = "link";
-      button.textContent = `Sign in to ${SOURCE_LABEL[source]}`;
-      button.addEventListener("click", () => chrome.tabs.create({ url }));
-      const line = document.createElement("p");
-      line.className = "empty";
-      line.append(button);
-      listEl.append(line);
+    empty.textContent = hidden.size > 0 ? "Every course is switched off above." : state.text;
+    viewEl.append(empty);
+    if (hidden.size === 0) {
+      for (const source of state.logins) {
+        const url = LOGIN_URL[source];
+        if (!url) continue;
+        const button = document.createElement("button");
+        button.className = "link";
+        button.textContent = `Sign in to ${SOURCE_LABEL[source]}`;
+        button.addEventListener("click", () => chrome.tabs.create({ url }));
+        const line = document.createElement("p");
+        line.className = "empty";
+        line.append(button);
+        viewEl.append(line);
+      }
     }
     return;
   }
 
-  for (const section of sections) {
-    const heading = document.createElement("h2");
-    heading.className = "section";
-    heading.textContent = `${section.name} (${section.items.length})`;
-    listEl.append(heading);
-    for (const item of section.items) {
-      const dueText = item.kind === "booking" ? bookingWindowText(item) : undefined;
-      listEl.append(renderRow(item, now, section.name, dueText));
-    }
-  }
+  if (view === "day") renderDayView(onGrid, now, colours);
+  else if (view === "week") renderWeekView(onGrid, now, colours);
+  else renderMonthView(onGrid, now, colours);
 }
 
 /**

@@ -165,3 +165,205 @@ h2.section {
   border-bottom: 1px solid var(--line); margin-bottom: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* ==========================================================================
+ * Calendar views
+ *
+ * Every measurement here is against a 400px popup. The full view widens to
+ * 760px, which is what the month needs and the popup does not have.
+ * ====================================================================== */
+
+/* ---- course colour ----
+ * A left border rather than a fill: at 3px it reads in both themes without
+ * tinting the text, and it survives the row's own overdue and late colours,
+ * which are about urgency and must not be overwritten by whose course it is.
+ */
+:root {
+  --course-0: #4c6ef5; --course-1: #12b886; --course-2: #e8590c; --course-3: #9c36b5;
+  --course-4: #0ca678; --course-5: #f08c00; --course-6: #d6336c; --course-7: #1098ad;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --course-0: #748ffc; --course-1: #38d9a9; --course-2: #ff922b; --course-3: #da77f2;
+    --course-4: #20c997; --course-5: #ffc078; --course-6: #f783ac; --course-7: #3bc9db;
+  }
+}
+.course-0 { --course: var(--course-0); } .course-1 { --course: var(--course-1); }
+.course-2 { --course: var(--course-2); } .course-3 { --course: var(--course-3); }
+.course-4 { --course: var(--course-4); } .course-5 { --course: var(--course-5); }
+.course-6 { --course: var(--course-6); } .course-7 { --course: var(--course-7); }
+
+/* ---- tabs ---- */
+.tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); }
+.tab {
+  font: inherit; font-size: 12px; padding: 5px 10px 6px; cursor: pointer;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0;
+  background: none; color: var(--muted);
+}
+.tab[aria-selected="true"] {
+  color: var(--fg); font-weight: 600; background: var(--bg);
+  border-color: var(--line); margin-bottom: -1px;
+}
+.tab-err[aria-selected="true"] { color: var(--err); }
+.tab--count { font-size: 10px; color: var(--muted); }
+
+/* ---- the course chips ---- */
+.filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+}
+.filters:empty { display: none; }
+.fchip {
+  display: flex; align-items: center; gap: 3px; flex: none;
+  font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  color: var(--fg); background: none; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 20px; padding: 2px 7px 2px 5px;
+}
+.fchip i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--course); }
+/* Switched off stays on screen. A filter that removes a control along with the
+   work it hides gives the student no way back (§11, one level up). */
+.fchip[aria-pressed="false"] { opacity: .45; }
+.fchip[aria-pressed="false"] i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--course); }
+.fchip[aria-pressed="false"] span { text-decoration: line-through; }
+.fhidden { flex: none; font-size: 10px; color: var(--warn); padding-left: 2px; cursor: help; }
+
+/* ---- date navigator ---- */
+.datenav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-bottom: 1px solid var(--line);
+}
+.datenav[hidden] { display: none; }
+.datenav--arrow {
+  font: inherit; background: none; border: 0; color: var(--muted);
+  cursor: pointer; padding: 0 2px; line-height: 1;
+}
+.datenav--arrow:hover { color: var(--fg); }
+.datenav--label { font-weight: 600; font-size: 12.5px; flex: 1; }
+.datenav--today {
+  font: inherit; font-size: 11px; color: var(--muted); cursor: pointer;
+  background: none; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+}
+
+/* ---- the untimed band ---- */
+.band { border-bottom: 1px solid var(--line); background: rgba(127,127,127,.06); }
+.band--note { font-size: 10px; color: var(--muted); padding: 6px 12px 2px; margin: 0; line-height: 1.3; }
+
+/* ---- day grid ---- */
+.grid { display: grid; grid-template-columns: 42px 1fr; }
+.grid--hours { border-right: 1px solid var(--line); }
+.grid--hour {
+  height: 26px; font-size: 9.5px; color: var(--muted);
+  text-align: right; padding-right: 5px; transform: translateY(-5px);
+}
+.grid--slots { position: relative; }
+.grid--line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); opacity: .55; }
+.grid--stack { position: absolute; left: 0; right: 0; }
+.grid--now { position: absolute; left: -42px; right: 0; border-top: 1.5px solid var(--err); }
+.grid--now::before {
+  content: ""; position: absolute; left: 36px; top: -4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--err);
+}
+
+/* ---- week, as seven day rows ---- */
+.wrow { display: grid; grid-template-columns: 46px 1fr; border-top: 1px solid var(--line); }
+.wrow:first-child { border-top: 0; }
+.wrow--today { background: rgba(127,127,127,.06); }
+.wday { padding: 7px 6px 8px 10px; border-right: 1px solid var(--line); }
+.wday--dow { font-size: 9.5px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
+.wday--num { font-size: 15px; font-weight: 600; line-height: 1.1; }
+.wrow--today .wday--num { color: var(--err); }
+.witems { padding: 3px 0 4px; min-width: 0; }
+.witems--empty { color: var(--muted); font-size: 11px; padding: 8px 0 9px 10px; opacity: .6; }
+.wuntimed { font-size: 9.5px; color: var(--muted); padding: 2px 0 0 12px; cursor: help; }
+
+/* ---- month, full view only ---- */
+.mhead { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--line); }
+.mhead div {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); text-align: center; padding: 6px 0;
+}
+.mgrid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.mcell {
+  min-height: 92px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  padding: 4px 4px 5px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.mcell:nth-child(7n + 1) { border-left: 0; }
+.mcell--out { background: rgba(127,127,127,.06); }
+.mnum { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+.mcell--out .mnum { opacity: .45; }
+.mcell--today .mnum {
+  color: #fff; background: var(--err); border-radius: 50%;
+  width: 17px; height: 17px; display: grid; place-items: center; font-size: 10px;
+}
+.mpill {
+  display: flex; gap: 3px; align-items: baseline; min-width: 0; cursor: pointer;
+  border-left: 2.5px solid var(--course, var(--line)); border-radius: 2px;
+  background: rgba(127,127,127,.07); padding: 1px 3px; font-size: 9.5px; line-height: 1.25;
+}
+.mpill--code { font-weight: 700; font-size: 8.5px; color: var(--muted); flex: none; }
+/* Truncation is the deliberate trade: three recognisable rows beat one whole
+   one, because a month answers "which days are heavy" and the full title is one
+   click away in the day view. */
+.mpill--name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpill--event { background: transparent; border-left-style: dotted; opacity: .75; }
+.mpill--opening { background: transparent; border-left-style: dashed; opacity: .8; }
+.mpill--exam { background: rgba(180,130,0,.16); }
+.mpill--untimed .mpill--name { font-style: italic; }
+.mmore {
+  font: inherit; font-size: 9px; color: var(--muted); background: none;
+  border: 0; padding: 1px 3px; text-align: left; cursor: pointer;
+}
+.mmore:hover { color: var(--fg); }
+
+/* ---- booking, pinned above the tabs ---- */
+.book {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  background: rgba(180,130,0,.10);
+}
+.book--text { flex: 1; min-width: 0; font-size: 12px; }
+.book--text b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book--text span { display: block; color: var(--muted); font-size: 11px; }
+.book--go {
+  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+  color: var(--warn); background: none;
+  border: 1px solid var(--warn); border-radius: 5px; padding: 3px 8px; white-space: nowrap;
+}
+
+/* ---- rows inside a calendar ---- */
+.grid--stack .row, .witems .row, .band .row {
+  border-left: 3px solid var(--course, transparent);
+  padding-top: 4px; padding-bottom: 4px;
+}
+.section--err { color: var(--err); }
+
+/*
+ * Inside a calendar, a long title wraps instead of being cut.
+ *
+ * The list had one line per row and a hard width budget, so an ellipsis was the
+ * only option. A calendar cell is a box: vertical space is the cheap axis here,
+ * and clipping "Harmonic waves — Checkpoint" to "Harmonic waves …" spends the
+ * one thing the row exists to say. Two lines, then an ellipsis, so a pathological
+ * title still cannot push a day off the screen.
+ *
+ * The date column narrows to match: a calendar row already knows its day from
+ * the grid, so it carries a clock and nothing else.
+ */
+.grid--stack .row, .witems .row, .band .row {
+  grid-template-columns: 60px minmax(0, 1fr) auto 62px 16px;
+  align-items: start;
+}
+.grid--stack .row--title, .witems .row--title, .band .row--title {
+  white-space: normal; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.grid--stack .row--name, .witems .row--name, .band .row--name { align-items: flex-start; }
+/* The chip and the labels sit on the first line of a wrapped title. */
+.grid--stack .chip, .witems .chip, .band .chip,
+.grid--stack .row--sources, .witems .row--sources, .band .row--sources,
+.grid--stack .row--due, .witems .row--due, .band .row--due { margin-top: 1px; }
+/* Not open yet: the same dashed edge the month uses, so one vocabulary. */
+.row-opening { border-left-style: dashed !important; }
+.row-opening .row--due { font-style: italic; }
+/* One colour vocabulary everywhere, so the Attention tab reads like the grid. */
+.row[class*="course-"] { border-left: 3px solid var(--course); padding-left: 9px; }

@@ -66,6 +66,10 @@ const items = [
          members: [member("prairielearn")] }),
   item({ courseLabel: "CS425", title: "HW1", dueAt: at(9, 23, 59),
          members: [member("gradescope")] }),
+  // Today, so the untimed band has something in it: the band is the row shape
+  // that is hardest to see in the extension and easiest to get wrong.
+  item({ courseLabel: "CS424", title: "Homework 1", dueAt: at(0, 23, 59), timeAssumed: true,
+         members: [member("site", { timeAssumed: "true" })] }),
   item({ courseLabel: "CS424", title: "HW2 Due", dueAt: at(12, 23, 59), timeAssumed: true,
          members: [member("site", { timeAssumed: "true" })] }),
   // Shapes his account does not currently have, kept so the layout is still
