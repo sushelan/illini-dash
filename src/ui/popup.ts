@@ -10,6 +10,7 @@
 
 import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
+import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import {
@@ -511,16 +512,40 @@ function render(
   }
 }
 
+/**
+ * Draws the popup, and never throws into a console nobody has open.
+ *
+ * A popup that fails halfway is a blank rectangle: there is no scrollback and
+ * no obvious way in to the console, so an uncaught error here is invisible in
+ * a way the same error on the options page is not. The status line is the only
+ * channel this surface has, so everything ends up there.
+ */
 async function refresh(): Promise<void> {
+  try {
+    await draw();
+  } catch (err) {
+    statusEl.textContent =
+      `Could not draw the list: ${err instanceof Error ? err.message : String(err)}. ` +
+      `Reload the extension at chrome://extensions.`;
+  }
+}
+
+async function draw(): Promise<void> {
   const response = await send({ type: "get-state" });
   if (response.type !== "state") {
     statusEl.textContent = response.type === "error" ? response.message : "Unexpected response.";
     return;
   }
-  renderDots(response.sources, response.lastSyncAt);
-  renderBlockedBanner(response.notificationsBlocked);
-  renderStaleBanner(response.sources);
-  render(response.items, response.settings ?? DEFAULT_SETTINGS, response.sources, new Date());
+  // A worker on an older build does not send every field read below, and
+  // TypeScript cannot know that (see core/compat.ts).
+  const { state, missing } = normalizePopupState<typeof response>(response);
+  renderDots(state.sources, state.lastSyncAt);
+  renderBlockedBanner(state.notificationsBlocked);
+  renderStaleBanner(state.sources);
+  render(state.items, state.settings ?? DEFAULT_SETTINGS, state.sources, new Date());
+  if (missing.length > 0) {
+    statusEl.textContent = staleWorkerNotice(missing);
+  }
 }
 
 document.getElementById("sync")!.addEventListener("click", async () => {

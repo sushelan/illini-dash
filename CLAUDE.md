@@ -142,6 +142,16 @@ here is a parsing mistake, and no fixture could have caught any of it.
    real sync; three of the four could not exist in a fixture test, because they need two
    sources, or a queue, or a browser. When something finally runs for real, read the
    output as evidence rather than as confirmation.
+8. **A message from the worker is data from another build, not a typed object.**
+   Chrome reloads an extension page from disk on every open but keeps the running
+   service worker until the extension is reloaded, so the two routinely disagree about
+   what a message contains. An options page that had gained `setAsideCourses` asked an
+   older worker for `options-state`, read `.length` on it, and threw — after drawing four
+   sections and before drawing five, with nothing in the UI to say that one click on
+   chrome://extensions was the fix. This is parser rule 5 one process over: `Response` is
+   a compile-time claim about the *sender's* build. Normalize every field a page
+   dereferences (`core/compat.ts`), name the missing ones on screen, and never let a
+   render function reject into a console the user does not have open.
 
 ## House rules for mutation checks
 

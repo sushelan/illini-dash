@@ -6,6 +6,7 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
+import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { buildIcs } from "../core/ics.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
@@ -68,6 +69,28 @@ void (async () => {
     buildInfo.className = "verdict-error";
   }
 })();
+
+/**
+ * Reports fields an older worker did not send.
+ *
+ * Its own element rather than `buildInfo`, because the ping above writes that
+ * one asynchronously and would race this into invisibility.
+ */
+let missingFieldsEl: HTMLElement | null = null;
+
+function showMissingFields(missing: readonly string[]): void {
+  if (missing.length === 0) {
+    missingFieldsEl?.remove();
+    missingFieldsEl = null;
+    return;
+  }
+  if (!missingFieldsEl) {
+    missingFieldsEl = document.createElement("p");
+    missingFieldsEl.className = "verdict-error";
+    buildInfo.after(missingFieldsEl);
+  }
+  missingFieldsEl.textContent = staleWorkerNotice(missing);
+}
 
 function row(dl: HTMLElement, label: string, value: string): void {
   const dt = document.createElement("dt");
@@ -470,9 +493,35 @@ function checkboxRow(
   return row;
 }
 
+/**
+ * Draws the page, and survives a worker that is on another build.
+ *
+ * Every control here calls this again after it writes, so a throw anywhere in
+ * it leaves the page frozen in a half-drawn state with nothing but an
+ * "Uncaught (in promise)" to go on. It is called as `void refreshOptions()` in
+ * a dozen places, so the catch has to live here rather than at the call sites.
+ */
 async function refreshOptions(): Promise<void> {
-  const state = await send({ type: "get-options-state" });
-  if (state.type !== "options-state") return;
+  try {
+    await renderOptions();
+  } catch (err) {
+    buildInfo.textContent =
+      `The settings page could not finish drawing: ` +
+      `${err instanceof Error ? err.message : String(err)}. ` +
+      `Open chrome://extensions, click Reload on the Illini Dash card, and reopen this page. ` +
+      `If it happens again, that message is the bug report.`;
+    buildInfo.className = "verdict-error";
+  }
+}
+
+async function renderOptions(): Promise<void> {
+  const message = await send({ type: "get-options-state" });
+  if (message.type !== "options-state") return;
+
+  // Not `message` directly: an older worker does not send every field this
+  // page reads, and TypeScript cannot know that (see core/compat.ts).
+  const { state, missing } = normalizeOptionsState<typeof message>(message);
+  showMissingFields(missing);
 
   document.getElementById("privacy")!.textContent = PRIVACY_TEXT;
 
