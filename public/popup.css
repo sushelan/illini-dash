@@ -462,3 +462,8 @@ h2.section {
 .fold--summary:hover { color: var(--fg); }
 /* Where the exam is. Not warn-coloured: it is information, not a problem. */
 .row--detail-exam { color: var(--muted); }
+
+/* An unbooked exam is a deadline of its own; a booked one is a fact. */
+.tab-warn[aria-selected="true"] { color: var(--warn); }
+/* Already sat: kept for a week so "done" and "never existed" look different. */
+.row-sat { opacity: .55; }

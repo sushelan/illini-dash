@@ -26,6 +26,8 @@ import {
   type ViewName,
   allTimed,
   attentionCount,
+  examBoard,
+  examCount,
   attentionGroups,
   isActionable,
   bookings,
@@ -712,11 +714,12 @@ function writeStored(key: string, value: string): void {
   }
 }
 
-const VIEWS: ViewName[] = ["day", "week", "month", "attention"];
+const VIEWS: ViewName[] = ["day", "week", "month", "exams", "attention"];
 const VIEW_LABEL: Record<ViewName, string> = {
   day: "Day",
   week: "Week",
   month: "Month",
+  exams: "Exams",
   attention: "Attention",
 };
 
@@ -757,19 +760,23 @@ let hidden = hiddenCourses();
 /* Chrome above the views                                                      */
 /* -------------------------------------------------------------------------- */
 
-function renderTabs(attention: number): void {
+function renderTabs(counts: Partial<Record<ViewName, number>>): void {
   tabsEl.replaceChildren();
   for (const name of VIEWS) {
     const tab = document.createElement("button");
     tab.className = "tab";
-    if (name === "attention" && attention > 0) tab.classList.add("tab-err");
+    const count = counts[name] ?? 0;
+    // Both counts mean the same thing: something here is asking for an action.
+    // An exam already booked and a row with no date are not, and neither is
+    // counted — a badge that only ever grows is a badge nobody reads.
+    if (count > 0) tab.classList.add(name === "exams" ? "tab-warn" : "tab-err");
     tab.setAttribute("aria-selected", String(name === view));
     tab.textContent = VIEW_LABEL[name];
-    if (name === "attention" && attention > 0) {
-      const count = document.createElement("span");
-      count.className = "tab--count";
-      count.textContent = String(attention);
-      tab.append(" ", count);
+    if (count > 0) {
+      const badge = document.createElement("span");
+      badge.className = "tab--count";
+      badge.textContent = String(count);
+      tab.append(" ", badge);
     }
     if (!isFullView && FULL_VIEW_ONLY.has(name)) {
       tab.title = "Opens the full view — a month needs more width than a popup has";
@@ -1231,6 +1238,81 @@ function renderMonthPill(placed: PlacedItem, colours: Map<string, number>): HTML
 }
 
 /* -------------------------------------------------------------------------- */
+/* Exams                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Everything you have to turn up to, with no 60-day horizon.
+ *
+ * Every other view stops at 60 days, which is right for homework and wrong for
+ * the one thing always further out: in September a December final is invisible,
+ * and it is the deadline a student most wants a month's warning about.
+ */
+function renderExamsView(items: Item[], now: Date, colours: Map<string, number>): void {
+  const board = examBoard(items, now);
+
+  if (board.unbooked.length === 0 && board.upcoming.length === 0 && board.recent.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted empty";
+    // Not "no exams": that is a claim about the term, and all this knows is
+    // that no source mentioned one. PrairieTest is where most of them come
+    // from, and it is a source a student may have switched off.
+    empty.textContent = "No exams or quizzes from any source you have switched on.";
+    viewEl.append(empty);
+    return;
+  }
+
+  if (board.unbooked.length > 0) {
+    viewEl.append(examHeading("Not booked", board.unbooked.length, "err"));
+    for (const item of board.unbooked) {
+      viewEl.append(renderRow(item, now, undefined, bookingWindowText(item), colours));
+    }
+  }
+
+  if (board.upcoming.length > 0) {
+    viewEl.append(examHeading("Coming up", board.upcoming.length));
+    for (const placed of board.upcoming) {
+      viewEl.append(renderRow(placed.item, now, undefined, examWhen(placed, now), colours));
+    }
+  }
+
+  if (board.recent.length > 0) {
+    // A week of them, so "I already sat that" and "this never existed" are
+    // different answers. They drop out on their own after that.
+    viewEl.append(examHeading("Just sat", board.recent.length));
+    for (const placed of board.recent) {
+      const row = renderRow(placed.item, now, undefined, examWhen(placed, now), colours);
+      row.classList.add("row-sat");
+      viewEl.append(row);
+    }
+  }
+}
+
+function examHeading(text: string, count: number, tone?: "err"): HTMLElement {
+  const heading = document.createElement("h2");
+  heading.className = "section";
+  if (tone === "err") heading.classList.add("section--err");
+  heading.textContent = `${text} (${count})`;
+  return heading;
+}
+
+/**
+ * The date *and* the day, unlike every other view.
+ *
+ * Elsewhere the grid or the heading already says which day, so the row carries
+ * only a clock. This list spans a whole term, so a bare "7:00 PM" would be the
+ * least useful thing it could say.
+ */
+function examWhen(placed: PlacedItem, now: Date): { primary: string; detail?: string } {
+  const at = new Date(placed.anchor.at);
+  const day = at.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const clock = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const days = Math.round((startOfDay(at).getTime() - startOfDay(now).getTime()) / 86_400_000);
+  const away = days === 0 ? "today" : days === 1 ? "tomorrow" : days > 0 ? `in ${days}d` : undefined;
+  return { primary: `${day} ${clock}`, detail: away };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Attention                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -1341,7 +1423,10 @@ function render(
   const colours = courseColours(coursesIn(visibleItems(items, settings)));
 
   renderBookingStrip(items);
-  renderTabs(attentionCount(onGrid, now));
+  renderTabs({
+    exams: examCount(items, now),
+    attention: attentionCount(onGrid, now),
+  });
   // The header bar is sticky, so without this the tabs slide under it and
   // switching views means scrolling back to the top of a sixteen-hour grid.
   // Measured rather than hard-coded: the bar's height is a font metric.
@@ -1354,6 +1439,13 @@ function render(
 
   if (view === "attention") {
     renderAttentionView(onGrid, now, colours);
+    return;
+  }
+  if (view === "exams") {
+    // From `items`, not `onGrid`: a booking is filtered out of the grid on
+    // purpose, and an exam is exactly the row a course filter should not be
+    // able to hide by accident.
+    renderExamsView(items, now, colours);
     return;
   }
 

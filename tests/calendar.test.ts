@@ -20,6 +20,8 @@ import {
   coursesIn,
   allTimed,
   dayContents,
+  examBoard,
+  examCount,
   dayKey,
   hourRange,
   isActionable,
@@ -599,5 +601,102 @@ describe("minutesInto", () => {
   it("counts from local midnight", () => {
     expect(minutesInto(new Date(2026, 8, 10, 23, 59))).toBe(1439);
     expect(minutesInto(new Date(2026, 8, 10, 0, 0))).toBe(0);
+  });
+});
+
+describe("examBoard — the things you have to turn up to", () => {
+  /*
+   * `exam` and `booking` and nothing else, which is the line the sources
+   * already draw: §4.4 maps a PrairieTest reservation to `exam` and an unbooked
+   * window to `booking`, and §4.1 promotes a Canvas event whose title says
+   * exam, midterm or final. Everything else a student calls a quiz is work done
+   * from a laptop whenever, and including it would refill this tab with most of
+   * PrairieLearn.
+   */
+  const booking = (windowEnd: string, title = "Book a slot") =>
+    item({ title, kind: "booking", members: [member({ windowEnd })] });
+  const exam = (dueAt: string, title = "Midterm 1") => item({ title, kind: "exam", dueAt });
+
+  it("keeps homework out of it", () => {
+    const board = examBoard(
+      [
+        item({ title: "HW5", dueAt: at(2026, 8, 14, 23, 59) }),
+        item({ title: "PQ1 Practice Quiz", kind: "quiz", dueAt: at(2026, 8, 14, 23, 59) }),
+        exam(at(2026, 8, 20, 19)),
+      ],
+      NOW,
+    );
+    expect(board.upcoming.map((p) => p.item.title)).toEqual(["Midterm 1"]);
+  });
+
+  it("has no horizon, because a final is further out than sixty days", () => {
+    // Every other view stops at 60 days. In September that hides a December
+    // final, which is the deadline a student most wants warning about.
+    const board = examBoard([exam(at(2026, 11, 15, 8), "Final")], NOW);
+    expect(board.upcoming.map((p) => p.item.title)).toEqual(["Final"]);
+  });
+
+  it("puts the soonest exam first", () => {
+    const board = examBoard(
+      [exam(at(2026, 11, 15, 8), "Final"), exam(at(2026, 8, 20, 19), "Midterm")],
+      NOW,
+    );
+    expect(board.upcoming.map((p) => p.item.title)).toEqual(["Midterm", "Final"]);
+  });
+
+  it("separates a window nobody has booked", () => {
+    const board = examBoard([booking(at(2026, 8, 22, 17))], NOW);
+    expect(board.unbooked).toHaveLength(1);
+    expect(board.upcoming).toEqual([]);
+  });
+
+  it("drops a booking window that has already closed", () => {
+    // Not a thing to book any more, and not worth shouting about: the exam
+    // either happened or was missed, and the source stops producing the row.
+    expect(examBoard([booking(at(2026, 8, 9, 17))], NOW).unbooked).toEqual([]);
+  });
+
+  it("keeps a booking whose window has no end stated", () => {
+    // House rule 1 at the view layer: an unreadable window costs the window,
+    // not the row. Dropping it would hide the one item §7 nags daily about.
+    expect(examBoard([item({ kind: "booking" })], NOW).unbooked).toHaveLength(1);
+  });
+
+  it("books the window closing soonest first", () => {
+    const board = examBoard(
+      [booking(at(2026, 8, 25, 17), "late"), booking(at(2026, 8, 20, 17), "early")],
+      NOW,
+    );
+    expect(board.unbooked.map((i) => i.title)).toEqual(["early", "late"]);
+  });
+
+  it("keeps an exam sat in the last week, most recent first", () => {
+    const board = examBoard(
+      [exam(at(2026, 8, 9, 19), "Quiz 1"), exam(at(2026, 8, 6, 19), "Quiz 0")],
+      NOW,
+    );
+    expect(board.recent.map((p) => p.item.title)).toEqual(["Quiz 1", "Quiz 0"]);
+    expect(board.upcoming).toEqual([]);
+  });
+
+  it("forgets one sat longer ago than that", () => {
+    expect(examBoard([exam(at(2026, 8, 1, 19))], NOW).recent).toEqual([]);
+  });
+
+  it("respects a hidden row", () => {
+    const hidden = item({ kind: "exam", dueAt: at(2026, 8, 20, 19), hidden: true });
+    expect(examBoard([hidden], NOW).upcoming).toEqual([]);
+  });
+
+  it("counts only what is asking for something", () => {
+    // An exam already booked is a fact, not a task. A badge counting every
+    // exam in the term is a permanent alarm — the same reason undated rows
+    // left the Attention count.
+    const items = [exam(at(2026, 8, 20, 19)), booking(at(2026, 8, 22, 17))];
+    expect(examCount(items, NOW)).toBe(1);
+  });
+
+  it("shows nothing on the badge when every exam is booked", () => {
+    expect(examCount([exam(at(2026, 8, 20, 19))], NOW)).toBe(0);
   });
 });

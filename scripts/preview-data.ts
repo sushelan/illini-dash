@@ -35,6 +35,13 @@ const items = [
   item({ courseLabel: "CS357", title: "Book a slot: CS 357: Quiz 2", kind: "booking",
          members: [member("prairietest", { windowStart: at(10, 0, 1), windowEnd: at(12, 23, 59) })] }),
   // §4.4's room and duration, which the parser has recorded all along.
+  // A December final: further out than the 60-day horizon every other view
+  // stops at, which is the case the Exams tab exists for.
+  item({ courseLabel: "CS357", title: "CS 357 Final Exam", dueAt: at(95, 8, 0), kind: "exam",
+         members: [member("canvas", { location: "Foellinger Auditorium", duration: "180min" })] }),
+  item({ courseLabel: "ECE374", title: "ECE 374 Midterm 2", dueAt: at(24, 19, 0), kind: "exam",
+         members: [member("prairietest", { location: "Grainger Library",
+                                           locationDetail: "Room 57", duration: "110min" })] }),
   item({ courseLabel: "CS357", title: "CS 357: Quiz 1", dueAt: at(0, 21, 0), kind: "exam",
          members: [member("prairietest", { location: "Grainger Library",
                                            locationDetail: "Room 57", duration: "50min" })] }),

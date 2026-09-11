@@ -30,7 +30,7 @@ import { liveDeadline } from "./grouping.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
-export type ViewName = "day" | "week" | "month" | "attention";
+export type ViewName = "day" | "week" | "month" | "exams" | "attention";
 
 /** Local midnight for `when`, offset by whole days. */
 export function startOfDay(when: Date, days = 0): Date {
@@ -402,6 +402,99 @@ export function attentionCount(items: Item[], now: Date): number {
   return attentionGroups(items, now)
     .filter((group) => isActionable(group.name))
     .reduce((total, group) => total + group.items.length, 0);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Exams                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Everything you have to turn up to, on one screen.
+ *
+ * `exam` and `booking` and nothing else. That is not a stylistic line — it is
+ * the one the sources already draw: §4.4 maps a PrairieTest reservation to
+ * `exam` and an unbooked window to `booking`, and §4.1 promotes a Canvas
+ * calendar event whose title says exam, midterm or final. Everything else a
+ * student calls a quiz is work done from a laptop whenever, and including it
+ * would refill this tab with most of PrairieLearn — the same dilution that made
+ * Attention read 11 when one thing was late.
+ *
+ * **No horizon.** Every other view stops at 60 days, which is right for
+ * homework and wrong for the one thing that is always further out than that: in
+ * September a December final is invisible, and it is the deadline a student most
+ * wants a month's warning about.
+ */
+export interface ExamBoard {
+  /**
+   * A booking window still open that nobody has used.
+   *
+   * The only thing here asking for something. §7 nags daily about these because
+   * the window closes whether or not the student has looked.
+   */
+  unbooked: Item[];
+  /** Booked or scheduled, soonest first. */
+  upcoming: PlacedItem[];
+  /** Sat in the last week, so a student can tell "done" from "never existed". */
+  recent: PlacedItem[];
+}
+
+/** §5.4's window, reused: after a week there is nothing to say about an exam. */
+const RECENT_EXAM_DAYS = 7;
+
+function bookingWindowEnd(item: Item): number | undefined {
+  for (const member of item.members) {
+    const raw = member.extra?.["windowEnd"];
+    if (raw === undefined) continue;
+    const at = Date.parse(raw);
+    if (!Number.isNaN(at)) return at;
+  }
+  return undefined;
+}
+
+export function examBoard(items: Item[], now: Date): ExamBoard {
+  const unbooked: Item[] = [];
+  const upcoming: PlacedItem[] = [];
+  const recent: PlacedItem[] = [];
+
+  for (const item of items) {
+    if (item.hidden) continue;
+
+    if (item.kind === "booking") {
+      // A window that has closed is not a thing to book. It is also not worth
+      // shouting about: the exam either happened or the student missed it, and
+      // either way the source stops producing the row.
+      const end = bookingWindowEnd(item);
+      if (end === undefined || end > now.getTime()) unbooked.push(item);
+      continue;
+    }
+    if (item.kind !== "exam") continue;
+
+    const anchor = anchorOf(item, now);
+    if (anchor === undefined) continue;
+    if (anchor.at >= now.getTime()) upcoming.push({ item, anchor });
+    else if (now.getTime() - anchor.at <= RECENT_EXAM_DAYS * 86_400_000) {
+      recent.push({ item, anchor });
+    }
+  }
+
+  const soonest = (a: PlacedItem, b: PlacedItem) => a.anchor.at - b.anchor.at;
+  upcoming.sort(soonest);
+  // Most recent first: the one you just sat is the one you are asking about.
+  recent.sort((a, b) => b.anchor.at - a.anchor.at);
+  unbooked.sort((a, b) => (bookingWindowEnd(a) ?? 0) - (bookingWindowEnd(b) ?? 0));
+
+  return { unbooked, upcoming, recent };
+}
+
+/**
+ * The number the Exams tab wears.
+ *
+ * Unbooked only. An exam you have already booked is not asking for anything,
+ * and a badge that counts every exam in the term reads as a permanent alarm —
+ * the same reason "No date at all" left the Attention count.
+ */
+export function examCount(items: Item[], now: Date): number {
+  return examBoard(items, now).unbooked.length;
 }
 
 /* -------------------------------------------------------------------------- */
