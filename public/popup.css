@@ -78,6 +78,8 @@ html.view-full,
 .row--name .chip-practice { flex: none; }
 .row--unreadable { color: var(--err); }
 .row--flag { color: var(--warn); font-weight: 700; cursor: help; }
+/* Says "the time here is ours, not the course's" without spending a line. */
+.row--assumed { cursor: help; font-style: italic; }
 .row-late { border-left: 3px solid var(--warn); }
 .row-late .row--due { color: var(--warn); }
 h2.section {

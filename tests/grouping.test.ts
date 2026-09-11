@@ -291,9 +291,11 @@ describe("times this extension invented (§4.5, worker rule 3)", () => {
   it("never shows an invented time as a clock", () => {
     const text = formatDue(assumed, NOW, "Later");
     expect(text.primary).not.toContain("11:59");
-    expect(text.detail).not.toContain("11:59");
-    // The invented time is not shown at all; the second line says why.
-    expect(text.detail).toBe("the course site gives no time");
+    // The invented time is not shown, and the row still says so — inline, not
+    // on a second line. A course site with five timeless deadlines otherwise
+    // repeated one sentence five times for double the height.
+    expect(text.primary).toContain("no time");
+    expect(text.detail).toBeUndefined();
   });
 
   it("still shows the date, which the course site did state", () => {
@@ -301,17 +303,20 @@ describe("times this extension invented (§4.5, worker rule 3)", () => {
   });
 
   it("counts whole days rather than a false hour precision", () => {
-    // Under Later the heading already places it, so the row is just the date —
-    // the same shape every other Later row has. Under a nearer heading the
-    // relative count is what the student acts on.
-    expect(formatDue(assumed, NOW, "Later").primary).toBe("Sep 18");
+    // Under Later the heading places it, so the row is the date plus the marker.
+    // The marker is what a *stated* Later deadline does not have — that row
+    // reads "Sep 18" — and dropping it would make the two indistinguishable.
+    expect(formatDue(assumed, NOW, "Later").primary).toBe("Sep 18 · no time");
+    expect(formatDue(item({ dueAt: at(2026, 8, 18, 23, 59) }), NOW, "Later").primary).toBe(
+      "Sep 18",
+    );
     expect(
       formatDue(item({ dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }), NOW, "Today").primary,
-    ).toMatch(/today$/);
+    ).toBe("today · no time");
     expect(
       formatDue(item({ dueAt: at(2026, 8, 11, 23, 59), timeAssumed: true }), NOW, "Tomorrow")
         .primary,
-    ).toMatch(/tomorrow$/);
+    ).toBe("tomorrow · no time");
   });
 
   it("leaves a stated time alone", () => {

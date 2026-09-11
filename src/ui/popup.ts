@@ -240,6 +240,12 @@ function renderRow(
   } else {
     const formatted = formatDue(item, now, section);
     due.textContent = formatted.primary;
+    if (item.timeAssumed) {
+      // The marker is terse by design; the sentence it replaced lives here, so
+      // "no time" is explained on the one row a student stops to ask about.
+      due.classList.add("row--assumed");
+      due.title = "The course site gives a date but no time. Check the course page for the cutoff.";
+    }
     if (formatted.detail) {
       details.push({ text: formatted.detail, className: "row--detail" });
     }

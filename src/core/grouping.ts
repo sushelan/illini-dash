@@ -271,17 +271,19 @@ export function formatDue(item: Item, now: Date, section?: SectionName): DueText
   // that as "Fri 11:59 PM" is the §11 risk wearing a friendly face: it looks
   // like a stated deadline, and a student who trusts it misses a 5 PM cutoff.
   if (item.timeAssumed) {
-    // Section-aware like every other branch. Without this an assumed-time row
-    // under Later read "Sep 23 · in 13d" while every row beside it read
-    // "Sep 15", which looks like the two mean different things. They do not:
-    // the difference is only that this one's *time* is unknown, and the second
-    // line is where that is said.
+    // An inline marker, not a second line. A course site with five timeless
+    // deadlines produced five consecutive rows each carrying the sentence "the
+    // course site gives no time" — one fact, restated until it is wallpaper,
+    // for double the height.
+    //
+    // But not blank either: under Later a *stated* deadline also shows only a
+    // date, because the heading already carries the rest. Drop the marker and
+    // a real 11:59 PM and an invented one both read "Sep 23", which is the
+    // whole thing §4.5's `timeAssumed` exists to keep apart. Four characters
+    // does the same work as the sentence did.
     const day = dayOf(due);
-    return {
-      primary:
-        precisionFor(section) === "date" ? day : `${day} · ${relativeDays(daysAway(due, now))}`,
-      detail: "the course site gives no time",
-    };
+    const when = precisionFor(section) === "date" ? day : relativeDays(daysAway(due, now));
+    return { primary: `${when} · no time` };
   }
 
   // Full credit gone, late window still open: Gradescope's "accepting late
