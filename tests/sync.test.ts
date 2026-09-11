@@ -92,7 +92,7 @@ describe("migrate (§3)", () => {
   it("fills an empty or junk store with defaults", () => {
     for (const junk of [undefined, null, 42, "x", {}]) {
       const store = migrate(junk);
-      expect(store.schemaVersion).toBe(1);
+      expect(store.schemaVersion).toBe(2);
       expect(store.settings.pollMinutes).toBe(30);
       expect(Object.keys(store.sources).sort()).toEqual([
         "canvas",

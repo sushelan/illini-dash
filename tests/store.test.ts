@@ -85,3 +85,88 @@ describe("a committed schemaVersion 1 store", () => {
     expect(migrate(null).items).toEqual([]);
   });
 });
+
+describe("setupDoneAt — the upgrade, exactly once", () => {
+  /*
+   * The clause that decides whether a beta tester's next update looks like a
+   * wipe. `needsSetup` originally asked "has any source ever succeeded?" live,
+   * which covered the upgrade and broke Reset: the popup fires a sync on open,
+   * that sync succeeds because the browser is still signed in, and setup
+   * completed itself about a second after Reset was pressed.
+   *
+   * So the question is asked once, of a blob written by a build that predates
+   * the field, and never again.
+   */
+  const OK = "2026-09-10T18:00:00.000Z";
+  const LATER = "2026-09-10T20:00:00.000Z";
+
+  function stored(patch: Record<string, unknown>): Record<string, unknown> {
+    return {
+      schemaVersion: 1,
+      raw: {},
+      items: [],
+      sources: {},
+      overrides: {},
+      settings: {},
+      ...patch,
+    };
+  }
+
+  it("stamps a working install written before the field existed", () => {
+    const store = migrate(
+      stored({ sources: { canvas: { source: "canvas", enabled: true, state: "ok", lastSuccessAt: OK, consecutiveFailures: 0 } } }),
+    );
+    expect(store.setupDoneAt).toBe(OK);
+  });
+
+  it("stamps the real v1 capture, which is what a tester actually has", () => {
+    expect(migrate(V1).setupDoneAt).toBeDefined();
+  });
+
+  it("uses the newest success, not whichever source came first", () => {
+    const store = migrate(
+      stored({
+        sources: {
+          canvas: { source: "canvas", enabled: true, state: "ok", lastSuccessAt: OK, consecutiveFailures: 0 },
+          gradescope: { source: "gradescope", enabled: true, state: "ok", lastSuccessAt: LATER, consecutiveFailures: 0 },
+        },
+      }),
+    );
+    expect(store.setupDoneAt).toBe(LATER);
+  });
+
+  it("leaves an old install that never worked needing setup", () => {
+    // Installed, never signed in. That student never finished setting up, so
+    // the screen is exactly what they should get.
+    const store = migrate(
+      stored({ sources: { canvas: { source: "canvas", enabled: true, state: "needs_login", consecutiveFailures: 1 } } }),
+    );
+    expect(store.setupDoneAt).toBeUndefined();
+  });
+
+  it("does not stamp a current store, however well it is doing", () => {
+    // The Reset case. After `chrome.storage.local.clear()` the next save is at
+    // the current version, so a sync that succeeds cannot retroactively claim
+    // the student finished a screen they never saw.
+    const store = migrate(
+      stored({
+        schemaVersion: 2,
+        sources: { canvas: { source: "canvas", enabled: true, state: "ok", lastSuccessAt: OK, consecutiveFailures: 0 } },
+      }),
+    );
+    expect(store.setupDoneAt).toBeUndefined();
+  });
+
+  it("keeps a stamp the student earned by finishing the screen", () => {
+    expect(migrate(stored({ schemaVersion: 2, setupDoneAt: OK })).setupDoneAt).toBe(OK);
+  });
+
+  it("treats a blob with no version at all as pre-2", () => {
+    // `undefined` is not a number, and comparing it as one is how a very old
+    // store would have been mistaken for a current one.
+    const store = migrate({
+      sources: { canvas: { source: "canvas", enabled: true, state: "ok", lastSuccessAt: OK, consecutiveFailures: 0 } },
+    });
+    expect(store.setupDoneAt).toBe(OK);
+  });
+});

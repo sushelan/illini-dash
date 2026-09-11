@@ -47,6 +47,10 @@ This screen appears once. It does not come back when a session later expires; th
 as a yellow dot and a banner instead, because the deadlines already fetched are still
 worth seeing.
 
+To see it again, use **Choose again** in Settings under Sources. That reopens it with your
+answers still in it and changes nothing else. **Reset** is not the way to do this — it
+deletes every hide, merge and tick you have made.
+
 ## Check it worked
 
 Click the Illini Dash icon.

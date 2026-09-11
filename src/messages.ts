@@ -30,6 +30,7 @@ export type Request =
   | { type: "ping" }
   | { type: "get-setup" }
   | { type: "complete-setup" }
+  | { type: "restart-setup" }
   | { type: "gate0" }
   | { type: "parse-selftest" }
   | { type: "capture"; url: string }

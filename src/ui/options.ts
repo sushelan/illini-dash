@@ -894,6 +894,19 @@ document.getElementById("export")!.addEventListener("click", async () => {
   dataStatus().textContent = "Exported.";
 });
 
+document.getElementById("restart-setup")!.addEventListener("click", async () => {
+  const status = document.getElementById("restart-setup-status")!;
+  status.textContent = "Reopening…";
+  const response = await send({ type: "restart-setup" });
+  if (response.type === "error") {
+    status.textContent = response.message;
+    return;
+  }
+  // Straight there rather than leaving a note telling them to go and look:
+  // this button has exactly one outcome and it is a page.
+  location.href = chrome.runtime.getURL("popup.html?view=full");
+});
+
 document.getElementById("reset")!.addEventListener("click", async () => {
   // Irreversible and it takes the user's overrides with it, so it asks.
   if (!confirm("Delete all stored data, including your hide/merge corrections?")) return;

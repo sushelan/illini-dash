@@ -39,18 +39,20 @@ describe("needsSetup", () => {
     expect(needsSetup(storeWith({}, { setupDoneAt: "2026-09-11T00:00:00.000Z" }))).toBe(false);
   });
 
-  it("treats an install that has already read something as set up", () => {
-    // The clause that matters on the day this ships. Every beta tester has a
-    // working install and no `setupDoneAt`, so without this they get a setup
-    // screen over data they already have — an upgrade that looks like a wipe.
-    expect(needsSetup(storeWith({ canvas: { lastSuccessAt: "2026-09-10T18:00:00.000Z" } }))).toBe(
-      false,
-    );
+  it("is not satisfied by a sync that happened to succeed", () => {
+    /*
+     * The bug Sushi hit: Reset, and the calendar was back within a second.
+     * `needsSetup` accepted "some source has succeeded" as evidence of being
+     * set up, and the popup fires a sync the moment it opens — which succeeds,
+     * because the browser is still signed in to everything. Setup completed
+     * itself. The upgrade case it was there for now happens once, in `migrate`.
+     */
+    expect(
+      needsSetup(storeWith({ canvas: { state: "ok", lastSuccessAt: "2026-09-11T00:00:00.000Z" } })),
+    ).toBe(true);
   });
 
-  it("is not satisfied by a source that was merely attempted", () => {
-    // `lastAttemptAt` without `lastSuccessAt` is a failed fetch, which is the
-    // state a student who is not signed in yet is actually in.
+  it("is still showing after a failed fetch", () => {
     expect(needsSetup(storeWith({ canvas: { state: "needs_login" } }))).toBe(true);
   });
 });

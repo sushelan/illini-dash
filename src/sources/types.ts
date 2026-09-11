@@ -273,7 +273,12 @@ export interface Adapter {
 }
 
 export interface StoreV1 {
-  schemaVersion: 1;
+  /**
+   * Bumped to 2 with the first-run screen. The name stays `StoreV1` because the
+   * *shape* is still §3's — the number is what `migrate` uses to tell a store
+   * written before that screen from one written after, and nothing else.
+   */
+  schemaVersion: 1 | 2;
   /** key = memberKey (§3.1) */
   raw: Record<string, RawItem>;
   items: Item[];

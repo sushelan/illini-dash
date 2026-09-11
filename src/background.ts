@@ -614,6 +614,16 @@ chrome.runtime.onMessage.addListener(
         }) as const),
       );
     }
+    if (request?.type === "restart-setup") {
+      // Deliberately not Reset. Sushi pressed Reset to get the setup screen
+      // back, which throws away every hide, merge and tick to see one page.
+      // This clears the one field that decides whether the screen shows.
+      return answer(
+        mutate((store) => {
+          store.setupDoneAt = undefined;
+        }).then(() => ({ type: "ok" }) as const),
+      );
+    }
     if (request?.type === "complete-setup") {
       return answer(
         mutate((store) => {

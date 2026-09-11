@@ -64,16 +64,14 @@ export function setupRows(store: StoreV1Plus): SetupRow[] {
 /**
  * Whether the setup screen should be shown at all.
  *
- * Two ways to be finished, and the second one matters more than it looks: every
- * beta tester already has a working install with no `setupDoneAt` in their
- * store. Without the second clause, shipping this would put a setup screen in
- * front of people who finished setting up days ago — an upgrade that looks like
- * a reinstall, over data that is already there.
+ * One field, asked plainly. It used to also accept "some source has succeeded"
+ * as evidence of being set up, which covered the upgrade but broke Reset: the
+ * popup syncs the moment it opens, that sync succeeds because the browser is
+ * still signed in, and setup completed itself a second later. The upgrade is
+ * handled once in `migrate` instead, where it cannot fire twice.
  */
 export function needsSetup(store: StoreV1Plus): boolean {
-  if (store.setupDoneAt !== undefined) return false;
-  const statuses: (SourceStatus | undefined)[] = Object.values(store.sources);
-  return !statuses.some((status) => status?.lastSuccessAt !== undefined);
+  return store.setupDoneAt === undefined;
 }
 
 /**

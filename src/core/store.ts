@@ -17,7 +17,14 @@ import type {
   StoreV1,
 } from "../sources/types.js";
 
-export const SCHEMA_VERSION = 1 as const;
+/**
+ * 2 since the first-run screen landed.
+ *
+ * The bump is load-bearing, not bookkeeping: it is how `migrate` tells a store
+ * written before setup existed from one written after, which is the difference
+ * between "this student set up days ago" and "this student just pressed Reset".
+ */
+export const SCHEMA_VERSION = 2 as const;
 /**
  * Deliberately still the pre-rename name.
  *
@@ -163,6 +170,41 @@ function isUsableRaw(value: unknown): value is RawItem {
   return text("source") && text("sourceId") && text("title") && text("url") && text("fetchedAt");
 }
 
+/**
+ * When setup was finished — stamped once for stores that predate the screen.
+ *
+ * `needsSetup` first asked "has any source ever succeeded?" live, which was
+ * right for the upgrade and wrong for everything else: the popup fires a sync
+ * the moment it opens, that sync succeeds because the browser is still signed
+ * in, and setup completed itself about a second after Reset. Sushi pressed
+ * Reset and watched the calendar come straight back.
+ *
+ * So the question is asked once, here, and only of a blob written by a build
+ * that predates the field. After the first save the schema version is current
+ * and this can never fire again — which is what makes Reset mean something.
+ *
+ * The timestamp is the newest success rather than "now", because that is the
+ * moment this install demonstrably worked, and `migrate` has no clock.
+ */
+function migrateSetupDoneAt(
+  value: Record<string, unknown> & { schemaVersion?: unknown },
+  sources: Record<Source, SourceStatus>,
+): string | undefined {
+  if (typeof value.setupDoneAt === "string") return value.setupDoneAt;
+  // A blob with no version at all is also pre-2; `undefined < 2` is false, so
+  // it is compared as a number only when it is one.
+  const stored = typeof value.schemaVersion === "number" ? value.schemaVersion : 0;
+  if (stored >= SCHEMA_VERSION) return undefined;
+
+  let newest: string | undefined;
+  for (const status of Object.values(sources)) {
+    const at = status?.lastSuccessAt;
+    if (at === undefined) continue;
+    if (newest === undefined || at > newest) newest = at;
+  }
+  return newest;
+}
+
 /** A stored `Item` that is actually usable. */
 function isUsableItem(value: unknown): value is Item {
   if (!isRecord(value)) return false;
@@ -245,7 +287,7 @@ export function migrate(stored: unknown): StoreV1Plus {
     enabledAdapters: Array.isArray(value.enabledAdapters)
       ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
       : [],
-    setupDoneAt: typeof value.setupDoneAt === "string" ? value.setupDoneAt : undefined,
+    setupDoneAt: migrateSetupDoneAt(value, sources),
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>
