@@ -7,6 +7,17 @@
     <style>body { max-width: 760px; }</style>
   </head>
   <body>
+    <!--
+      A plain link, not a script: it works before the page has finished talking
+      to the service worker, and it works if that conversation fails. Settings
+      opened in a tab of its own, with nothing pointing back, so the way out was
+      the browser's back button or reopening the popup.
+
+      It goes to the full view rather than calling history.back() because the
+      popup remembers which tab you were on — so this lands you where you were
+      whether you came from the popup or from the full view.
+    -->
+    <a id="back" class="back" href="popup.html?view=full">← Illini Dash</a>
     <h1>Illini Dash — Settings</h1>
     <p id="build-info" class="muted">Checking service worker…</p>
 

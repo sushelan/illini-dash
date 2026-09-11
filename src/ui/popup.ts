@@ -1230,6 +1230,15 @@ if (document.documentElement.classList.contains("view-full")) {
 }
 document.getElementById("settings")!.addEventListener("click", (event) => {
   event.preventDefault();
+  if (isFullView) {
+    // Already in a tab, so use it. `openOptionsPage` would spawn a second one
+    // and leave two Illini Dash tabs open, with the one you were reading behind
+    // the one you are now in. Settings has a way back to here.
+    location.href = chrome.runtime.getURL("options.html");
+    return;
+  }
+  // From the popup there is no tab to stay in. This focuses an options tab if
+  // one is already open rather than piling up new ones.
   chrome.runtime.openOptionsPage();
 });
 
