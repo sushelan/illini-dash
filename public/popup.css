@@ -129,7 +129,9 @@ h2.section {
 /* The only thing that shrinks. `minmax(0, 1fr)` on its grid column is what
    lets it actually reach zero-and-ellipsis rather than forcing the row wider. */
 .row--title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row--sources { font-size: 10px; color: var(--muted); white-space: nowrap; letter-spacing: .04em; text-align: right; }
+/* Only merged rows carry text here, so it is a mark rather than a column
+   of labels — cursor: help says there is something to read. */
+.row--sources { font-size: 10px; color: var(--muted); white-space: nowrap; letter-spacing: .04em; text-align: right; cursor: help; }
 .row--due { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right; }
 .row-overdue .row--due { color: var(--err); }
 .row-booking .row--due { color: var(--warn); }

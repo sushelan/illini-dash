@@ -54,6 +54,16 @@ const SOURCE_LABEL: Record<Source, string> = {
   site: "WEB",
 };
 
+/** Full names, for the places where two letters are not enough. */
+const SOURCE_NAME: Record<Source, string> = {
+  canvas: "Canvas",
+  gradescope: "Gradescope",
+  prairielearn: "PrairieLearn",
+  prairietest: "PrairieTest",
+  smartphysics: "smartPhysics",
+  site: "the course website",
+};
+
 const LOGIN_URL: Partial<Record<Source, string>> = {
   canvas: "https://canvas.illinois.edu/login",
   gradescope: "https://www.gradescope.com/login",
@@ -206,10 +216,21 @@ function renderRow(
   // single-source row serves nothing and costs the title 44px, on a list where
   // real UIUC titles ("HW5 Rounding and Cancellation") are already being cut.
   // The label the student needs is on the row that has two.
-  const labels = [...new Set(item.members.map((m) => SOURCE_LABEL[m.source]))];
-  if (labels.length > 1) sources.textContent = labels.join(" ");
-  // Still reachable for a single source, just not spending a column on it.
-  else if (labels[0]) sources.title = labels[0];
+  const distinct = [...new Set(item.members.map((m) => m.source))];
+  if (distinct.length > 1) {
+    sources.textContent = distinct.map((source) => SOURCE_LABEL[source]).join(" ");
+    // Now that single-source rows show nothing, a lone pair of letters is the
+    // only thing in the column and reads as an anomaly rather than a signal.
+    // §5.3 leans on the student noticing a wrong merge and splitting it in one
+    // click, which they cannot do if the mark does not say what it means.
+    sources.title =
+      `One deadline, seen by ${distinct.length} sources: ` +
+      `${distinct.map((source) => SOURCE_NAME[source]).join(" and ")}. ` +
+      `If they are not really the same thing, use ⋯ → Split.`;
+  } else if (distinct[0]) {
+    // Still reachable, just not spending a column on it.
+    sources.title = `from ${SOURCE_NAME[distinct[0]]}`;
+  }
 
   // The row is a two-line grid: title and "when" compete for line one, and
   // everything that qualifies the deadline goes on line two, which nothing else
