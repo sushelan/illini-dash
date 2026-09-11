@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Illini Dash — calendar views, proposed</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg:#1a1a1a; --muted:#666; --bg:#fff; --line:#ddd;
+  --ok:#1a7f37; --warn:#9a6700; --err:#b42318;
+  --sunk: rgba(127,127,127,.07);
+  --c-cs357:#4c6ef5; --c-cs411:#12b886; --c-ece374:#e8590c;
+  --c-cs425:#9c36b5; --c-phys214:#0ca678; --c-cs424:#f08c00;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --fg:#e6e6e6; --muted:#9a9a9a; --bg:#1c1c1c; --line:#3a3a3a;
+    --ok:#4ac26b; --warn:#d4a72c; --err:#f0736a; --sunk: rgba(255,255,255,.05);
+    --c-cs357:#748ffc; --c-cs411:#38d9a9; --c-ece374:#ff922b;
+    --c-cs425:#da77f2; --c-phys214:#20c997; --c-cs424:#ffc078; }
+}
+* { box-sizing: border-box; }
+body { margin:0; padding:28px; background: var(--sunk);
+  font:13px/1.45 system-ui,-apple-system,sans-serif; color:var(--fg); }
+.page { max-width: 1240px; margin: 0 auto; }
+h1 { font-size:17px; margin:0 0 4px; }
+.sub { color:var(--muted); margin:0 0 26px; max-width:74ch; }
+.sub b { color:var(--fg); font-weight:600; }
+.panels { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-start; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--muted); margin:0 0 3px; }
+.panel .note { color:var(--muted); font-size:11.5px; margin:0 0 8px; max-width:44ch; line-height:1.4; }
+.frame { background:var(--bg); border:1px solid var(--line); border-radius:10px;
+  overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.w-popup { width:400px; }
+.w-full { width:760px; }
+
+.bar { display:flex; align-items:center; justify-content:space-between;
+  padding:8px 12px; border-bottom:1px solid var(--line); }
+.dots { display:flex; gap:6px; }
+.dot { width:9px; height:9px; border-radius:50%; }
+.dot-ok { background:var(--ok); } .dot-warn { background:var(--warn); }
+.bar--right { display:flex; gap:10px; color:var(--muted); font-size:12px; }
+
+.book { display:flex; align-items:center; gap:8px; padding:8px 12px;
+  border-bottom:1px solid var(--line); background:rgba(180,130,0,.09); }
+.book--text { flex:1; min-width:0; font-size:12px; }
+.book--text b { font-weight:600; }
+.book--text span { display:block; color:var(--muted); font-size:11px; }
+.book--go { font-size:11.5px; font-weight:600; color:var(--warn);
+  border:1px solid var(--warn); border-radius:5px; padding:3px 8px; white-space:nowrap; }
+
+.tabs { display:flex; gap:2px; padding:6px 8px 0; border-bottom:1px solid var(--line); }
+.tab { font-size:12px; padding:5px 10px 6px; border-radius:6px 6px 0 0;
+  color:var(--muted); border:1px solid transparent; border-bottom:0; cursor:pointer; }
+.tab[aria-selected="true"] { color:var(--fg); font-weight:600;
+  background:var(--bg); border-color:var(--line); margin-bottom:-1px; }
+.tab .count { font-size:10px; color:var(--muted); }
+.tab-err[aria-selected="true"] { color:var(--err); }
+
+/* ---- course filter strip: the legend and the control are one thing ---- */
+.filters { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 10px;
+  border-bottom:1px solid var(--line); }
+.fchip { display:flex; align-items:center; gap:3px; flex:none;
+  font-size:10px; font-weight:700; letter-spacing:.02em; color:var(--muted);
+  border:1px solid var(--line); border-radius:20px; padding:2px 7px 2px 5px;
+  cursor:pointer; white-space:nowrap; user-select:none; background:transparent; }
+.fchip i { width:7px; height:7px; border-radius:50%; flex:none; }
+.fchip[aria-pressed="false"] { opacity:.45; }
+.fchip[aria-pressed="false"] i { background:transparent !important;
+  box-shadow: inset 0 0 0 1.5px currentColor; }
+.fchip[aria-pressed="false"] span { text-decoration:line-through; }
+.fhidden { flex:none; font-size:10px; color:var(--warn); padding-left:2px; white-space:nowrap; }
+
+.nav { display:flex; align-items:center; gap:8px; padding:7px 12px;
+  border-bottom:1px solid var(--line); }
+.nav--arrow { color:var(--muted); width:14px; text-align:center; }
+.nav--label { font-weight:600; font-size:12.5px; flex:1; }
+.nav--today { font-size:11px; color:var(--muted); border:1px solid var(--line);
+  border-radius:5px; padding:2px 7px; }
+
+/* ---- the untimed band: says it once, for everything under it ---- */
+.allday { border-bottom:1px solid var(--line); background:var(--sunk); }
+.allday--head { font-size:10px; color:var(--muted); padding:5px 12px 0; line-height:1.3; }
+.allday--items { padding:4px 10px 7px; display:flex; flex-direction:column; gap:3px; }
+
+.pill { display:flex; align-items:baseline; gap:5px; min-width:0;
+  border-left:3px solid var(--line); border-radius:3px;
+  background:var(--sunk); padding:3px 6px; font-size:11.5px; }
+.pill .code { font-size:9.5px; font-weight:700; color:var(--muted);
+  letter-spacing:.03em; flex:none; }
+.pill .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pill .meta { margin-left:auto; font-size:10px; color:var(--muted); flex:none; padding-left:6px; }
+.cs357 { border-left-color:var(--c-cs357); } .cs411 { border-left-color:var(--c-cs411); }
+.ece374 { border-left-color:var(--c-ece374); } .cs425 { border-left-color:var(--c-cs425); }
+.phys214 { border-left-color:var(--c-phys214); } .cs424 { border-left-color:var(--c-cs424); }
+.pill--event { background:transparent; border-left-style:dotted; color:var(--muted); }
+.pill--unopened { background:transparent; border-left-style:dashed; opacity:.75; }
+.pill--exam { background:rgba(180,130,0,.14); }
+
+.grid { display:grid; grid-template-columns:42px 1fr; }
+.hours { border-right:1px solid var(--line); }
+.hour { height:26px; font-size:9.5px; color:var(--muted); text-align:right;
+  padding-right:5px; transform:translateY(-5px); }
+.slots { position:relative; }
+.slotline { position:absolute; left:0; right:0; border-top:1px solid var(--line); opacity:.55; }
+.nowline { position:absolute; left:-42px; right:0; border-top:1.5px solid var(--err); }
+.nowline::before { content:""; position:absolute; left:36px; top:-4px;
+  width:7px; height:7px; border-radius:50%; background:var(--err); }
+.pileup { position:absolute; left:6px; right:8px; display:flex; flex-direction:column; gap:2px; }
+
+.wrow { display:grid; grid-template-columns:46px 1fr; border-top:1px solid var(--line); }
+.wrow:first-child { border-top:0; }
+.wrow--today { background:rgba(127,127,127,.06); }
+.wday { padding:7px 6px 8px 10px; border-right:1px solid var(--line); }
+.wday .dow { font-size:9.5px; text-transform:uppercase; color:var(--muted); letter-spacing:.05em; }
+.wday .num { font-size:15px; font-weight:600; line-height:1.1; }
+.wrow--today .num { color:var(--err); }
+.witems { padding:6px 8px 7px 6px; display:flex; flex-direction:column; gap:3px; min-width:0; }
+.wempty { color:var(--muted); font-size:11px; padding:8px 0 9px 6px; opacity:.6; }
+.wuntimed { font-size:9.5px; color:var(--muted); padding:1px 0 1px 3px; letter-spacing:.02em; }
+
+.mhead { display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid var(--line); }
+.mhead div { font-size:9.5px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--muted); text-align:center; padding:6px 0; }
+.mgrid { display:grid; grid-template-columns:repeat(7,1fr); }
+.mcell { min-height:92px; border-top:1px solid var(--line); border-left:1px solid var(--line);
+  padding:4px 4px 5px; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.mcell:nth-child(7n+1) { border-left:0; }
+.mcell--out { background:var(--sunk); }
+.mnum { font-size:10.5px; color:var(--muted); font-weight:600; }
+.mcell--today .mnum { color:#fff; background:var(--err); border-radius:50%;
+  width:17px; height:17px; display:grid; place-items:center; font-size:10px; }
+.mcell--out .mnum { opacity:.45; }
+.mpill { display:flex; gap:3px; align-items:baseline; min-width:0;
+  border-left:2.5px solid var(--line); padding:1px 3px; border-radius:2px;
+  background:var(--sunk); font-size:9.5px; line-height:1.25; }
+.mpill .code { font-weight:700; font-size:8.5px; color:var(--muted); flex:none; }
+.mpill .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mmore { font-size:9px; color:var(--muted); padding-left:3px; }
+.mpill--event { background:transparent; border-left-style:dotted; opacity:.7; }
+.mpill--unopened { background:transparent; border-left-style:dashed; opacity:.7; }
+.mpill--untimed .name { opacity:.9; }
+.mpill--untimed::after { content:"·"; color:var(--muted); }
+
+.na { padding:4px 0 10px; }
+.na h3 { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--muted); margin:12px 12px 5px; font-weight:600; }
+.na h3.err { color:var(--err); }
+.na .pill { margin:0 12px 3px; }
+
+.legend { display:flex; flex-wrap:wrap; gap:16px; margin:26px 0 0; padding-top:16px;
+  border-top:1px solid var(--line); color:var(--muted); font-size:11.5px; }
+.legend span { display:flex; align-items:center; gap:6px; }
+.swatch { width:22px; height:12px; border-radius:3px; background:var(--sunk);
+  border-left:3px solid var(--muted); }
+.sw-event { background:transparent; border-left-style:dotted; }
+.sw-unopened { background:transparent; border-left-style:dashed; }
+.sw-exam { background:rgba(180,130,0,.16); border-left-color:var(--warn); }
+.try { background:rgba(180,130,0,.10); border:1px solid var(--warn); border-radius:7px;
+  padding:9px 12px; margin:0 0 22px; font-size:12px; max-width:74ch; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Illini Dash — calendar views, proposed</h1>
+<p class="sub">Real rows from your list, on Thursday 10 September. Popup panels are exactly
+400px, the month is 760px. Booking sits above the tabs on every view.</p>
+<p class="try"><b>The course chips are live.</b> Click one to drop that course out of every
+view on this page. That strip is the answer to hiding courses — it is the colour legend and
+the filter at the same time, so it has to be on screen anyway.</p>
+
+<div class="panels">
+
+<div class="panel">
+  <h2>Day · popup</h2>
+  <p class="note">Hours run 8 AM to midnight, the academic day. The 11:59 PM pile-up is real,
+  and it is the thing the list never showed you.</p>
+  <div class="frame w-popup">
+    <div class="bar">
+      <div class="dots"><i class="dot dot-ok"></i><i class="dot dot-ok"></i><i class="dot dot-warn"></i><i class="dot dot-ok"></i><i class="dot dot-ok"></i></div>
+      <div class="bar--right"><span>Sync now</span><span>⤢ full view</span><span>⚙</span></div>
+    </div>
+    <div class="book">
+      <span class="book--text"><b>CS 357: Quiz 2</b><span>sessions Sep 20–22 · not booked</span></span>
+      <span class="book--go">Book</span>
+    </div>
+    <div class="tabs">
+      <span class="tab" aria-selected="true">Day</span><span class="tab">Week</span>
+      <span class="tab">Month</span><span class="tab tab-err">Attention <span class="count">3</span></span>
+    </div>
+    <div class="filters" data-filters></div>
+    <div class="nav"><span class="nav--arrow">‹</span><span class="nav--label">Thu, Sep 10</span><span class="nav--arrow">›</span><span class="nav--today">Today</span></div>
+    <div data-day-band></div>
+    <div class="grid">
+      <div class="hours" data-day-hours></div>
+      <div class="slots" data-day-slots></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Week · popup</h2>
+  <p class="note">Seven day rows, the option you picked. At 400px a seven-column grid gives
+  each day 50px, which cannot hold a title.</p>
+  <div class="frame w-popup">
+    <div class="bar">
+      <div class="dots"><i class="dot dot-ok"></i><i class="dot dot-ok"></i><i class="dot dot-warn"></i><i class="dot dot-ok"></i><i class="dot dot-ok"></i></div>
+      <div class="bar--right"><span>Sync now</span><span>⤢ full view</span><span>⚙</span></div>
+    </div>
+    <div class="book">
+      <span class="book--text"><b>CS 357: Quiz 2</b><span>sessions Sep 20–22 · not booked</span></span>
+      <span class="book--go">Book</span>
+    </div>
+    <div class="tabs">
+      <span class="tab">Day</span><span class="tab" aria-selected="true">Week</span>
+      <span class="tab">Month</span><span class="tab tab-err">Attention <span class="count">3</span></span>
+    </div>
+    <div class="filters" data-filters></div>
+    <div class="nav"><span class="nav--arrow">‹</span><span class="nav--label">Sep 7 – 13</span><span class="nav--arrow">›</span><span class="nav--today">Today</span></div>
+    <div data-week></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Attention · popup</h2>
+  <p class="note">Everything a grid cannot place: overdue work, rows whose date would not
+  parse, and work with no date at all. Nothing sits above the calendar shouting, and nothing
+  is dropped.</p>
+  <div class="frame w-popup">
+    <div class="bar">
+      <div class="dots"><i class="dot dot-ok"></i><i class="dot dot-ok"></i><i class="dot dot-warn"></i><i class="dot dot-ok"></i><i class="dot dot-ok"></i></div>
+      <div class="bar--right"><span>Sync now</span><span>⤢ full view</span><span>⚙</span></div>
+    </div>
+    <div class="book">
+      <span class="book--text"><b>CS 357: Quiz 2</b><span>sessions Sep 20–22 · not booked</span></span>
+      <span class="book--go">Book</span>
+    </div>
+    <div class="tabs">
+      <span class="tab">Day</span><span class="tab">Week</span><span class="tab">Month</span>
+      <span class="tab tab-err" aria-selected="true">Attention <span class="count">3</span></span>
+    </div>
+    <div class="filters" data-filters></div>
+    <div class="na">
+      <h3>Overdue · last 7 days</h3>
+      <div class="pill cs411"><span class="code">CS411</span><span class="name">GA1: Basics of SQL</span><span class="meta">Sep 4 · 6d ago</span></div>
+      <h3 class="err">Couldn't read</h3>
+      <div class="pill cs425"><span class="code">CS425</span><span class="name">Reading response 4</span><span class="meta">GS · due date</span></div>
+      <h3>No date at all</h3>
+      <div class="pill cs357"><span class="code">CS357</span><span class="name">Research study survey (extra credit)</span><span class="meta">PL</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="width:760px">
+  <h2>Month · full view only</h2>
+  <p class="note">Seven columns need roughly 100px each to hold a course code and a readable
+  title, which is 760px — nearly twice the popup. This lives in the tab the ⤢ already opens.</p>
+  <div class="frame w-full">
+    <div class="bar">
+      <div class="dots"><i class="dot dot-ok"></i><i class="dot dot-ok"></i><i class="dot dot-warn"></i><i class="dot dot-ok"></i><i class="dot dot-ok"></i></div>
+      <div class="bar--right"><span>Sync now</span><span>⚙</span></div>
+    </div>
+    <div class="book">
+      <span class="book--text"><b>CS 357: Quiz 2</b><span>sessions Sep 20–22 · not booked · reserve before slots fill</span></span>
+      <span class="book--go">Book a seat</span>
+    </div>
+    <div class="tabs">
+      <span class="tab">Day</span><span class="tab">Week</span>
+      <span class="tab" aria-selected="true">Month</span>
+      <span class="tab tab-err">Attention <span class="count">3</span></span>
+    </div>
+    <div class="filters" data-filters></div>
+    <div class="nav"><span class="nav--arrow">‹</span><span class="nav--label">September 2026</span><span class="nav--arrow">›</span><span class="nav--today">Today</span></div>
+    <div class="mhead"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+    <div class="mgrid" data-month></div>
+  </div>
+</div>
+
+</div>
+
+<div class="legend">
+  <span><i class="swatch"></i> work that is due</span>
+  <span><i class="swatch sw-exam"></i> exam or quiz</span>
+  <span><i class="swatch sw-event"></i> event — office hours, a Zoom link</span>
+  <span><i class="swatch sw-unopened"></i> not open yet, shown when it opens</span>
+</div>
+</div>
+
+<script>
+const C = { CS357:'cs357', CS411:'cs411', ECE374:'ece374', CS425:'cs425', PHYS214:'phys214', CS424:'cs424' };
+const COURSES = ['CS357','CS411','ECE374','CS425','PHYS214','CS424'];
+// min = minutes from midnight; null = the course site gave a date and no time.
+const ITEMS = [
+  { d:8,  min:23*60+59, code:'CS357',   name:'HW4a Floating point',                kind:'work' },
+  { d:9,  min:15*60,    code:'CS411',   name:'Fall 2026 Office Hours',             kind:'event' },
+  { d:10, min:8*60,     code:'PHYS214', name:'Harmonic waves — Checkpoint',        kind:'work' },
+  { d:10, min:15*60,    code:'CS411',   name:'Fall 2026 Office Hours',             kind:'event' },
+  { d:10, min:21*60,    code:'CS357',   name:'CS 357: Quiz 1',                     kind:'exam' },
+  { d:10, min:null,     code:'CS424',   name:'Homework 1',                         kind:'work' },
+  { d:11, min:14*60,    code:'CS411',   name:'Class Zoom (excused absence)',       kind:'event' },
+  { d:11, min:23*60+59, code:'CS411',   name:'GA:2 Subqueries and Set Operations', kind:'work' },
+  { d:11, min:23*60+59, code:'CS411',   name:'GA:3 Advanced SQL Queries',          kind:'work' },
+  { d:12, min:9*60,     code:'ECE374',  name:'GPS4 Language Transformations',      kind:'unopened' },
+  { d:13, min:23*60+59, code:'CS425',   name:'MP1 Report (4cr only)',              kind:'work' },
+  { d:14, min:21*60+15, code:'ECE374',  name:'GPS3 DFAs, NFAs, Fooling Sets',      kind:'work' },
+  { d:14, min:23*60,    code:'CS357',   name:'L5 Rounding and Cancellation',       kind:'work' },
+  { d:14, min:23*60,    code:'CS357',   name:'L6 Taylor Series',                   kind:'work' },
+  { d:14, min:23*60,    code:'CS357',   name:'HW5 Rounding',                       kind:'work' },
+  { d:17, min:23*60+59, code:'PHYS214', name:'Homework 5',                         kind:'work' },
+  { d:18, min:8*60,     code:'PHYS214', name:'Checkpoint — Interference',          kind:'work' },
+  { d:21, min:12*60,    code:'CS357',   name:'CS 357: Quiz 2',                     kind:'exam' },
+  { d:24, min:null,     code:'CS424',   name:'Homework 2',                         kind:'work' },
+  { d:26, min:9*60,     code:'ECE374',  name:'GPS5 Divide and Conquer',            kind:'unopened' },
+  { d:28, min:23*60+59, code:'CS425',   name:'MP2 Report',                         kind:'work' },
+];
+const hidden = new Set();
+const visible = () => ITEMS.filter(i => !hidden.has(i.code));
+const cls = k => k==='event' ? ' pill--event' : k==='unopened' ? ' pill--unopened'
+  : k==='exam' ? ' pill--exam' : '';
+const clock = m => { const h=Math.floor(m/60), mm=String(m%60).padStart(2,'0');
+  const ap = h>=12?'PM':'AM'; return `${h%12===0?12:h%12}:${mm} ${ap}`; };
+const short = c => c.replace('PHYS','PH').replace('ECE','EC');
+
+/* ---- the filter strip, which is also the legend ---- */
+function renderFilters() {
+  for (const strip of document.querySelectorAll('[data-filters]')) {
+    strip.replaceChildren();
+    for (const code of COURSES) {
+      const on = !hidden.has(code);
+      const chip = document.createElement('button');
+      chip.className = 'fchip'; chip.setAttribute('aria-pressed', String(on));
+      chip.style.color = `var(--c-${C[code]})`;
+      chip.innerHTML = `<i style="background:var(--c-${C[code]})"></i><span style="color:var(--fg)">${code}</span>`;
+      chip.onclick = () => { hidden.has(code) ? hidden.delete(code) : hidden.add(code); renderAll(); };
+      strip.append(chip);
+    }
+    if (hidden.size) {
+      const n = ITEMS.filter(i => hidden.has(i.code)).length;
+      const note = document.createElement('span');
+      note.className = 'fhidden';
+      note.textContent = `${n} hidden`;
+      strip.append(note);
+    }
+  }
+}
+
+/* ---- day ---- */
+const START=8, END=24, PX=26;
+function renderDay() {
+  const items = visible().filter(i => i.d===10);
+  const untimed = items.filter(i => i.min===null);
+  const timed = items.filter(i => i.min!==null);
+
+  for (const band of document.querySelectorAll('[data-day-band]')) {
+    band.replaceChildren();
+    if (!untimed.length) continue;
+    const box = document.createElement('div'); box.className='allday';
+    box.innerHTML = `<div class="allday--head">The course site posted a day, not a time —
+      check the page for the cutoff.</div>`;
+    const list = document.createElement('div'); list.className='allday--items';
+    for (const i of untimed) {
+      const p=document.createElement('div'); p.className='pill '+C[i.code]+cls(i.kind);
+      p.innerHTML=`<span class="code">${i.code}</span><span class="name">${i.name}</span>`;
+      list.append(p);
+    }
+    box.append(list); band.append(box);
+  }
+
+  for (const hours of document.querySelectorAll('[data-day-hours]')) {
+    hours.replaceChildren();
+    for (let h=START; h<END; h++) {
+      const d=document.createElement('div'); d.className='hour';
+      d.textContent = h===12?'noon':(h%12===0?12:h%12)+(h<12?' AM':' PM');
+      hours.append(d);
+    }
+  }
+  for (const slots of document.querySelectorAll('[data-day-slots]')) {
+    slots.replaceChildren();
+    slots.style.height=((END-START)*PX)+'px';
+    for (let h=START; h<END; h++) {
+      const l=document.createElement('div'); l.className='slotline';
+      l.style.top=((h-START)*PX)+'px'; slots.append(l);
+    }
+    const buckets={};
+    for (const i of timed) { const k=Math.round(i.min/20); (buckets[k] ||= []).push(i); }
+    for (const k of Object.keys(buckets)) {
+      const g=buckets[k];
+      const box=document.createElement('div'); box.className='pileup';
+      box.style.top=(((g[0].min/60)-START)*PX - 2)+'px';
+      for (const i of g) {
+        const p=document.createElement('div'); p.className='pill '+C[i.code]+cls(i.kind);
+        p.innerHTML=`<span class="code">${i.code}</span><span class="name">${i.name}</span>`+
+          `<span class="meta">${clock(i.min)}</span>`;
+        box.append(p);
+      }
+      slots.append(box);
+    }
+    const nl=document.createElement('div'); nl.className='nowline';
+    nl.style.top=((20.933)-START)*PX+'px'; slots.append(nl);
+  }
+}
+
+/* ---- week, as day rows ---- */
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function renderWeek() {
+  for (const host of document.querySelectorAll('[data-week]')) {
+    host.replaceChildren();
+    for (const d of [7,8,9,10,11,12,13]) {
+      const mine = visible().filter(i=>i.d===d);
+      const r=document.createElement('div');
+      r.className='wrow'+(d===10?' wrow--today':'');
+      r.innerHTML=`<div class="wday"><div class="dow">${DOW[new Date(2026,8,d).getDay()]}</div><div class="num">${d}</div></div>`;
+      const box=document.createElement('div');
+      if (!mine.length) { box.className='wempty'; box.textContent='—'; }
+      else {
+        box.className='witems';
+        const timed = mine.filter(i=>i.min!==null);
+        const untimed = mine.filter(i=>i.min===null);
+        for (const i of timed) {
+          const p=document.createElement('div'); p.className='pill '+C[i.code]+cls(i.kind);
+          p.innerHTML=`<span class="code">${i.code}</span><span class="name">${i.name}</span>`+
+            `<span class="meta">${clock(i.min)}</span>`;
+          box.append(p);
+        }
+        if (untimed.length) {
+          const label=document.createElement('div'); label.className='wuntimed';
+          label.textContent='time not posted —';
+          box.append(label);
+          for (const i of untimed) {
+            const p=document.createElement('div'); p.className='pill '+C[i.code]+cls(i.kind);
+            p.innerHTML=`<span class="code">${i.code}</span><span class="name">${i.name}</span>`;
+            box.append(p);
+          }
+        }
+      }
+      r.append(box); host.append(r);
+    }
+  }
+}
+
+/* ---- month ---- */
+function renderMonth() {
+  for (const m of document.querySelectorAll('[data-month]')) {
+    m.replaceChildren();
+    const cells=[{n:30,out:true},{n:31,out:true}];
+    for (let d=1; d<=30; d++) cells.push({n:d,out:false});
+    for (let d=1; cells.length%7!==0; d++) cells.push({n:d,out:true});
+    for (const c of cells) {
+      const el=document.createElement('div');
+      el.className='mcell'+(c.out?' mcell--out':'')+(!c.out&&c.n===10?' mcell--today':'');
+      el.innerHTML=`<div class="mnum">${c.n}</div>`;
+      if (!c.out) {
+        const mine=visible().filter(i=>i.d===c.n);
+        for (const i of mine.slice(0,3)) {
+          const p=document.createElement('div');
+          p.className='mpill '+C[i.code]+(i.kind==='event'?' mpill--event':i.kind==='unopened'?' mpill--unopened':'')
+            +(i.min===null?' mpill--untimed':'');
+          if (i.kind==='exam') p.style.background='rgba(180,130,0,.16)';
+          p.title = i.min===null ? `${i.name} — the course site posted a day, not a time` : i.name;
+          p.innerHTML=`<span class="code">${short(i.code)}</span><span class="name">${i.name}</span>`;
+          el.append(p);
+        }
+        if (mine.length>3) {
+          const more=document.createElement('div'); more.className='mmore';
+          more.textContent=`+${mine.length-3} more`; el.append(more);
+        }
+      }
+      m.append(el);
+    }
+  }
+}
+
+function renderAll(){ renderFilters(); renderDay(); renderWeek(); renderMonth(); }
+renderAll();
+</script>
+</body>
+</html>
