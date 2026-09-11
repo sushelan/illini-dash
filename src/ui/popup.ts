@@ -17,7 +17,7 @@ import {
   setupProgress,
   setupSummary,
 } from "../core/setup.js";
-import { sameCourse } from "../core/dedupe.js";
+import { isItemDone, isTickedDone, sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import {
   type AttentionName,
@@ -220,6 +220,11 @@ function renderRow(
   }
   if (item.kind === "booking") {
     row.classList.add("row-booking");
+  } else if (isItemDone(item) || isTickedDone(item)) {
+    // Only reachable in the past now: finished work is still filtered out of
+    // everything ahead. It reads as done so it cannot be mistaken for a thing
+    // still owed while looking back over a week.
+    row.classList.add("row-done");
   } else if (item.kind === "event") {
     // An event is something that happens, not something owed. It reads as
     // background so a list of deadlines still looks like a list of deadlines —
@@ -1419,8 +1424,8 @@ function render(
   currentItems = items;
   viewEl.replaceChildren();
 
-  const onGrid = visibleItems(items, settings, hidden);
-  const colours = courseColours(coursesIn(visibleItems(items, settings)));
+  const onGrid = visibleItems(items, settings, hidden, now);
+  const colours = courseColours(coursesIn(visibleItems(items, settings, new Set(), now)));
 
   renderBookingStrip(items);
   renderTabs({
@@ -1432,7 +1437,7 @@ function render(
   // Measured rather than hard-coded: the bar's height is a font metric.
   const bar = document.querySelector<HTMLElement>(".bar");
   if (bar) tabsEl.style.top = `${bar.offsetHeight}px`;
-  renderFilters(visibleItems(items, settings), colours);
+  renderFilters(visibleItems(items, settings, new Set(), now), colours);
 
   const nav = navFor(view, now);
   renderDateNav(nav.label, nav.step);

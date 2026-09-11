@@ -386,25 +386,106 @@ describe("monthCells", () => {
 describe("visibleItems", () => {
   const settings: Settings = { ...DEFAULT_SETTINGS, hideSubmitted: true };
 
-  it("drops hidden rows, ticked rows and submitted work", () => {
+  it("drops hidden rows, ticked rows and submitted work that is still ahead", () => {
     const kept = visibleItems(
       [
         item({ title: "keep", dueAt: at(2026, 8, 11, 12) }),
         item({ title: "hidden", hidden: true }),
-        item({ title: "ticked", done: true }),
-        item({ title: "submitted", status: "graded", members: [member(undefined, "graded")] }),
+        item({ title: "ticked", done: true, dueAt: at(2026, 8, 11, 12) }),
+        item({
+          title: "submitted",
+          status: "graded",
+          dueAt: at(2026, 8, 11, 12),
+          members: [member(undefined, "graded")],
+        }),
       ],
       settings,
+      new Set(),
+      NOW,
     );
     expect(kept.map((i) => i.title)).toEqual(["keep"]);
   });
 
+  it("keeps finished work whose deadline has already gone", () => {
+    /*
+     * Sushi: "why don't the past assignments show up on the calendar". Because
+     * `hideSubmitted` filtered the whole list regardless of date — which is
+     * right for a list, where forward is the only direction, and wrong the
+     * moment there is a back arrow. Last week is a week you know you worked
+     * through, and an empty grid for it reads as a broken extension rather
+     * than as a finished week.
+     */
+    const kept = visibleItems(
+      [
+        item({
+          title: "handed in",
+          status: "graded",
+          dueAt: at(2026, 8, 8, 23, 59),
+          members: [member(undefined, "graded")],
+        }),
+        item({ title: "ticked off", done: true, dueAt: at(2026, 8, 8, 23, 59) }),
+      ],
+      settings,
+      new Set(),
+      NOW,
+    );
+    expect(kept.map((i) => i.title)).toEqual(["handed in", "ticked off"]);
+  });
+
+  it("still hides finished work that is ahead, which is what the setting is for", () => {
+    const kept = visibleItems(
+      [
+        item({
+          title: "done early",
+          status: "graded",
+          dueAt: at(2026, 8, 20, 23, 59),
+          members: [member(undefined, "graded")],
+        }),
+      ],
+      settings,
+      new Set(),
+      NOW,
+    );
+    expect(kept).toEqual([]);
+  });
+
+  it("hides finished undated work, which has no past to belong to", () => {
+    const kept = visibleItems(
+      [item({ title: "done", status: "graded", members: [member(undefined, "graded")] })],
+      settings,
+      new Set(),
+      NOW,
+    );
+    expect(kept).toEqual([]);
+  });
+
   it("keeps submitted work when the setting is off", () => {
     const kept = visibleItems(
-      [item({ title: "submitted", status: "graded", members: [member(undefined, "graded")] })],
+      [
+        item({
+          title: "submitted",
+          status: "graded",
+          dueAt: at(2026, 8, 20, 12),
+          members: [member(undefined, "graded")],
+        }),
+      ],
       { ...settings, hideSubmitted: false },
+      new Set(),
+      NOW,
     );
     expect(kept).toHaveLength(1);
+  });
+
+  it("hides a ticked row whatever the setting says, while it is still ahead", () => {
+    // The tick is the student's own statement, not a report from a source, so
+    // `hideSubmitted` — which is about trusting sources — does not govern it.
+    const kept = visibleItems(
+      [item({ title: "ticked", done: true, dueAt: at(2026, 8, 20, 12) })],
+      { ...settings, hideSubmitted: false },
+      new Set(),
+      NOW,
+    );
+    expect(kept).toEqual([]);
   });
 
   it("drops a course the student switched off in the chip strip", () => {
@@ -450,6 +531,25 @@ describe("attentionGroups", () => {
     expect(attentionGroups([item({ title: "undated" })], NOW).map((g) => g.name)).toEqual([
       "No date at all",
     ]);
+  });
+
+  it("never calls finished work overdue", () => {
+    // It reaches this function now only because past work stopped being
+    // filtered out of the views. It is in the past and on the grid, and it is
+    // not asking for anything.
+    const groups = attentionGroups(
+      [
+        item({
+          title: "handed in",
+          status: "graded",
+          dueAt: at(2026, 8, 8, 12),
+          members: [member(undefined, "graded")],
+        }),
+        item({ title: "ticked off", done: true, dueAt: at(2026, 8, 8, 12) }),
+      ],
+      NOW,
+    );
+    expect(groups).toEqual([]);
   });
 
   it("forgets overdue work after a week, when nothing can be done about it", () => {

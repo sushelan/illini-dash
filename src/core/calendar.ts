@@ -94,14 +94,33 @@ export function visibleItems(
   items: Item[],
   settings: Settings,
   hiddenCourses: ReadonlySet<string> = new Set(),
+  now: Date = new Date(),
 ): Item[] {
   return items.filter((item) => {
     if (item.hidden) return false;
     if (item.kind === "booking") return false;
-    if (isTickedDone(item)) return false;
-    if (settings.hideSubmitted && isItemDone(item)) return false;
+    if (isFinished(item, settings) && !isPast(item, now)) return false;
     return !hiddenCourses.has(item.courseLabel);
   });
+}
+
+function isFinished(item: Item, settings: Settings): boolean {
+  if (isTickedDone(item)) return true;
+  return settings.hideSubmitted && isItemDone(item);
+}
+
+/**
+ * Whether the deadline has already gone.
+ *
+ * The whole reason finished work is hidden is to stop it cluttering what is
+ * *ahead*. In a list that was the only direction there was, so the distinction
+ * never came up. A calendar has a back arrow, and hiding what you handed in
+ * turns last week — a week you know you worked through — into an empty grid,
+ * which reads as the extension being broken rather than as you being finished.
+ */
+function isPast(item: Item, now: Date): boolean {
+  const at = anchorOf(item, now);
+  return at !== undefined && at.at < now.getTime();
 }
 
 /** The bookings that belong in the strip above the tabs. */
@@ -377,6 +396,10 @@ export function attentionGroups(items: Item[], now: Date): AttentionGroup[] {
     // never reach this branch.
     if (anchor.at < now.getTime()) {
       if (item.kind === "event") continue;
+      // Handed in. It is in the past and it is on the grid, but it is not
+      // asking for anything — and it only reaches here at all because past
+      // work stopped being filtered out of the views.
+      if (isItemDone(item) || isTickedDone(item)) continue;
       if (now.getTime() - anchor.at <= OVERDUE_WINDOW_DAYS * 86_400_000) {
         buckets.get("Overdue")!.push(item);
       }

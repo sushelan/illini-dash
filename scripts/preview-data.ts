@@ -52,6 +52,12 @@ const items = [
          members: [member("prairielearn", { releasedAt: at(1, 9, 0) })] }),
   item({ courseLabel: "ECE374", title: "GPS5 Divide and Conquer, Recursion, and Recurrences",
          members: [member("prairielearn", { releasedAt: at(15, 9, 0) })] }),
+  // Handed in last week. Invisible until now: `hideSubmitted` filtered the
+  // whole list regardless of date, so navigating back showed an empty week.
+  item({ courseLabel: "CS357", title: "HW3 Errors and Big-O", dueAt: at(-3, 23, 59),
+         status: "graded", members: [member("prairielearn", undefined, "graded")] }),
+  item({ courseLabel: "CS425", title: "Reading response 3", dueAt: at(-4, 23, 59),
+         status: "submitted", members: [member("gradescope", undefined, "submitted")] }),
   // Canvas calendar events, from the same real list. The recurring one is the
   // point: four instances of this block and two class Zoom links were sitting
   // in "Needs attention", where nothing could ever clear them.

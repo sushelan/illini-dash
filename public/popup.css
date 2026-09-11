@@ -467,3 +467,9 @@ h2.section {
 .tab-warn[aria-selected="true"] { color: var(--warn); }
 /* Already sat: kept for a week so "done" and "never existed" look different. */
 .row-sat { opacity: .55; }
+
+/* Handed in, and in the past. Visible because the week you worked through
+   should not look like a week nothing happened in, struck because it is not
+   something still owed. */
+.row-done .row--title { text-decoration: line-through; opacity: .7; }
+.row-done .row--due { opacity: .7; }
