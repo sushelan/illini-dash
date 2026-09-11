@@ -194,6 +194,35 @@ and both were load-bearing: G2's "Canvas contributing 0 is a pass" exemption, an
 "no non-empty planner fixture is obtainable" — which had quietly left `parsePlannerItems`
 the only parser in the project never checked against a real response.
 
+## The popup is measured by Chrome, not sized by you
+
+`body { max-height: 600px; overflow-y: auto }` looked like a faithful reading of
+§8.1's "max height 600px". It is what made the popup open at **800x600 with the
+400px list in its left half**.
+
+Chrome sizes an extension popup by measuring the document's intrinsic box. Making
+`body` its own scroll container leaves the document with no intrinsic height to
+measure, so Chrome falls back to its maximum. The width was being honoured the whole
+time — inside a window that had no reason to be that wide. Chrome already caps a popup
+at 600 tall and scrolls it itself, so §8.1's cap is satisfied by writing nothing, and
+the width belongs on `html` as well as `body` because `html` is the box being measured.
+
+Two things follow for any future popup CSS:
+
+- **Never make `body` or `html` a scroll container in the popup**, and be suspicious of
+  any percentage or viewport unit on either — they all take away the thing Chrome needs
+  to measure.
+- **A layout rule keyed on window width can feed itself.** Chrome lays the document out
+  to decide the width, so `@media (min-width: …)` that changes the layout can measure
+  wide, restyle wider and open wider. The full view keys off a marker the page sets from
+  its own URL instead.
+
+It also took Sushi telling me three times. The first two answers reasoned from a preview
+harness that wrapped the list in a fixed-width `<div>` — which cannot reproduce a
+`body`-level sizing bug by construction. `npm run preview` now also emits
+`preview-popup.html`, the real `popup.html` with only `chrome.*` stubbed. **When the
+symptom is about the window, the harness has to be the real document.**
+
 ## Review policy
 
 Full adversarial review is expensive (~20 min, ~1.5M tokens) and its yield is falling now
