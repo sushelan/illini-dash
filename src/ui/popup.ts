@@ -1227,8 +1227,7 @@ const ATTENTION_NOTE: Record<AttentionName, string> = {
   Overdue: "Past its deadline in the last week.",
   "Couldn't read":
     "The source printed a date this extension could not make sense of, so these have no place on the calendar. They are the deadlines it is least sure about.",
-  "No date at all":
-    "Listed by a source with no deadline on it anywhere. Usually an ungraded survey, a Canvas shell, or work whose instructor has not set a date yet. Nothing to do — kept so that nothing a source told us about is silently dropped.",
+  "No date at all": "Listed by a source with no deadline on it anywhere.",
 };
 
 function renderAttentionView(items: Item[], now: Date, colours: Map<string, number>): void {
@@ -1273,11 +1272,6 @@ function renderFoldedGroup(
   summary.textContent = `${group.name} (${group.items.length})`;
   summary.title = ATTENTION_NOTE[group.name];
   fold.append(summary);
-
-  const note = document.createElement("p");
-  note.className = "fold--note";
-  note.textContent = ATTENTION_NOTE[group.name];
-  fold.append(note);
 
   for (const item of group.items) {
     fold.append(renderRow(item, now, "Needs attention", undefined, colours));

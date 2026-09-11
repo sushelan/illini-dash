@@ -460,4 +460,3 @@ h2.section {
 .fold--summary::before { content: "▸ "; }
 .fold[open] .fold--summary::before { content: "▾ "; }
 .fold--summary:hover { color: var(--fg); }
-.fold--note { font-size: 11px; color: var(--muted); margin: 0 12px 6px; line-height: 1.4; }
