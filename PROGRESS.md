@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (612 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (628 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -222,6 +222,73 @@ One defect, and one superseded claim:
 | 19 — PL/PT "not used by you" | Not started; the cheap half needs nothing from Sushi. |
 | 20 — first-run page | Not started. |
 | 21 — run G4 | Sushi's. |
+
+## The UI pass (2026-09-10 → 11)
+
+Started once Tier 0b's shippable half was done, because the list is the product and it
+had never been looked at outside a fixture.
+
+**The popup opened at 800×600 with the list in its left half.** `body { max-height:
+600px; overflow-y: auto }` read like a faithful implementation of §8.1's "max height
+600px" and was the cause: it makes `body` its own scroll container, which leaves the
+document with no intrinsic height for Chrome to measure, so Chrome falls back to its
+maximum. Chrome already caps a popup at 600 tall and scrolls it itself, so the cap is
+satisfied by writing nothing. Sushi reported this three times before it was diagnosed —
+the first two answers reasoned from a preview harness that wrapped the list in a
+fixed-width `<div>`, which cannot reproduce a `body`-level sizing bug by construction.
+`npm run preview` now emits **`preview-popup.html`** as well, the real `popup.html` with
+only `chrome.*` stubbed. Written up in CLAUDE.md as its own section.
+
+**Row layout.** The rows are a CSS grid with fixed tracks, so dates line up on one right
+edge across every row instead of drifting with title length; `minmax(0, 1fr)` on the
+title is the only track that shrinks. The date column stopped repeating what the section
+heading already says (`formatDue` takes the section and picks relative, time, weekday or
+date accordingly), which freed 42px. Qualifiers that used to compete with the title —
+"no time", "moved Tue → Fri", a late window — moved to a second line spanning the row.
+
+**Source labels were removed and put back.** They were dropped from single-source rows to
+buy title width, on the grounds that §5.3 gives one purpose for them ("a merged row shows
+both icons, so a false merge is visible"). Sushi pointed out that where a deadline lives
+is separately useful: it says which site to open, it is what the row's click does, and it
+is most of what makes a row checkable rather than asserted. Restored on every row, with
+different hover text for the merged and single cases. Truncation went 3 → 5 of 17 rows,
+against 8 of 17 (worst case 5px) before the pass.
+
+**Still open — Sushi's call:** where the UI goes next. Function (search, chip filtering,
+collapsible sections, keyboard nav), information already fetched and hidden (exam room and
+duration, release times, the full credit ladder), or visual (course colours, a week grid).
+Recommendation on file is function first, specifically search plus chip filtering, since a
+real list runs past thirty rows with no way to narrow it. Also noted and untouched: the
+health dots are hard to tell apart at 9px, yellow against green especially in dark mode —
+shape or a letter would fix it.
+
+### A worker on an older build killed the settings page (2026-09-11)
+
+`TypeError: Cannot read properties of undefined (reading 'length')` on
+`state.setAsideCourses`. That field arrived with Tier 0b.17; the page was build
+20260911T011632 and the running worker was older, so it answered `get-options-state`
+without it.
+
+The crash was the symptom. The defect was that both UI surfaces treat a message from
+another process as a typed object — `Response` is a compile-time claim about the
+*sender's* build. Four sections had drawn and five had not, `refreshOptions` is called as
+`void refreshOptions()` from a dozen controls so the rejection was uncaught, and the only
+evidence was a line in a console most people never open, for a problem whose fix is one
+click on chrome://extensions.
+
+`src/core/compat.ts` normalizes every field a page dereferences and reports which were
+absent, so the page renders and names the missing fields on screen. In core, not in the
+UI, because it is a decision and the options page is as unreachable by the suite as
+`background.ts` (worker rule 1). The popup had the same exposure and worse consequences —
+no scrollback and no console, so a throw there is a blank rectangle — and it already
+carried a hand-written `settings ?? DEFAULT_SETTINGS`, which is this defect found once and
+patched at one call site; `items` and `sources` are dereferenced on the next two lines and
+were unguarded. A *partial* settings object slipped past that guard too, so an older
+worker's missing `hideSubmitted` would have read as "show everything". Both render paths
+now catch and report into the one channel each surface has.
+
+13 tests, 9 mutations, all killed — one only after adding the settings-backfill case it
+first survived. Now house rule 8 for the worker and the loop.
 
 ## Two sources and an adapter mechanism added after Tier 0a
 

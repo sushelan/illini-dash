@@ -241,7 +241,7 @@ that the house rules above are written down. So:
 - **Full review** — `core/dedupe.ts` and the sync loop (steps 7–8). That is where G2 and
   G3 risk lives and where a defect is hardest to see by hand.
 - **Light or no review** — behaviour-preserving refactors, UI, and anything the existing
-  612-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
+  628-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
 - Any review prompt should include the house rules above and be told to hunt for
   *new* classes.
 - When a review's refuters fail (API errors), findings that could not be judged are
