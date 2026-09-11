@@ -97,6 +97,8 @@ const items = [
          members: [member("gradescope", { unparsedDueDate: "2026-09-31 17:00:00 -0500" })] }),
 ];
 
+let setupDone = false;
+
 const sources = {
   canvas: { source: "canvas", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   gradescope: { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
@@ -109,6 +111,33 @@ const sources = {
 (globalThis as unknown as { chrome: unknown }).chrome = {
   runtime: {
     sendMessage: async (req: { type: string }) => {
+      // `?setup=1` shows the first-run screen, which is otherwise reachable
+      // only by installing the extension into a clean Chrome profile — the
+      // single hardest state in this project to look at.
+      if (req.type === "complete-setup") {
+        setupDone = true;
+        return { type: "ok" };
+      }
+      if (req.type === "get-setup") {
+        if (setupDone || !new URLSearchParams(location.search).has("setup")) {
+          return { type: "setup" };
+        }
+        return {
+          type: "setup",
+          rows: [
+            { source: "canvas", label: "Canvas", hint: "Every UIUC course",
+              enabled: true, status: { ...sources.canvas, state: "ok" } },
+            { source: "gradescope", label: "Gradescope", hint: "Most CS, ECE and Math courses",
+              enabled: true, status: { source: "gradescope", enabled: true, state: "needs_login", consecutiveFailures: 1 } },
+            { source: "prairielearn", label: "PrairieLearn", hint: "CS and ECE homework and quizzes",
+              enabled: true, status: { source: "prairielearn", enabled: true, state: "pending", consecutiveFailures: 0 } },
+            { source: "prairietest", label: "PrairieTest", hint: "Exams booked at the CBTF",
+              enabled: false, status: { source: "prairietest", enabled: false, state: "disabled", consecutiveFailures: 0 } },
+            { source: "smartphysics", label: "smartPhysics", hint: "PHYS 211, 212, 213 and 214 only",
+              enabled: false, status: { source: "smartphysics", enabled: false, state: "disabled", consecutiveFailures: 0 } },
+          ],
+        };
+      }
       if (req.type === "get-state") {
         return { type: "state", items, sources, notificationsBlocked: false,
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },

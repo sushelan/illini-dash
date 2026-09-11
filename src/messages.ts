@@ -13,6 +13,7 @@ import type { GradescopeCourse } from "./sources/gradescope.js";
 import type { SmartPhysicsCourse } from "./sources/smartphysics.js";
 import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
+import type { SetupRow } from "./core/setup.js";
 import type {
   Adapter,
   Item,
@@ -27,6 +28,8 @@ import type {
 /** UI → service worker. */
 export type Request =
   | { type: "ping" }
+  | { type: "get-setup" }
+  | { type: "complete-setup" }
   | { type: "gate0" }
   | { type: "parse-selftest" }
   | { type: "capture"; url: string }
@@ -90,6 +93,11 @@ export type Response =
       lastSyncAt?: string;
     }
   | { type: "ok" }
+  | {
+      type: "setup";
+      /** Absent means setup is finished and the calendar should be drawn. */
+      rows?: SetupRow[];
+    }
   | {
       type: "adapters";
       adapters: (Adapter & { enabled: boolean; granted: boolean; currentTerm: boolean })[];

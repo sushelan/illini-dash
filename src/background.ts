@@ -27,6 +27,7 @@ import {
 import { dedupe } from "./core/dedupe.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, statusAfterEnable } from "./core/health.js";
+import { needsSetup, setupRows } from "./core/setup.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
@@ -601,6 +602,23 @@ chrome.runtime.onMessage.addListener(
               lastSyncAt: store.lastSyncAt,
             }) as const,
         ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
+      );
+    }
+    if (request?.type === "get-setup") {
+      return answer(
+        loadStore().then((store) => ({
+          type: "setup",
+          // Absent rather than an empty list: "finished" and "nothing to choose"
+          // are different answers and the popup acts on them differently.
+          rows: needsSetup(store) ? setupRows(store) : undefined,
+        }) as const),
+      );
+    }
+    if (request?.type === "complete-setup") {
+      return answer(
+        mutate((store) => {
+          store.setupDoneAt = new Date().toISOString();
+        }).then(() => ({ type: "ok" }) as const),
       );
     }
     if (request?.type === "get-options-state") {

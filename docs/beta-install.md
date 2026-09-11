@@ -29,6 +29,24 @@ Chrome shows a bubble saying "Disable developer mode extensions" every time it s
 That is normal for anything installed this way, and it goes away when the extension is
 in the store. You can dismiss it.
 
+## First run
+
+The first time you click the icon it asks **which sites your courses use**, with a
+one-line note on each saying who it is for. Canvas, Gradescope, PrairieLearn and
+PrairieTest start ticked; smartPhysics does not, because it only serves PHYS 211–214.
+
+Untick anything you do not take — a source you switched off stops being read and stops
+asking you to sign in. **You can change all of it later in Settings**, so nothing here is
+final.
+
+Rows tick themselves green as each site starts working. **Open all sign-in pages** opens a
+tab for each one you picked that is not signed in yet, which is faster than finding four
+sites by hand. **Show my calendar** is clickable the whole time — it never blocks you.
+
+This screen appears once. It does not come back when a session later expires; that shows
+as a yellow dot and a banner instead, because the deadlines already fetched are still
+worth seeing.
+
 ## Check it worked
 
 Click the Illini Dash icon.

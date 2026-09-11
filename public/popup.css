@@ -396,3 +396,50 @@ h2.section {
   font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); margin: 0; padding: 8px 12px 2px; font-weight: 600;
 }
+
+/* ==========================================================================
+ * First run
+ *
+ * It replaces the calendar rather than sitting above it. What it replaces was a
+ * full calendar shell over an empty grid with one sentence of explanation, and
+ * that reads as a broken app rather than a first step.
+ * ====================================================================== */
+.setup .bar .link[id="full"], .setup .bar #sync { visibility: hidden; }
+.setup--page { padding: 14px 14px 16px; }
+.setup--title { font-size: 15px; margin: 0 0 6px; }
+.setup--blurb { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
+.setup--row {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line);
+}
+.setup--label { min-width: 0; cursor: pointer; }
+.setup--name { display: block; font-size: 13px; }
+/* Who each site is for. Unchecking something you do need is the expensive
+   mistake here, and nobody can answer a checklist of names they do not know. */
+.setup--hint { display: block; font-size: 11px; color: var(--muted); line-height: 1.35; }
+.setup--state { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.setup--state-ok { color: var(--ok); }
+.setup--state-login { color: var(--warn); }
+.setup--state-err { color: var(--err); cursor: help; }
+.setup--state-off { opacity: .6; }
+.setup--signin {
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  color: var(--warn); background: none;
+  border: 1px solid var(--warn); border-radius: 5px; padding: 2px 8px;
+}
+.setup--summary {
+  font-size: 12px; margin: 12px 0 2px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.setup--note { font-size: 11px; color: var(--muted); margin: 0 0 14px; }
+.setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.setup--primary {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  color: var(--bg); background: var(--fg); border: 1px solid var(--fg);
+  border-radius: 6px; padding: 6px 14px;
+}
+.setup--secondary {
+  font: inherit; font-size: 12px; cursor: pointer; color: inherit;
+  background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px;
+}
+.setup--brand { font-size: 12px; font-weight: 600; }

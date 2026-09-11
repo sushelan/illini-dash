@@ -91,6 +91,14 @@ export interface StoreV1Plus extends StoreV1 {
    * which is the silent-exclusion failure worker rule 2 is about.
    */
   setAsideCourses: { id: string; name: string; courseCode?: string; reason: string }[];
+  /**
+   * When the student finished the first-run screen.
+   *
+   * Absent on every store written before it existed, which is why `needsSetup`
+   * also treats "some source has succeeded" as finished — otherwise shipping
+   * this puts a setup screen in front of every beta tester who set up days ago.
+   */
+  setupDoneAt?: string;
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -237,6 +245,7 @@ export function migrate(stored: unknown): StoreV1Plus {
     enabledAdapters: Array.isArray(value.enabledAdapters)
       ? value.enabledAdapters.filter((id): id is string => typeof id === "string")
       : [],
+    setupDoneAt: typeof value.setupDoneAt === "string" ? value.setupDoneAt : undefined,
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>

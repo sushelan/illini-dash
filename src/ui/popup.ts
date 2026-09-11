@@ -11,6 +11,12 @@
 import { BUILD_ID } from "../build-info.js";
 import { send } from "../messages.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
+import {
+  type SetupRow,
+  loginsToOpen,
+  setupProgress,
+  setupSummary,
+} from "../core/setup.js";
 import { sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import {
@@ -493,6 +499,174 @@ function bookingWindowText(item: Item): { primary: string; detail?: string } {
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   return { primary: "not booked", detail: `sessions ${fmt(start)}–${fmt(end)}` };
+}
+
+/* -------------------------------------------------------------------------- */
+/* First run                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const SOURCE_TITLE: Partial<Record<Source, string>> = {
+  canvas: "Canvas",
+  gradescope: "Gradescope",
+  prairielearn: "PrairieLearn",
+  prairietest: "PrairieTest",
+  smartphysics: "smartPhysics",
+};
+
+/**
+ * The first-run screen: which sites this student's courses actually use.
+ *
+ * It hides the calendar chrome entirely rather than sitting above it, because
+ * the thing it replaces was a full calendar shell with one sentence of
+ * explanation under it, which reads as a broken app rather than a first step.
+ *
+ * Nothing here blocks. "Show my calendar" is clickable from the first paint —
+ * see the module comment in core/setup.ts for why a gate was the wrong answer.
+ */
+function renderSetup(rows: SetupRow[]): void {
+  document.body.classList.add("setup");
+  // The dots say how each source is doing, which is the checklist's whole job
+  // here — leaving them in the bar as well would be the same fact twice, and
+  // an empty dot row reads as a bar that failed to load. The name instead.
+  dotsEl.replaceChildren();
+  const name = document.createElement("span");
+  name.className = "setup--brand";
+  name.textContent = "Illini Dash";
+  dotsEl.append(name);
+  bookingEl.replaceChildren();
+  tabsEl.replaceChildren();
+  filtersEl.replaceChildren();
+  dateNavEl.replaceChildren();
+  dateNavEl.hidden = true;
+  viewEl.replaceChildren();
+
+  const page = document.createElement("div");
+  page.className = "setup--page";
+
+  const heading = document.createElement("h1");
+  heading.className = "setup--title";
+  heading.textContent = "Which sites do your courses use?";
+
+  const blurb = document.createElement("p");
+  blurb.className = "setup--blurb";
+  blurb.textContent =
+    "Illini Dash reads your deadlines from these using the logins already in your browser. " +
+    "It never sees a password, and nothing leaves your computer.";
+
+  page.append(heading, blurb);
+
+  for (const row of rows) {
+    page.append(renderSetupRow(row));
+  }
+
+  const summary = document.createElement("p");
+  summary.className = "setup--summary";
+  summary.textContent = setupSummary(setupProgress(rows));
+
+  // The line Sushi asked for. It goes under the list rather than in the blurb
+  // because this is the worry the list creates — "what if I pick wrong" — and
+  // the answer belongs next to the choice, not three paragraphs above it.
+  const changeable = document.createElement("p");
+  changeable.className = "setup--note";
+  changeable.textContent = "You can change any of this later in Settings.";
+
+  page.append(summary, changeable);
+
+  const actions = document.createElement("div");
+  actions.className = "setup--actions";
+
+  const outstanding = loginsToOpen(rows);
+  if (outstanding.length > 0) {
+    const all = document.createElement("button");
+    all.className = "setup--secondary";
+    all.textContent =
+      outstanding.length === 1 ? "Open the sign-in page" : `Open all ${outstanding.length} sign-in pages`;
+    all.title = "Opens a tab for each site you picked that is not signed in yet";
+    all.addEventListener("click", () => {
+      for (const source of outstanding) {
+        const url = LOGIN_URL[source];
+        // Not focused: four tabs stealing focus one after another would leave
+        // the student on whichever opened last, with no idea where they are.
+        if (url) chrome.tabs.create({ url, active: false });
+      }
+    });
+    actions.append(all);
+  }
+
+  const done = document.createElement("button");
+  done.className = "setup--primary";
+  done.textContent = "Show my calendar";
+  done.addEventListener("click", async () => {
+    done.disabled = true;
+    await send({ type: "complete-setup" });
+    document.body.classList.remove("setup");
+    await refresh();
+  });
+  actions.append(done);
+
+  page.append(actions);
+  viewEl.append(page);
+}
+
+function renderSetupRow(row: SetupRow): HTMLElement {
+  const line = document.createElement("div");
+  line.className = "setup--row";
+
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = row.enabled;
+  box.id = `setup-${row.source}`;
+  box.addEventListener("change", async () => {
+    box.disabled = true;
+    await send({ type: "set-source-enabled", source: row.source, enabled: box.checked });
+    // A source just switched on has never been fetched, so ask for one now
+    // rather than leaving the row pending until the next poll — the whole
+    // screen is a checklist that is supposed to tick itself.
+    if (box.checked) void send({ type: "sync", trigger: "manual" });
+    await refresh();
+  });
+
+  const label = document.createElement("label");
+  label.className = "setup--label";
+  label.htmlFor = box.id;
+  const name = document.createElement("span");
+  name.className = "setup--name";
+  name.textContent = SOURCE_TITLE[row.source] ?? row.source;
+  const hint = document.createElement("span");
+  hint.className = "setup--hint";
+  hint.textContent = row.hint;
+  label.append(name, hint);
+
+  const state = document.createElement("span");
+  state.className = "setup--state";
+  if (!row.enabled) {
+    state.textContent = "not used";
+    state.classList.add("setup--state-off");
+  } else if (row.status?.lastSuccessAt !== undefined) {
+    state.textContent = "✓ connected";
+    state.classList.add("setup--state-ok");
+  } else if (row.status?.state === "needs_login") {
+    const url = LOGIN_URL[row.source];
+    if (url) {
+      const button = document.createElement("button");
+      button.className = "setup--signin";
+      button.textContent = "Sign in";
+      button.addEventListener("click", () => chrome.tabs.create({ url }));
+      state.append(button);
+    } else {
+      state.textContent = "needs sign-in";
+    }
+    state.classList.add("setup--state-login");
+  } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
+    state.textContent = "could not read";
+    state.title = row.status.lastError ?? "";
+    state.classList.add("setup--state-err");
+  } else {
+    state.textContent = "checking…";
+  }
+
+  line.append(box, label, state);
+  return line;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1194,6 +1368,15 @@ async function refresh(): Promise<void> {
 }
 
 async function draw(): Promise<void> {
+  // Before anything else: a fresh install has nothing to draw a calendar from,
+  // and the calendar shell over an empty grid reads as a broken app.
+  const setup = await send({ type: "get-setup" });
+  if (setup.type === "setup" && setup.rows !== undefined) {
+    renderSetup(setup.rows);
+    return;
+  }
+  document.body.classList.remove("setup");
+
   const response = await send({ type: "get-state" });
   if (response.type !== "state") {
     statusEl.textContent = response.type === "error" ? response.message : "Unexpected response.";
