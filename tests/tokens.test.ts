@@ -76,12 +76,23 @@ function blocks(): Block[] {
   return found;
 }
 
-/** Every palette block, keyed by the name this test reports it under. */
+/**
+ * Every palette block, keyed by the name this test reports it under.
+ *
+ * Declarations are **merged**, not replaced, because a selector may legitimately
+ * appear more than once — `:root` carries the palette near the top of the file
+ * and one `accent-color` line further down. Overwriting on the second match
+ * silently emptied the palette and turned five assertions below into
+ * `expected NaN`, which is the "checking nothing" failure the first test in this
+ * file exists to catch.
+ */
 function palettes(): Map<string, Map<string, string>> {
   const out = new Map<string, Map<string, string>>();
   for (const block of blocks()) {
     if (!block.name.startsWith(":root") && !block.name.startsWith(".theme-")) continue;
-    out.set(block.name, block.vars);
+    const existing = out.get(block.name);
+    if (existing) for (const [k, v] of block.vars) existing.set(k, v);
+    else out.set(block.name, block.vars);
   }
   return out;
 }

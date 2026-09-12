@@ -194,6 +194,265 @@
   }
 }
 
+
+/* ==========================================================================
+ * Components
+ * ==========================================================================
+ *
+ * One set, defined once, spent everywhere. Before this there were eight button
+ * styles across three radii (`.link`, `#sync`, `.book--go`, `.setup--primary`,
+ * `.setup--secondary`, `.datenav--today`, `.mmore`, and bare `button`), two
+ * kinds of checkbox, and three text glyphs standing in for icons. That is not
+ * eight decisions — it is one decision made eight times, slightly differently,
+ * which is what makes an interface feel unfinished even when every screen is
+ * individually fine.
+ *
+ * It sits **below the palette and above everything else**, and contains no
+ * colour values of its own — only tokens (docs/colour-layer.md rule 3). Both
+ * pages load this file, which is why the primitives live here rather than in
+ * popup.css.
+ */
+
+/* ---- one focus ring, one hover, one disabled ---- */
+
+/*
+ * `:focus-visible`, not `:focus`: a mouse click on a button should not leave a
+ * ring behind it, and `:focus` does exactly that. The ring is 2px outside the
+ * control rather than a border swap, so nothing reflows when it appears.
+ */
+:where(button, a, input, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+:where(button, input, select):disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+/* Native controls that survive — checkboxes on the first-run screen, and the
+   ones in the debug tools — at least take the accent rather than the OS blue. */
+:root { accent-color: var(--accent); }
+
+/* ---- buttons ---- */
+
+/*
+ * Four kinds, and the hierarchy is the whole point: at most one `-primary` on a
+ * screen, `-secondary` for anything else that is a real action, `-quiet` for
+ * something that undoes or postpones, `-icon` where a label will not fit.
+ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  box-sizing: border-box;
+  height: 28px; padding: 0 12px;
+  font: inherit; font-size: 12px; font-weight: 600; line-height: 1;
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--fg);
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+}
+.btn-sm { height: 24px; padding: 0 8px; font-size: 11px; }
+.btn .icon { width: 14px; height: 14px; flex: none; }
+
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-primary:active:not(:disabled) { filter: brightness(.94); }
+
+.btn-secondary { background: var(--bg); border-color: var(--line); color: var(--fg); }
+.btn-secondary:hover:not(:disabled) { background: var(--hover); }
+.btn-secondary:active:not(:disabled) { background: var(--tint-strong); }
+
+.btn-quiet { color: var(--muted); }
+.btn-quiet:hover:not(:disabled) { color: var(--fg); background: var(--hover); }
+
+/*
+ * Square, because the thing inside it is square. 28px is the hit area; the
+ * glyph is 16px. `⋯` used to be a bare character with a 2px horizontal padding,
+ * which is a 9px target on a control the row menu depends on.
+ */
+.btn-icon {
+  width: 28px; height: 28px; padding: 0; flex: none;
+  color: var(--muted); border-radius: 6px;
+}
+.btn-icon:hover:not(:disabled) { color: var(--fg); background: var(--hover); }
+.btn-icon.btn-sm { width: 24px; height: 24px; }
+
+/*
+ * The sync button, mid-request. A state on the control that started the work,
+ * rather than a word written 800px below the fold — which is where "Syncing…"
+ * used to go.
+ */
+.btn-icon[data-busy="true"] .icon { animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- switch ---- */
+
+/*
+ * A real `<input type="checkbox">` underneath, restyled. Not a `<div>` with a
+ * click handler: the checkbox keeps the keyboard behaviour, the label
+ * association, the form semantics and the announcement, and all of those are
+ * things a div would have to reimplement and would reimplement incompletely.
+ */
+.switch {
+  appearance: none; -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 32px; height: 18px; flex: none; margin: 0;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--tint-strong);
+  position: relative; cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--muted);
+  transition: transform 120ms ease-out, background-color 120ms ease-out;
+}
+.switch:checked { background: var(--primary); border-color: var(--primary); }
+.switch:checked::after { transform: translateX(14px); background: var(--primary-ink); }
+.switch:disabled { cursor: default; }
+
+/* ---- chips ---- */
+
+/*
+ * Three uses, one shape. A course chip identifies; a state chip reports; a
+ * count chip counts. They share a size so a row carrying two of them does not
+ * look like a row carrying two different kinds of thing.
+ */
+.chip-base {
+  display: inline-flex; align-items: center; gap: 6px;
+  box-sizing: border-box;
+  height: 22px; padding: 0 8px;
+  font-size: 11px; font-weight: 600; line-height: 1;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); color: var(--fg);
+  white-space: nowrap;
+}
+.chip-base .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: currentColor; }
+
+.chip-state { border-color: transparent; background: var(--tint-strong); color: var(--muted); }
+.chip-state.is-ok { color: var(--ok); }
+.chip-state.is-warn { color: var(--warn); background: var(--warn-wash); }
+.chip-state.is-err { color: var(--err); background: var(--err-wash); }
+
+/*
+ * A count on a tab. 16px so it fits inside a 36px strip beside a 12px label,
+ * and `tabular-nums` so 1 and 11 do not change the tab's width as the number
+ * changes underneath the cursor.
+ */
+.chip-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 0; border-radius: 999px;
+  background: var(--err-wash); color: var(--err);
+}
+.chip-count.is-warn { background: var(--warn-wash); color: var(--warn); }
+
+/* ---- the health pill ---- */
+
+/*
+ * What the popup's six 9px dots become. It is a `<button>` in every state —
+ * including the healthy one — because "which sources, and when" is a question
+ * worth answering on a good day too, and a control that only appears when
+ * something is broken is a control nobody has learned.
+ */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  box-sizing: border-box;
+  height: 24px; padding: 0 8px; max-width: 100%;
+  font: inherit; font-size: 11px; font-weight: 600; line-height: 1;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--fg);
+  cursor: pointer; white-space: nowrap; overflow: hidden;
+}
+.pill:hover { background: var(--hover); }
+.pill--text { overflow: hidden; text-overflow: ellipsis; }
+.pill .icon { width: 12px; height: 12px; flex: none; color: var(--muted); }
+.pill--dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+.pill.is-ok .pill--dot { background: var(--ok); }
+.pill.is-warn .pill--dot { background: var(--warn); }
+.pill.is-err .pill--dot { background: var(--err); }
+/* Never fetched is hollow, not filled: at a glance it must read as neither
+   healthy nor broken, because neither is known yet (worker house rule 2). */
+.pill.is-pending .pill--dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+
+/* ---- banners ---- */
+
+/*
+ * One line, one sentence, one action. The rule is what keeps three of them from
+ * becoming a wall: if a banner needs two sentences, the second one belongs on
+ * the page it links to.
+ */
+.banner-line {
+  display: flex; align-items: center; gap: 8px;
+  box-sizing: border-box;
+  min-height: 32px; padding: 4px 12px;
+  font-size: 12px; line-height: 1.35;
+  border-bottom: 1px solid var(--line);
+  background: var(--tint);
+}
+.banner-line .icon { width: 14px; height: 14px; flex: none; }
+.banner-line--text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.banner-warn { background: var(--warn-wash); color: var(--fg); }
+.banner-warn .icon { color: var(--warn); }
+.banner-err { background: var(--err-wash); color: var(--fg); }
+.banner-err .icon { color: var(--err); }
+.banner-info .icon { color: var(--muted); }
+
+/* ---- menu ---- */
+
+.menu-surface {
+  position: absolute; z-index: 20; min-width: 190px; max-width: 340px;
+  padding: 4px 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 6px 20px var(--shadow);
+  animation: menu-in 120ms ease-out;
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-2px); } }
+.menu-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; height: 28px; padding: 0 12px;
+  font: inherit; font-size: 12px; text-align: left;
+  background: none; border: 0; color: inherit; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Hover and keyboard selection are the same highlight on purpose: with two
+   different ones, arrowing down a menu the mouse is resting on shows two
+   "selected" rows and neither is the one Enter will take. */
+.menu-item:hover,
+.menu-item[data-active="true"] { background: var(--hover); }
+.menu-item:focus-visible { outline-offset: -2px; }
+.menu-item .icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+
+/* ---- fields ---- */
+
+.field {
+  box-sizing: border-box;
+  height: 28px; padding: 0 8px;
+  font: inherit; font-size: 12px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--fg);
+}
+.field:hover:not(:disabled) { border-color: var(--muted); }
+select.field { padding-right: 4px; cursor: pointer; }
+textarea.field { height: auto; padding: 6px 8px; }
+
+/* ---- motion ---- */
+
+/*
+ * Two transitions and two animations in the whole interface, all of them under
+ * 120ms and none of them moving layout. Anyone who has asked not to see motion
+ * gets none: `prefers-reduced-motion` is a stated preference, not a hint.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 body {
   margin: 0;
   padding: 12px;

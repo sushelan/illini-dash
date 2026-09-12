@@ -22,7 +22,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
@@ -118,7 +118,8 @@ writeFileSync(
       } catch {
         /* A profile with site data blocked. The page still renders its default. */
       }
-      const page = q.get("page") === "options" ? "preview-options.html" : "preview-popup.html";
+      const pages = { options: "preview-options.html", components: "components.html" };
+      const page = pages[q.get("page")] || "preview-popup.html";
       for (const key of ["page", "tab", "theme", "hidden"]) q.delete(key);
       location.replace(page + (q.toString() ? "?" + q.toString() : ""));
     </script>
@@ -127,6 +128,29 @@ writeFileSync(
 `,
 );
 
+/**
+ * The component gallery: every primitive in every state, on one page.
+ *
+ * Bundled from `scripts/components.ts`, which imports the real
+ * `src/ui/icons.ts` — so an icon that is broken here is broken in the
+ * extension. A component system nobody can look at is one that drifts, and the
+ * eight button styles this replaced existed because there was no page on which
+ * they would ever be seen side by side.
+ */
+execFileSync(
+  "npx",
+  [
+    "esbuild",
+    join(root, "scripts", "components.ts"),
+    "--bundle",
+    "--format=esm",
+    `--outfile=${join(dist, "components.js")}`,
+    "--log-level=error",
+  ],
+  { cwd: root },
+);
+copyFileSync(join(root, "scripts", "components.html"), join(dist, "components.html"));
+
 // The framed page, removed. `dist/` is cleared by every build, so this only
 // matters when preview runs against a tree that still has one lying around.
 rmSync(join(dist, "preview.html"), { force: true });
@@ -134,6 +158,7 @@ rmSync(join(dist, "preview.html"), { force: true });
 console.log(`preview built (page build ${pageBuild})`);
 console.log("  dist/preview-popup.html      the real popup, 400px — use this for anything about size");
 console.log("  dist/preview-options.html    the real Settings page   (?stale=1 for an older worker)");
+console.log("  dist/components.html         every primitive in every state, all three themes");
 console.log("  dist/shot.html               seeds view/theme, then redirects — what npm run shots drives");
 console.log("");
 console.log("  npx http-server dist -p 8731   (or any static server)");

@@ -68,6 +68,7 @@ const SHOTS = [
   { name: "full-day", query: "tab=day&view=full", size: [1280, 800] },
   { name: "options", query: "page=options", size: [1280, 1600] },
   { name: "options-stale", query: "page=options&stale=1", size: [1280, 800] },
+  { name: "components", query: "page=components", size: [960, 1700] },
 ];
 
 function chromePath() {

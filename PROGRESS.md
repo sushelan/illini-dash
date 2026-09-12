@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (857 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (866 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -24,6 +24,25 @@ from here.**
   the popup's 322px of chrome, a component system, Settings, first run, notifications and
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
+
+## UX plan phase B — primitives — 2026-09-12
+- One component layer in `ui.css`, below the palette and containing no colour values of
+  its own: `.btn` (`-primary` / `-secondary` / `-quiet` / `-icon`, plus `-sm`), `.switch`,
+  `.chip-base` / `-state` / `-count`, `.pill`, `.banner-line`, `.menu-surface` /
+  `.menu-item`, `.field`. One focus ring, one hover, one disabled, and
+  `accent-color: var(--accent)` for the native controls that survive.
+- `src/ui/icons.ts`: 19 inline SVGs on one 16px/1.5-stroke grid, built with
+  `createElementNS` the way `tabIcon` already was. Replaces `⚙ ⤢ ⋯ ‹ › ▸` — text glyphs
+  differ per machine, sit on the text baseline, and have no hit area. `iconButton` makes
+  the accessible name mandatory rather than optional; both are mutation-checked.
+- `dist/components.html` — every primitive in every state, all three themes, driven by the
+  real `icons.ts`. Also in the shot set, so it is checked dark and light each run.
+  The eight button styles it replaces were one decision made eight times, in eight files,
+  because there was no page on which they would ever be seen side by side.
+- `scripts/package.mjs` no longer zips the development pages. `dist/` is what gets
+  packaged, so a build run after a preview was shipping a component gallery and a
+  canned-data copy of the popup inside the extension.
+- 866 tests. Nothing in the extension consumes the primitives yet — phases C and D do.
 
 ## UX plan phase A — trust and correctness — 2026-09-12
 - **B1** an exam already sat is no longer "Overdue". An exam has no submission, so

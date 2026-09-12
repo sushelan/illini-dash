@@ -1,0 +1,136 @@
+<!doctype html>
+<!--
+  Every primitive, in every state, in one place.
+
+  Not part of the extension: `scripts/preview.mjs` copies it into `dist/` so it
+  can load the real `ui.css`, and `scripts/package.mjs` keeps it out of the zip.
+
+  It exists because a component system nobody can look at is a component system
+  that drifts. The eight button styles this replaces were not eight decisions —
+  they were one decision made eight times, each in the file where it was needed,
+  because there was no page on which they would ever be seen side by side.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Illini Dash — components</title>
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      /* Harness chrome only. Everything inside a .demo is the real thing. */
+      body { padding: 24px 28px 60px; max-width: 900px; }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      h2 {
+        font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--muted); margin: 32px 0 10px;
+        border-top: 1px solid var(--line); padding-top: 12px;
+      }
+      .demo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; }
+      .demo--col { display: block; }
+      .note { font-size: 11px; color: var(--muted); margin: 0 0 12px; max-width: 62ch; }
+      .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+      .swatch {
+        width: 104px; border: 1px solid var(--line); border-radius: 6px;
+        overflow: hidden; font-size: 10px;
+      }
+      .swatch i { display: block; height: 34px; }
+      .swatch span { display: block; padding: 3px 5px; color: var(--muted); }
+      .themebar { display: flex; gap: 6px; align-items: center; margin-bottom: 18px; }
+      .menu-demo { position: relative; height: 150px; }
+      .menu-demo .menu-surface { position: static; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <h1>Components</h1>
+    <p class="note">
+      The primitives from <code>ui.css</code>, rendered against the real tokens. Switch the
+      theme below, and switch your system between light and dark — every state here should
+      be legible in all six combinations. Anything that reads as “nothing” in one of them is
+      the bug this page exists to catch.
+    </p>
+
+    <div class="themebar">
+      <button class="btn btn-secondary btn-sm" data-theme="illini">Illini</button>
+      <button class="btn btn-secondary btn-sm" data-theme="neutral">Neutral</button>
+      <button class="btn btn-secondary btn-sm" data-theme="contrast">High contrast</button>
+    </div>
+
+    <h2>Buttons</h2>
+    <p class="note">
+      At most one <code>-primary</code> on a screen. <code>-secondary</code> for any other
+      real action, <code>-quiet</code> for something that undoes or postpones,
+      <code>-icon</code> where a label will not fit.
+    </p>
+    <div class="demo">
+      <button class="btn btn-primary">Show my calendar</button>
+      <button class="btn btn-secondary">Open all sign-in pages</button>
+      <button class="btn btn-quiet">Today</button>
+      <button class="btn btn-primary" disabled>Disabled</button>
+      <button class="btn btn-secondary" disabled>Disabled</button>
+    </div>
+    <div class="demo">
+      <button class="btn btn-secondary btn-sm">Sign in</button>
+      <button class="btn btn-quiet btn-sm">+2 more</button>
+      <span id="icon-buttons" class="demo"></span>
+      <button class="btn btn-icon" data-busy="true" id="spinner" title="Syncing"></button>
+    </div>
+
+    <h2>Switch</h2>
+    <div class="demo">
+      <input type="checkbox" class="switch" checked aria-label="On" />
+      <input type="checkbox" class="switch" aria-label="Off" />
+      <input type="checkbox" class="switch" checked disabled aria-label="On, locked" />
+      <input type="checkbox" class="switch" disabled aria-label="Off, locked" />
+    </div>
+
+    <h2>Chips</h2>
+    <div class="demo">
+      <span class="chip-base"><i class="dot" style="background: var(--course-0)"></i>CS357</span>
+      <span class="chip-base"><i class="dot" style="background: var(--course-2)"></i>CS424</span>
+      <span class="chip-base chip-state is-ok">Connected · 11:16 PM</span>
+      <span class="chip-base chip-state is-warn">Sign in needed</span>
+      <span class="chip-base chip-state is-err">Couldn’t read</span>
+      <span class="chip-base chip-state">Off</span>
+      <span class="chip-count">3</span>
+      <span class="chip-count is-warn">1</span>
+    </div>
+
+    <h2>Health pill</h2>
+    <p class="note">
+      Every state is clickable, including the healthy one — a control that only appears when
+      something is broken is a control nobody has learned. Hollow means “not checked yet”,
+      which is neither healthy nor broken.
+    </p>
+    <div class="demo" id="pills"></div>
+
+    <h2>Banners</h2>
+    <p class="note">One line, one sentence, one action.</p>
+    <div class="demo demo--col" id="banners"></div>
+
+    <h2>Menu</h2>
+    <div class="menu-demo" id="menu"></div>
+
+    <h2>Fields</h2>
+    <div class="demo">
+      <input class="field" type="text" placeholder="https://courses.grainger.illinois.edu/…" size="34" />
+      <input class="field" type="time" value="23:00" />
+      <select class="field">
+        <option>Every 15 minutes</option>
+        <option selected>Every 30 minutes</option>
+        <option>Every hour</option>
+      </select>
+      <input class="field" type="text" value="Disabled" disabled />
+    </div>
+
+    <h2>Icons</h2>
+    <div class="demo" id="icons"></div>
+
+    <h2>Meaning colours</h2>
+    <p class="note">
+      Spoken for, and not available for decoration: red is overdue, amber is a window still
+      open, green is a source that answered.
+    </p>
+    <div class="swatches" id="swatches"></div>
+
+    <script type="module" src="components.js"></script>
+  </body>
+</html>

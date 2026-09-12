@@ -91,9 +91,28 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 writeFileSync(join(dist, "INSTALL.txt"), install);
 
+/**
+ * The development pages do not ship.
+ *
+ * `npm run preview` writes `preview-*.html`, `shot.html` and `components.html`
+ * into `dist/`, and `dist/` is what gets zipped — so a build run after a
+ * preview was shipping a component gallery and a canned-data copy of the popup
+ * inside the extension. Harmless to a tester and not harmless in a store
+ * review, where every file in the package is something to explain.
+ *
+ * Excluded by name rather than by moving the preview output elsewhere, because
+ * the preview pages have to sit beside the real `ui.css` and `popup.css` to be
+ * worth anything.
+ */
+const DEV_ONLY = ["preview*", "shot.html", "components.html", "components.js", "probe.html"];
+
 // `zip` ships with macOS and every Linux CI image; no dependency is added for a
 // script that runs once per release.
-execFileSync("zip", ["-r", "-q", join(out, name), "."], { cwd: dist });
+execFileSync(
+  "zip",
+  ["-r", "-q", join(out, name), ".", "-x", ...DEV_ONLY],
+  { cwd: dist },
+);
 
 const size = (execFileSync("wc", ["-c", join(out, name)], { encoding: "utf8" }).trim().split(/\s+/)[0] ?? "0");
 console.log(`packaged -> release/${name} (${Math.round(Number(size) / 1024)} KB)`);
