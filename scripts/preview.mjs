@@ -61,11 +61,40 @@ const prelude = `globalThis.__PREVIEW_BUILD__ = ${JSON.stringify(pageBuild)};\n`
 // concatenated rather than loaded as two modules — module execution order
 // across separate <script type=module> tags is not what you want to bet a
 // harness on.
-for (const [page, out] of [
-  ["popup.js", "preview.js"],
-  ["options.js", "preview-options.js"],
+/**
+ * `?open=health` clicks the health pill once the popup has drawn.
+ *
+ * The source list is a click away, so `npm run shots` could never see it — and
+ * it shipped clipped half way down its fifth row, because a floating panel adds
+ * nothing to the document height that Chrome measures a popup by. A state the
+ * harness cannot reach is a state nothing checks.
+ *
+ * Appended after the page bundle rather than built into it: this is harness
+ * scaffolding and has no business in the extension.
+ */
+const epilogue = `
+;(() => {
+  if (new URLSearchParams(location.search).get("open") !== "health") return;
+  const open = () => {
+    const pill = document.querySelector(".pill");
+    if (pill) pill.click();
+    else setTimeout(open, 120);
+  };
+  // After the popup's own open-sync has landed and redrawn: a render calls
+  // closeMenus(), so clicking earlier opens a panel that is closed again a
+  // second later, and the shot catches the wrong moment.
+  setTimeout(open, 1900);
+})();
+`;
+
+for (const [page, out, tail] of [
+  ["popup.js", "preview.js", epilogue],
+  ["options.js", "preview-options.js", ""],
 ]) {
-  writeFileSync(join(dist, out), `${prelude}${stub}\n${readFileSync(join(dist, page), "utf8")}`);
+  writeFileSync(
+    join(dist, out),
+    `${prelude}${stub}\n${readFileSync(join(dist, page), "utf8")}\n${tail}`,
+  );
 }
 
 /**

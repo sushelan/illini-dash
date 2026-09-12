@@ -25,6 +25,36 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: the source list was cut off — 2026-09-12
+
+Reported on the Attention tab, and the tab is the clue. **A floating panel is positioned
+out of flow, so it contributes nothing to the document's height — and Chrome sizes an
+extension popup by measuring exactly that.** Reproduced: a document 179px tall against a
+panel that needs 218 from y=34. The browser clipped it half way down the fifth row, and
+nothing could scroll to reveal the rest, because the popup was not scrollable — it was
+small. The shorter the tab's list, the worse it gets, which is why Attention showed it
+first.
+
+This is the note at the top of `popup.css` from the other side. That one is about *taking
+away* the height Chrome measures; this is a panel that never contributed any.
+
+`placeFloating()` now does both halves, for the health popover and the row menu:
+
+1. **Asks for the room** — a temporary pixel `min-height` on `body`, cleared on close.
+   Not the forbidden thing from colour-layer.md: a percentage or viewport unit removes
+   the intrinsic height, a pixel minimum supplies one. Measured: the document goes
+   179 → 218 when the panel opens and back to nothing when it closes.
+2. **Copes without it** — capped at what a popup can ever be (600px) and scrolls inside
+   itself, so the worst case is a scrollbar rather than a row that is not there.
+
+Also `position: fixed` rather than absolute, so the cap is against the window; menus close
+on scroll, because a fixed panel does not travel with the document and one left open over
+a scrolled list points at a different row.
+
+**And the harness could not reach it**, which is why it shipped: opening the panel takes a
+click. `?open=health` clicks the pill once the open-sync has settled, and `popup-sources`
+is in `npm run shots` — on Attention, the shortest page and so the smallest window.
+
 ## Live run: the hour axis had no room above it — 2026-09-12
 
 "8 AM" was touching the 11:59 PM row above it. Measured: the end-of-day band ended at

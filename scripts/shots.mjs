@@ -70,6 +70,15 @@ const SHOTS = [
    * so a live sync was the first thing that could, and by then it had been
    * wrong for a week.
    */
+  /*
+   * The health popover, on the tab whose list is shortest.
+   *
+   * It shipped clipped half way down its fifth row and no shot could show it,
+   * because opening it takes a click. Attention is the right tab to check on:
+   * the shorter the page, the shorter the popup window Chrome measures, and the
+   * less room a floating panel has.
+   */
+  { name: "popup-sources", query: "tab=attention&open=health", size: [400, 600] },
   { name: "popup-unreachable", query: "tab=day&fail=network", size: [400, 600] },
   { name: "popup-unreadable", query: "tab=day&fail=parse", size: [400, 600] },
   { name: "popup-setup", query: "tab=day&setup=1", size: [400, 600] },

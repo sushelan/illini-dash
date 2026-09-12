@@ -413,7 +413,12 @@
 /* ---- menu ---- */
 
 .menu-surface {
-  position: absolute; z-index: 20; min-width: 190px; max-width: 340px;
+  /* `position` and `max-height` are set by `placeFloating`, which is the only
+     thing that knows how much window there is. */
+  position: fixed; z-index: 20; min-width: 190px; max-width: 340px;
+  /* A panel that scrolls must not hand the scroll on to the page behind it once
+     it reaches its end — the page then moves under an open menu. */
+  overscroll-behavior: contain;
   padding: 4px 0;
   background: var(--surface-raised);
   border: 1px solid var(--line); border-radius: 6px;

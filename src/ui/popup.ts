@@ -212,10 +212,10 @@ function openHealthPopover(
     menu.append(renderSourceRow(row));
   }
 
-  const box = anchor.getBoundingClientRect();
-  menu.style.top = `${box.bottom + window.scrollY + 4}px`;
-  menu.style.left = `${Math.max(8, box.left)}px`;
+  // Appended first: `placeFloating` measures it, and an element outside the
+  // document has no width or height to measure.
   document.body.append(menu);
+  placeFloating(menu, anchor, "left");
   trapMenuKeys(menu, anchor);
 }
 
@@ -669,10 +669,76 @@ function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
   if (response.type === "error") showStatus(response.message);
 }
 
+/**
+ * Chrome's own ceiling for a popup, and the number `placeFloating` budgets to.
+ *
+ * Documented in §8.1 and enforced by the browser: a popup is never taller than
+ * this however tall the document is.
+ */
+const MAX_POPUP_HEIGHT = 600;
+
 function closeMenus(): void {
   for (const open of document.querySelectorAll(".menu-surface")) open.remove();
+  // The room a panel asked for is given back the moment it closes, or the popup
+  // stays that tall with nothing in the space. See `placeFloating`.
+  document.body.style.minHeight = "";
+}
+
+/**
+ * Put a floating panel under its anchor, in a window that can hold it.
+ *
+ * The bug this exists for: the source list opened from the health pill was cut
+ * off half way down its fifth row. A floating panel is positioned out of flow,
+ * so it contributes **nothing** to the document's height — and Chrome sizes an
+ * extension popup by measuring exactly that. On a tab with a short list the
+ * window was 330px tall and the panel needed 240 from y=66, so the browser
+ * simply clipped it. Nothing in the popup could scroll to reveal it, because
+ * the popup was not scrollable; it was small.
+ *
+ * This is the same mechanism as the note at the top of popup.css, from the
+ * other side. That one is about *taking away* the height Chrome measures; this
+ * one is about a panel that never contributed any.
+ *
+ * So two things, and both are needed:
+ *
+ * 1. **Ask for the room.** A temporary `min-height` on `body` — in pixels, and
+ *    removed on close — gives Chrome a taller box to measure, and it resizes an
+ *    open popup when the document changes. This is not the forbidden thing from
+ *    colour-layer.md: a percentage or a viewport unit removes the intrinsic
+ *    height, a pixel minimum supplies one.
+ * 2. **Cope without it.** The panel is capped at what a popup can ever be and
+ *    scrolls inside itself, so the worst case is a scrollbar rather than a row
+ *    that is not there.
+ */
+function placeFloating(panel: HTMLElement, anchor: HTMLElement, align: "left" | "right"): void {
+  const box = anchor.getBoundingClientRect();
+  const top = box.bottom + 4;
+  panel.style.position = "fixed";
+  panel.style.top = `${top}px`;
+
+  // The full view is an ordinary tab and its window is however tall it is; the
+  // popup is capped by the browser whatever the document says.
+  const ceiling = isFullView ? window.innerHeight : MAX_POPUP_HEIGHT;
+  panel.style.maxHeight = `${Math.max(140, ceiling - top - 8)}px`;
+  panel.style.overflowY = "auto";
+
+  if (align === "right") {
+    panel.style.right = `${Math.max(8, document.documentElement.clientWidth - box.right)}px`;
+  } else {
+    const width = panel.offsetWidth;
+    const max = document.documentElement.clientWidth - width - 8;
+    panel.style.left = `${Math.max(8, Math.min(box.left, max))}px`;
+  }
+
+  // Measured after the cap and the width are set, so this is the height the
+  // panel will actually occupy rather than the one it would like.
+  document.body.style.minHeight = `${Math.min(MAX_POPUP_HEIGHT, top + panel.offsetHeight + 8)}px`;
 }
 document.addEventListener("click", closeMenus);
+// A fixed panel does not travel with the document, so a page scrolled under an
+// open menu would leave it pointing at a different row. Closing is what every
+// other menu does, and it is the only option that cannot mislead.
+window.addEventListener("scroll", closeMenus, { passive: true, capture: true });
 // Escape closes from anywhere, including from the row the menu was opened on.
 // Without it the only way out of an open menu with the keyboard was Tab, which
 // walked *into* it and then out the far side of the page.
@@ -868,10 +934,8 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
     add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
   }
 
-  const box = anchor.getBoundingClientRect();
-  menu.style.top = `${box.bottom + window.scrollY}px`;
-  menu.style.right = "10px";
   document.body.append(menu);
+  placeFloating(menu, anchor, "right");
   trapMenuKeys(menu, anchor);
 }
 
