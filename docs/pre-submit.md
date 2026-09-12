@@ -25,39 +25,64 @@ measures have never been observed even once:
 
 ### Setting up
 
-Build the zip and unpack it somewhere you can point Chrome at:
+Build the zip and unpack it **onto the Desktop**, not into `/tmp` — macOS hides `/tmp`
+from every file picker, and step 1 goes through a file picker:
 
 ```bash
-npm run package && unzip -o release/illini-dash-1.0.0-*.zip -d /tmp/illini-clean-build && ls /tmp/illini-clean-build
+npm run package && unzip -o release/illini-dash-1.0.0-*.zip -d ~/Desktop/illini-clean-build && ls ~/Desktop/illini-clean-build
 ```
 
 Then launch a Chrome that shares nothing with your real one — no history, no cookies, no
-extensions, no signed-in Google account:
+extensions, no signed-in Google account. The profile *can* live in `/tmp`, because it is
+named on the command line and never seen by a picker:
 
 ```bash
 open -na "Google Chrome" --args --user-data-dir=/tmp/illini-clean-profile --no-first-run
 ```
 
-That window is a different browser as far as everything is concerned. Close it when you
-are done and `rm -rf /tmp/illini-clean-profile` to throw the whole thing away.
+That window is a different browser as far as everything is concerned. When you are done,
+`rm -rf /tmp/illini-clean-profile ~/Desktop/illini-clean-build` throws all of it away.
+
+### Do you have to sign in?
+
+**No — and the half that needs no login is the half worth doing.** Steps 1–4 and 8 are
+the ones that have never been observed anywhere, and none of them touches a source.
+Steps 5–6 and 9 re-measure a path the daily driver already exercises.
+
+Step 7 is the interesting case. Of the two adapters in `adapters/registry.json`:
+
+| Adapter | URL | Signed out |
+|---|---|---|
+| `ece310-fa26` | `courses.grainger.illinois.edu/ece310/fa2026/` | **200 — public** |
+| `cs424-fa26` | `courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html` | 401 — behind Illinois SSO |
+
+So **enable ECE 310, not CS 424**, and step 7 runs end to end with nothing signed in: the
+optional `*.illinois.edu` permission prompt, the fetch, the parse, and the state going to
+Connected. That is the whole of the `962add6` fix, on a profile that has never seen this
+extension.
+
+If you do want the full end-to-end afterwards, you never sign into email — the four sites
+redirect to Illinois SSO themselves, and a fresh profile has no trusted-device cookie, so
+it is a NetID and a Duo push per site.
 
 ### The walk
 
 Do these **in order**, and write down what actually happened next to each rather than
-whether it was fine. "Fine" is not an observation.
+whether it was fine. "Fine" is not an observation. **L** marks the steps that need a
+login; everything else runs signed out.
 
-| # | Do | Look for | What a failure means |
-|---|---|---|---|
-| 1 | `chrome://extensions` → Developer mode on → **Load unpacked** → `/tmp/illini-clean-build` | The card loads with **no errors** and no yellow warning triangle | A manifest or file error that only appears on a clean load |
-| 2 | Watch what happens **immediately after** the load | A tab opens by itself on the setup screen | `onInstalled` did not fire or did not open it; first-run has never been observed from an actual install |
-| 3 | Read that screen without clicking | You can tell which sites to tick from the one-line hints alone | The hints are written for someone who already knows what PrairieTest is |
-| 4 | Look at the toolbar | Chrome's own "extension added" bubble — does it name Illini Dash and show the right icon at toolbar size | The 32px icon, which was added late and never seen in the wild |
-| 5 | Tick the four defaults, press **Open all sign-in pages**, sign in to each | Rows tick green one at a time; **Show my calendar** stays clickable throughout | A blocked first run |
-| 6 | Open the popup | `Checked … · N of N sources OK · build <id>`, and the build id matches the zip's filename | A stale worker, or a green dot over a source that never fetched |
-| 7 | Settings → Sources → switch a **course website** on | It goes "Checking…" → "Connected" **within a few seconds**, not at the next poll | The fix in `962add6`; this is the one that lands in every tester's first five minutes |
-| 8 | Settings → Reminders → **Send a test reminder** | A real OS notification, with the course, the time, and the source name on the third line | The notification path has never once been seen fire outside a unit test |
-| 9 | Quit Chrome entirely, reopen it, open the popup | The list is still there and the status line is not "Not synced yet" | Storage or the alarm not surviving a restart |
-| 10 | `chrome://extensions` → Remove | It goes, and `/tmp/illini-clean-profile` is all that is left to delete | — |
+| # | | Do | Look for | What a failure means |
+|---|---|---|---|---|
+| 1 | | `chrome://extensions` (**typed**, not clicked) → Developer mode on, top right → **Load unpacked** → select the `illini-clean-build` **folder** itself, without opening it | The card loads with **no errors** and no yellow warning triangle | A manifest or file error that only appears on a clean load |
+| 2 | | Watch what happens **immediately after** the load | A tab opens by itself on the setup screen | `onInstalled` did not fire or did not open it; first-run has never been observed from an actual install |
+| 3 | | Read that screen without clicking | You can tell which sites to tick from the one-line hints alone | The hints are written for someone who already knows what PrairieTest is |
+| 4 | | Look at the toolbar | Chrome's own "extension added" bubble — does it name Illini Dash and show the right icon at toolbar size | The 32px icon, which was added late and never seen in the wild |
+| 5 | L | Tick the four defaults, press **Open all sign-in pages**, sign in to each | Rows tick green one at a time; **Show my calendar** stays clickable throughout | A blocked first run |
+| 6 | L | Open the popup | `Checked … · N of N sources OK · build <id>`, and the build id matches the zip's filename | A stale worker, or a green dot over a source that never fetched |
+| 7 | | Settings → Sources → switch **ECE 310** on (public; CS 424 is behind SSO) | It goes "Checking…" → "Connected" **within a few seconds**, not at the next poll | The fix in `962add6`; this is the one that lands in every tester's first five minutes |
+| 8 | | Settings → Reminders → **Send a test reminder** | A real macOS notification titled "Illini Dash — test reminder". It is synthetic — no course, no time — so it needs no data and no login | The notification path has never once been seen fire outside a unit test. If nothing appears, check System Settings → Notifications → Google Chrome **before** suspecting the code — and either way that is a line `beta-install.md` needs |
+| 9 | L | Quit Chrome entirely, reopen it, open the popup | The list is still there and the status line is not "Not synced yet" | Storage or the alarm not surviving a restart |
+| 10 | | `chrome://extensions` → Remove | It goes, and `/tmp/illini-clean-profile` is all that is left to delete | — |
 
 **Step 8 is the one to not skip.** macOS silently drops notifications for an app that has
 never been granted them, and Chrome's own permission for that lives in System Settings →
