@@ -118,7 +118,12 @@ writeFileSync(
       } catch {
         /* A profile with site data blocked. The page still renders its default. */
       }
-      const pages = { options: "preview-options.html", components: "components.html" };
+      const pages = {
+        options: "preview-options.html",
+        components: "components.html",
+        promo: "promo.html",
+        toast: "toast.html",
+      };
       const page = pages[q.get("page")] || "preview-popup.html";
       // \`hash\`, not a literal # in the URL: a fragment on *this* page is never
       // sent on, so a shot asking for a section further down the Settings page
@@ -154,6 +159,10 @@ execFileSync(
   { cwd: root },
 );
 copyFileSync(join(root, "scripts", "components.html"), join(dist, "components.html"));
+// The store's promo tile, drawn from the same tokens and the same mark as the
+// extension so it cannot drift into being a picture of an older version.
+copyFileSync(join(root, "scripts", "promo.html"), join(dist, "promo.html"));
+copyFileSync(join(root, "scripts", "toast.html"), join(dist, "toast.html"));
 
 // The framed page, removed. `dist/` is cleared by every build, so this only
 // matters when preview runs against a tree that still has one lying around.

@@ -12,7 +12,7 @@
  * on, and the beta guide tells them to.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CANVAS_ORIGIN } from "../src/sources/canvas.js";
 import { GRADESCOPE_ORIGIN } from "../src/sources/gradescope.js";
@@ -28,6 +28,10 @@ const manifest = JSON.parse(
   host_permissions: string[];
   optional_host_permissions: string[];
   version: string;
+  homepage_url?: string;
+  commands?: Record<string, { suggested_key?: { default?: string }; description?: string }>;
+  icons: Record<string, string>;
+  action: { default_icon: Record<string, string> };
 };
 
 /** Chrome's match-pattern semantics, for the shapes this manifest actually uses. */
@@ -91,5 +95,52 @@ describe("the permission list and its justifications", () => {
         true,
       );
     }
+  });
+});
+
+describe("what the store asks for", () => {
+  it("ships a 32px icon, which the toolbar is most often drawn at", () => {
+    /*
+     * The manifest shipped 16 / 48 / 128, so on a 2x display Chrome had to
+     * scale 16 up or 48 down for the toolbar — and a two-shape mark at a
+     * fractional scale is a smudge. It is the one size a toolbar icon is seen
+     * at most, and it was the one size missing.
+     */
+    for (const set of [manifest.icons, manifest.action.default_icon]) {
+      expect(Object.keys(set).sort((a, b) => Number(a) - Number(b))).toEqual([
+        "16",
+        "32",
+        "48",
+        "128",
+      ]);
+    }
+  });
+
+  it("declares every icon file the manifest names", () => {
+    // A manifest naming a file that is not there is a Chrome load error, and
+    // `dist/` is assembled by copying `public/` wholesale.
+    for (const file of Object.values(manifest.icons)) {
+      expect(existsSync(new URL(`../public/${file}`, import.meta.url)), file).toBe(true);
+    }
+  });
+
+  it("has somewhere for the listing to point", () => {
+    // The store shows this as "Website" on the listing page; without it the
+    // field is blank next to an extension that reads your coursework.
+    expect(manifest.homepage_url).toMatch(/^https:\/\//);
+  });
+
+  it("offers a keyboard shortcut", () => {
+    // A popup is otherwise only reachable by aiming at a 16px target, and the
+    // whole point of this extension is being quick to check.
+    expect(manifest.commands?.["_execute_action"]?.suggested_key?.default).toBeTruthy();
+  });
+
+  it("is not still calling itself a preview", () => {
+    // Sushi's decision: 1.0.0 at submission. "0.1.0" beside a store review
+    // prompt reads as "do not rely on this yet", which is the opposite of what
+    // a deadline tracker needs to say.
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(manifest.version.startsWith("0.")).toBe(false);
   });
 });

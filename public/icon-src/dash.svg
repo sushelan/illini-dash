@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!--
+    Candidate A — "Dash".
+
+    A navy tile, one heavy orange dash, and a white tick below it. The name is
+    the shape: a dash is what a deadline looks like on a calendar, and the tick
+    is what you came to do about it.
+
+    Sized for 16px, which is the only size that matters for a toolbar icon.
+    The first attempt had two dashes at 14 units — 1.75px at 16px — and they
+    merged into a smudge; this one spends the whole width on a single 20-unit
+    bar (2.5px) and gives the tick the lower half to itself so the two shapes
+    never touch. Nothing is thinner than 16 units, which is 2px at 16.
+
+    Not the Block I. The listing already says "not affiliated", and the mark is
+    a registered trademark.
+  -->
+  <rect width="128" height="128" rx="26" fill="#13294b"/>
+  <rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"/>
+  <path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

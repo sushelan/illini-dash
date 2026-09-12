@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!--
+    Candidate B — "Today".
+
+    A navy tile with an orange calendar header and one white dot for today. It
+    says "calendar" at a glance, which is what the extension is; the cost is
+    that every calendar extension says the same thing, so it identifies the
+    category rather than the product.
+  -->
+  <rect width="128" height="128" rx="28" fill="#13294b"/>
+  <rect x="24" y="30" width="80" height="72" rx="12" fill="#ffffff"/>
+  <path d="M24 42a12 12 0 0 1 12-12h56a12 12 0 0 1 12 12v10H24z" fill="#ff5f05"/>
+  <rect x="40" y="18" width="12" height="22" rx="6" fill="#ff5f05"/>
+  <rect x="76" y="18" width="12" height="22" rx="6" fill="#ff5f05"/>
+  <circle cx="64" cy="78" r="15" fill="#ff5f05"/>
+</svg>

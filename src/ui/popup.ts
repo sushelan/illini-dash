@@ -1830,7 +1830,16 @@ function renderExamsView(items: Item[], now: Date, colours: Map<string, number>)
   if (board.unbooked.length > 0) {
     viewEl.append(examHeading("Not booked", board.unbooked.length, "err"));
     for (const item of board.unbooked) {
-      viewEl.append(renderRow(item, now, undefined, bookingWindowText(item), colours));
+      // "Book a slot: " is PrairieTest's own prefix, and under a heading that
+      // already reads "Not booked" it is the third time the row says the same
+      // thing — at the cost of the exam's actual name.
+      const row = renderRow(item, now, undefined, bookingWindowText(item), colours);
+      const title = row.querySelector<HTMLElement>(".row--title");
+      if (title) {
+        title.textContent = item.title.replace(/^Book a slot:\s*/i, "");
+        title.title = item.title;
+      }
+      viewEl.append(row);
     }
   }
 

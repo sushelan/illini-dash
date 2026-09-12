@@ -113,7 +113,15 @@ writeFileSync(join(dist, "INSTALL.txt"), install);
  * the preview pages have to sit beside the real `ui.css` and `popup.css` to be
  * worth anything.
  */
-const DEV_ONLY = ["preview*", "shot.html", "components.html", "components.js", "probe.html"];
+const DEV_ONLY = [
+  "preview*",
+  "shot.html",
+  "components.html",
+  "components.js",
+  "promo.html",
+  "toast.html",
+  "probe.html",
+];
 
 // `zip` ships with macOS and every Linux CI image; no dependency is added for a
 // script that runs once per release.

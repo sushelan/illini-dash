@@ -78,6 +78,18 @@ const SHOTS = [
   { name: "options", query: "page=options", size: [1280, 3800] },
   { name: "options-stale", query: "page=options&stale=1", size: [1280, 800] },
   { name: "components", query: "page=components", size: [960, 1700] },
+  { name: "full-exams", query: "tab=exams&view=full", size: [1280, 800] },
+  { name: "full-attention", query: "tab=attention&view=full", size: [1280, 800] },
+  /*
+   * Store assets, which are one file each rather than a dark and a light one.
+   *
+   * `fixed` says which scheme to render them in: a promo tile is printed into a
+   * grid on the store's own page and has to look the same for everyone, so
+   * shipping two of them and picking one by hand later is how the wrong one
+   * gets uploaded.
+   */
+  { name: "promo-tile", query: "page=promo", size: [440, 280], fixed: "light" },
+  { name: "store-toast", query: "page=toast", size: [1280, 800], fixed: "light" },
 ];
 
 function chromePath() {
@@ -137,10 +149,11 @@ function serve() {
  * run, never the same ones twice. A flaky harness is worse than a slow one: it
  * teaches you to ignore the word FAILED.
  */
-async function capture(chrome, port, { name, query, size }, dark) {
-  const suffix = dark ? "dark" : "light";
-  const file = join(outDir, `${name}-${suffix}.png`);
-  const profile = join(root, "node_modules", `.cache-shot-${name}-${suffix}`);
+async function capture(chrome, port, { name, query, size, fixed }, dark) {
+  const suffix = fixed ? "" : dark ? "-dark" : "-light";
+  const file = join(outDir, `${name}${suffix}.png`);
+  if (fixed) dark = fixed === "dark";
+  const profile = join(root, "node_modules", `.cache-shot-${name}${suffix}`);
   rmSync(profile, { recursive: true, force: true });
   const args = [
     "--headless=new",
@@ -163,10 +176,10 @@ async function capture(chrome, port, { name, query, size }, dark) {
   child.kill("SIGKILL");
   rmSync(profile, { recursive: true, force: true });
   if (!existsSync(file)) {
-    console.error(`  FAILED ${name}-${suffix}`);
+    console.error(`  FAILED ${name}${suffix}`);
     return false;
   }
-  console.log(`  ${name}-${suffix}.png`);
+  console.log(`  ${name}${suffix}.png`);
   return true;
 }
 
@@ -186,14 +199,20 @@ const server = await serve();
 const port = server.address().port;
 let failures = 0;
 // Dark first, always. See the header.
+let taken = 0;
 for (const dark of [true, false]) {
+  // A `fixed` shot is rendered once, on the dark pass, and skipped on the light
+  // one — otherwise the second pass overwrites it with the wrong scheme.
+  const pass = wanted.filter((shot) => !shot.fixed || dark);
+  if (pass.length === 0) continue;
   console.log(dark ? "dark:" : "light:");
-  for (const shot of wanted) {
+  for (const shot of pass) {
+    taken += 1;
     if (!(await capture(chrome, port, shot, dark))) failures += 1;
   }
 }
 server.close();
-console.log(`\n${wanted.length * 2 - failures} shots -> docs/ux/after/`);
+console.log(`\n${taken - failures} shots -> docs/ux/after/`);
 // Reported, not swallowed: a missing file here means a page threw while
 // drawing, and a script that exits 0 having written nothing is the silent
 // empty this project ranks worst.

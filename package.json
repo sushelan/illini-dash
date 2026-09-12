@@ -11,7 +11,8 @@
     "scrub": "node scripts/scrub-file.mjs",
     "package": "node build.mjs && node scripts/package.mjs",
     "preview": "node build.mjs && node scripts/preview.mjs",
-    "shots": "node build.mjs && node scripts/preview.mjs && node scripts/shots.mjs"
+    "shots": "node build.mjs && node scripts/preview.mjs && node scripts/shots.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",

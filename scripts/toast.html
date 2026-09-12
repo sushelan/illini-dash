@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  A store screenshot of a reminder.
+
+  A real Chrome toast cannot be screenshotted from inside the extension, and the
+  store asks for 1280x800 images anyway — so this composites the *real* wording
+  (copied from `notificationContent`'s output, not invented here) onto a card
+  shaped like Chrome's own notification.
+
+  It is a mock and it is labelled as one in `docs/store/listing.md`. The rule it
+  follows is the one that matters: the words are the words the extension
+  actually sends, so a screenshot cannot promise something the build does not
+  do. If the wording in `core/schedule.ts` changes, this file is wrong and the
+  test that quotes that wording is what says so.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      html, body { width: 1280px; height: 800px; margin: 0; padding: 0; overflow: hidden; }
+      body {
+        display: grid; place-items: center;
+        background: var(--brand);
+        background-image: radial-gradient(circle at 22% 18%, rgba(255, 95, 5, .16), transparent 46%);
+      }
+      .stage { display: grid; gap: 30px; justify-items: center; }
+      .say { text-align: center; color: #ffffff; }
+      .say h1 { font-size: 34px; font-weight: 700; letter-spacing: -.6px; margin: 0 0 8px; }
+      .say p { font-size: 16px; color: #c6d3e8; margin: 0; }
+
+      /* Chrome's own toast: white card, 360px, the icon at 48. */
+      .toast {
+        width: 360px; padding: 16px;
+        display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px;
+        background: #ffffff; border-radius: 10px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+        font: 13px/1.4 system-ui, -apple-system, sans-serif; color: #202124;
+      }
+      .toast img { width: 48px; height: 48px; }
+      .toast b { display: block; font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+      .toast .msg { display: block; color: #3c4043; }
+      .toast .ctx { display: block; color: #80868b; font-size: 12px; margin-top: 4px; }
+      .stack { display: grid; gap: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="say">
+        <h1>It tells you before, not after</h1>
+        <p>24 hours and 2 hours ahead, with quiet hours respected.</p>
+      </div>
+      <div class="stack">
+        <!-- The exact output of notificationContent(item, "2h", now). -->
+        <div class="toast">
+          <img src="icon128.png" alt="" />
+          <div>
+            <b>HW3 Errors and Big-O — due in 2 hours</b>
+            <span class="msg">CS357 · Fri 11:59 PM · in 2h</span>
+            <span class="ctx">Gradescope</span>
+          </div>
+        </div>
+        <div class="toast">
+          <img src="icon128.png" alt="" />
+          <div>
+            <b>CS 357: Quiz 1 — due tomorrow</b>
+            <span class="msg">CS357 · Sat 9:00 PM · in 1d · Grainger Library, Room 57 · 50min</span>
+            <span class="ctx">PrairieTest</span>
+          </div>
+        </div>
+        <div class="toast">
+          <img src="icon128.png" alt="" />
+          <div>
+            <b>Book a seat: CS 357: Quiz 2</b>
+            <span class="msg">CS357 · sessions Sep 21–24</span>
+            <span class="ctx">PrairieTest</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<!--
+  The 440x280 small promo tile the Chrome Web Store shows in a grid.
+
+  Rendered by `npm run store` at exactly that size, from the same tokens and the
+  same mark as the extension — so it cannot drift into being a picture of an
+  older version, which is the usual fate of a store asset drawn once by hand.
+
+  Deliberately not a screenshot: at 440x280 a screenshot of a 400px popup is
+  unreadable, and the tile's job in a grid of a hundred is to say which
+  extension this is, not what it looks like inside.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      html, body { width: 440px; height: 280px; margin: 0; padding: 0; overflow: hidden; }
+      body {
+        display: grid; align-content: center; gap: 10px;
+        padding: 0 38px; box-sizing: border-box;
+        background: var(--brand);
+        color: #ffffff;
+      }
+      .mark { width: 64px; height: 64px; }
+      h1 { font-size: 30px; font-weight: 700; letter-spacing: -.6px; margin: 0; color: #ffffff; }
+      p { font-size: 14px; line-height: 1.45; margin: 0; color: #c6d3e8; max-width: 30ch; }
+      .rule { width: 46px; height: 5px; border-radius: 3px; background: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <img class="mark" src="icon128.png" alt="" />
+    <h1>Illini Dash</h1>
+    <div class="rule"></div>
+    <p>Every UIUC deadline — Canvas, Gradescope, PrairieLearn, PrairieTest — in one list.</p>
+  </body>
+</html>
