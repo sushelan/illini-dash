@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (901 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (906 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -24,6 +24,24 @@ from here.**
   the popup's 322px of chrome, a component system, Settings, first run, notifications and
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
+
+## UX plan phase F — notifications — 2026-09-12
+- **m15** a toast leads with the work. `CS357 — assignment due in 2 hours` put the one
+  thing a student already knows first and the thing they have to act on second; it is
+  `HW3 Errors and Big-O — due tomorrow` / `CS357 · Fri 11:59 PM · in 1d` now.
+- `contextMessage` — Chrome's small third line — carries **which site**. A student with
+  five sources had to open the popup to find out where to go and do the thing.
+- An exam toast carries its room and duration, from the `examDetail` the parser has
+  produced all along and no toast ever showed.
+- The booking nag leads with the verb: `Book a seat: CS 357: Quiz 2` / `CS357 · sessions
+  Sep 21–24`. Still never worded as a deadline (§4.4).
+- `clampTitle` clamps **only the work**, and the words after it are appended — a real
+  UIUC title ("MP1 Report (4cr only, EXCEPT for students in MC3)") is 48 characters
+  before anything is said about when it is due, so a naive clamp drops the half that
+  matters. Three mutations, all caught.
+- `INSTALL.txt` in the beta zip described the six dots and the build id in the status
+  line, neither of which exists any more.
+- 906 tests.
 
 ## UX plan phase E — first run and install — 2026-09-12
 - **M13** nothing used to happen on install. `opensOnInstall(reason)` in `core/setup.ts`

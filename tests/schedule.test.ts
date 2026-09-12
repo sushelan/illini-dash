@@ -9,6 +9,7 @@ import {
   alarmName,
   deferPastQuietHours,
   inQuietHours,
+  clampTitle,
   notificationContent,
   parseAlarmName,
   planNotifications,
@@ -248,11 +249,67 @@ describe("the booking nag (§7)", () => {
 });
 
 describe("notificationContent", () => {
-  it("phrases a deadline with its lead", () => {
+  it("leads with the work, not with the course code", () => {
+    /*
+     * ux-plan m15. The old title was `CS357 — assignment due in 2 hours`: the
+     * course code is the one thing a student already knows, and it went first,
+     * while the thing they have to act on went into the message where Chrome
+     * sets it smaller.
+     */
     const content = notificationContent(item({ dueAt: local(2026, 8, 11, 17) }), "24h", NOW);
-    expect(content.title).toBe("CS357 — due tomorrow");
-    expect(content.message).toContain("HW3 Errors and Big-O");
+    expect(content.title).toBe("HW3 Errors and Big-O — due tomorrow");
+    expect(content.message).toContain("CS357");
     expect(content.url).toContain("gradescope.com");
+  });
+
+  it("says which site to go to", () => {
+    // A student with five sources had to open the popup to find out where a
+    // reminder came from.
+    const content = notificationContent(item({ dueAt: local(2026, 8, 11, 17) }), "24h", NOW);
+    expect(content.contextMessage).toBe("Gradescope");
+  });
+
+  it("tells you where an exam is, which the parser has known all along", () => {
+    const exam = notificationContent(
+      item({
+        kind: "exam",
+        title: "CS 357: Quiz 1",
+        dueAt: local(2026, 8, 11, 19),
+        members: [member("not_submitted", { location: "Grainger Library", duration: "50min" })],
+      }),
+      "24h",
+      NOW,
+    );
+    expect(exam.message).toContain("Grainger Library");
+  });
+
+  it("keeps the urgency when the title is longer than the toast", () => {
+    /*
+     * "MP1 Report (4cr only, EXCEPT for students in MC3)" is 48 characters
+     * before anything is said about when it is due — so without a clamp the
+     * words a student acts on are the ones Chrome drops.
+     */
+    const long = notificationContent(
+      item({
+        title: "MP1 Report (4cr only, EXCEPT for students in MC3)",
+        dueAt: local(2026, 8, 11, 17),
+      }),
+      "24h",
+      NOW,
+    );
+    expect(long.title).toContain("due tomorrow");
+    expect(long.title).toContain("…");
+    expect(long.title.length).toBeLessThan(64);
+  });
+
+  it("does not cut a title mid-number", () => {
+    // "HW12" clipped to "HW1" is not a shorter title, it is a different one.
+    expect(clampTitle("Homework twelve is a reasonably long name HW12", 44)).not.toMatch(/HW1$/);
+  });
+
+  it("leaves a title that already fits completely alone", () => {
+    expect(clampTitle("HW3 Errors and Big-O")).toBe("HW3 Errors and Big-O");
+    expect(clampTitle("HW3 Errors and Big-O")).not.toContain("…");
   });
 
   it("never phrases a booking as a deadline (§4.4)", () => {
@@ -270,8 +327,10 @@ describe("notificationContent", () => {
       "booking",
       NOW,
     );
-    expect(content.title).toBe("Not booked: CS357");
-    expect(content.message).toMatch(/sessions .+ Reserve a seat/);
+    // The verb leads: there is exactly one thing to do about this one.
+    expect(content.title).toBe("Book a seat: CS 357: Quiz 2");
+    expect(content.message).toMatch(/sessions /);
+    expect(content.title).not.toMatch(/\bdue\b/i);
     expect(content.message).not.toMatch(/\bdue\b/i);
   });
 });
@@ -356,7 +415,7 @@ describe("catch-up after Chrome was closed (§7)", () => {
     // The defect: the title was `lead === "24h" ? "tomorrow" : "in 2 hours"`, so
     // a 24h lead firing 30 minutes before the deadline announced "due tomorrow".
     const content = notificationContent(item({ dueAt: dueAt0900 }), "24h", NOW_0830);
-    expect(content.title).toBe("CS357 — due in 30 minutes");
+    expect(content.title).toBe("HW3 Errors and Big-O — due in 30 minutes");
     expect(content.title).not.toContain("tomorrow");
   });
 

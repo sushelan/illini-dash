@@ -51,13 +51,21 @@ To install:
   4. Click the puzzle-piece icon in the toolbar and pin Illini Dash, so you can
      see the badge without hunting for it.
 
+What happens on install:
+
+  - A tab opens asking which sites your courses use. Answer it, sign in to any
+    that ask, and press "Show my calendar".
+  - Pin the extension when it asks: without the pin, the badge that counts what
+    is due is hidden behind Chrome's puzzle-piece menu.
+
 To check it is working:
 
-  - Click the icon. The header shows one dot per source. Grey means "not checked
-    yet"; it should turn green within a few seconds of the first sync.
-  - If a dot is yellow, that source needs you to sign in. Click the dot.
-  - The line under the dots should read something like
-    "Checked 3:21 PM - 4 of 4 sources OK - build ${buildId}".
+  - Click the icon. The top left shows one pill: a green dot and "All 4 OK" when
+    every source answered, amber and "Sign in to Gradescope" when one needs you,
+    hollow and "Checking..." before the first sync has finished.
+  - Click the pill for the per-source list, with a Sign in button on any row
+    that needs one.
+  - The build id is in Settings, under Developer.
 
 To update when you get a new zip:
 
@@ -66,12 +74,13 @@ To update when you get a new zip:
      card. This step is easy to forget and matters: without it the pages update
      but the background stays on the old build, and you will see a warning that
      says STALE SERVICE WORKER.
-  3. Open the popup and check the build id in the status line matches the one in
-     this file's name.
+  3. Open Settings (the gear in the popup), open Developer, and check the build
+     id there matches the one in this file's name. If they differ, the page and
+     the background part are on different builds and a warning says so.
 
 If something looks wrong:
 
-  Open Settings (the gear in the popup), scroll to Data, and press
+  Open Settings (the gear in the popup), go to Help, and press
   "Copy diagnostics". That puts a summary on your clipboard - which sources
   worked, how many items each course produced, and what failed. It contains no
   assignment titles, no links and nothing that identifies you. Paste it into the

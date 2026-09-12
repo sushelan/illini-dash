@@ -9,7 +9,8 @@
  */
 
 import { isItemDone, isTickedDone } from "./dedupe.js";
-import { liveDeadline } from "./grouping.js";
+import { examDetail, liveDeadline } from "./grouping.js";
+import { nameList } from "./names.js";
 import type { Item, Settings } from "../sources/types.js";
 
 /**
@@ -307,9 +308,40 @@ export function shouldFireNow(plan: PlannedNotification, now: Date): boolean {
 /* -------------------------------------------------------------------------- */
 
 export interface NotificationContent {
+  /** The work, then what is happening to it. Chrome shows this first and big. */
   title: string;
+  /** Course, clock, and — for an exam — where to turn up. */
   message: string;
+  /** Which site said so. Chrome renders it small, under the message. */
+  contextMessage?: string;
   url: string;
+}
+
+/**
+ * Enough of the title that the urgency still fits beside it.
+ *
+ * Chrome gives a notification title roughly one line, and a real UIUC
+ * assignment title uses most of it: "MP1 Report (4cr only, EXCEPT for students
+ * in MC3)" is 48 characters before anything is said about when it is due. The
+ * old title dodged this by leading with the course code — which put the one
+ * thing a student already knows first and the thing they have to act on
+ * second, and still truncated the title into the message.
+ *
+ * So the work leads, and **only the work is clamped** — the words after it are
+ * appended afterwards, because they are the half a student acts on and cutting
+ * them is the failure this exists to prevent. 44 characters is measured against
+ * Chrome's own toast on a 1440px display.
+ */
+export const TITLE_BUDGET = 44;
+
+export function clampTitle(title: string, budget = TITLE_BUDGET): string {
+  const trimmed = title.trim();
+  if (trimmed.length <= budget) return trimmed;
+  // On a word boundary where there is one within reach, so it does not cut a
+  // title mid-number and invent "HW1" out of "HW12".
+  const cut = trimmed.slice(0, budget);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > budget - 12 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 function relative(due: Date, now: Date): string {
@@ -365,9 +397,11 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
         : "soon";
     return {
       // §4.4: never phrase a booking as a deadline. The date is deliberately
-      // early because slots fill; calling it "due" would be a lie.
-      title: `Not booked: ${item.courseLabel}`,
-      message: `${item.title.replace(/^Book a slot: /, "")} — sessions ${window}. Reserve a seat.`,
+      // early because slots fill; calling it "due" would be a lie. The verb
+      // leads because there is exactly one thing to do about this one.
+      title: `Book a seat: ${clampTitle(item.title.replace(/^Book a slot:\s*/i, ""))}`,
+      message: `${item.courseLabel} · sessions ${window}`,
+      ...sourceLine(item),
       url: item.url,
     };
   }
@@ -384,8 +418,9 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
       day: "numeric",
     });
     return {
-      title: `${item.courseLabel} — due ${urgency(due, now) === "now" ? "today" : day}`,
-      message: `${item.title}\nThe course site gives no time. Check the course page for the cutoff.`,
+      title: `${clampTitle(item.title)} — due ${urgency(due, now) === "now" ? "today" : day}`,
+      message: `${item.courseLabel} · no time given — check the course page for the cutoff`,
+      ...sourceLine(item),
       url: item.url,
     };
   }
@@ -405,9 +440,27 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
     : item.dueAt === undefined
       ? "reduced credit"
       : "due";
+  // §4.4's room and duration. An exam is the one reminder where "where" has a
+  // wrong answer, and the parser has had this all along without ever showing it
+  // in a toast.
+  const where = examDetail(item);
   return {
-    title: `${item.courseLabel} — ${kindWord} ${urgency(due, now)}`,
-    message: `${item.title}${when ? `\n${when}` : ""}`,
+    title: `${clampTitle(item.title)} — ${kindWord} ${urgency(due, now)}`,
+    message: [item.courseLabel, when, where].filter(Boolean).join(" · "),
+    ...sourceLine(item),
     url: item.url,
   };
+}
+
+/**
+ * Which site said so, as Chrome's small third line.
+ *
+ * It is the answer to "where do I go to do this", and it was nowhere in a toast
+ * — a student with five sources had to open the popup to find out which one a
+ * reminder came from.
+ */
+function sourceLine(item: Item): { contextMessage?: string } {
+  const distinct = [...new Set(item.members.map((m) => m.source))];
+  if (distinct.length === 0) return {};
+  return { contextMessage: nameList(distinct) };
 }

@@ -378,6 +378,9 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
     iconUrl: chrome.runtime.getURL("icon128.png"),
     title: content.title,
     message: content.message,
+    // Chrome's small third line: which site this came from. A student with five
+    // sources had to open the popup to find out where to go and do the thing.
+    ...(content.contextMessage ? { contextMessage: content.contextMessage } : {}),
   });
 
   const at = new Date().toISOString();
