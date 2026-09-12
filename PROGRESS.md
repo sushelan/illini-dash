@@ -25,6 +25,35 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: the full view — 2026-09-12
+
+Two more from Sushi, both in the tab, both from screenshots at ~1000 CSS px (2× retina).
+
+1. **"The current week items aren't showing up."** The full view's Week was Sunday–Saturday
+   and he opened it on a **Saturday**, so "this week" was six days that had already
+   happened plus today — an empty grid whose only useful control was the forward arrow.
+   That is precisely why the popup went rolling, and the argument does not weaken in a
+   bigger window; it gets *more* visible, because there is room to draw all six empty
+   rows. **Both windows are rolling now**, which also buys the one thing Sunday–Saturday
+   was supposed to: a single definition of "week". The **month** stays Sunday-first — it
+   is a grid of calendar weeks and genuinely is a calendar.
+2. **"The fullscreen UI looks very weird."** Measured: **584px between the end of a row's
+   title and the clock belonging to it.** The title track is `1fr`, so it absorbed every
+   spare pixel and shoved the fixed right-hand tracks against the frame — the exact
+   scanning problem the fixed tracks exist to prevent, and the M12 view-level cap did
+   nothing about it, because a 1100px cap is inert in a 1000px window.
+   - The title track stops at **420px** (≈60 characters; the longest real title is 48) and
+     a trailing `1fr` takes the slack *after* the row. Clocks still align in a column.
+   - The list cap drops **1100 → 900**, which is what the rows actually occupy — and it
+     engages at a 1000px window, which is the width a laptop opens a tab at. The month
+     keeps 1400.
+   - "Today" moved from `margin-left: auto` to beside the arrows. It was 700px from the
+     two controls it undoes.
+
+   Gap is 200–360px now, bounded by the reserved track rather than by the window: a
+   reserved track is reserved whether or not the title fills it, so every pixel of
+   headroom is a pixel of gap on every short title.
+
 ## Live run: three findings from Sushi — 2026-09-12
 
 All three from one session with the real extension. The first two are the same defect.

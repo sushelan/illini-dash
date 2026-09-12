@@ -1726,17 +1726,24 @@ function emptyNote(text: string): HTMLElement {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Seven days, starting wherever `WEEK_MODE` says.
+ * Seven days, starting today. In both windows.
  *
- * In the popup that is today (Sushi's decision): on a Friday a Sunday-start
- * week puts five days that have already happened above the only row anyone can
- * still act on, and today ends up the last thing on a 600px screen. The full
- * view keeps Sunday–Saturday, where the columns line up with every other
- * calendar and there is room for the past half.
+ * This was split — rolling in the popup, Sunday–Saturday in the tab, on the
+ * argument that a tab has room for the past half of the week and that a
+ * calendar week lines up with every other calendar. Opening the tab on a
+ * Saturday settled it: Sunday–Saturday is then six days that have already
+ * happened and today, so "this week" was an empty grid and the only way to see
+ * anything was to press the forward arrow.
+ *
+ * That is the same reason the popup went rolling, and it does not get weaker in
+ * a bigger window — it gets more visible, because there is room to render all
+ * six empty rows. Making both rolling also buys the thing the other option was
+ * supposed to: one definition of "week" in both windows.
+ *
+ * The **month** stays Sunday-first. That one is a grid of calendar weeks and
+ * genuinely is a calendar; this is a list of the next seven days.
  */
-const WEEK_MODE: WeekMode = document.documentElement.classList.contains("view-full")
-  ? "sunday"
-  : "rolling";
+const WEEK_MODE: WeekMode = "rolling";
 
 function renderWeekView(items: Item[], now: Date, colours: Map<string, number>): void {
   for (const day of weekContents(items, anchorDate(now), now, WEEK_MODE)) {

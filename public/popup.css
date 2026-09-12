@@ -61,7 +61,18 @@ html.view-full,
  * feed itself (see the note at the top of this file). `data-view` is written by
  * the renderer from the tab it just drew.
  */
-.view-full body { padding: 0 0 24px; margin: 0; --full-max: 1100px; }
+/*
+ * 900, not 1100.
+ *
+ * A list-shaped view's content is 874px wide by construction — 60 for the
+ * course chip, 420 of title, the source codes, 92 of clock and a menu button —
+ * so a 1100px frame is 226px of ruled nothing inside a visible border. 900 is
+ * what the rows actually occupy, and it has the useful property of engaging at
+ * a 1000px window, which is the width a laptop opens a tab at: `(1000-900)/2`
+ * is 50, comfortably past the 20px minimum gutter, so the cap does something
+ * on the machine it most needs to.
+ */
+.view-full body { padding: 0 0 24px; margin: 0; --full-max: 900px; }
 .view-full body[data-view="month"] { --full-max: 1400px; }
 .view-full .bar { border-radius: 0; }
 /*
@@ -329,7 +340,14 @@ h2.section {
   font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums;
   padding: 0 2px; white-space: nowrap;
 }
-.datenav--today { margin-left: auto; }
+/*
+ * Next to the arrows, not at the far end of the bar.
+ *
+ * `margin-left: auto` put it 700px from the controls it undoes in a full-view
+ * window — three controls that do one job, two of them together and one of them
+ * across the room.
+ */
+.datenav--today { margin-left: 6px; }
 
 /* ---- the agenda's "now" line ----
  *
@@ -707,6 +725,34 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 }
 .view-full .mpill:hover { filter: brightness(1.12); }
 .view-full #status { padding: 10px 24px 0; }
+/*
+ * The clock follows the title, instead of being pushed to the far edge.
+ *
+ * The row's title track is `1fr`, so it absorbs every spare pixel and shoves
+ * the fixed right-hand tracks against the frame: measured at a 1000px window,
+ * 584px of nothing between the end of "Reading response 3" and the "11:59 PM"
+ * belonging to it. That is the scanning problem the fixed tracks exist to
+ * prevent, and the view-level cap does not touch it — a 1100px cap does nothing
+ * in a 1000px window, which is the size most laptops open a tab at.
+ *
+ * So the title track stops growing at 420px and a trailing `1fr` takes the
+ * slack *after* the row rather than inside it. The clocks still align in a
+ * column, which is the thing the fixed tracks were for.
+ *
+ * 420px is about 60 characters at 13px, against a longest-real-title of 48
+ * ("MP1 Report (4cr only, EXCEPT for students in MC3)"). It is deliberately not
+ * generous: a reserved track is reserved whether or not the title uses it, so
+ * every pixel of headroom is a pixel of gap on every *short* title — which is
+ * most of them.
+ */
+.view-full .witems .row,
+.view-full .band .row,
+.view-full .grid--stack .row,
+.view-full [data-shape="agenda"] .row,
+.view-full .na .row {
+  grid-template-columns: 60px minmax(0, 420px) auto 92px 24px minmax(0, 1fr);
+}
+
 .view-full .wday { padding: 12px; }
 .view-full .wrow { grid-template-columns: 76px 1fr; }
 .view-full .wday--num { font-size: 23px; }
