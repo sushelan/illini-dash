@@ -34,8 +34,8 @@ Illini Dash
 > - **Your own course websites.** Plenty of courses keep the real schedule on their own
 >   site. Paste the address and Illini Dash reads it, shows you what it found, and adds
 >   it once you say it looks right.
-> - **Calendar export.** One click to add an item to Google Calendar, or download
->   everything as an .ics.
+> - **Calendar export.** A button in the toolbar saves everything as an .ics, and any
+>   single item can be added to Google Calendar from its menu.
 >
 > **No account, no password, no server.** It reads the pages you are already logged into,
 > in your browser, and stores everything on your own device. Nothing is ever uploaded.
@@ -45,7 +45,22 @@ Illini Dash
 
 ## Category
 
-Productivity
+**Workflow & Planning.**
+
+"Productivity" is what this said, and that category no longer exists — the Chrome Web
+Store replaced its old list, and a name that is not on the form is not an answer. The
+nearest live category is Workflow & Planning, which is where calendars and task tools sit.
+
+**Education** is the defensible alternative and is the wrong call here: it is where
+courseware and study tools live — things you learn *from*. This is a planner that happens
+to read coursework, and a student browsing Education is not looking for it. Pick one; the
+store allows a single category and changing it later resets nothing.
+
+## Store icon
+
+`public/icon128.png` — 128×128, the same mark the toolbar uses at 16/32/48. Uploaded
+separately from the zip even though the zip contains it: the listing icon is a store
+asset, not a manifest one.
 
 ## Permission justifications
 
