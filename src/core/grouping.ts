@@ -104,8 +104,28 @@ export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
   const due = parse(item.dueAt);
   const late = parse(item.lateDueAt);
 
+  /*
+   * Work already handed in has no live late window.
+   *
+   * The promotion below exists because a deadline that has passed is not the
+   * one that matters while the work can still be handed in late. That premise
+   * is simply false for work that *has* been handed in — and getting it wrong
+   * made finished work disappear altogether, which is how it was found.
+   *
+   * Gradescope's PHYS 435 Homework 2: submitted, due Sep 9, late window open
+   * until Sep 16. The promotion anchored it to Sep 16, so `isPast` said no, so
+   * `visibleItems` hid it as finished-and-not-yet-past — and it was never drawn
+   * on Sep 9 either, where a week you worked through is supposed to show what
+   * you did. Every completed PrairieLearn assessment with a reduced-credit tail
+   * ("100% until Sep 15, 80% until Sep 22") vanished the same way, which is
+   * most of a semester's work by October.
+   *
+   * A finished item's deadline is the one it was finished against.
+   */
+  const finished = isItemDone(item) || isTickedDone(item);
+
   if (due !== undefined && due > now.getTime()) return { at: due, late: false };
-  if (late !== undefined && late > now.getTime()) return { at: late, late: true };
+  if (!finished && late !== undefined && late > now.getTime()) return { at: late, late: true };
   if (due !== undefined) return { at: due, late: false };
   if (late !== undefined) return { at: late, late: true };
   return undefined;

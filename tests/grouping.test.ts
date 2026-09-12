@@ -597,3 +597,83 @@ describe("examDetail — parsed since §4.4 was written, never shown", () => {
     expect(examDetail(merged)).toBe("CBTF");
   });
 });
+
+describe("liveDeadline and work that is already finished", () => {
+  /*
+   * Reported from a live run, twice over, and it is one defect.
+   *
+   * Gradescope PHYS 435 Homework 2: submitted, due Sep 9 5:00 PM, still
+   * "accepting late submissions" until Sep 16. And every completed PrairieLearn
+   * assessment with a reduced-credit tail — "100% until Sep 15, 80% until
+   * Sep 22" with a score already on it, which by October is most of a semester.
+   *
+   * Neither appeared anywhere. The late window promoted the anchor into the
+   * future, so `isPast` said no, so `visibleItems` hid it as
+   * finished-but-not-yet-past — and it was never drawn on the day it was
+   * actually due either. The promotion is for work that can *still be handed
+   * in* late; work that has been handed in has no live late window.
+   */
+  const submittedWithLateWindow = item({
+    title: "Homework 2",
+    status: "submitted",
+    dueAt: at(2026, 8, 9, 17),
+    lateDueAt: at(2026, 8, 16, 17),
+    members: [member("submitted")],
+  });
+
+  it("anchors finished work to the deadline it was finished against", () => {
+    const live = liveDeadline(submittedWithLateWindow, NOW)!;
+    expect(new Date(live.at).getDate()).toBe(9);
+    expect(live.late).toBe(false);
+  });
+
+  it("still promotes unfinished work into its late window", () => {
+    // The behaviour the promotion exists for, unchanged: full credit has gone
+    // but Gradescope is still accepting it, and saying "overdue" would tell a
+    // student to give up on something they can still hand in.
+    const unfinished = { ...submittedWithLateWindow, status: "not_submitted" as const, members: [member("not_submitted")] };
+    const live = liveDeadline(unfinished, NOW)!;
+    expect(new Date(live.at).getDate()).toBe(16);
+    expect(live.late).toBe(true);
+  });
+
+  it("treats a reduced-credit tail the same way once the work is scored", () => {
+    // PrairieLearn's "100% until Sep 15 / 80% until Sep 22" with a score on it.
+    const scored = item({
+      title: "L4a Floating Point",
+      status: "graded",
+      dueAt: at(2026, 8, 9, 23, 59),
+      lateDueAt: at(2026, 8, 22, 23, 59),
+      members: [member("graded", { creditRemaining: "80" })],
+    });
+    expect(new Date(liveDeadline(scored, NOW)!.at).getDate()).toBe(9);
+  });
+
+  it("counts a hand-ticked row as finished too", () => {
+    // A course website can never report a submission, so the tick is the only
+    // way those rows are ever done — and they have late windows like any other.
+    const ticked = { ...submittedWithLateWindow, status: "not_submitted" as const, done: true, members: [member("not_submitted")] };
+    expect(new Date(liveDeadline(ticked, NOW)!.at).getDate()).toBe(9);
+  });
+
+  it("needs every source to agree before it stops promoting", () => {
+    // A merged row where Gradescope says submitted and PrairieLearn does not is
+    // not finished, and its late window is still the live one.
+    const half = item({
+      dueAt: at(2026, 8, 9, 17),
+      lateDueAt: at(2026, 8, 16, 17),
+      members: [member("submitted"), member("not_submitted")],
+    });
+    expect(new Date(liveDeadline(half, NOW)!.at).getDate()).toBe(16);
+  });
+
+  it("falls back to the late date when finished work has no other", () => {
+    // Nothing else to use, so the promotion guard must not leave it undated.
+    const onlyLate = item({
+      status: "graded",
+      lateDueAt: at(2026, 8, 16, 17),
+      members: [member("graded")],
+    });
+    expect(liveDeadline(onlyLate, NOW)).toEqual({ at: Date.parse(at(2026, 8, 16, 17)), late: true });
+  });
+});

@@ -25,6 +25,36 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: finished work with a late window open — 2026-09-12
+
+Two reports, one defect, and the largest one found so far by volume of missing rows.
+
+- Gradescope PHYS 435 **Homework 2**: submitted, due Sep 9 5:00 PM, still "accepting late
+  submissions" until Sep 16. It appeared nowhere.
+- Every completed **PrairieLearn** assessment with a reduced-credit tail — "100% until
+  Sep 15, 80% until Sep 22" with a score already on it. Same. By October that is most of
+  a semester's work.
+
+`liveDeadline` promotes a passed deadline to the late one, because a deadline that has
+gone is not the one that matters *while the work can still be handed in late*. **That
+premise is false for work that has been handed in**, and the consequence was compounding:
+the anchor moved into the future, so `isPast` said no, so `visibleItems` dropped the row
+as finished-but-not-yet-past — and nothing drew it on the day it was actually due either.
+So it was hidden from the future for being done, and hidden from the past for not being
+past. A finished item's deadline is the one it was finished against.
+
+- `isItemDone || isTickedDone` gates the promotion. Unfinished late work is unchanged —
+  that is the case the promotion exists for, and saying "overdue" about something
+  Gradescope is still accepting was the defect it was written to fix.
+- Merged rows need **every** source to agree before the promotion stops; one submitted
+  member out of two is not finished.
+- Nothing was pinning this: all 925 tests passed before and after the fix. Ten new tests
+  across `grouping` and `calendar`, three mutation checks, and both real shapes are in the
+  preview data now — verified in the real popup, where they land on Sep 9, struck through,
+  at 5:00 PM and 11:59 PM.
+
+935 tests.
+
 ## Live run: "course websites off, but CS424 is still loaded" — 2026-09-12
 
 The report is the whole bug: Settings said **Off** and the calendar still showed that

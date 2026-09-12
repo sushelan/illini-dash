@@ -962,3 +962,65 @@ describe("weekDays, rolling", () => {
     expect(sunday.map((d) => d.isToday)).toEqual([false, false, false, false, true, false, false]);
   });
 });
+
+describe("finished work with a late window still open", () => {
+  /*
+   * The symptom Sushi reported: PHYS 435 Homework 2 was submitted, due Sep 9,
+   * and Gradescope was still accepting it until Sep 16 — and it appeared
+   * nowhere at all. `liveDeadline` promoted the anchor to Sep 16, so `isPast`
+   * said no, so this filter dropped it as finished-but-not-yet-past; and
+   * nothing drew it on Sep 9, which is where "a week you worked through should
+   * not look like a week nothing happened in" says it belongs.
+   *
+   * Every completed PrairieLearn assessment with a reduced-credit tail went the
+   * same way, which by October is most of a semester.
+   */
+  const submitted = () =>
+    item({
+      title: "Homework 2",
+      status: "submitted",
+      dueAt: at(2026, 8, 9, 17),
+      lateDueAt: at(2026, 8, 16, 17),
+      members: [member(undefined, "submitted")],
+    });
+
+  it("still shows it, on the day it was due", () => {
+    const visible = visibleItems([submitted()], DEFAULT_SETTINGS, new Set(), NOW);
+    expect(visible.map((i) => i.title)).toEqual(["Homework 2"]);
+
+    const sep9 = dayContents(visible, new Date(2026, 8, 9), NOW);
+    expect(allTimed(sep9).map((p) => p.item.title)).toEqual(["Homework 2"]);
+  });
+
+  it("does not also draw it on the late date", () => {
+    // It is done. A struck-through row sitting in the future on a date it was
+    // never due is the other half of getting this wrong.
+    const sep16 = dayContents([submitted()], new Date(2026, 8, 16), NOW);
+    expect(allTimed(sep16)).toEqual([]);
+  });
+
+  it("keeps hiding finished work that is still ahead", () => {
+    // What `hideSubmitted` is actually for: something handed in early should
+    // not sit on a future day as clutter.
+    const early = item({
+      title: "handed in early",
+      status: "submitted",
+      dueAt: at(2026, 8, 14, 17),
+      members: [member(undefined, "submitted")],
+    });
+    expect(visibleItems([early], DEFAULT_SETTINGS, new Set(), NOW)).toEqual([]);
+  });
+
+  it("leaves unfinished late work where the late window puts it", () => {
+    // Unchanged, and the case the promotion exists for: full credit has gone,
+    // Gradescope is still accepting it, and it is not overdue yet.
+    const unfinished = item({
+      title: "not handed in",
+      dueAt: at(2026, 8, 9, 17),
+      lateDueAt: at(2026, 8, 16, 17),
+    });
+    const sep16 = dayContents([unfinished], new Date(2026, 8, 16), NOW);
+    expect(allTimed(sep16).map((p) => p.item.title)).toEqual(["not handed in"]);
+    expect(attentionGroups([unfinished], NOW)).toEqual([]);
+  });
+});

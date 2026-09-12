@@ -103,6 +103,19 @@ const items = [
          members: [member("site", { timeAssumed: "true" })] }),
   item({ courseLabel: "CS424", title: "HW2 Due", dueAt: at(12, 23, 59), timeAssumed: true,
          members: [member("site", { timeAssumed: "true" })] }),
+  // Handed in, with a late window still open. From Sushi's real Gradescope:
+  // PHYS 435 Homework 2, submitted, due Sep 9, "accepting late submissions"
+  // until Sep 16. It appeared nowhere at all — `liveDeadline` anchored it to
+  // the late date, so it was hidden as finished-but-not-yet-past and never
+  // drawn on the day it was actually due.
+  item({ courseLabel: "PHYS435", title: "Homework 2 (submitted, late window open)",
+         dueAt: at(-3, 17, 0), lateDueAt: at(4, 17, 0), status: "submitted",
+         members: [member("gradescope", undefined, "submitted")] }),
+  // The same shape from PrairieLearn: scored, with a reduced-credit tail. By
+  // October this is most of a semester's work.
+  item({ courseLabel: "CS357", title: "L4a Floating Point (scored, 80% tail)",
+         dueAt: at(-3, 23, 59), lateDueAt: at(10, 23, 59), status: "graded",
+         members: [member("prairielearn", { creditRemaining: "80" }, "graded")] }),
   // Shapes his account does not currently have, kept so the layout is still
   // exercised against them: a still-open late window, a reduced-credit ladder,
   // an 8 AM smartPhysics checkpoint, a practice quiz, a moved deadline, and a
