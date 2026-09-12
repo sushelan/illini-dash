@@ -19,7 +19,7 @@ import {
   reportUrlFromHash,
   type CaptureResult,
 } from "../capture.js";
-import { displayState, healthPill, sourceRows } from "../core/health.js";
+import { displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
 import {
   LOGIN_URL,
   SOURCE_HINT,
@@ -1485,4 +1485,33 @@ chrome.storage?.onChanged?.addListener((changes, area) => {
     return;
   }
   void refreshOptions();
+});
+
+/**
+ * And a source waiting on a login is re-checked when you come back.
+ *
+ * Settings is where a "Sign in" button sends you to another origin, so it has
+ * the same hole the first-run screen had: signing in fixes the source somewhere
+ * this extension cannot observe, nothing crosses back, and the row keeps saying
+ * what it said before you left. `sourcesToRecheck` holds the rule and the
+ * debounce; `trigger: "manual"` is deliberate, because a source in backoff is
+ * exactly the one being re-checked here.
+ */
+let recheckInFlight = false;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || recheckInFlight) return;
+  recheckInFlight = true;
+  void (async () => {
+    try {
+      const response = await send({ type: "get-state" });
+      if (response.type !== "state") return;
+      const due = sourcesToRecheck(response.sources ?? {}, Date.now());
+      if (due.length === 0) return;
+      console.log(`[illini-dash] back in Settings — re-checking ${due.join(", ")}`);
+      await send({ type: "sync", trigger: "manual" });
+      await refreshOptions();
+    } finally {
+      recheckInFlight = false;
+    }
+  })();
 });

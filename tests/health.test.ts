@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  RECHECK_AFTER_MS,
   STALE_AFTER_MS,
   badgeFor,
   displayState,
@@ -14,6 +15,7 @@ import {
   emptyStateFor,
   healthPill,
   sourceRows,
+  sourcesToRecheck,
   staleNotice,
   statusAfterEnable,
   statusLine,
@@ -341,6 +343,73 @@ describe("emptyStateFor", () => {
   it("mentions hidden or done work rather than implying an empty semester", () => {
     const empty = emptyStateFor(sources({ canvas: status({ state: "ok" }) }), true);
     expect(empty.text).toContain("hidden, finished, or further out");
+  });
+});
+
+/**
+ * Reported from a clean-profile run, 2026-09-12: "I signed into all of them and
+ * it still said not signed in... only after I clicked the sync button
+ * everything synced up."
+ *
+ * The first-run screen opens four sign-in tabs and `beta-install.md` tells the
+ * student "come back and the dot clears itself". Nothing did. `visibilitychange`
+ * redrew from the store, and the store still held the pre-login answer, because
+ * signing in happens on an origin this extension never observes.
+ */
+describe("sourcesToRecheck (the one state fixed where we cannot see it)", () => {
+  const at = (ms: number) => NOW.getTime() - ms;
+
+  it("re-checks a source that is waiting on a login", () => {
+    const sources = { gradescope: status({ state: "needs_login", lastAttemptAt: iso(60_000) }) };
+    expect(sourcesToRecheck(sources, NOW.getTime())).toEqual(["gradescope"]);
+  });
+
+  it("re-checks every one of them, because the button opens every tab", () => {
+    const sources = {
+      canvas: status({ source: "canvas", state: "needs_login", lastAttemptAt: iso(60_000) }),
+      gradescope: status({ state: "needs_login", lastAttemptAt: iso(60_000) }),
+      prairielearn: status({ source: "prairielearn", state: "ok" }),
+    };
+    expect(sourcesToRecheck(sources, NOW.getTime()).sort()).toEqual(["canvas", "gradescope"]);
+  });
+
+  it("leaves a healthy source alone — returning to the tab is not a sync", () => {
+    expect(sourcesToRecheck({ gradescope: status({ state: "ok" }) }, NOW.getTime())).toEqual([]);
+  });
+
+  it("leaves a network or parse error alone: nothing the student did fixed those", () => {
+    // Those clear on our own schedule. Re-fetching them on every tab switch is
+    // a retry loop wearing a different name.
+    for (const state of ["network_error", "parse_error"] as const) {
+      expect(sourcesToRecheck({ gradescope: status({ state }) }, NOW.getTime()), state).toEqual([]);
+    }
+  });
+
+  it("leaves a disabled source alone even if its last state was needs_login", () => {
+    const off = status({ enabled: false, state: "needs_login" });
+    expect(sourcesToRecheck({ gradescope: off }, NOW.getTime())).toEqual([]);
+  });
+
+  it("leaves a pending source alone — it already has a sync coming", () => {
+    // `displayState` calls a never-attempted source pending, and switching one
+    // on fires its own sync. Re-checking here would run a second across it.
+    const fresh = status({ state: "needs_login" });
+    delete (fresh as { lastAttemptAt?: string }).lastAttemptAt;
+    expect(sourcesToRecheck({ gradescope: fresh }, NOW.getTime())).toEqual([]);
+  });
+
+  it("debounces, because visibilitychange fires on every tab switch", () => {
+    const justTried = { gradescope: status({ state: "needs_login", lastAttemptAt: iso(1_000) }) };
+    expect(sourcesToRecheck(justTried, NOW.getTime())).toEqual([]);
+    expect(sourcesToRecheck(justTried, at(-RECHECK_AFTER_MS))).toEqual(["gradescope"]);
+  });
+
+  it("an unreadable timestamp does not get to suppress the check", () => {
+    // Parser rule 5: `Date.parse("soon")` is NaN and every comparison against
+    // NaN is false, so a naive `now - attempted < window` would let a corrupt
+    // value through as "not recent" by accident rather than by decision.
+    const broken = { gradescope: status({ state: "needs_login", lastAttemptAt: "soon" }) };
+    expect(sourcesToRecheck(broken, NOW.getTime())).toEqual(["gradescope"]);
   });
 });
 

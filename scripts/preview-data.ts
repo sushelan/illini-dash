@@ -196,7 +196,11 @@ const sources = {
     ? { source: "gradescope", enabled: true, state: "network_error", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 35 * 60_000).toISOString(), lastError: "TypeError: Failed to fetch", consecutiveFailures: 1 }
     : query.get("fail") === "parse"
       ? { source: "gradescope", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 }
-      : { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
+      // `lastAttemptAt` two minutes back rather than `now`: a source that just
+      // this second failed a login is the one shape the return-from-signing-in
+      // path cannot occur in, because `sourcesToRecheck` debounces it. Dating
+      // it `now` made the harness the only place that bug could not be seen.
+      : { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date(now - 2 * 60_000).toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
   prairielearn: { source: "prairielearn", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   prairietest: { source: "prairietest", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   smartphysics: { source: "smartphysics", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
@@ -216,6 +220,11 @@ const sources = {
        * notice and short enough not to make the preview annoying.
        */
       if (req.type === "sync") {
+        // Counted so a test can ask whether returning to the page actually
+        // fetched, rather than only whether it redrew — which is the whole of
+        // the 2026-09-12 defect.
+        const seen = globalThis as unknown as { __syncs?: string[] };
+        seen.__syncs = [...(seen.__syncs ?? []), (req as { trigger?: string }).trigger ?? "?"];
         const ms = Number(query.get("slow") ?? 1200);
         if (Number.isFinite(ms) && ms > 0) await new Promise((r) => setTimeout(r, ms));
       }

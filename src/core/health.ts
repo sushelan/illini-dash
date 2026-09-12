@@ -89,6 +89,65 @@ export function statusAfterEnable(status: SourceStatus, enabled: boolean): Sourc
   };
 }
 
+/**
+ * How long an attempt has to be in the past before returning to the page is
+ * worth another one.
+ *
+ * `visibilitychange` fires on every tab switch, so without this a student
+ * alt-tabbing while still signed out would fetch every failing source each
+ * time. Ten seconds is roughly the fastest a person can sign in and come back,
+ * which is the case this exists for.
+ */
+export const RECHECK_AFTER_MS = 10_000;
+
+/**
+ * The sources to re-attempt when the student comes back to the page.
+ *
+ * **`needs_login` is the only state whose fix happens where the extension
+ * cannot see it.** Every other failure resolves on our own schedule: a network
+ * error clears when the site answers, a parse error clears when we ship a
+ * selector. A login is fixed in a different tab, on a different origin, by a
+ * form we never touch — and nothing tells us it happened. So it is the one
+ * state that must be re-checked on the student's return rather than on the
+ * poll.
+ *
+ * The first-run screen promised exactly this and did not do it: "Open all
+ * sign-in pages" opened four tabs and then nothing watched for the student
+ * coming back, so signing into all four left every row still reading "not
+ * signed in" until the Sync button was pressed by hand. `beta-install.md` had
+ * been telling testers "come back and the dot clears itself" the whole time.
+ *
+ * Not `pending`: a pending source already has a sync coming, and re-checking it
+ * on return would fire a second one across the first.
+ */
+export function sourcesToRecheck(
+  sources: Partial<Record<Source, SourceStatus>>,
+  now: number,
+): Source[] {
+  const due: Source[] = [];
+  for (const status of Object.values(sources)) {
+    if (status === undefined) continue;
+    if (displayState(status) !== "needs_login") continue;
+    const attempted = status.lastAttemptAt === undefined ? undefined : Date.parse(status.lastAttemptAt);
+    /*
+     * Phrased as "was it recent" rather than "was it long ago", because an
+     * unreadable timestamp must not suppress the check and the two forms differ
+     * exactly there: `Date.parse` of nonsense is NaN, and every comparison
+     * against NaN is false — so NaN fails *this* test and the source is
+     * re-checked, where `now - attempted >= WINDOW` would have failed too and
+     * silently skipped it.
+     *
+     * An explicit `Number.isFinite` here was deleted rather than kept: it
+     * rejected exactly what this rejects, and a second guard saying the same
+     * thing is not defence (mutation house rule 2).
+     */
+    const recentlyTried = attempted !== undefined && now - attempted < RECHECK_AFTER_MS;
+    if (recentlyTried) continue;
+    due.push(status.source);
+  }
+  return due;
+}
+
 export interface HealthSummary {
   /** Sources the user has switched on and that have a plan. */
   checkable: Source[];

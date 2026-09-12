@@ -62,6 +62,7 @@ import {
   emptyStateFor,
   healthPill,
   sourceRows,
+  sourcesToRecheck,
   staleNotice,
 } from "../core/health.js";
 import { type IconName, icon, iconButton } from "./icons.js";
@@ -1101,6 +1102,9 @@ function renderSetup(rows: SetupRow[]): void {
     await send({ type: "complete-setup" });
     document.body.classList.remove("setup");
     await refresh();
+    // Pressing this is the clearest "I have finished signing in" a student can
+    // say, and it was landing on a calendar still asserting nobody was.
+    void recheckLogins();
   });
   actions.append(done);
 
@@ -2399,10 +2403,50 @@ function paintHealth(): void {
   renderHealth(lastHealth.sources, lastHealth.lastSyncAt, new Date());
 }
 
+/**
+ * Coming back to the page after signing in somewhere else.
+ *
+ * `visibilitychange` already redrew — but a redraw reads the store, and the
+ * store still says "not signed in", because nothing fetched. Signing in happens
+ * on another origin, in a tab this extension does not own, and no event crosses
+ * back. So the screen that promised "come back and the dot clears itself"
+ * redrew the same stale sentence forever, and only the Sync button cleared it.
+ *
+ * The sync two lines below does not cover it, twice over: `trigger: "popup"` is
+ * debounced to five minutes, and a source that has failed a few times is in
+ * backoff, which every trigger but `manual` skips. Signing in invalidates both
+ * of those judgements — they are about a source that has not changed, and this
+ * one just did.
+ *
+ * `sourcesToRecheck` decides which sources qualify and holds the debounce,
+ * since this runs on every tab switch.
+ */
+let recheckInFlight = false;
+async function recheckLogins(): Promise<void> {
+  if (recheckInFlight || syncing) return;
+  recheckInFlight = true;
+  try {
+    const response = await send({ type: "get-state" });
+    if (response.type !== "state") return;
+    const due = sourcesToRecheck(response.sources ?? {}, Date.now());
+    if (due.length === 0) return;
+    // Both branches logged, or "came back, nothing was waiting on a login" and
+    // "came back, the check never ran" are the same silence (worker rule 5).
+    console.log(`[illini-dash] back on the page — re-checking ${due.join(", ")}`);
+    await runSync();
+  } finally {
+    recheckInFlight = false;
+  }
+}
+
 renderActions();
 void refresh();
 // §6: opening the popup triggers a sync, debounced to 5 minutes worker-side.
 void send({ type: "sync", trigger: "popup" }).then(refresh).catch(() => undefined);
+// A popup is a fresh document on every open, so `visibilitychange` never fires
+// for it — opening *is* the return, and it is the moment someone who has just
+// signed in comes back to look.
+void recheckLogins();
 
 /* -------------------------------------------------------------------------- */
 /* Keeping an open view honest                                                 */
@@ -2452,5 +2496,7 @@ setInterval(() => {
 // cannot cover, because a hidden page is throttled to roughly once a minute at
 // best and frozen at worst.
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) void refresh();
+  if (document.hidden) return;
+  void refresh();
+  void recheckLogins();
 });

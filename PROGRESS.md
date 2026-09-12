@@ -25,6 +25,59 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Clean-profile run: signing in changed nothing until you pressed Sync — 2026-09-12
+
+The first thing the clean-profile walk found, and it is the first five minutes of
+every beta tester's install. Sushi: *"when I signed in, it didn't update the status
+automatically... I signed into all of them and it still said not signed in, so I clicked
+on show calendar anyway, and it still said not signed in. Only after I clicked the sync
+button everything synced up."*
+
+`beta-install.md` has been promising **"come back and the dot clears itself"** since the
+guide was written. Nothing did it.
+
+**`needs_login` is the only state whose fix happens where the extension cannot see it.**
+Every other failure resolves on our own schedule — a network error clears when the site
+answers, a parse error clears when we ship a selector. A login is fixed in a different
+tab, on a different origin, by a form we never touch, and *no event crosses back*. So it
+is the one state that has to be re-checked on the student's **return** rather than on the
+poll, and it was the one state nothing re-checked.
+
+The popup did have a `visibilitychange` listener. It called `refresh()`, which reads the
+store and redraws — and the store still held the pre-login answer, because nothing had
+fetched. A redraw of a stale fact is indistinguishable from a fact.
+
+Two more layers were hiding underneath, and both are judgements that signing in
+invalidates:
+
+- the sync fired on popup open is `trigger: "popup"`, **debounced to five minutes**;
+- a source that has failed a few times is **in backoff**, which every trigger except
+  `manual` skips.
+
+Both are correct reasoning about a source that has not changed. Signing in is exactly the
+event that changes one, and neither had any way to hear about it. `core/health.ts` gains
+`sourcesToRecheck`, which holds the rule and its own debounce — ten seconds, because
+`visibilitychange` fires on every tab switch — and the three moments that mean "I am
+back" now use it: opening the popup (a fresh document, so `visibilitychange` never fires
+for it — opening *is* the return), returning to the full view or Settings, and pressing
+**Show my calendar**, which is the clearest "I have finished signing in" a student can
+say and was landing on a calendar still asserting nobody was.
+
+A `Number.isFinite` guard written alongside it **survived its mutation and was deleted**:
+`Date.parse` of nonsense is NaN, every comparison against NaN is false, and the
+comparison already did the whole job. Mutation house rule 2's third case — a second guard
+that rejects exactly what the first does is not defence. The test it was written for
+stays, and now pins the surviving form: flipping `< WINDOW` to `!(>= WINDOW)` fails it.
+
+And the harness could not have shown any of this, for the usual reason. The preview's
+signed-out Gradescope carried `lastAttemptAt: new Date()` — a source that failed a login
+*this second*, which is the one shape the return-from-signing-in path cannot occur in,
+since the debounce suppresses it. Dated two minutes back, all three call sites are now
+observable in the real popup document: opening fires `popup` then `manual`, returning
+fires `manual`, and **Show my calendar** fires `manual`.
+
+967 tests.
+
 ## The store documents, aligned and published — 2026-09-12
 
 **The one store file no test read is the one that drifted.** `tests/manifest.test.ts`
