@@ -1,137 +1,140 @@
 :root {
   color-scheme: light dark;
-  --fg: #1a1a1a;
-  --muted: #666;
-  --bg: #fff;
-  --line: #ddd;
+
+  /*
+   * ==========================================================================
+   * Palette, taken from Sushi's own mockup
+   * ==========================================================================
+   *
+   * Three things it does that the previous attempt did not:
+   *
+   * 1. **Surfaces carry the brand hue.** The page itself is navy, not grey with
+   *    a blue bar on top. That is the whole difference between an Illini
+   *    product and a grey box wearing a hat.
+   * 2. **A course pill is a tinted fill, a coloured edge and a coloured code.**
+   *    Three weak signals of the same hue read as one clear one; a 3px edge
+   *    alone reads as nothing at a glance.
+   * 3. **The tint is weak and the text is strong.** The fill sits around 12-16%
+   *    so eight courses cannot turn a month into a patchwork, while the course
+   *    code stays fully saturated — that split is what lets a label be
+   *    identifiable without being loud.
+   */
+  --fg: #101a2c;
+  --muted: #5b6a82;
+  --bg: #ffffff;
+  --surface: #f6f8fb;
+  --line: #e2e7ef;
+
   --ok: #1a7f37;
   --warn: #9a6700;
   --err: #b42318;
 
-  /*
-   * Illini Blue and Illini Orange, the university's own pair.
-   *
-   * Structural only. They name the app; they never carry meaning, because the
-   * meanings are already taken — red is overdue, amber is a window still open,
-   * green is a source that answered. A brand colour that also means something
-   * is a brand colour that will eventually contradict it.
-   */
   --brand: #13294b;
   --brand-ink: #ffffff;
   --accent: #ff5f05;
-
-  /*
-   * Where you are, which is not an error.
-   *
-   * Today's date ring and the now-line were both `--err`. That reads as an
-   * alert about the present moment, and it spent the one colour that should
-   * only ever mean "this is late" on the one thing that is never late.
-   */
   --now: var(--accent);
 
-  /*
-   * Tinted surfaces, derived from the brand rather than from grey.
-   *
-   * Everything structural — gutters, headings, the strip behind the tabs, a
-   * hover — used a neutral `rgba(127,127,127,…)`. That is why painting the bar
-   * blue changed almost nothing: the bar was the only surface in the interface
-   * that had a colour at all, and the other twenty were grey.
-   */
-  --tint: rgba(19, 41, 75, .055);
-  --tint-strong: rgba(19, 41, 75, .10);
-  --hover: rgba(19, 41, 75, .085);
-  /* Today, at a weight that can sit behind text. */
-  --today-tint: rgba(255, 95, 5, .10);
+  --tint: #f6f8fb;
+  --tint-strong: #eef2f8;
+  --hover: rgba(19, 41, 75, .055);
+  --today-tint: #fdeee2;
+
+  /* Course hues: one saturated ink for text and edges, one wash for fills. */
+  --course-0: #2f6fd0; --course-0-bg: #e8f0fc;
+  --course-1: #0f9d78; --course-1-bg: #e3f7f1;
+  --course-2: #e0670a; --course-2-bg: #fdeee0;
+  --course-3: #8b46cf; --course-3-bg: #f2e9fc;
+  --course-4: #0d8fa8; --course-4-bg: #e0f4f8;
+  --course-5: #c2255c; --course-5-bg: #fce8ef;
+  --course-6: #5b6ad0; --course-6-bg: #ebedfc;
+  --course-7: #7a6a1f; --course-7-bg: #f6f2df;
 }
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --fg: #e6e6e6;
-    --muted: #9a9a9a;
-    --bg: #1c1c1c;
-    --line: #3a3a3a;
+    /*
+     * Deep navy rather than near-black. The mockup's surfaces are all the same
+     * hue family as the brand, which is why the header stops looking bolted on.
+     */
+    --fg: #e8eef8;
+    --muted: #8fa0ba;
+    --bg: #0b1220;
+    --surface: #0f1829;
+    --line: #1e2c44;
+
     --ok: #4ac26b;
     --warn: #d4a72c;
     --err: #f0736a;
-    /* Lifted off the official value: #13294b on a near-black page is a bar you
-       cannot see. Same hue, enough lightness to read as a surface. */
-    --brand: #1b3a6b;
-    --accent: #ff8534;
-    /*
-     * Roughly twice the light-mode alpha, and not by taste.
-     *
-     * A wash is composited toward its own luminance, so the same alpha does
-     * very different work at each end. On white, 5.5% of navy drops the surface
-     * 12 points out of 255; on #1c1c1c, 6% of pale blue lifted it 8 — and the
-     * eye is far less sensitive to lightening near-black than to darkening
-     * white. The header was measurably tinted in dark mode and invisibly so.
-     */
-    --tint: rgba(120, 170, 255, .13);
-    --tint-strong: rgba(120, 170, 255, .20);
-    --hover: rgba(120, 170, 255, .11);
-    --today-tint: rgba(255, 133, 52, .18);
+
+    --brand: #0d1626;
+    --brand-ink: #e8eef8;
+    --accent: #ff6a1a;
+
+    --tint: #0f1829;
+    --tint-strong: #16223a;
+    --hover: rgba(140, 180, 255, .07);
+    --today-tint: #2a1a10;
+
+    --course-0: #6ea8ff; --course-0-bg: #142440;
+    --course-1: #2fd3aa; --course-1-bg: #0d2b28;
+    --course-2: #ff8a3d; --course-2-bg: #33210f;
+    --course-3: #b98cff; --course-3-bg: #231a3c;
+    --course-4: #3fc7e0; --course-4-bg: #0e2a33;
+    --course-5: #ff7aa8; --course-5-bg: #331525;
+    --course-6: #8f9dff; --course-6-bg: #1a1f3f;
+    --course-7: #d8c26a; --course-7-bg: #2b2614;
   }
 }
 
-/* ---- Neutral: what this looked like before it had a palette ---- */
+/* ---- Neutral: no brand hue anywhere ---- */
 .theme-neutral {
-  --brand: transparent;
-  --brand-ink: var(--fg);
-  --accent: var(--muted);
+  --brand: transparent; --brand-ink: var(--fg); --accent: var(--muted);
   --now: #b42318;
-  --tint: rgba(127, 127, 127, .06);
-  --tint-strong: rgba(127, 127, 127, .11);
-  --hover: rgba(127, 127, 127, .10);
-  --today-tint: rgba(127, 127, 127, .09);
+  --tint: rgba(127, 127, 127, .06); --tint-strong: rgba(127, 127, 127, .11);
+  --hover: rgba(127, 127, 127, .10); --today-tint: rgba(127, 127, 127, .09);
 }
 @media (prefers-color-scheme: dark) {
   .theme-neutral {
-    --now: #f0736a;
-    --tint: rgba(255, 255, 255, .07);
-    --tint-strong: rgba(255, 255, 255, .11);
-    --hover: rgba(255, 255, 255, .09);
-    --today-tint: rgba(255, 255, 255, .08);
+    --bg: #1c1c1c; --surface: #232323; --line: #3a3a3a;
+    --fg: #e6e6e6; --muted: #9a9a9a; --now: #f0736a;
+    --tint: rgba(255, 255, 255, .06); --tint-strong: rgba(255, 255, 255, .10);
+    --hover: rgba(255, 255, 255, .08); --today-tint: rgba(255, 255, 255, .08);
   }
 }
 
-/*
- * ---- High contrast ----
- *
- * Two separate problems, and both are about being able to tell things apart.
- * Text and borders go stronger, and the course palette is replaced with one
- * chosen to stay distinguishable under red-green colour blindness — which the
- * default palette is not, and which is common enough in a CS lecture hall that
- * "it looks fine to me" is not evidence.
- */
+/* ---- High contrast: built for telling things apart ---- */
 .theme-contrast {
-  --fg: #000;
-  --muted: #444;
-  --line: #949494;
-  --ok: #0b6b2c;
-  --warn: #7a4f00;
-  --err: #96140b;
-  --brand: #0b1b33;
-  --accent: #c24500;
-  --tint: rgba(11, 27, 51, .09);
-  --tint-strong: rgba(11, 27, 51, .16);
-  --hover: rgba(11, 27, 51, .14);
-  --today-tint: rgba(194, 69, 0, .16);
+  --fg: #000; --muted: #3d3d3d; --bg: #fff; --surface: #f0f0f0; --line: #8a8a8a;
+  --ok: #0b6b2c; --warn: #7a4f00; --err: #96140b;
+  --brand: #0b1b33; --accent: #c24500;
+  --tint: #eef1f6; --tint-strong: #e2e7f0; --hover: rgba(11, 27, 51, .12);
+  --today-tint: #ffe6d2;
+  --course-0: #0059b3; --course-0-bg: #e2eefb;
+  --course-1: #00705a; --course-1-bg: #ddf3ee;
+  --course-2: #b34700; --course-2-bg: #fceadb;
+  --course-3: #7a2fa8; --course-3-bg: #f1e6f9;
+  --course-4: #00657a; --course-4-bg: #ddf0f5;
+  --course-5: #a3004c; --course-5-bg: #fce2ec;
+  --course-6: #3b49a8; --course-6-bg: #e6e9fa;
+  --course-7: #5c4f00; --course-7-bg: #f4f0d8;
 }
 @media (prefers-color-scheme: dark) {
   .theme-contrast {
-    --fg: #fff;
-    --muted: #c2c2c2;
-    --bg: #000;
-    --line: #6e6e6e;
-    --ok: #5ee27f;
-    --warn: #f0c33c;
-    --err: #ff8f85;
-    --accent: #ff9b52;
-    --tint: rgba(150, 195, 255, .17);
-    --tint-strong: rgba(150, 195, 255, .26);
-    --hover: rgba(150, 195, 255, .15);
-    --today-tint: rgba(255, 155, 82, .24);
+    --fg: #fff; --muted: #c8c8c8; --bg: #000; --surface: #101010; --line: #6e6e6e;
+    --ok: #5ee27f; --warn: #f0c33c; --err: #ff8f85; --accent: #ff9b52;
+    --tint: #101010; --tint-strong: #1c1c1c; --hover: rgba(255, 255, 255, .14);
+    --today-tint: #3a2410;
+    --course-0: #66b8ff; --course-0-bg: #0b2337;
+    --course-1: #4fe0b4; --course-1-bg: #072b25;
+    --course-2: #ff9f57; --course-2-bg: #33210f;
+    --course-3: #c9a3ff; --course-3-bg: #241a3a;
+    --course-4: #5cd8f0; --course-4-bg: #07272f;
+    --course-5: #ff92b8; --course-5-bg: #331522;
+    --course-6: #a3b0ff; --course-6-bg: #1a1f3d;
+    --course-7: #e8d47a; --course-7-bg: #2b2612;
   }
 }
+
 body {
   margin: 0;
   padding: 12px;

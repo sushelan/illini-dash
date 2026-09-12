@@ -785,6 +785,37 @@ let hidden = hiddenCourses();
 /* Chrome above the views                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A glyph per view.
+ *
+ * Inline SVG rather than an icon font or an image: §8.1's rendering rule is
+ * that nothing from outside is injected as markup, and a font would be a fourth
+ * asset to ship for five shapes. Drawn with `currentColor` so a tab's icon and
+ * its label cannot disagree about whether it is selected.
+ */
+const TAB_PATHS: Record<ViewName, string> = {
+  day: "M3 4h10v9H3zM3 7h10M5 2v2M11 2v2",
+  week: "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
+  month: "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",
+  exams: "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
+  attention: "M8 2a4 4 0 0 0-4 4c0 3-1 4-1 4h10s-1-1-1-4a4 4 0 0 0-4-4zM7 13h2",
+};
+
+function tabIcon(name: ViewName): SVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.3");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", TAB_PATHS[name]);
+  svg.append(path);
+  return svg;
+}
+
 function renderTabs(counts: Partial<Record<ViewName, number>>): void {
   tabsEl.replaceChildren();
   for (const name of VIEWS) {
@@ -796,7 +827,15 @@ function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     // counted — a badge that only ever grows is a badge nobody reads.
     if (count > 0) tab.classList.add(name === "exams" ? "tab-warn" : "tab-err");
     tab.setAttribute("aria-selected", String(name === view));
-    tab.textContent = VIEW_LABEL[name];
+    // The label is an element rather than a text node so the popup can hide it
+    // on the tabs that are not selected: five labelled tabs measure 454px in a
+    // 400px popup, and a document wider than the popup is the bug that opened
+    // it at 800px once already.
+    const label = document.createElement("span");
+    label.className = "tab--label";
+    label.textContent = VIEW_LABEL[name];
+    tab.title = VIEW_LABEL[name];
+    tab.append(tabIcon(name), label);
     if (count > 0) {
       const badge = document.createElement("span");
       badge.className = "tab--count";

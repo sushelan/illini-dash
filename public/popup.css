@@ -201,22 +201,42 @@ h2.section {
     --course-4: #20c997; --course-5: #ffc078; --course-6: #f783ac; --course-7: #3bc9db;
   }
 }
-.course-0 { --course: var(--course-0); } .course-1 { --course: var(--course-1); }
-.course-2 { --course: var(--course-2); } .course-3 { --course: var(--course-3); }
-.course-4 { --course: var(--course-4); } .course-5 { --course: var(--course-5); }
-.course-6 { --course: var(--course-6); } .course-7 { --course: var(--course-7); }
+/* Each course carries an ink and a wash: the ink for edges and the code, the
+   wash for the fill. One class sets both so nothing can use one without the
+   other and end up with a blue bar on a green field. */
+.course-0 { --course: var(--course-0); --course-bg: var(--course-0-bg); }
+.course-1 { --course: var(--course-1); --course-bg: var(--course-1-bg); }
+.course-2 { --course: var(--course-2); --course-bg: var(--course-2-bg); }
+.course-3 { --course: var(--course-3); --course-bg: var(--course-3-bg); }
+.course-4 { --course: var(--course-4); --course-bg: var(--course-4-bg); }
+.course-5 { --course: var(--course-5); --course-bg: var(--course-5-bg); }
+.course-6 { --course: var(--course-6); --course-bg: var(--course-6-bg); }
+.course-7 { --course: var(--course-7); --course-bg: var(--course-7-bg); }
 
 /* ---- tabs ---- */
-.tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); }
+/*
+ * An outlined pill, not a filing-cabinet tab.
+ *
+ * The old shape needed a border-bottom trick to merge with the strip below it,
+ * so the selected tab was defined by what it was *touching*. A pill is defined
+ * by itself and survives the strip being any colour.
+ */
+.tabs {
+  display: flex; gap: 4px; align-items: center;
+  padding: 7px 10px; border-bottom: 1px solid var(--line);
+}
 .tab {
-  font: inherit; font-size: 12px; padding: 5px 10px 6px; cursor: pointer;
-  border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0;
-  background: none; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12.5px; padding: 6px 11px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 20px;
+  background: none; color: var(--muted); white-space: nowrap;
 }
+.tab:hover { color: var(--fg); }
 .tab[aria-selected="true"] {
-  color: var(--fg); font-weight: 600; background: var(--bg);
-  border-color: var(--line); margin-bottom: -1px;
+  color: var(--accent); font-weight: 600;
+  border-color: var(--accent); background: transparent;
 }
+.tab svg { width: 14px; height: 14px; flex: none; }
 .tab-err[aria-selected="true"] { color: var(--err); }
 .tab--count { font-size: 10px; color: var(--muted); }
 
@@ -227,12 +247,13 @@ h2.section {
 }
 .filters:empty { display: none; }
 .fchip {
-  display: flex; align-items: center; gap: 3px; flex: none;
-  font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .02em;
-  color: var(--fg); background: none; cursor: pointer;
-  border: 1px solid var(--line); border-radius: 20px; padding: 2px 7px 2px 5px;
+  display: flex; align-items: center; gap: 6px; flex: none;
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  color: var(--fg); background: var(--bg); cursor: pointer;
+  border: 1px solid var(--line); border-radius: 20px; padding: 4px 11px 4px 8px;
 }
-.fchip i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--course); }
+.fchip:hover { border-color: var(--course); }
+.fchip i { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--course); }
 /* Switched off stays on screen. A filter that removes a control along with the
    work it hides gives the student no way back (§11, one level up). */
 .fchip[aria-pressed="false"] { opacity: .45; }
@@ -297,23 +318,30 @@ h2.section {
 }
 .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .mcell {
-  min-height: 92px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  min-height: 96px; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
   padding: 4px 4px 5px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }
 .mcell:nth-child(7n + 1) { border-left: 0; }
 .mcell--out { background: var(--tint); }
-.mnum { font-size: 10.5px; color: var(--muted); font-weight: 600; }
-.mcell--out .mnum { opacity: .45; }
+.mnum { font-size: 12px; color: var(--fg); font-weight: 600; padding: 1px 2px 3px; }
+.mcell--out .mnum { color: var(--muted); opacity: .55; }
 .mcell--today .mnum {
   color: #fff; background: var(--now); border-radius: 50%;
-  width: 17px; height: 17px; display: grid; place-items: center; font-size: 10px;
+  width: 24px; height: 24px; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
 }
+/*
+ * Three signals of one hue: a solid left edge, a weak fill, and a saturated
+ * course code. Any one alone is too quiet to scan a month by; together they
+ * identify a course without the fill ever having to be loud.
+ */
 .mpill {
-  display: flex; gap: 3px; align-items: baseline; min-width: 0; cursor: pointer;
-  border-left: 2.5px solid var(--course, var(--line)); border-radius: 2px;
-  background: var(--tint-strong); padding: 1px 3px; font-size: 9.5px; line-height: 1.25;
+  display: flex; gap: 6px; align-items: baseline; min-width: 0; cursor: pointer;
+  border-left: 3px solid var(--course, var(--line)); border-radius: 0 4px 4px 0;
+  background: var(--course-bg, var(--tint-strong));
+  padding: 3px 6px; font-size: 11px; line-height: 1.3;
 }
-.mpill--code { font-weight: 700; font-size: 8.5px; color: var(--muted); flex: none; }
+.mpill--code { font-weight: 700; font-size: 10px; color: var(--course, var(--muted)); flex: none; }
 /* Truncation is the deliberate trade: three recognisable rows beat one whole
    one, because a month answers "which days are heavy" and the full title is one
    click away in the day view. */
@@ -346,7 +374,15 @@ h2.section {
 /* ---- rows inside a calendar ---- */
 .grid--stack .row, .witems .row, .band .row {
   border-left: 3px solid var(--course, transparent);
-  padding-top: 4px; padding-bottom: 4px;
+  background: var(--course-bg, transparent);
+  border-radius: 0 4px 4px 0;
+  margin: 0 8px 2px 0;
+  padding-top: 5px; padding-bottom: 5px;
+}
+/* The course code takes the hue too, which is what makes a row identifiable
+   without the fill having to carry it alone. */
+.grid--stack .chip, .witems .chip, .band .chip, .row[class*="course-"] .chip {
+  color: var(--course); border-color: var(--course); opacity: .95;
 }
 .section--err { color: var(--err); }
 
@@ -380,6 +416,7 @@ h2.section {
 .row-opening .row--due { font-style: italic; }
 /* One colour vocabulary everywhere, so the Attention tab reads like the grid. */
 .row[class*="course-"] { border-left: 3px solid var(--course); padding-left: 9px; }
+.na .row[class*="course-"] { background: var(--course-bg); border-radius: 0 4px 4px 0; margin-right: 12px; }
 
 /* Sticky under the bar; `top` is set from the bar's measured height. */
 .tabs { position: sticky; z-index: 1; background: var(--bg); }
@@ -571,3 +608,17 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 /* The one primary action in the app. */
 .setup--primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .theme-neutral .setup--primary { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+
+/*
+ * In the popup, only the selected tab is named.
+ *
+ * Five labelled tabs measure 454px against a 400px document, and a document
+ * wider than the popup is exactly what opened it at 800px once before. The
+ * icons carry the unselected ones, each with a `title`, and the full view —
+ * which has the room — names them all.
+ */
+.tab--label { display: none; }
+.tab[aria-selected="true"] .tab--label { display: inline; }
+.view-full .tab--label { display: inline; }
+.tab { padding: 6px 9px; }
+.tab[aria-selected="true"], .view-full .tab { padding: 6px 11px; }
