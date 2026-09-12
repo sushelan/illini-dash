@@ -10,6 +10,7 @@ import {
   STALE_AFTER_MS,
   badgeFor,
   displayState,
+  actionFor,
   emptyStateFor,
   healthPill,
   sourceRows,
@@ -437,7 +438,11 @@ describe("healthPill (what replaces the six dots)", () => {
     );
     expect(pill.tone).toBe("warn");
     expect(pill.text).toBe("Sign in to Gradescope");
-    expect(pill.action).toEqual({ kind: "login", source: "gradescope" });
+    expect(pill.action).toEqual({
+      kind: "login",
+      source: "gradescope",
+      url: "https://www.gradescope.com/login",
+    });
   });
 
   it("names the site rather than its storage key", () => {
@@ -447,7 +452,72 @@ describe("healthPill (what replaces the six dots)", () => {
       NOW,
     );
     expect(pill.tone).toBe("err");
-    expect(pill.text).toBe("PrairieTest couldn't be read");
+    expect(pill.text).toBe("PrairieTest looks different");
+  });
+
+  it("does not call a failed fetch a page that changed", () => {
+    /*
+     * Reported from a live run: Gradescope showed "couldn't be read", and the
+     * entire fix was pressing Sync now.
+     *
+     * §6 classifies into two branches and this function threw the distinction
+     * away — which is worker house rule 2's own example, reintroduced one layer
+     * up. "Couldn't be read" means the page changed shape and sends someone to
+     * look at selectors; "couldn't be reached" means the request failed and the
+     * fix is one button.
+     */
+    const pill = healthPill(
+      sources({ gradescope: status({ state: "network_error" }) }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.text).toBe("Gradescope didn't answer");
+    expect(pill.text).not.toContain("different");
+    expect(pill.action).toEqual({ kind: "retry", source: "gradescope" });
+  });
+
+  it("leads with the failure that can be retried", () => {
+    // Ranked by what the student can do, not by severity: retrying is one
+    // click, a page that genuinely changed shape needs a new build.
+    const pill = healthPill(
+      sources({
+        canvas: status({ source: "canvas", state: "parse_error" }),
+        gradescope: status({ state: "network_error" }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.text).toBe("2 sites didn't answer");
+    expect(pill.action).toEqual({ kind: "retry", source: "gradescope" });
+  });
+
+  it("always offers something to do about a failure", () => {
+    /*
+     * The other half of the same report: clicking the words got a list, and the
+     * list had nothing on it either, because only `needs_login` produced a
+     * button. A pill that names a broken site and offers nothing is a dead end
+     * at the exact moment a student needs a way forward.
+     */
+    for (const state of ["needs_login", "network_error", "parse_error"] as const) {
+      const pill = healthPill(sources({ gradescope: status({ state }) }), SYNCED, NOW);
+      expect(pill.action, state).toBeDefined();
+    }
+  });
+
+  it("keeps the pill short enough to finish its own sentence", () => {
+    /*
+     * 400px, minus a dot, a button and three icon buttons. "Gradescope couldn't
+     * be reached" truncated to "…couldn't be rea…", losing the one word the
+     * whole distinction turns on — so the sentence has a budget and this is it.
+     */
+    for (const state of ["needs_login", "network_error", "parse_error"] as const) {
+      const pill = healthPill(
+        sources({ prairielearn: status({ source: "prairielearn", state }) }),
+        SYNCED,
+        NOW,
+      );
+      expect(pill.text.length, `${state}: ${pill.text}`).toBeLessThanOrEqual(28);
+    }
   });
 
   it("counts rather than listing when several are wrong", () => {
@@ -463,15 +533,17 @@ describe("healthPill (what replaces the six dots)", () => {
     );
     expect(logins.text).toBe("Sign in to 2 sites");
 
+    // Both unreadable, so the sentence is the unreadable one. The mixed case —
+    // where one of them is merely unreachable — is its own test above.
     const broken = healthPill(
       sources({
         gradescope: status({ state: "parse_error" }),
-        canvas: status({ source: "canvas", state: "network_error" }),
+        canvas: status({ source: "canvas", state: "parse_error" }),
       }),
       SYNCED,
       NOW,
     );
-    expect(broken.text).toBe("2 sites couldn't be read");
+    expect(broken.text).toBe("2 sites look different");
   });
 
   it("says so when nothing is switched on, instead of claiming health", () => {
@@ -527,7 +599,28 @@ describe("sourceRows (the pill's popover, and Settings)", () => {
     const [row] = sourceRows(sources({ gradescope: status({ state: "needs_login" }) }), NOW);
     expect(row!.word).toBe("Sign in needed");
     expect(row!.word).not.toContain("_");
-    expect(row!.loginUrl).toContain("gradescope.com");
+    expect(row!.action).toEqual({
+      kind: "login",
+      source: "gradescope",
+      url: "https://www.gradescope.com/login",
+    });
+  });
+
+  it("gives every failing row something to press", () => {
+    // It used to carry a `loginUrl`, so the shape of the data said only logins
+    // were actionable — and a source that could not be reached rendered as a
+    // red row with nothing on it.
+    const rows = sourceRows(
+      sources({
+        gradescope: status({ state: "network_error" }),
+        canvas: status({ source: "canvas", state: "parse_error" }),
+        prairietest: status({ source: "prairietest", state: "needs_login" }),
+      }),
+      NOW,
+    );
+    for (const row of rows) expect(row.action, row.source).toBeDefined();
+    expect(rows.find((r) => r.source === "gradescope")!.action!.kind).toBe("retry");
+    expect(rows.find((r) => r.source === "canvas")!.action!.kind).toBe("open");
   });
 
   it("reports a never-attempted source as pending, not as its seeded state", () => {
@@ -554,13 +647,35 @@ describe("sourceRows (the pill's popover, and Settings)", () => {
     expect(row!.lastRead).toBeUndefined();
   });
 
-  it("offers no login link for a source that is merely off", () => {
+  it("offers nothing to do about a source that is fine, or merely off", () => {
     // Offering "log in" beside a switch the student deliberately turned off is
-    // an invitation to undo a choice they just made.
-    const [row] = sourceRows(
+    // an invitation to undo a choice they just made — and a button on a healthy
+    // row is a button that teaches people to ignore the buttons.
+    const [off] = sourceRows(
       sources({ gradescope: status({ enabled: false, state: "disabled" }) }),
       NOW,
     );
-    expect(row!.loginUrl).toBeUndefined();
+    expect(off!.action).toBeUndefined();
+    const [ok] = sourceRows(sources({ gradescope: status({ state: "ok" }) }), NOW);
+    expect(ok!.action).toBeUndefined();
+    expect(actionFor("gradescope", "pending")).toBeUndefined();
+  });
+
+  it("sends a parse error to the site rather than to a login form", () => {
+    // The session is valid — that is what makes it a parse error rather than a
+    // needs_login. A login page is an answer to a question nobody asked; the
+    // useful thing is to see the page the parser could not make sense of.
+    const action = actionFor("gradescope", "parse_error");
+    expect(action).toEqual({
+      kind: "open",
+      source: "gradescope",
+      url: "https://www.gradescope.com/",
+    });
+  });
+
+  it("falls back to a retry for a source with no page to open", () => {
+    // A course website is whatever host its adapter points at, so there is no
+    // single URL — and a row with no action is the dead end this fixes.
+    expect(actionFor("site", "parse_error")).toEqual({ kind: "retry", source: "site" });
   });
 });

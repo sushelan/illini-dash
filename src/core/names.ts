@@ -94,6 +94,23 @@ export const LOGIN_URL: Partial<Record<Source, string>> = {
 };
 
 /**
+ * The site's own front page.
+ *
+ * Not `LOGIN_URL`: when a source fails for any reason *other* than a login, the
+ * useful thing to open is the page itself — so the student can see whether the
+ * site is down, whether it looks different, or whether the deadline really is
+ * there. Sending them to a login form for a session that is already valid is
+ * an answer to a question nobody asked.
+ */
+export const SOURCE_HOME: Partial<Record<Source, string>> = {
+  canvas: "https://canvas.illinois.edu/",
+  gradescope: "https://www.gradescope.com/",
+  prairielearn: "https://us.prairielearn.com/pl/",
+  prairietest: "https://us.prairietest.com/pt/",
+  smartphysics: "https://smart.physics.illinois.edu/",
+};
+
+/**
  * "Gradescope", "Gradescope and Canvas", "Gradescope, Canvas and PrairieLearn".
  *
  * A list in a sentence, so the sentence stays a sentence. `join(", ")` produced

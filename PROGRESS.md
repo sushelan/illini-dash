@@ -25,6 +25,42 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: three findings from Sushi — 2026-09-12
+
+All three from one session with the real extension. The first two are the same defect.
+
+1. **"Gradescope couldn't be read" when the whole fix was pressing Sync now.**
+   `sync.ts` classifies a failure into `parse_error` and `network_error` — §6 has two
+   branches for a reason — and `healthPill` then said "couldn't be read" for both. That
+   is worker house rule 2's own recorded example, reintroduced by this work one layer up,
+   in the function that replaced the dots. A `TypeError: Failed to fetch` was being
+   announced as "the page changed", which sends someone to debug selectors that are fine.
+   Now: **"Gradescope didn't answer"** (retryable) vs **"Canvas looks different"** (needs
+   a build). Four words, not five, because "Gradescope couldn't be reached" truncated to
+   `…couldn't be rea…` in a 400px bar — losing the one word the distinction turns on.
+   A test pins the character budget.
+2. **Clicking the text offered nothing.** `SourceRow` carried a `loginUrl`, so the *shape
+   of the data* said only a login was actionable — a source that could not be reached
+   rendered as a red row with no button, in the popover and in the pill. `actionFor()`
+   now returns one for every failing state (`login` / `retry` / `open`), and the pill and
+   the popover both derive theirs from it, so they cannot disagree. The action sits as a
+   named button beside the pill — "Try again", "Open", "Sign in" — because a sentence
+   naming a site should not need a second click to act on.
+3. **Sync took 5–10 seconds with the header still asserting the last result.** The pill
+   reads **"Checking…"** for the duration now, repainted before the request rather than
+   after it. The spinner is capped at `SYNC_SPINNER_CAP_MS`:
+   `chrome.runtime.sendMessage` does not reject when the worker is torn down mid-answer,
+   so without it a dead worker left the button disabled and turning forever.
+
+**Why the suite did not catch any of this.** None of the three states was reachable in
+the harness — the stub had no failing source and answered `sync` instantly. `?fail=network`,
+`?fail=parse` and a 1.2s sync delay fix that, and `popup-unreachable` / `popup-unreadable`
+are in `npm run shots` so both sentences are rendered on every run. The general form is
+CLAUDE.md's own: *live data is a source of truth the fixtures are not* — and the answer
+to that is not only to read the live output, but to make the state it revealed reachable.
+
+918 tests; the classification, the per-state action and the ranking each mutation-checked.
+
 ## UX plan — polish pass and what is left — 2026-09-12
 - **m10** nothing renders below 10px any more (was 9px on "+N more" and 9.5px on the hour
   axis, the week's gutter and the month header). 10px is kept only for tracked uppercase

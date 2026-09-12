@@ -28,6 +28,20 @@ import {
 
 /** §4: 20 s per request, at most 4 concurrent per host. */
 export const REQUEST_TIMEOUT_MS = 20_000;
+
+/**
+ * How long a spinner is allowed to keep claiming something is happening.
+ *
+ * A real sync is five or six requests and takes five to ten seconds, which is
+ * already long enough to wonder whether the click registered. What it must not
+ * do is spin forever: `chrome.runtime.sendMessage` does not reject when the
+ * service worker is torn down mid-answer, so a dead worker left the button
+ * disabled and turning with nothing behind it and no way to press it again.
+ *
+ * One request timeout plus slack. A sync that has produced nothing by then is
+ * not going to, and the honest thing is to hand the screen back.
+ */
+export const SYNC_SPINNER_CAP_MS = REQUEST_TIMEOUT_MS + 10_000;
 export const MAX_CONCURRENT_PER_HOST = 4;
 /** §6: a popup-triggered sync inside this window is a no-op. */
 export const POPUP_DEBOUNCE_MS = 5 * 60_000;

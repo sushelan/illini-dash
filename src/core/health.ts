@@ -17,7 +17,15 @@
  */
 
 import { groupItems } from "./grouping.js";
-import { LOGIN_URL, SOURCE_NAME, STATE_WORD, fullStamp, nameList, timeAgo } from "./names.js";
+import {
+  LOGIN_URL,
+  SOURCE_HOME,
+  SOURCE_NAME,
+  STATE_WORD,
+  fullStamp,
+  nameList,
+  timeAgo,
+} from "./names.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 /**
@@ -165,6 +173,40 @@ export function statusLine(
 
 export type HealthTone = "ok" | "warn" | "err" | "pending";
 
+/**
+ * The one thing to do about a source that is not fine.
+ *
+ * Every failing state has one, and that is the point. The pill and the popover
+ * both derive theirs from `actionFor`, so a source cannot be described as
+ * broken in one place and offered nothing in the other — which is exactly what
+ * happened: only `needs_login` produced a button, so a source that could not be
+ * reached rendered as a red row with nothing on it. A student clicked the words
+ * "Gradescope couldn't be read", got a list, and found no way forward.
+ */
+export type SourceAction =
+  /** The session expired. Open the login page. */
+  | { kind: "login"; source: Source; url: string }
+  /** A fetch failed. It is transient far more often than not — try again. */
+  | { kind: "retry"; source: Source }
+  /** The page was not what the parser expected. Open it and look. */
+  | { kind: "open"; source: Source; url: string };
+
+export function actionFor(source: Source, state: SourceState): SourceAction | undefined {
+  if (state === "needs_login") {
+    const url = LOGIN_URL[source];
+    return url ? { kind: "login", source, url } : undefined;
+  }
+  // A network error is the recoverable one, and retrying is the whole fix in
+  // most cases. Offering "open the site" here would be advice to go and check
+  // by hand what one click could settle.
+  if (state === "network_error") return { kind: "retry", source };
+  if (state === "parse_error") {
+    const url = SOURCE_HOME[source];
+    return url ? { kind: "open", source, url } : { kind: "retry", source };
+  }
+  return undefined;
+}
+
 export interface HealthPill {
   tone: HealthTone;
   /** The whole sentence, already named and already plain. */
@@ -175,7 +217,7 @@ export interface HealthPill {
    * `undefined` on a healthy pill: there is nothing to fix, and the list is
    * still worth opening.
    */
-  action?: { kind: "login"; source: Source };
+  action?: SourceAction;
 }
 
 /**
@@ -193,11 +235,18 @@ export interface HealthPill {
  * 2 for free: it cannot say "OK" about a source that was never fetched, because
  * `displayState` calls that one `pending` and `pending` is not `ok`.
  *
- * **Signing in outranks a parse error.** Both are failures and red is the more
- * severe colour, but `staleNotice` already sorts this way and for the same
- * reason: one of them is a thing the student can finish in ten seconds, and the
- * other is a thing only a new build can fix. Leading with the red one buries
- * the actionable half.
+ * **The failures are ranked by what the student can do about them**, not by
+ * severity. Signing in is ten seconds; retrying a fetch is one click; a page
+ * that genuinely changed shape needs a new build. `staleNotice` already sorts
+ * on the same principle, and leading with the one nobody can act on buries the
+ * ones they can.
+ *
+ * **And the two kinds of failure are not the same sentence.** "Couldn't be
+ * read" means the page changed — it sends someone to look at selectors. A
+ * `TypeError: Failed to fetch` is "couldn't be reached", and the fix is to
+ * press the button again. Collapsing both into "couldn't be read" is worker
+ * house rule 2's own example, and this function did it: §6 classifies into two
+ * branches and the pill threw the distinction away.
  */
 export function healthPill(
   sources: Partial<Record<Source, SourceStatus>>,
@@ -212,24 +261,44 @@ export function healthPill(
       : undefined;
 
   if (summary.needsLogin.length > 0) {
-    const [first] = summary.needsLogin;
+    const first = summary.needsLogin[0]!;
+    const action = actionFor(first, "needs_login");
     return {
       tone: "warn",
       text:
         summary.needsLogin.length === 1
-          ? `Sign in to ${SOURCE_NAME[first!]}`
+          ? `Sign in to ${SOURCE_NAME[first]}`
           : `Sign in to ${summary.needsLogin.length} sites`,
-      ...(LOGIN_URL[first!] ? { action: { kind: "login" as const, source: first! } } : {}),
+      ...(action ? { action } : {}),
     };
   }
 
   if (summary.failing.length > 0) {
+    // Unreachable before unreadable: one is a button press, the other is a bug
+    // report. The pill leads with whichever the student can actually finish.
+    const unreachable = summary.failing.filter(
+      (source) => displayState(sources[source]!) === "network_error",
+    );
+    const lead = unreachable[0] ?? summary.failing[0]!;
+    const state = displayState(sources[lead]!);
+    /*
+     * Short, because the pill is 24px in a 400px bar with a button beside it.
+     *
+     * "Gradescope couldn't be reached" truncated to "Gradescope couldn't be
+     * rea…" — losing the one word the whole distinction turns on. A sentence
+     * whose ending is the information must fit, so it is four words instead of
+     * five: "didn't answer" is plainly a thing to retry, and "looks different"
+     * is plainly a thing that needs a fix.
+     */
+    const verb = unreachable.length > 0 ? "didn't answer" : "looks different";
+    const plural = unreachable.length > 0 ? "didn't answer" : "look different";
     return {
       tone: "err",
       text:
         summary.failing.length === 1
-          ? `${SOURCE_NAME[summary.failing[0]!]} couldn't be read`
-          : `${summary.failing.length} sites couldn't be read`,
+          ? `${SOURCE_NAME[lead]} ${verb}`
+          : `${summary.failing.length} sites ${plural}`,
+      ...(actionFor(lead, state) ? { action: actionFor(lead, state)! } : {}),
     };
   }
 
@@ -272,8 +341,14 @@ export interface SourceRow {
   /** The exact stamp, for the tooltip behind `lastRead`. */
   lastReadExact?: string;
   lastError?: string;
-  /** Whether there is a login page to offer. */
-  loginUrl?: string;
+  /**
+   * The one thing to do about this row, or nothing when it is fine.
+   *
+   * Every failing state has one. This field used to be `loginUrl`, which is why
+   * a source that could not be reached rendered as a red row with no button:
+   * the shape of the data said only logins were actionable.
+   */
+  action?: SourceAction;
 }
 
 export function sourceRows(
@@ -285,7 +360,7 @@ export function sourceRows(
     if (!status) continue;
     const source = key as Source;
     const state = displayState(status);
-    const login = state === "needs_login" ? LOGIN_URL[source] : undefined;
+    const action = actionFor(source, state);
     rows.push({
       source,
       state,
@@ -297,7 +372,7 @@ export function sourceRows(
         ? { lastReadExact: fullStamp(status.lastSuccessAt)! }
         : {}),
       ...(status.lastError ? { lastError: status.lastError } : {}),
-      ...(login ? { loginUrl: login } : {}),
+      ...(action ? { action } : {}),
     });
   }
   // Whatever is wrong first, then whatever is off last: the reason to open this

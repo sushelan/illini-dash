@@ -169,8 +169,21 @@ const adapters = [
 ];
 
 const sources = {
-  canvas: { source: "canvas", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
-  gradescope: { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
+  // `?fail=` picks a failure to look at: `network` is the one Sushi hit on a
+  // live run (Gradescope, fixed by pressing Sync now), `parse` is a page that
+  // really did change shape. Neither state was reachable in the harness before,
+  // which is why the pill could describe both with one sentence for a week.
+  canvas: query.get("fail") === "parse"
+    ? { source: "canvas", enabled: true, state: "parse_error", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 3 * 3600_000).toISOString(), lastError: "canvas: 0 items where it previously had some", consecutiveFailures: 1 }
+    : { source: "canvas", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+  // `fail=parse` clears this one deliberately: a login outranks a parse error
+  // in the pill, so leaving Gradescope signed out means the `parse` shot shows
+  // the login sentence and never captures the state it is named for.
+  gradescope: query.get("fail") === "network"
+    ? { source: "gradescope", enabled: true, state: "network_error", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 35 * 60_000).toISOString(), lastError: "TypeError: Failed to fetch", consecutiveFailures: 1 }
+    : query.get("fail") === "parse"
+      ? { source: "gradescope", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 }
+      : { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
   prairielearn: { source: "prairielearn", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   prairietest: { source: "prairietest", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   smartphysics: { source: "smartphysics", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
@@ -180,6 +193,19 @@ const sources = {
 (globalThis as unknown as { chrome: unknown }).chrome = {
   runtime: {
     sendMessage: async (req: { type: string }) => {
+      /*
+       * A real sync is five or six fetches and takes five to ten seconds.
+       *
+       * The stub answered instantly, so every state that only exists *during* a
+       * request was unreachable in the harness — which is why the header spent a
+       * week asserting the previous sync's outcome while the next one ran, with
+       * nobody able to see it. `?slow=` sets the delay; the default is enough to
+       * notice and short enough not to make the preview annoying.
+       */
+      if (req.type === "sync") {
+        const ms = Number(query.get("slow") ?? 1200);
+        if (Number.isFinite(ms) && ms > 0) await new Promise((r) => setTimeout(r, ms));
+      }
       // `?setup=1` shows the first-run screen, which is otherwise reachable
       // only by installing the extension into a clean Chrome profile — the
       // single hardest state in this project to look at.

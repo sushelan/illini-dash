@@ -62,6 +62,16 @@ const SHOTS = [
   { name: "popup-week", query: "tab=week", size: [400, 600] },
   { name: "popup-exams", query: "tab=exams", size: [400, 600] },
   { name: "popup-attention", query: "tab=attention", size: [400, 600] },
+  /*
+   * The two failure states, which were unreachable in the harness.
+   *
+   * That is how the pill came to describe both with one sentence: nothing in
+   * `npm run shots` could tell "couldn't be read" from "couldn't be reached",
+   * so a live sync was the first thing that could, and by then it had been
+   * wrong for a week.
+   */
+  { name: "popup-unreachable", query: "tab=day&fail=network", size: [400, 600] },
+  { name: "popup-unreadable", query: "tab=day&fail=parse", size: [400, 600] },
   { name: "popup-setup", query: "tab=day&setup=1", size: [400, 600] },
   // The screen `onInstalled` actually opens. The pin card lives only here.
   { name: "full-setup", query: "tab=day&setup=1&view=full", size: [1280, 800] },

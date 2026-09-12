@@ -56,6 +56,7 @@ import {
 } from "../core/grouping.js";
 import {
   type HealthPill,
+  type SourceAction,
   type SourceRow,
   emptyStateFor,
   healthPill,
@@ -72,6 +73,7 @@ import {
 } from "../core/names.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
+import { SYNC_SPINNER_CAP_MS } from "../core/sync.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 const ALLOWED_HOSTS = new Set([
@@ -131,7 +133,21 @@ function renderHealth(
   now: Date,
 ): void {
   healthEl.replaceChildren();
-  const pill = healthPill(sources, lastSyncAt, now);
+  /*
+   * A sync in flight outranks whatever the store still holds.
+   *
+   * The store keeps the *last* outcome, so during a fetch the pill kept saying
+   * "Gradescope couldn't be reached" — the thing the click was in the middle of
+   * fixing. A real sync is five or six requests and takes five to ten seconds,
+   * which is a long time to look at a stale claim with a spinner beside it.
+   *
+   * "Checking…" is not a guess: it is the one thing that is known while a
+   * request is open, which is the whole of worker house rule 2.
+   */
+  const pill: HealthPill = syncing
+    ? { tone: "pending", text: "Checking…" }
+    : healthPill(sources, lastSyncAt, now);
+
   const button = document.createElement("button");
   button.type = "button";
   button.className = `pill is-${pill.tone}`;
@@ -143,13 +159,32 @@ function renderHealth(
   const text = document.createElement("span");
   text.className = "pill--text";
   text.textContent = pill.text;
-  button.append(dot, text, icon("right"));
+  button.append(dot, text);
+  // The chevron is the "there is more behind this" affordance. When an action
+  // button sits beside the pill it is a second one saying the same thing, and
+  // it costs the sentence 18 of the pixels it needs to finish.
+  if (!pill.action) button.append(icon("right"));
 
   button.addEventListener("click", (event) => {
     event.stopPropagation();
     openHealthPopover(sources, now, button);
   });
   healthEl.append(button);
+
+  /*
+   * The action, beside the pill rather than hidden inside it.
+   *
+   * Clicking the words "Gradescope couldn't be reached" opens a list, which is
+   * a reasonable thing for it to do and not what anyone expects it to do — the
+   * sentence names a site, so the click should go to the site. It does now, on
+   * a button that says which, and the list is still one click away on the pill.
+   */
+  const action = actionButton(pill.action);
+  if (action) {
+    action.classList.remove("btn-secondary");
+    action.classList.add("btn-quiet");
+    healthEl.append(action);
+  }
 }
 
 /**
@@ -209,15 +244,48 @@ function renderSourceRow(row: SourceRow): HTMLElement {
   }
 
   line.append(dot, name, state);
-  if (row.loginUrl) {
-    const signIn = document.createElement("button");
-    signIn.type = "button";
-    signIn.className = "btn btn-secondary btn-sm";
-    signIn.textContent = "Sign in";
-    signIn.addEventListener("click", () => chrome.tabs.create({ url: row.loginUrl! }));
-    line.append(signIn);
-  }
+  const button = actionButton(row.action);
+  if (button) line.append(button);
   return line;
+}
+
+/**
+ * The button for a `SourceAction`, or nothing when the source is fine.
+ *
+ * One place, so the pill and the popover offer the same thing — and so that
+ * *every* failing state offers something. Only `needs_login` used to, which
+ * meant a source that could not be reached rendered as a red row with no way
+ * forward: you clicked "Gradescope couldn't be read", got a list, and the list
+ * had nothing on it either.
+ */
+function actionButton(action: SourceAction | undefined): HTMLButtonElement | undefined {
+  if (!action) return undefined;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-secondary btn-sm";
+  if (action.kind === "login") {
+    button.textContent = "Sign in";
+    button.title = `Open ${SOURCE_NAME[action.source]}'s login page`;
+    button.addEventListener("click", () => chrome.tabs.create({ url: action.url }));
+    return button;
+  }
+  if (action.kind === "open") {
+    button.textContent = "Open";
+    button.title = `Open ${SOURCE_NAME[action.source]} and see what the page looks like`;
+    button.addEventListener("click", () => chrome.tabs.create({ url: action.url }));
+    return button;
+  }
+  // Retry. A failed fetch is transient far more often than not, and pressing
+  // this is the whole fix — which is what makes reporting it as "the page
+  // changed" so expensive.
+  button.textContent = "Try again";
+  button.title = `Read ${SOURCE_NAME[action.source]} again`;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeMenus();
+    void runSync();
+  });
+  return button;
 }
 
 /** The four tones the pill, the popover and the chips all share. */
@@ -2112,6 +2180,7 @@ async function draw(): Promise<void> {
   // answer to put under its checklist on the next pass.
   const visible = state.items.filter((item) => !item.hidden);
   lastFound = { items: visible.length, courses: coursesIn(visible).length };
+  lastHealth = { sources: state.sources, ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}) };
   renderHealth(state.sources, state.lastSyncAt, now);
   renderBanners(state);
   render(state.items, state.settings ?? DEFAULT_SETTINGS, state.sources, now);
@@ -2128,22 +2197,74 @@ async function draw(): Promise<void> {
  * document — feedback for a click, placed where the click could not see it.
  * The button spins and the pill takes over from there.
  */
+let syncing = false;
+
+/** Stops the spinner and lets the pill go back to reporting from the store. */
+function endSync(): void {
+  if (!syncing) return;
+  syncing = false;
+  if (syncButton) {
+    delete syncButton.dataset["busy"];
+    syncButton.disabled = false;
+  }
+}
+
 async function runSync(): Promise<void> {
+  // A second click while one is in flight would spin a button that is already
+  // spinning and queue a sync the worker is going to debounce anyway.
+  if (syncing) return;
+  syncing = true;
   if (syncButton) {
     syncButton.dataset["busy"] = "true";
     syncButton.disabled = true;
   }
+  // Repainted before the request rather than after it: a sync is five or six
+  // fetches and takes five to ten seconds, and for all of that the header was
+  // still asserting the outcome of the *previous* one.
+  paintHealth();
+  showStatus(undefined);
+
+  /*
+   * The spinner is capped; the request is not.
+   *
+   * `chrome.runtime.sendMessage` does not reject when the service worker is
+   * torn down mid-answer, so without this a dead worker leaves the button
+   * disabled and turning with nothing behind it and no way to press it again.
+   * The send is still awaited afterwards, so a late answer still redraws.
+   */
+  let capped = false;
+  const cap = setTimeout(() => {
+    capped = true;
+    endSync();
+    paintHealth();
+    showStatus(
+      "This is taking longer than usual. Illini Dash is still trying — if nothing " +
+        "changes, open chrome://extensions and click Reload on the Illini Dash card.",
+    );
+  }, SYNC_SPINNER_CAP_MS);
+
   try {
     await send({ type: "sync", trigger: "manual" });
-    await refresh();
+    if (capped) showStatus(undefined);
+  } catch (err) {
+    showStatus(
+      `Illini Dash could not reach its own background part: ${
+        err instanceof Error ? err.message : String(err)
+      }. Open chrome://extensions and click Reload on the Illini Dash card.`,
+    );
   } finally {
-    // `renderActions` may have replaced the button underneath us, so this
-    // clears whichever one is on screen rather than the captured one.
-    if (syncButton) {
-      delete syncButton.dataset["busy"];
-      syncButton.disabled = false;
-    }
+    clearTimeout(cap);
+    endSync();
   }
+  await refresh();
+}
+
+/** The last state drawn, so the header can be repainted without a round trip. */
+let lastHealth: { sources: Record<Source, SourceStatus>; lastSyncAt?: string } | undefined;
+
+function paintHealth(): void {
+  if (!lastHealth) return;
+  renderHealth(lastHealth.sources, lastHealth.lastSyncAt, new Date());
 }
 
 renderActions();
