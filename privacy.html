@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — Illini Dash</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #eaf1fb; --surface: #ffffff; --fg: #10264d; --muted: #44576f;
+  --line: #b5cce7; --brand: #13294b; --accent: #ad3d02;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b1730; --surface: #12213f; --fg: #eaf1fb; --muted: #a8bcd8;
+          --line: #24395f; --brand: #eaf1fb; --accent: #ff7a2f; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 48px 20px 96px; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font-size: 1.9rem; line-height: 1.2; letter-spacing: -.5px; margin: 0 0 .4em; }
+h2 { font-size: 1.15rem; margin: 2.2em 0 .6em; padding-top: 1.1em; border-top: 1px solid var(--line); }
+p { margin: 0 0 1em; }
+a { color: var(--accent); }
+code {
+  font: .875em ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  padding: .12em .38em; border-radius: 4px;
+}
+em { color: var(--muted); font-style: normal; font-size: .9rem; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 1.4em; display: block; overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: .55em .8em; border-bottom: 1px solid var(--line); }
+th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+.mark { display: inline-flex; align-items: center; gap: .55rem; margin-bottom: 2.5rem;
+        font-weight: 700; letter-spacing: -.3px; color: var(--brand); text-decoration: none; }
+.mark i { width: 12px; height: 22px; border-radius: 3px; background: var(--accent); }
+footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+         font-size: .875rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<a class="mark" href="./"><i></i>Illini Dash</a>
+<h1>Illini Dash — Privacy Policy</h1>
+
+<p><em>Last updated: 2026-09-12</em></p>
+
+<p>Illini Dash runs entirely in your browser. It reads assignment and exam information from Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics, and course websites you explicitly enable, using the login sessions already in your browser. It never sees or stores your password. All data is stored locally in your browser's extension storage and is never transmitted to the developer or any third party. The extension makes one network request to GitHub once a day to update its list of supported course websites; that request contains no personal data. Uninstalling the extension deletes all stored data.</p>
+
+<h2>What it reads</h2>
+
+<p>While you are signed in, and only from sites you have enabled:</p>
+
+<table>
+<thead><tr><th>Site</th><th>What is read</th></tr></thead>
+<tbody>
+<tr><td><code>canvas.illinois.edu</code></td><td>Your active courses and your planner items, via Canvas's own API</td></tr>
+<tr><td><code>www.gradescope.com</code></td><td>Your course list and each course's assignments table</td></tr>
+<tr><td><code>us.prairielearn.com</code></td><td>Your course instances and their assessment lists</td></tr>
+<tr><td><code>us.prairietest.com</code></td><td>Your exam reservations and exams open for reservation</td></tr>
+<tr><td><code>smart.physics.illinois.edu</code></td><td>Your PHYS 211–214 enrolments and each one's prelecture, checkpoint and homework list</td></tr>
+<tr><td>A course website you enable</td><td>Only the single page that course's adapter names</td></tr>
+</tbody>
+</table>
+
+<p>It requests the same pages your browser would if you clicked through the sites yourself, no more often than every 15 minutes, and only pages your own account can already see.</p>
+
+<h2>What leaves your browser</h2>
+
+<p>Nothing about you.</p>
+
+<p>The only outbound request the extension makes that is not to one of the sites above is a daily fetch of one public file on <code>raw.githubusercontent.com</code>, listing which course websites are supported. That request is made without cookies and carries no information about you.</p>
+
+<p>There is no server, no account, no analytics, no telemetry, and no error reporting.</p>
+
+<h2>What is stored, and where</h2>
+
+<p>Deadlines, course names, your per-source and per-course settings, and your manual corrections (hidden rows, merges, splits). All of it lives in <code>chrome.storage.local</code> on the device you are using. It is not synced between devices. Nobody else can read it, and neither can the developer.</p>
+
+<p>Deadlines more than 60 days past are deleted automatically.</p>
+
+<h2>Permissions, and why each is needed</h2>
+
+<table>
+<thead><tr><th>Permission</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>storage</code></td><td>To keep your deadlines and settings on this device</td></tr>
+<tr><td><code>alarms</code></td><td>To check for new deadlines on a schedule and to fire reminders</td></tr>
+<tr><td><code>notifications</code></td><td>To show the reminders</td></tr>
+<tr><td><code>offscreen</code></td><td>To read fetched pages with the browser's own HTML parser, which a service worker does not have</td></tr>
+<tr><td><code>contextMenus</code></td><td>To add one right-click item, &quot;Report this page to Illini Dash&quot;, which opens this extension's own settings page with the address filled in. It uploads nothing.</td></tr>
+<tr><td>Access to the five sites above</td><td>To read your deadlines from them</td></tr>
+<tr><td>Access to <code>*.illinois.edu</code> (optional)</td><td>Requested only if you turn on a specific course website, and only for that site</td></tr>
+</tbody>
+</table>
+
+<p>It does not request access to all websites, to your browsing history, or to your tabs.</p>
+
+<h2>Reporting a broken page</h2>
+
+<p>If you use &quot;Report a broken page&quot;, the extension fetches that page, removes what it can recognise as identifying, and hands you a file. <strong>Nothing is uploaded.</strong> Whether that file goes anywhere is entirely your choice, and you should read it before attaching it to a public issue — the scrubber removes what it recognises, which is not a guarantee.</p>
+
+<h2>Contact</h2>
+
+<p>Open an issue at <a href="https://github.com/sushelan/illini-dash/issues.">https://github.com/sushelan/illini-dash/issues.</a></p>
+<footer>Illini Dash is a student project and is not affiliated with, endorsed by, or connected to the University of Illinois. <a href="https://github.com/sushelan/illini-dash">Source on GitHub</a>.</footer>
+</main>
+</body>
+</html>

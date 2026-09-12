@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Illini Dash</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #eaf1fb; --surface: #ffffff; --fg: #10264d; --muted: #44576f;
+  --line: #b5cce7; --brand: #13294b; --accent: #ad3d02;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b1730; --surface: #12213f; --fg: #eaf1fb; --muted: #a8bcd8;
+          --line: #24395f; --brand: #eaf1fb; --accent: #ff7a2f; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 48px 20px 96px; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font-size: 1.9rem; line-height: 1.2; letter-spacing: -.5px; margin: 0 0 .4em; }
+h2 { font-size: 1.15rem; margin: 2.2em 0 .6em; padding-top: 1.1em; border-top: 1px solid var(--line); }
+p { margin: 0 0 1em; }
+a { color: var(--accent); }
+code {
+  font: .875em ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  padding: .12em .38em; border-radius: 4px;
+}
+em { color: var(--muted); font-style: normal; font-size: .9rem; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 1.4em; display: block; overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: .55em .8em; border-bottom: 1px solid var(--line); }
+th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+.mark { display: inline-flex; align-items: center; gap: .55rem; margin-bottom: 2.5rem;
+        font-weight: 700; letter-spacing: -.3px; color: var(--brand); text-decoration: none; }
+.mark i { width: 12px; height: 22px; border-radius: 3px; background: var(--accent); }
+footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+         font-size: .875rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<a class="mark" href="./"><i></i>Illini Dash</a>
+<h1>Illini Dash</h1>
+
+<p>Every UIUC deadline from Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics and course sites in one list.</p>
+
+<p>It runs entirely in your browser, reads only pages your own account can already see, and sends nothing anywhere.</p>
+
+<h2>Links</h2>
+
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Privacy policy</td><td><a href="./privacy.html">What it reads, what it stores, what leaves your browser</a></td></tr>
+<tr><td>Source, issues, broken-page reports</td><td><a href="https://github.com/sushelan/illini-dash">https://github.com/sushelan/illini-dash</a></td></tr>
+</tbody>
+</table>
+<footer>Illini Dash is a student project and is not affiliated with, endorsed by, or connected to the University of Illinois. <a href="https://github.com/sushelan/illini-dash">Source on GitHub</a>.</footer>
+</main>
+</body>
+</html>
