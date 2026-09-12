@@ -68,6 +68,41 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Three dead guards, and an error nobody could see — 2026-09-12
+
+*"Hide still doesn't work, none of the options for week work at all."*
+
+The flip fixed a real thing and not this one. "None of them work" is a different failure
+from "I can't reach them", and it took two defects together.
+
+**1. Three redraw guards asked for `.menu`, and a menu's class is `menu-surface`.** A class
+selector matches whole tokens, so `.menu` matched **nothing** — the storage listener, the
+session listener and the minute tick were all unguarded from the day they were written.
+Each redraw calls `closeMenus`, which removes the open panel. And a `click` only fires when
+mousedown and mouseup land on the same element, so a menu deleted between them **swallows
+the press entirely**: nothing happens, and nothing says why.
+
+The popup starts a sync the moment it opens, which is exactly when a student is reaching
+for a row. Proven rather than argued: with the old guard an open menu does not survive a
+store write, with the fix it does — checked both ways in the real popup document.
+
+Now one `MENU_SELECTOR`, with the class derived from it. A constant rather than a test: a
+test has to know the right answer, and this makes the wrong answer unspellable.
+
+**2. And when an override did fail, it said so where nobody could look.**
+`reportOverride` writes to `#status`, which sits at the **bottom of the document** — fine
+on a short list, invisible on a long one. The week view is ~1100px of document in a 600px
+window, so every failure it reported landed hundreds of pixels below the fold. That is this
+project's own worst-ranked outcome, a silent failure, produced by the one control written
+to prevent it. It scrolls itself into view now; not a fixed overlay, because the message can
+run to two lines and pinning it would cover the rows it is about.
+
+**Why week and not day, again.** Same reason as the menu flip: week is the tallest view
+there is, so it is furthest from both the status line and from having room below a row.
+Every one of these has been a height problem wearing a different costume.
+
+1023 tests.
+
 ## Found it: the menu opened below the fold — 2026-09-12
 
 *"For week, hide doesn't work. Merge doesn't work either. And for month, there's none of

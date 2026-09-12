@@ -219,7 +219,7 @@ function openHealthPopover(
 ): void {
   closeMenus();
   const menu = document.createElement("div");
-  menu.className = "menu-surface popover";
+  menu.className = `${MENU_CLASS} popover`;
   menu.setAttribute("role", "dialog");
   menu.setAttribute("aria-label", "Source health");
   menu.addEventListener("click", (event) => event.stopPropagation());
@@ -533,6 +533,20 @@ function showStatus(text: string | undefined): void {
   statusEl.hidden = !text;
   if (!text) return;
   statusEl.append(renderBanner({ tone: "err", glyph: "warning", text }));
+  /*
+   * Bring it into view, because this element sits at the bottom of the document.
+   *
+   * That is fine on a short list and invisible on a long one: the week view is
+   * about 1100px of document in a 600px window, so every failure it reported
+   * landed four hundred pixels below the fold. A student clicking Hide saw
+   * nothing move and nothing explain itself — which is "none of the options
+   * work at all", and is this project's own worst-ranked outcome, a silent
+   * failure, produced by the one control written to prevent it.
+   *
+   * Scroll rather than a fixed overlay: the message can be two lines long and
+   * pinning it over the list would cover the rows it is talking about.
+   */
+  statusEl.scrollIntoView({ block: "nearest" });
 }
 
 function renderRow(
@@ -764,8 +778,43 @@ function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
  */
 const MAX_POPUP_HEIGHT = 600;
 
+/**
+ * The class every floating panel carries, and the only way to ask whether one
+ * is open.
+ *
+ * Written out as a literal in five places once, and **three of them spelled it
+ * `.menu`** — which matches nothing, because a class selector matches whole
+ * tokens. All three were redraw guards, so all three were dead: a store write
+ * or a minute tick deleted an open menu from under the pointer, and since a
+ * `click` only fires when mousedown and mouseup land on the same element, the
+ * press was swallowed with nothing to show for it.
+ *
+ * A constant rather than a test. A test would have to know the right answer;
+ * this makes the wrong answer unspellable.
+ */
+const MENU_SELECTOR = ".menu-surface";
+const MENU_CLASS = MENU_SELECTOR.slice(1);
+
+/*
+ * `.menu-surface`, not `.menu`.
+ *
+ * Three redraw guards asked for `.menu` — the storage listener, the session
+ * listener and the minute tick — and a menu's class is `menu-surface`. A class
+ * selector matches whole tokens, so `.menu` matched **nothing**, and all three
+ * guards were dead from the day they were written.
+ *
+ * What that costs: a redraw calls `closeMenus`, which removes the open panel.
+ * The store changes on every sync and the tick fires on every minute boundary,
+ * so an open menu could be deleted underneath the pointer — and a `click` only
+ * fires when mousedown and mouseup land on the same element, so a menu removed
+ * between them swallows the press entirely. Nothing happens, and nothing says
+ * why.
+ *
+ * The popup starts a sync the moment it opens, which is exactly when a student
+ * is reaching for a row.
+ */
 function closeMenus(): void {
-  for (const open of document.querySelectorAll(".menu-surface")) open.remove();
+  for (const open of document.querySelectorAll(MENU_SELECTOR)) open.remove();
   // The room a panel asked for is given back the moment it closes, or the popup
   // stays that tall with nothing in the space. See `placeFloating`.
   document.body.style.minHeight = "";
@@ -862,7 +911,7 @@ window.addEventListener("scroll", closeMenus, { passive: true, capture: true });
 // Without it the only way out of an open menu with the keyboard was Tab, which
 // walked *into* it and then out the far side of the page.
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && document.querySelector(".menu-surface")) {
+  if (event.key === "Escape" && document.querySelector(MENU_SELECTOR)) {
     event.preventDefault();
     const anchor = document.querySelector<HTMLElement>("[aria-expanded=\"true\"]");
     closeMenus();
@@ -943,7 +992,7 @@ function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
 function openRowMenu(item: Item, anchor: HTMLElement): void {
   closeMenus();
   const menu = document.createElement("div");
-  menu.className = "menu-surface";
+  menu.className = MENU_CLASS;
   menu.setAttribute("role", "menu");
   menu.addEventListener("click", (event) => event.stopPropagation());
 
@@ -2653,12 +2702,12 @@ chrome.storage?.onChanged?.addListener((changes, area) => {
     const next = changes[SYNCING_KEY]?.newValue === true;
     if (next !== workerSyncing) {
       workerSyncing = next;
-      if (!document.querySelector(".menu")) void refresh();
+      if (!document.querySelector(MENU_SELECTOR)) void refresh();
     }
     return;
   }
   if (area !== "local" || !(STORAGE_KEY in changes)) return;
-  if (document.querySelector(".menu")) return;
+  if (document.querySelector(MENU_SELECTOR)) return;
   void refresh();
 });
 
@@ -2692,7 +2741,7 @@ setInterval(() => {
   const minute = new Date().getMinutes();
   if (minute === lastMinute) return;
   lastMinute = minute;
-  if (document.querySelector(".menu")) return;
+  if (document.querySelector(MENU_SELECTOR)) return;
   void refresh();
 }, TICK_MS);
 
