@@ -799,15 +799,42 @@ function closeMenus(): void {
  */
 function placeFloating(panel: HTMLElement, anchor: HTMLElement, align: "left" | "right"): void {
   const box = anchor.getBoundingClientRect();
-  const top = box.bottom + 4;
   panel.style.position = "fixed";
-  panel.style.top = `${top}px`;
+  panel.style.overflowY = "auto";
 
   // The full view is an ordinary tab and its window is however tall it is; the
   // popup is capped by the browser whatever the document says.
   const ceiling = isFullView ? window.innerHeight : MAX_POPUP_HEIGHT;
-  panel.style.maxHeight = `${Math.max(140, ceiling - top - 8)}px`;
-  panel.style.overflowY = "auto";
+
+  /*
+   * Downward if it fits, upward if it does not.
+   *
+   * This only ever opened downward, and the `Math.max(140, …)` floor below made
+   * that worse: faced with 31 pixels of room it refused to shrink under 140 and
+   * then ran off the bottom anyway. In the popup nothing can rescue that —
+   * `MAX_POPUP_HEIGHT` is Chrome's cap, so growing the document cannot reveal
+   * what is past it, and a panel positioned `fixed` does not scroll into view.
+   *
+   * Reported as "hide doesn't work in week view", which is what it looks like:
+   * week is the tallest list there is — seven day rows, 1113px of document in a
+   * 600px window — so its rows sit low far more often than a day's do, and
+   * **Hide and Merge are the third and fourth of five menu items**. The menu
+   * opened, the student saw the top of it, and the two entries they wanted were
+   * below the fold. Measured: a menu for the last week row opened at y=561 and
+   * ended at 711.
+   *
+   * Measured before a max-height is applied, so `offsetHeight` is the height the
+   * panel actually wants rather than one this function has already clamped.
+   */
+  const wanted = panel.offsetHeight;
+  const below = ceiling - (box.bottom + 4) - 8;
+  const above = box.top - 4 - 8;
+  // Ties and near-ties go downward: that is where a menu is expected, and
+  // flipping for a few pixels makes the control feel unpredictable.
+  const flip = wanted > below && above > below;
+  const top = flip ? Math.max(8, box.top - 4 - Math.min(wanted, above)) : box.bottom + 4;
+  panel.style.top = `${top}px`;
+  panel.style.maxHeight = `${Math.max(140, (flip ? above : below))}px`;
 
   if (align === "right") {
     panel.style.right = `${Math.max(8, document.documentElement.clientWidth - box.right)}px`;
@@ -818,8 +845,13 @@ function placeFloating(panel: HTMLElement, anchor: HTMLElement, align: "left" | 
   }
 
   // Measured after the cap and the width are set, so this is the height the
-  // panel will actually occupy rather than the one it would like.
-  document.body.style.minHeight = `${Math.min(MAX_POPUP_HEIGHT, top + panel.offsetHeight + 8)}px`;
+  // panel will actually occupy rather than the one it would like. Only when it
+  // opens downward: a panel that flipped upward is already inside the document
+  // Chrome is showing, and growing `minHeight` for it would add empty space
+  // under the list for nothing.
+  if (!flip) {
+    document.body.style.minHeight = `${Math.min(MAX_POPUP_HEIGHT, top + panel.offsetHeight + 8)}px`;
+  }
 }
 document.addEventListener("click", closeMenus);
 // A fixed panel does not travel with the document, so a page scrolled under an
@@ -1279,7 +1311,10 @@ function renderSetupRow(row: SetupRow): HTMLElement {
  * wholesale on each one.
  */
 function rowsInView(): HTMLElement[] {
-  return [...viewEl.querySelectorAll<HTMLElement>("a.row")];
+  // The month has no `a.row` at all — it is a grid of pills — so the roving
+  // tabindex found nothing there and ↑ ↓ did nothing. A pill is a `role=button`
+  // that opens the same menu, so it belongs in the same ring.
+  return [...viewEl.querySelectorAll<HTMLElement>("a.row, .mpill[role='button']")];
 }
 
 function makeRowsNavigable(): void {
@@ -2089,8 +2124,36 @@ function renderMonthPill(
     ? `${item.title} — ${UNTIMED_NOTE}`
     : `${item.title} — ${anchor.opening ? "opens " : ""}${clockOf(anchor.at)}`;
 
-  const url = safeUrl(item.url);
-  if (url) pill.addEventListener("click", () => chrome.tabs.create({ url }));
+  /*
+   * The pill opens the row menu, not the source.
+   *
+   * "For month, there's none of those options" — a beta report, and it was
+   * exactly right: Mark done, Hide, Split and Merge were unreachable from the
+   * month entirely, and so was the keyboard, because this was a `div` with a
+   * click handler and no role.
+   *
+   * A `⋯` of its own does not fit. A month cell holds three pills and each is a
+   * course code plus a title in the width of a seventh of the window; a control
+   * beside that would take the title's remaining characters, and the title is
+   * the only thing that says which assignment this is.
+   *
+   * So the pill *is* the control, and it costs one click on the open path
+   * rather than removing it: `openRowMenu` leads with "Open in Gradescope",
+   * which is the same destination this used to go to directly. That trade reads
+   * the right way round for a month — it is the view you plan in, not the one
+   * you work from, and everything else a student can do to a row was missing.
+   */
+  pill.setAttribute("role", "button");
+  pill.tabIndex = -1;
+  const open = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openRowMenu(item, pill);
+  };
+  pill.addEventListener("click", open);
+  pill.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") open(event);
+  });
   return pill;
 }
 

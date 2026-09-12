@@ -68,6 +68,45 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Found it: the menu opened below the fold — 2026-09-12
+
+*"For week, hide doesn't work. Merge doesn't work either. And for month, there's none of
+those options."*
+
+Two views named, and that is what made it findable. Reproduced in a 400x600 iframe of the
+real popup: **the menu for the last week row opened at y=561 and ended at y=711.**
+
+`placeFloating` only ever opened downward, and its floor made that worse — offered 31
+pixels of room it refused to shrink below 140 and then ran off the bottom anyway. Nothing
+downstream can rescue that: `MAX_POPUP_HEIGHT` is Chrome's own cap, so growing the document
+cannot reveal what is past it, and a `position: fixed` panel does not scroll into view.
+
+**Week hits it and day does not, for a structural reason.** Week is the tallest list there
+is — seven day rows, 1113px of document in a 600px window — so its rows sit low far more
+often. And **Hide and Merge are the third and fourth of five menu items**: the student sees
+the menu open, sees the top of it, and the two entries they wanted are the ones past the
+edge. "It opens but the thing I want isn't there" reads exactly as "hide doesn't work".
+
+It flips above the anchor when there is no room below. Ties go downward, because that is
+where a menu is expected and flipping for a few pixels makes a control feel unpredictable.
+Verified across all 17 week rows: nothing off-screen, Hide and Merge reachable on every one.
+
+**The month had no menu at all**, which was not a bug so much as an omission — Mark done,
+Hide, Split and Merge were unreachable there, and so was the keyboard, because a pill was a
+`div` with a click handler and no role. A `⋯` of its own does not fit: a cell holds three
+pills and each is a course code plus a title in a seventh of the window, so a control beside
+that takes the characters that say *which* assignment this is.
+
+So the pill **is** the control. It costs one click on the open path rather than removing it
+— `openRowMenu` leads with "Open in Gradescope", the same destination the click used to go
+to directly — and that trade reads the right way round for a month, which is the view you
+plan in rather than work from. Pills join the roving tabindex too; `rowsInView` matched
+`a.row` only, so ↑ ↓ did nothing in the month.
+
+All 23 pills verified: menu opens, nothing off-screen, Hide reachable.
+
+1023 tests.
+
 ## "Hiding an event doesn't work on the calendar" — audited, not found — 2026-09-12
 
 **I did not find this one, and I am recording that rather than a fix.**
