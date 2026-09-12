@@ -181,6 +181,13 @@ const adapters = [
     enabled: true, granted: false, currentTerm: true },
 ];
 
+const sessionFlags: Record<string, unknown> = {};
+const listeners: ((changes: unknown, area: string) => void)[] = [];
+function fireSession(values: Record<string, unknown>): void {
+  const changes = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, { newValue: v }]));
+  for (const fn of listeners) fn(changes, "session");
+}
+
 declare const __MANIFEST_VERSION__: string;
 
 const sources = {
@@ -234,7 +241,13 @@ const sources = {
         const seen = globalThis as unknown as { __syncs?: string[] };
         seen.__syncs = [...(seen.__syncs ?? []), (req as { trigger?: string }).trigger ?? "?"];
         const ms = Number(query.get("slow") ?? 1200);
+        // Published and cleared around the wait, like the worker does, so the
+        // "a sync is running" state is reachable here at all.
+        sessionFlags["illini-dash.syncing"] = true;
+        fireSession({ "illini-dash.syncing": true });
         if (Number.isFinite(ms) && ms > 0) await new Promise((r) => setTimeout(r, ms));
+        sessionFlags["illini-dash.syncing"] = false;
+        fireSession({ "illini-dash.syncing": false });
       }
       // `?setup=1` shows the first-run screen, which is otherwise reachable
       // only by installing the extension into a clean Chrome profile — the
@@ -336,8 +349,21 @@ const sources = {
   // not reach. `fireStorageChange()` on the console drives a redraw.
   storage: {
     local: { get: async () => ({}), set: async () => undefined },
+    // `session` is where the worker publishes whether a sync is in flight, so
+    // that a page can say "Checking…" about work it did not start. Stubbed with
+    // a real store rather than an empty one, because the state that matters
+    // here is the flag being *true* while the page draws — and a stub that
+    // always answers `{}` is a harness in which that can never happen.
+    session: {
+      get: async (key: string) => ({ [key]: sessionFlags[key] }),
+      set: async (values: Record<string, unknown>) => {
+        Object.assign(sessionFlags, values);
+        fireSession(values);
+      },
+    },
     onChanged: {
       addListener: (fn: (changes: unknown, area: string) => void) => {
+        listeners.push(fn);
         (globalThis as unknown as { fireStorageChange: () => void }).fireStorageChange = () =>
           fn({ illiniDue: { newValue: {} } }, "local");
       },

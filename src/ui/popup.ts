@@ -1209,12 +1209,36 @@ function renderSetupRow(row: SetupRow): HTMLElement {
   if (!row.enabled) {
     state.className = "chip-base chip-state";
     state.textContent = "Not used";
+  } else if (isSyncing()) {
+    /*
+     * A sync is in flight, so every other word on this row is about the
+     * *previous* one.
+     *
+     * The store is written once, at the end of a sync, so during the five to
+     * ten seconds one takes these rows keep asserting the pre-sync answer with
+     * nothing to say they are being re-read. Sushi, looking at a signed-in
+     * Gradescope dashboard with this screen on top of it: "as u can see im in
+     * gradescope and it still says not signed in. Either there's a really long
+     * delay or it's waiting on something to trigger the sync." Both readings
+     * were available because the screen offered no third one.
+     *
+     * The header pill has said "Checking…" throughout; this screen has no pill,
+     * which is exactly why it needed its own.
+     */
+    state.className = "chip-base chip-state";
+    state.textContent = "Checking…";
+    state.title = "Reading this site now. This can take a few seconds.";
   } else if (row.status?.lastSuccessAt !== undefined) {
     state.className = "chip-base chip-state is-ok";
     state.textContent = "Connected";
   } else if (row.status?.state === "needs_login") {
     state.className = "chip-base chip-state is-warn";
     state.textContent = "Sign in needed";
+    // What the site actually answered. It was already here for the two error
+    // states and missing from the one people get stuck on — and it is the
+    // difference between "the cookie is not reaching us" and "the page says
+    // something we misread", which nothing else on this screen can tell apart.
+    state.title = row.status.lastError ?? "";
   } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
     state.className = "chip-base chip-state is-err";
     state.textContent = "Couldn't read";
@@ -2394,6 +2418,18 @@ async function draw(): Promise<void> {
  * The button spins and the pill takes over from there.
  */
 let syncing = false;
+/**
+ * A sync started by the worker rather than by this page.
+ *
+ * The navigation listener fires while the student is on Gradescope, not on this
+ * page, so `syncing` above knows nothing about it — and the full view is a tab
+ * that stays open through all of it. Without this, that window would keep
+ * asserting the pre-sync answer for the whole fetch, which is the defect this
+ * screen already had once.
+ */
+let workerSyncing = false;
+const SYNCING_KEY = "illini-dash.syncing";
+const isSyncing = () => syncing || workerSyncing;
 
 /** Stops the spinner and lets the pill go back to reporting from the store. */
 function endSync(): void {
@@ -2418,6 +2454,9 @@ async function runSync(): Promise<void> {
   // fetches and takes five to ten seconds, and for all of that the header was
   // still asserting the outcome of the *previous* one.
   paintHealth();
+  // The first-run screen has no pill to repaint, so its rows are the only thing
+  // that can say a sync is running — and they only redraw if asked.
+  if (document.body.classList.contains("setup")) void refresh();
   showStatus(undefined);
 
   /*
@@ -2525,10 +2564,32 @@ void recheckLogins();
  * the list out from under an open menu is how a click lands on the wrong row.
  */
 chrome.storage?.onChanged?.addListener((changes, area) => {
+  // A sync the worker started — the poll, or a page finishing on a source's own
+  // site — so this window can say "checking" about work it did not ask for.
+  if (area === "session" && SYNCING_KEY in changes) {
+    const next = changes[SYNCING_KEY]?.newValue === true;
+    if (next !== workerSyncing) {
+      workerSyncing = next;
+      if (!document.querySelector(".menu")) void refresh();
+    }
+    return;
+  }
   if (area !== "local" || !(STORAGE_KEY in changes)) return;
   if (document.querySelector(".menu")) return;
   void refresh();
 });
+
+// And the state as it stands right now, since a sync may already be running
+// when this document opens — which is the common case: the worker starts one
+// the moment the student finishes signing in.
+void chrome.storage?.session
+  ?.get(SYNCING_KEY)
+  .then((stored) => {
+    if (stored?.[SYNCING_KEY] !== true) return;
+    workerSyncing = true;
+    void refresh();
+  })
+  .catch(() => undefined);
 
 /**
  * And redraw on the clock, because half of what a row says is relative.

@@ -68,6 +68,48 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## A screen that could not say "checking" — 2026-09-12
+
+A screenshot: a fully signed-in Gradescope Course Dashboard, with the first-run screen on
+top of it reading **Sign in needed**. *"Either there's a really long delay or it's waiting
+on something to trigger the sync."*
+
+**Both readings were available because the screen offered no third one.** The store is
+written once, at the end of a sync, so for the five to ten seconds one takes, every row
+asserts the *previous* answer with nothing to say it is being re-read. The header pill has
+said "Checking…" throughout — and the first-run screen has no pill, which is exactly why
+it needed its own word.
+
+Two things were missing, not one:
+
+1. **A sync this page started** set `syncing`, but nothing redrew until it finished, so
+   the rows never showed it. `runSync` now redraws the checklist at the *start*.
+2. **A sync the page did not start** was invisible entirely — and that is now the common
+   case, because the navigation listener fires while the student is on Gradescope. The
+   worker publishes an in-flight flag in `chrome.storage.session`, which is exactly the
+   right lifetime: true for the life of the worker, meaningless after it, and a crashed
+   worker cannot leave a window spinning on a flag written to disk.
+
+**And the "Sign in needed" chip now carries what the site actually answered.** The two
+error states had that tooltip and the one people get stuck on did not — which is the
+difference between *the cookie is not reaching us* and *the page says something we
+misread*, and nothing else on that screen can tell those apart.
+
+The harness could not reach the state, again and for the same reason: its `storage.session`
+stub answered `{}` forever, so "a sync is running" was unreachable by construction. It
+keeps a real store now and the sync stub publishes the flag the way the worker does.
+`?setup=1&slow=4000` shows every enabled row reading "Checking…" mid-sync and settling
+after.
+
+**This is a visibility fix, and it may not be the whole report.** If Gradescope still says
+"Sign in needed" after a sync visibly completes, the tooltip now names the page that was
+served, and `[sync]` carries the status, final URL and first 120 characters. The marker is
+`js-logInButton`, documented as absent from the real signed-in dashboard capture — so a
+house-rule-12 misfire is *not* the leading hypothesis, and the leading one is that the
+session cookie is not reaching a service-worker fetch. Both are decided by the same line.
+
+982 tests.
+
 ## The signal we never had: a page finishing on the site itself — 2026-09-12
 
 *"Gradescope and prairietest dont sync until i click on smth in them after signing in."*

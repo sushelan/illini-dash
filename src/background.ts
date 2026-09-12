@@ -269,12 +269,27 @@ function syncAfterEnable(what: string): Promise<unknown> {
   });
 }
 
+/**
+ * Published so the pages can say "checking" about a sync they did not start.
+ *
+ * `storage.session` rather than `local`: this is true for the life of the
+ * worker and meaningless after it, which is exactly that storage's lifetime —
+ * and a crashed worker cannot leave a page spinning forever on a flag written
+ * to disk.
+ */
+const SYNCING_KEY = "illini-dash.syncing";
+
+async function setSyncing(value: boolean): Promise<void> {
+  await chrome.storage.session.set({ [SYNCING_KEY]: value }).catch(() => undefined);
+}
+
 async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   if (running) {
     await running;
     return { skipped: true };
   }
   let skipped = false;
+  void setSyncing(true);
   running = withStore(async () => {
     await maybeRefreshRegistry();
     const store = await loadStore();
@@ -304,6 +319,7 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
       }
     }
   }).finally(() => {
+    void setSyncing(false);
     running = null;
   });
   await running;
