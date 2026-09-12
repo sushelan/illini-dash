@@ -25,6 +25,36 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## UX plan — polish pass and what is left — 2026-09-12
+- **m10** nothing renders below 10px any more (was 9px on "+N more" and 9.5px on the hour
+  axis, the week's gutter and the month header). 10px is kept only for tracked uppercase
+  labels and the hour axis; everything else is 11 or up.
+- **§4.2** `tabular-nums` on every clock, date number and count. Proportional digits make
+  "11:59 PM" narrower than "10:00 AM", so a column of clocks does not line up on its right
+  edge — which is the one thing the row's fixed tracks exist to buy.
+- **m4** month pills take two lines in the full view. A cell is 137px and the course code
+  eats 45 of them, so a one-line pill cut most UIUC titles before the noun; the tab has
+  the height and the popup does not draw a month at all.
+- **m2** the last text glyphs are gone: the Attention fold's `▸`/`▾` is an SVG chevron
+  that rotates.
+- Final check in the real popup document, **dark, light and High contrast**: body 400 /
+  `scrollWidth` 400 / `overflowY: visible`, nothing past 401px outside the course strip,
+  smallest type 10px, chrome 145px healthy and 211px worst case. In High contrast the
+  health dot keeps a shape per state, which survived the six-dots→one-pill change.
+
+### Still Sushi's — nothing here can be done from this side
+
+1. **Load the unpacked build and report the console.** `npm run build`, load `dist/`, open
+   the popup. What to look for: the header pill, and no `Could not draw the list` banner.
+2. **A clean-profile install (phase E).** Does a tab open by itself, does it lead with the
+   pin card, and does "Show my calendar" work. This is the one thing `opensOnInstall`'s
+   test cannot tell us, because the test is about the argument and the question is about
+   Chrome.
+3. **One reminder toast (phase F).** The title should lead with the assignment, and the
+   small third line should name the site.
+4. **G4's beta**, then the developer account, the privacy-policy URL on GitHub Pages, and
+   the pre-submit walk in `docs/store/listing.md`.
+
 ## UX plan phase G — store readiness — 2026-09-12
 Sushi's decisions: **icon A (Dash)**, **version 1.0.0**.
 

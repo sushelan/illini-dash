@@ -102,7 +102,7 @@ html.view-full,
 /* Errors only, and hidden the rest of the time — see popup.html. */
 #status { margin: 0; }
 #status[hidden] { display: none; }
-.row--moved { color: var(--warn); font-size: 10px; white-space: nowrap; }
+.row--moved { color: var(--warn); font-size: 11px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
 /* The name cell: title shrinks, chip does not. */
@@ -176,7 +176,16 @@ h2.section {
 /* Only merged rows carry text here, so it is a mark rather than a column
    of labels — cursor: help says there is something to read. */
 .row--sources { font-size: 10px; color: var(--muted); white-space: nowrap; letter-spacing: .04em; text-align: right; cursor: help; }
-.row--due { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right; }
+/*
+ * `tabular-nums` on every clock and count.
+ *
+ * Proportional digits make "11:59 PM" narrower than "10:00 AM", so a column of
+ * clocks does not line up on its right edge — which is the one thing a fixed
+ * track was introduced to buy. It also stops a count flickering wider as it
+ * ticks from 9 to 10 under the cursor.
+ */
+.row--due { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right;
+  font-variant-numeric: tabular-nums; }
 .row-overdue .row--due { color: var(--err); }
 .row-booking .row--due { color: var(--warn); }
 
@@ -303,7 +312,7 @@ h2.section {
 .fchip[aria-pressed="false"] { opacity: .45; }
 .fchip[aria-pressed="false"] i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--course); }
 .fchip[aria-pressed="false"] span { text-decoration: line-through; }
-.fhidden { flex: none; font-size: 10px; color: var(--warn); padding-left: 2px; cursor: help; }
+.fhidden { flex: none; font-size: 11px; color: var(--warn); padding-left: 2px; cursor: help; }
 
 /* ---- date navigator: 32px, arrows either side of the label ----
  *
@@ -317,7 +326,7 @@ h2.section {
 }
 .datenav[hidden] { display: none; }
 .datenav--label {
-  font-weight: 600; font-size: 12px;
+  font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums;
   padding: 0 2px; white-space: nowrap;
 }
 .datenav--today { margin-left: auto; }
@@ -344,13 +353,13 @@ h2.section {
 
 /* ---- the untimed band ---- */
 .band { border-bottom: 1px solid var(--line); background: var(--tint); }
-.band--note { font-size: 10px; color: var(--muted); padding: 6px 12px 2px; margin: 0; line-height: 1.3; }
+.band--note { font-size: 11px; color: var(--muted); padding: 6px 12px 2px; margin: 0; line-height: 1.35; }
 
 /* ---- day grid ---- */
 .grid { display: grid; grid-template-columns: 42px 1fr; }
 .grid--hours { border-right: 1px solid var(--line); }
 .grid--hour {
-  height: 26px; font-size: 9.5px; color: var(--muted);
+  height: 26px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums;
   text-align: right; padding-right: 5px; transform: translateY(-5px);
 }
 .grid--slots { position: relative; }
@@ -367,17 +376,17 @@ h2.section {
 .wrow:first-child { border-top: 0; }
 .wrow--today { background: var(--today-tint); }
 .wday { padding: 7px 6px 8px 10px; border-right: 1px solid var(--line); }
-.wday--dow { font-size: 9.5px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
-.wday--num { font-size: 15px; font-weight: 600; line-height: 1.1; }
+.wday--dow { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
+.wday--num { font-size: 15px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .wrow--today .wday--num { color: var(--now); }
 .witems { padding: 3px 0 4px; min-width: 0; }
 .witems--empty { color: var(--muted); font-size: 11px; padding: 8px 0 9px 10px; opacity: .6; }
-.wuntimed { font-size: 9.5px; color: var(--muted); padding: 2px 0 0 12px; cursor: help; }
+.wuntimed { font-size: 11px; color: var(--muted); padding: 2px 0 0 12px; cursor: help; }
 
 /* ---- month, full view only ---- */
 .mhead { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--line); }
 .mhead div {
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); text-align: center; padding: 6px 0;
 }
 .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); }
@@ -387,7 +396,8 @@ h2.section {
 }
 .mcell:nth-child(7n + 1) { border-left: 0; }
 .mcell--out { background: var(--tint); }
-.mnum { font-size: 12px; color: var(--fg); font-weight: 600; padding: 1px 2px 3px; }
+.mnum { font-size: 12px; color: var(--fg); font-weight: 600; padding: 1px 2px 3px;
+  font-variant-numeric: tabular-nums; }
 .mcell--out .mnum { color: var(--muted); opacity: .55; }
 .mcell--today .mnum {
   color: var(--accent-ink); background: var(--now); border-radius: 50%;
@@ -415,7 +425,7 @@ h2.section {
 .mpill--exam { background: var(--warn-wash-strong); }
 .mpill--untimed .mpill--name { font-style: italic; }
 .mmore {
-  font: inherit; font-size: 9px; color: var(--muted); background: none;
+  font: inherit; font-size: 11px; color: var(--muted); background: none;
   border: 0; padding: 1px 3px; text-align: left; cursor: pointer;
 }
 .mmore:hover { color: var(--fg); }
@@ -678,8 +688,23 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full .mcell--today .mnum {
   width: 30px; height: 30px; padding: 0; margin: -3px 0 -2px; font-weight: 650;
 }
-.view-full .mpill { font-size: 12px; padding: 4px 7px; border-left-width: 4px; border-radius: 5px; }
+.view-full .mpill {
+  font-size: 12px; padding: 4px 7px; border-left-width: 4px; border-radius: 5px;
+  align-items: baseline;
+}
 .view-full .mpill--code { font-size: 11px; }
+/*
+ * Two lines in the full view, one in the popup.
+ *
+ * A month cell is 137px wide and the course code eats 45 of them, so a pill
+ * truncated at 13–15 characters is most UIUC titles cut before the noun. In a
+ * tab the cell is taller than it needs to be and the second line is free; in a
+ * 400px popup the month is not drawn at all.
+ */
+.view-full .mpill--name {
+  white-space: normal; display: -webkit-box;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
 .view-full .mpill:hover { filter: brightness(1.12); }
 .view-full #status { padding: 10px 24px 0; }
 .view-full .wday { padding: 12px; }
