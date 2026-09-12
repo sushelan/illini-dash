@@ -66,7 +66,14 @@ const SHOTS = [
   { name: "full-month", query: "tab=month&view=full", size: [1280, 800] },
   { name: "full-week", query: "tab=week&view=full", size: [1280, 800] },
   { name: "full-day", query: "tab=day&view=full", size: [1280, 800] },
-  { name: "options", query: "page=options", size: [1280, 1600] },
+  /*
+   * Tall enough for the whole page, rather than two shots and a fragment.
+   *
+   * A `#section` in the URL scrolls the page, and headless Chrome then
+   * screenshots from the document origin anyway — so the "lower half" capture
+   * came out as 1500px of empty navy. One tall window is the thing that works.
+   */
+  { name: "options", query: "page=options", size: [1280, 3800] },
   { name: "options-stale", query: "page=options&stale=1", size: [1280, 800] },
   { name: "components", query: "page=components", size: [960, 1700] },
 ];

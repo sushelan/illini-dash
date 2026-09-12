@@ -4,13 +4,12 @@
     <meta charset="utf-8" />
     <title>Illini Dash — Settings</title>
     <link rel="stylesheet" href="ui.css" />
-    <style>body { max-width: 760px; }</style>
   </head>
-  <body>
+  <body class="page">
     <!--
       A plain link, not a script: it works before the page has finished talking
       to the service worker, and it works if that conversation fails. Settings
-      opened in a tab of its own, with nothing pointing back, so the way out was
+      opened in a tab of its own with nothing pointing back, so the way out was
       the browser's back button or reopening the popup.
 
       It goes to the full view rather than calling history.back() because the
@@ -18,215 +17,297 @@
       whether you came from the popup or from the full view.
     -->
     <a id="back" class="back" href="popup.html?view=full">← Illini Dash</a>
-    <h1>Illini Dash — Settings</h1>
+
+    <header class="page--head">
+      <h1>Settings</h1>
+      <!-- Version, last check, and how many sources answered — from the same
+           `healthPill` the popup's header uses, so the two cannot disagree. -->
+      <p id="page-sub" class="muted"></p>
+    </header>
+
     <!--
       A warning slot, empty and hidden unless something is actually wrong. It
       used to open with "Service worker alive, build 20260912T041431", which is
       the first line a student read on this page and means nothing to them. The
-      build ids live under Developer tools now, which is where the question they
+      build ids live under Developer now, which is where the question they
       answer is asked.
     -->
-    <p id="build-info" class="verdict-error" hidden></p>
+    <div id="build-info" hidden></div>
 
-    <section id="settings-panel">
-      <h2>Appearance</h2>
-      <p class="muted">
-        Presets rather than a colour picker, because colour here carries meaning — red is
-        overdue, amber is a window still open, green is a source that answered. A free
-        choice lets two of those end up the same colour, and the result looks fine and
-        lies.
-      </p>
-      <div id="themes"></div>
-
-      <h2>Sources</h2>
-      <p class="muted">
-        The sites you picked when you set up. Turning one off stops it being read and
-        stops it counting toward the health line — switch one back on here if you start
-        a course that uses it.
-      </p>
-      <p class="muted">
-        Each source is read using the login session already in your browser. Nothing
-        here ever sees a password.
-      </p>
-      <div id="sources"></div>
-      <p class="muted">
-        <button id="restart-setup">Choose again</button>
-        <span id="restart-setup-status" class="opt-note"></span>
-      </p>
-      <p class="muted">
-        Reopens the first-run screen, with your answers still in it. It changes nothing
-        else — your hidden rows, merges and ticks stay exactly as they are.
-      </p>
-
-      <h2>Courses</h2>
-      <p class="muted">
-        Every course seen across every source. Turning one off hides its deadlines
-        without forgetting them.
-      </p>
-      <div id="courses"></div>
-
-      <h3>Older courses</h3>
-      <p class="muted">
-        Canvas still lists these as active, but they belong to a term that is not
-        the current one — usually a compliance or onboarding course that never
-        closes. Their deadlines are left out of the list. If one of these is a
-        course you are really taking, put it back.
-      </p>
-      <div id="set-aside"></div>
-
-      <h2>Course websites</h2>
-      <p class="muted">
-        Some courses keep the real schedule on their own site. These adapters are
-        plain data — a URL and a few CSS selectors — so a broken one can be fixed
-        without updating the extension. Enabling one asks Chrome for permission to
-        read that site, which is why they are not requested up front.
-      </p>
-      <div id="site-health" class="opt-note"></div>
-      <div id="adapters"></div>
-
-      <h3>Add a course site</h3>
-      <p class="muted">
-        Paste the page that lists your deadlines — a schedule or assignments page. It is
-        read once, and you get to check what it found before anything is saved.
-      </p>
-      <p class="muted">
-        <input id="add-site-url" type="url" placeholder="https://courses.grainger.illinois.edu/…"
-               style="min-width: 26rem" />
-        <button id="add-site-go">Read this page</button>
-        <span id="add-site-status" class="opt-note"></span>
-      </p>
-      <div id="add-site-result"></div>
-      <p>
-        <button id="refresh-registry">Check for adapter updates</button>
-        <span id="registry-status" class="opt-note"></span>
-      </p>
-
-      <h2>Reminders</h2>
-      <div id="reminders"></div>
-
-      <h2>Hidden items</h2>
-      <div id="hidden"></div>
-
-      <h2>Ticked off</h2>
-      <p class="muted">
-        Work you marked done yourself. Some sources — course websites, and
-        anything handed in on paper — never report a submission, so this is the
-        only way those rows can be finished. If a source later says the work is
-        missing, the row comes back on its own.
-      </p>
-      <div id="done"></div>
-
-      <h2>Calendar</h2>
-      <p class="muted">
-        Downloads an <code>.ics</code> of everything currently listed. Importing it
-        into Google Calendar is a <strong>one-time copy, not a subscription</strong> —
-        later changes to a deadline will not follow it there.
-      </p>
-      <p><button id="download-ics">Download .ics</button></p>
-
-      <h2>Data</h2>
-      <p class="muted">
-        <strong>Copy diagnostics</strong> puts a summary on your clipboard —
-        which sources worked, how many items each course produced, and what
-        failed. It contains no assignment titles, no links and nothing that
-        identifies you, so it is safe to paste into a bug report.
-        <strong>Export JSON</strong> is the opposite: your whole list, for
-        keeping.
-      </p>
-      <p>
-        <button id="copy-diagnostics">Copy diagnostics</button>
-        <button id="export">Export JSON</button>
-        <button id="reset">Reset everything</button>
-      </p>
-      <p id="data-status" class="muted"></p>
-
-      <h2>Report a broken page</h2>
-      <p class="muted">
-        If a source is showing a red dot, or a deadline you can see on the site is
-        missing from the list, this fetches that page, removes what it can recognise
-        as yours, and hands you a file to attach to a GitHub issue.
-        <strong>Nothing is sent anywhere automatically.</strong>
-      </p>
-      <p>
-        <label>Your NetID <input id="report-netid" type="text" size="12" placeholder="jdoe42" /></label>
-        <label>Your full name <input id="report-name" type="text" size="18" placeholder="Given Family" /></label>
-        <br /><span class="opt-note">Used only to remove them from the file. Without them nothing is removed.</span>
-      </p>
-      <p>
-        <input id="report-url" type="url" size="60"
-               placeholder="https://www.gradescope.com/courses/1352838" />
-        <button id="report-fetch">Prepare report</button>
-      </p>
-      <p id="report-status" class="muted"></p>
-      <div id="report-result"></div>
-
-      <h2>Privacy</h2>
-      <p class="muted" id="privacy"></p>
-    </section>
-
-    <hr />
-    <details id="devtools">
-      <summary><strong>Developer tools</strong></summary>
-      <p class="muted">
-        Diagnostics for building and debugging the extension. Nothing here runs
-        on its own, and none of it is needed to use Illini Dash.
-      </p>
+    <div class="page--split">
       <!--
-        Chrome reloads this page from disk on every open but keeps the running
-        service worker until the extension itself is reloaded, so the two can be
-        different builds. The warning for that is at the top of the page; this is
-        the evidence behind it.
+        Built from the sections below, so there is one list rather than two that
+        can disagree. Thirteen headings in a 1900px column meant the only way to
+        find "Reminders" was to scroll past everything else.
       -->
-      <p id="dev-build" class="muted">Checking the background part…</p>
+      <nav id="pagenav" class="pagenav" aria-label="Sections"></nav>
 
-    <h2>Gate 0 — cookie-authenticated fetch from the service worker</h2>
-    <p class="muted">
-      Fetches each source's authenticated home page from the extension's service
-      worker with <code>credentials: "include"</code> (SPEC.md §2.2, §9 G0).
-      Log in to all four sites in this browser profile first. Results are also
-      logged to the service worker console; nothing is stored.
-    </p>
-    <p>
-      <button id="run-gate0">Run Gate 0 check</button>
-      <button id="copy-gate0" disabled>Copy results as JSON</button>
-    </p>
-    <p id="gate0-status" class="muted"></p>
-    <div id="gate0-results"></div>
+      <div class="page--body">
+        <section id="sec-sources" data-nav="Sources">
+          <h2>Sources</h2>
+          <p class="lede">The sites Illini Dash reads your deadlines from.</p>
+          <details class="why">
+            <summary>Why does it need these?</summary>
+            <p>
+              Each one is read using the login session already in your browser, the same way
+              a second tab would be. Nothing here ever sees a password, and nothing leaves
+              your computer. Switching a source off stops it being read and stops it
+              counting toward the line at the top of this page.
+            </p>
+          </details>
+          <div id="sources" class="rows"></div>
+          <p class="row-actions">
+            <button id="restart-setup" class="btn btn-quiet">Choose again</button>
+            <span id="restart-setup-status" class="opt-note"></span>
+          </p>
+        </section>
 
-    <h2>Offscreen parser round-trip</h2>
-    <p class="muted">
-      Sends HTML from the service worker to the offscreen document, runs a
-      throwaway parser there, and brings <code>RawItem[]</code> back (SPEC.md §2.1,
-      build step 3). Also checks that a structurally-empty page comes back as a
-      <code>ParseError</code> rather than an empty list (§0 rule 3).
-    </p>
-    <p><button id="run-selftest">Run round-trip check</button></p>
-    <p id="selftest-status" class="muted"></p>
-    <div id="selftest-results"></div>
+        <section id="sec-courses" data-nav="Courses">
+          <h2>Courses</h2>
+          <p class="lede">
+            Every course seen across every source. Switching one off hides its deadlines
+            without forgetting them.
+          </p>
+          <div id="courses" class="rows"></div>
 
-    <h2>Fixture capture</h2>
-    <p class="muted">
-      Fetches a page from the service worker exactly the way the sync loop will,
-      scrubs it per Appendix A, and hands it back as a download. Save the scrubbed
-      file into <code>fixtures/&lt;source&gt;/</code>. Nothing is fetched or saved
-      automatically (SPEC.md §10 step 4, §9 G1).
-    </p>
+          <h3>Older courses</h3>
+          <p class="lede">
+            Canvas still lists these as active, but they belong to an earlier term — usually
+            a compliance course that never closes. Their deadlines are left out. If one of
+            them is a course you are really taking, put it back.
+          </p>
+          <div id="set-aside" class="rows"></div>
+        </section>
 
-    <p>
-      <label>Your NetID <input id="scrub-netid" type="text" size="12" placeholder="jdoe42" /></label>
-      <label>Your name <input id="scrub-name" type="text" size="18" placeholder="Jane Doe" /></label>
-      <span class="muted">— used only to scrub; stored in this page only.</span>
-    </p>
+        <section id="sec-sites" data-nav="Course websites">
+          <h2>Course websites</h2>
+          <p class="lede">Some courses keep the real schedule on their own site.</p>
+          <details class="why">
+            <summary>Why are these separate?</summary>
+            <p>
+              A course website is just a URL and a few CSS selectors, so a broken one can be
+              fixed without updating the extension. Switching one on asks Chrome for
+              permission to read that one site, which is why they are not requested up front.
+            </p>
+          </details>
+          <div id="site-health" class="opt-note"></div>
+          <div id="adapters" class="rows"></div>
+          <p class="row-actions">
+            <button id="refresh-registry" class="btn btn-quiet">Check for updates</button>
+            <span id="registry-status" class="opt-note"></span>
+          </p>
 
-    <p>
-      <input id="capture-url" type="url" size="70" placeholder="https://www.gradescope.com/courses/1352838" />
-      <button id="run-capture">Fetch</button>
-    </p>
-    <p id="capture-presets" class="muted"></p>
-    <p id="capture-status" class="muted"></p>
-    <div id="capture-result"></div>
+          <h3>Add a course site</h3>
+          <p class="lede">
+            Paste the page that lists your deadlines. It is read once, and you get to check
+            what it found before anything is saved.
+          </p>
+          <p class="row-actions">
+            <input id="add-site-url" class="field field--grow" type="url"
+                   placeholder="https://courses.grainger.illinois.edu/…" />
+            <button id="add-site-go" class="btn btn-secondary">Read this page</button>
+          </p>
+          <p id="add-site-status" class="opt-note"></p>
+          <div id="add-site-result"></div>
+        </section>
 
-    </details>
+        <section id="sec-reminders" data-nav="Reminders">
+          <h2>Reminders</h2>
+          <p class="lede">A Chrome notification before something is due.</p>
+          <div id="reminders"></div>
+        </section>
+
+        <section id="sec-appearance" data-nav="Appearance">
+          <h2>Appearance</h2>
+          <p class="lede">Presets rather than a colour picker.</p>
+          <details class="why">
+            <summary>Why not let me pick the colours?</summary>
+            <p>
+              Colour here carries meaning — red is overdue, amber is a window still open,
+              green is a source that answered. A free choice lets two of those end up the
+              same colour, and the result looks fine and lies.
+            </p>
+          </details>
+          <div id="themes"></div>
+        </section>
+
+        <section id="sec-tidy" data-nav="Hidden &amp; done">
+          <h2>Hidden &amp; done</h2>
+          <p class="lede">Rows you put away, and the way back.</p>
+          <h3>Hidden</h3>
+          <div id="hidden" class="rows"></div>
+          <h3>Ticked off</h3>
+          <p class="lede">
+            Work you marked done yourself. Course websites, and anything handed in on paper,
+            never report a submission — so this is the only way those rows can be finished.
+            If a source later says the work is missing, the row comes back on its own.
+          </p>
+          <div id="done" class="rows"></div>
+        </section>
+
+        <section id="sec-data" data-nav="Data &amp; privacy">
+          <h2>Data &amp; privacy</h2>
+          <p class="lede" id="privacy"></p>
+          <div class="rows">
+            <div class="srow2">
+              <span class="srow2--name">Calendar file</span>
+              <span class="srow2--hint">
+                An <code>.ics</code> of everything listed. A one-time copy, not a
+                subscription — later changes to a deadline will not follow it.
+              </span>
+              <button id="download-ics" class="btn btn-secondary">Download .ics</button>
+            </div>
+            <div class="srow2">
+              <span class="srow2--name">Your whole list</span>
+              <span class="srow2--hint">Every row, as JSON, for keeping.</span>
+              <button id="export" class="btn btn-secondary">Export JSON</button>
+            </div>
+          </div>
+          <div class="careful">
+            <p class="careful--head">Careful</p>
+            <div class="srow2">
+              <span class="srow2--name">Reset everything</span>
+              <span class="srow2--hint">
+                Deletes every stored row and every correction you have made — your hides,
+                merges and ticks. It cannot be undone.
+              </span>
+              <button id="reset" class="btn btn-secondary">Reset</button>
+            </div>
+          </div>
+          <p id="data-status" class="opt-note"></p>
+        </section>
+
+        <section id="sec-help" data-nav="Help">
+          <h2>Help</h2>
+          <p class="lede">If a deadline you can see on a site is missing here.</p>
+          <div class="rows">
+            <div class="srow2">
+              <span class="srow2--name">Copy diagnostics</span>
+              <span class="srow2--hint">
+                Which sources worked, how many rows each course produced, and what failed.
+                No assignment titles, no links, and nothing that identifies you — so it is
+                safe to paste into a bug report.
+              </span>
+              <button id="copy-diagnostics" class="btn btn-secondary">Copy</button>
+            </div>
+            <div class="srow2">
+              <span class="srow2--name">Report a page</span>
+              <span class="srow2--hint">
+                Right-click the page that is wrong and choose “Report this page to Illini
+                Dash”, or paste its address below.
+              </span>
+            </div>
+          </div>
+
+          <details class="why" id="report-box">
+            <summary>Prepare a report</summary>
+            <!--
+              The NetID and name fields used to sit in the middle of Settings with no
+              explanation above them, on a page whose pitch is "never sees a password".
+              The reason comes first now, and the whole thing is behind a disclosure.
+            -->
+            <p class="lede">
+              Your name and NetID are used <em>only</em> to find them in the page and take
+              them out. Without them, nothing gets removed.
+            </p>
+            <p class="row-actions">
+              <label class="fieldlabel">NetID
+                <input id="report-netid" class="field" type="text" size="12" placeholder="jdoe42" />
+              </label>
+              <label class="fieldlabel">Full name
+                <input id="report-name" class="field" type="text" size="18" placeholder="Given Family" />
+              </label>
+            </p>
+            <p class="row-actions">
+              <input id="report-url" class="field field--grow" type="url"
+                     placeholder="https://www.gradescope.com/courses/1352838" />
+              <button id="report-fetch" class="btn btn-secondary">Prepare report</button>
+            </p>
+            <p class="opt-note">
+              This fetches the page, scrubs it, and hands you a file.
+              <strong>Nothing is sent anywhere automatically.</strong>
+            </p>
+            <p id="report-status" class="opt-note"></p>
+            <div id="report-result"></div>
+          </details>
+        </section>
+
+        <section id="sec-dev" data-nav="Developer">
+          <h2>Developer</h2>
+          <p class="lede">
+            Nothing here runs on its own, and none of it is needed to use Illini Dash.
+          </p>
+
+          <details class="why">
+            <summary>Build and background worker</summary>
+            <!--
+              Chrome reloads this page from disk on every open but keeps the running
+              service worker until the extension itself is reloaded, so the two can be
+              different builds. The warning for that is at the top of the page; this is
+              the evidence behind it.
+            -->
+            <p id="dev-build" class="opt-note">Checking the background part…</p>
+          </details>
+
+          <details class="why">
+            <summary>Gate 0 — cookie-authenticated fetch from the service worker</summary>
+            <p>
+              Fetches each source's authenticated home page from the extension's service
+              worker with <code>credentials: "include"</code>. Log in to all four sites in
+              this browser profile first. Nothing is stored.
+            </p>
+            <p class="row-actions">
+              <button id="run-gate0" class="btn btn-secondary">Run Gate 0 check</button>
+              <button id="copy-gate0" class="btn btn-quiet" disabled>Copy results as JSON</button>
+              <span id="gate0-status" class="opt-note"></span>
+            </p>
+            <div id="gate0-results"></div>
+          </details>
+
+          <details class="why">
+            <summary>Offscreen parser round-trip</summary>
+            <p>
+              Sends HTML from the service worker to the offscreen document, runs a throwaway
+              parser there, and brings <code>RawItem[]</code> back. Also checks that a
+              structurally-empty page comes back as a <code>ParseError</code> rather than an
+              empty list.
+            </p>
+            <p class="row-actions">
+              <button id="run-selftest" class="btn btn-secondary">Run round-trip check</button>
+              <span id="selftest-status" class="opt-note"></span>
+            </p>
+            <div id="selftest-results"></div>
+          </details>
+
+          <details class="why">
+            <summary>Fixture capture</summary>
+            <p>
+              Fetches a page the way the sync loop will, scrubs it per Appendix A, and hands
+              it back as a download. Save the scrubbed file into
+              <code>fixtures/&lt;source&gt;/</code>. Nothing is fetched or saved
+              automatically.
+            </p>
+            <p class="row-actions">
+              <label class="fieldlabel">NetID
+                <input id="scrub-netid" class="field" type="text" size="12" placeholder="jdoe42" />
+              </label>
+              <label class="fieldlabel">Name
+                <input id="scrub-name" class="field" type="text" size="18" placeholder="Jane Doe" />
+              </label>
+              <span class="opt-note">used only to scrub; stored in this page only</span>
+            </p>
+            <p class="row-actions">
+              <input id="capture-url" class="field field--grow" type="url"
+                     placeholder="https://www.gradescope.com/courses/1352838" />
+              <button id="run-capture" class="btn btn-secondary">Fetch</button>
+            </p>
+            <p id="capture-presets" class="row-actions"></p>
+            <p id="capture-status" class="opt-note"></p>
+            <div id="capture-result"></div>
+          </details>
+        </section>
+      </div>
+    </div>
 
     <script type="module" src="options.js"></script>
   </body>

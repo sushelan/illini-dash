@@ -59,6 +59,27 @@ export const SOURCE_CODE: Record<Source, string> = {
 };
 
 /**
+ * Who each site is actually for.
+ *
+ * The reason the first-run list can be answered at all: a student who does not
+ * recognise "PrairieTest" cannot decide whether they need it, and a checklist
+ * that cannot be answered is worse than no checklist. Unchecking something you
+ * do need is the expensive mistake here.
+ *
+ * Here rather than in `core/setup.ts` because Settings shows the same list and
+ * had no hints at all — two surfaces asking the same question, one of them
+ * without the information needed to answer it.
+ */
+export const SOURCE_HINT: Record<Source, string> = {
+  canvas: "Every UIUC course",
+  gradescope: "Most CS, ECE and Math courses",
+  prairielearn: "CS and ECE homework and quizzes",
+  prairietest: "Exams booked at the CBTF",
+  smartphysics: "PHYS 211, 212, 213 and 214 only",
+  site: "Courses that keep their schedule on their own page",
+};
+
+/**
  * Where to send someone who needs to sign in.
  *
  * `site` has none by construction: a course website is whatever host the

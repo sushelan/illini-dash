@@ -19,14 +19,16 @@ import {
   reportUrlFromHash,
   type CaptureResult,
 } from "../capture.js";
-import { displayState } from "../core/health.js";
+import { displayState, healthPill, sourceRows } from "../core/health.js";
 import {
   LOGIN_URL,
+  SOURCE_HINT,
   SOURCE_TITLE,
-  STATE_PHRASE,
+  STATE_WORD,
   fullStamp,
   timeAgo,
 } from "../core/names.js";
+import { icon } from "./icons.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
@@ -62,37 +64,37 @@ void (async () => {
   try {
     const resp = await send({ type: "ping" });
     if (resp.type !== "pong") {
-      buildInfo.textContent =
+      setWarning(
+        "build",
         "The background part of Illini Dash answered something unexpected. Open " +
-        "chrome://extensions and click Reload on the Illini Dash card.";
-      buildInfo.className = "verdict-error";
+          "chrome://extensions and click Reload on the Illini Dash card.",
+      );
       if (devBuild) devBuild.textContent = `${mine} Worker answered: ${JSON.stringify(resp)}`;
       return;
     }
+    // Both branches written out, because "already fine" and "never ran" were
+    // indistinguishable here (worker rule 5).
     if (devBuild) devBuild.textContent = `${mine} Service worker: build ${resp.buildId}.`;
     if (resp.buildId === BUILD_ID) {
-      // Both branches logged, because "already fine" and "never ran" were
-      // indistinguishable here (worker rule 5).
-      buildInfo.textContent = "";
-      buildInfo.hidden = true;
+      setWarning("build", undefined);
       return;
     }
-    buildInfo.hidden = false;
     // The build ids stay in the sentence: this is the one warning they are the
     // evidence for. Everything before them says what happened and what to do.
-    buildInfo.textContent =
+    setWarning(
+      "build",
       "Illini Dash was updated, but the background part is still running the old " +
-      "version, so this page may be wrong. Open chrome://extensions and click " +
-      `Reload on the Illini Dash card. (This page is build ${BUILD_ID}; the ` +
-      `background part is build ${resp.buildId}.)`;
-    buildInfo.className = "verdict-error";
+        "version, so this page may be wrong. Open chrome://extensions and click " +
+        `Reload on the Illini Dash card. (This page is build ${BUILD_ID}; the ` +
+        `background part is build ${resp.buildId}.)`,
+    );
   } catch (err) {
-    buildInfo.hidden = false;
-    buildInfo.textContent =
+    setWarning(
+      "build",
       "The background part of Illini Dash is not answering, so nothing on this " +
-      "page can be changed. Open chrome://extensions and click Reload on the " +
-      "Illini Dash card.";
-    buildInfo.className = "verdict-error";
+        "page can be changed. Open chrome://extensions and click Reload on the " +
+        "Illini Dash card.",
+    );
     if (devBuild) {
       devBuild.textContent = `${mine} Worker unreachable: ${
         err instanceof Error ? err.message : String(err)
@@ -102,27 +104,32 @@ void (async () => {
 })();
 
 /**
- * Reports fields an older worker did not send.
+ * One warning slot, two possible warnings.
  *
- * Its own element rather than `buildInfo`, because the ping above writes that
- * one asynchronously and would race this into invisibility.
+ * Both are about the same thing — the page and the worker are different builds
+ * — but they are found at different moments: the ping answers asynchronously,
+ * and the missing fields only show up once a message arrives. Two children of
+ * one container rather than two loose elements, so neither can race the other
+ * into invisibility and neither can escape the page's own margins.
  */
-let missingFieldsEl: HTMLElement | null = null;
-
-function showMissingFields(missing: readonly string[]): void {
-  if (missing.length === 0) {
-    missingFieldsEl?.remove();
-    missingFieldsEl = null;
+function setWarning(key: "build" | "fields" | "draw", text: string | undefined): void {
+  let line = buildInfo.querySelector<HTMLElement>(`[data-warning="${key}"]`);
+  if (!text) {
+    line?.remove();
+    buildInfo.hidden = buildInfo.childElementCount === 0;
     return;
   }
-  if (!missingFieldsEl) {
-    missingFieldsEl = document.createElement("p");
-    missingFieldsEl.className = "verdict-error";
-    buildInfo.after(missingFieldsEl);
+  if (!line) {
+    line = document.createElement("p");
+    line.dataset["warning"] = key;
+    buildInfo.append(line);
   }
-  // Its own element, and its own visibility: `buildInfo` is hidden on the happy
-  // path now, and a warning inserted after a hidden sibling is still shown.
-  missingFieldsEl.textContent = staleWorkerNotice(missing);
+  line.textContent = text;
+  buildInfo.hidden = false;
+}
+
+function showMissingFields(missing: readonly string[]): void {
+  setWarning("fields", missing.length === 0 ? undefined : staleWorkerNotice(missing));
 }
 
 function row(dl: HTMLElement, label: string, value: string): void {
@@ -296,8 +303,8 @@ const PRESETS: { label: string; url: string; note?: string }[] = [
 
 for (const preset of PRESETS) {
   const button = document.createElement("button");
+  button.className = "btn btn-quiet btn-sm";
   button.textContent = preset.note ? `${preset.label} (${preset.note})` : preset.label;
-  button.style.margin = "0 6px 6px 0";
   button.addEventListener("click", () => {
     captureUrl.value = preset.url;
     captureUrl.focus();
@@ -490,23 +497,115 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function checkboxRow(
-  labelText: string,
-  checked: boolean,
-  note: string,
-  onChange: (checked: boolean) => void,
-): HTMLElement {
-  const row = el("div", undefined, "opt-row");
+/**
+ * One settings row: a switch, a name, a line saying what it is, and a state.
+ *
+ * A real `<input type="checkbox">` under the switch — not a div with a click
+ * handler — so the keyboard behaviour, the label association and the
+ * announcement all come for free rather than being reimplemented badly.
+ */
+function switchRow(options: {
+  name: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}): HTMLElement {
+  const row = el("div", undefined, "srow2");
   const box = el("input");
   box.type = "checkbox";
-  box.checked = checked;
-  const id = `chk-${Math.random().toString(36).slice(2)}`;
+  box.className = "switch srow2--lead";
+  box.checked = options.checked;
+  box.disabled = options.disabled === true;
+  const id = `sw-${Math.random().toString(36).slice(2)}`;
   box.id = id;
-  const label = el("label", labelText);
+
+  const label = el("label", options.name, "srow2--name");
   label.htmlFor = id;
-  box.addEventListener("change", () => onChange(box.checked));
-  row.append(box, label, el("span", note, "opt-note"));
+  box.addEventListener("change", () => options.onChange(box.checked));
+
+  row.append(box, label);
+  if (options.hint) row.append(el("span", options.hint, "srow2--hint"));
   return row;
+}
+
+/** A plain row with no switch — a course that was set aside, a hidden item. */
+function plainRow(name: string, hint?: string): HTMLElement {
+  const row = el("div", undefined, "srow2");
+  const label = el("span", name, "srow2--name");
+  // An empty cell where the switch would be, so a row with a switch and a row
+  // without line up down the list.
+  row.append(el("span", undefined, "srow2--lead"), label);
+  if (hint) row.append(el("span", hint, "srow2--hint"));
+  return row;
+}
+
+/**
+ * The state, as a chip rather than a sentence.
+ *
+ * A student scanning six rows for the broken one is scanning for a colour, and
+ * "needs you to sign in" set in muted grey beside five other muted greys is not
+ * one. The exact stamp and the error stay in the tooltip.
+ */
+function stateChip(
+  state: string,
+  detail?: string,
+  title?: string,
+): HTMLElement {
+  const tone =
+    state === "ok"
+      ? "is-ok"
+      : state === "needs_login"
+        ? "is-warn"
+        : state === "disabled" || state === "pending"
+          ? ""
+          : "is-err";
+  const word = STATE_WORD[state] ?? state;
+  const chip = el(
+    "span",
+    detail ? `${word} · ${detail}` : word,
+    `chip-base chip-state ${tone}`.trim(),
+  );
+  if (title) chip.title = title;
+  return chip;
+}
+
+/**
+ * The section list down the left, built from the sections themselves.
+ *
+ * One list rather than two that can disagree, and `data-nav` on the `<section>`
+ * is the single place a section's name is written.
+ */
+function renderPageNav(): void {
+  const nav = document.getElementById("pagenav");
+  if (!nav) return;
+  nav.replaceChildren();
+  const sections = [...document.querySelectorAll<HTMLElement>("section[data-nav]")];
+  for (const section of sections) {
+    const link = el("a", section.dataset["nav"] ?? section.id);
+    link.href = `#${section.id}`;
+    nav.append(link);
+  }
+
+  // Which one you are in. `IntersectionObserver` rather than a scroll handler:
+  // a scroll handler on a 1900px page runs on every frame of every scroll to
+  // answer a question that changes a handful of times.
+  const links = [...nav.querySelectorAll("a")];
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          link.setAttribute(
+            "aria-current",
+            String(link.getAttribute("href") === `#${entry.target.id}`),
+          );
+        }
+      }
+    },
+    { rootMargin: "-10% 0px -70% 0px" },
+  );
+  for (const section of sections) observer.observe(section);
 }
 
 /**
@@ -521,15 +620,13 @@ async function refreshOptions(): Promise<void> {
   try {
     await renderOptions();
   } catch (err) {
-    // Un-hidden explicitly: the happy path hides this element, and an error
-    // written into a hidden element is an error nobody sees.
-    buildInfo.hidden = false;
-    buildInfo.textContent =
+    setWarning(
+      "draw",
       `The settings page could not finish drawing: ` +
-      `${err instanceof Error ? err.message : String(err)}. ` +
-      `Open chrome://extensions, click Reload on the Illini Dash card, and reopen this page. ` +
-      `If it happens again, that message is the bug report.`;
-    buildInfo.className = "verdict-error";
+        `${err instanceof Error ? err.message : String(err)}. ` +
+        `Open chrome://extensions, click Reload on the Illini Dash card, and reopen this page. ` +
+        `If it happens again, that message is the bug report.`,
+    );
   }
 }
 
@@ -542,47 +639,66 @@ async function renderOptions(): Promise<void> {
   const { state, missing } = normalizeOptionsState<typeof message>(message);
   showMissingFields(missing);
 
+  const now = new Date();
   document.getElementById("privacy")!.textContent = PRIVACY_TEXT;
+
+  /* The line under the title: version, last check, and how many answered.
+     From `healthPill`, so this page and the popup's header cannot disagree. */
+  const pill = healthPill(state.sources, state.lastSyncAt, now);
+  // Guarded: `getManifest` is one `chrome.*` call inside a function that draws
+  // the whole page, and a throw here used to take the other eight sections
+  // with it. Worker rule 8 — never let a render function reject into a console
+  // the user does not have open.
+  let version = "";
+  try {
+    version = `Illini Dash ${chrome.runtime.getManifest().version} · `;
+  } catch {
+    /* A harness, or a page opened outside the extension. */
+  }
+  document.getElementById("page-sub")!.textContent = `${version}${pill.text}`;
 
   /* Sources */
   const sources = document.getElementById("sources")!;
   sources.replaceChildren();
-  for (const [source, status] of Object.entries(state.sources)) {
+  const byState = new Map(sourceRows(state.sources, now).map((row) => [row.source, row]));
+  for (const [key, status] of Object.entries(state.sources)) {
     // §4.5 owns this source through the adapter list below, and a second
     // control with the same name is what sent the first live sync into a green
     // dot with nothing behind it: Sushi ticked "Course websites" here, which
     // enables the source, while every adapter stayed off. `set-adapter-enabled`
     // sets this flag anyway. Its health is rendered under Course websites.
-    if (source === "site") continue;
-    const row = checkboxRow(
-      SOURCE_TITLE[source as never] ?? source,
-      status.enabled,
-      "",
-      (enabled) => {
+    if (key === "site") continue;
+    const source = key as keyof typeof SOURCE_TITLE;
+    const row = switchRow({
+      name: SOURCE_TITLE[source] ?? key,
+      hint: SOURCE_HINT[source],
+      checked: status.enabled,
+      onChange: (enabled) => {
         void send({ type: "set-source-enabled", source: source as never, enabled }).then(
           refreshOptions,
         );
       },
-    );
+    });
+
     // `displayState`, not `status.state`: a source that has never been attempted
     // has no result, and the stored value seeded before the first fetch used to
     // render as a healthy "ok" here too.
     const shown = displayState(status);
-    const read = timeAgo(status.lastSuccessAt, new Date());
-    const stateLabel = el(
-      "span",
-      read && shown === "ok" ? `read ${read}` : (STATE_PHRASE[shown] ?? shown),
-      `opt-note state-${shown}`,
+    const facts = byState.get(source as never);
+    row.append(
+      stateChip(
+        shown,
+        shown === "ok" ? facts?.lastRead : undefined,
+        [status.lastError, facts?.lastReadExact && `last read ${facts.lastReadExact}`]
+          .filter(Boolean)
+          .join("\n") || undefined,
+      ),
     );
-    stateLabel.title = [status.lastError, fullStamp(status.lastSuccessAt)]
-      .filter(Boolean)
-      .join("\n");
-    row.append(stateLabel);
     if (shown === "needs_login" && LOGIN_URL[source as never]) {
-      const login = el("a", "log in");
-      login.href = LOGIN_URL[source as never]!;
-      login.target = "_blank";
-      login.className = "opt-note";
+      const login = el("button", "Sign in", "btn btn-secondary btn-sm");
+      login.addEventListener("click", () =>
+        chrome.tabs.create({ url: LOGIN_URL[source as never]! }),
+      );
       row.append(login);
     }
     sources.append(row);
@@ -595,31 +711,46 @@ async function renderOptions(): Promise<void> {
   const siteStatus = state.sources.site;
   if (siteStatus) {
     const shown = displayState(siteStatus);
-    const label = el("span", `Course websites ${STATE_PHRASE[shown] ?? shown}`, `state-${shown}`);
-    if (siteStatus.lastError) label.title = siteStatus.lastError;
-    siteHealth.append(label);
+    const facts = byState.get("site");
+    // A labelled row, not a floating chip. A state word with nothing beside it
+    // reads as a state of *the section*, and this is the state of one source.
+    const box = el("div", undefined, "rows");
+    const row = plainRow(
+      "Reading course websites",
+      "How the last attempt at every switched-on site went.",
+    );
+    row.append(
+      stateChip(shown, shown === "ok" ? facts?.lastRead : undefined, siteStatus.lastError),
+    );
+    box.append(row);
+    siteHealth.append(box);
   }
 
   /* Courses (§8.2) */
   const courses = document.getElementById("courses")!;
   courses.replaceChildren();
   if (state.courses.length === 0) {
-    courses.append(el("p", "No courses seen yet — sync first.", "muted"));
+    courses.append(plainRow("No courses yet", "Nothing has been read from a source yet."));
   }
   for (const course of state.courses) {
     courses.append(
-      checkboxRow(
-        course.label,
-        !course.disabled,
-        `${course.itemCount} item${course.itemCount === 1 ? "" : "s"} · ${course.sources.join(", ")}`,
-        (enabled) => {
+      switchRow({
+        name: course.label,
+        // Names, not source keys: `prairielearn, canvas` under a course code is
+        // the storage layer leaking onto the one screen a student comes to in
+        // order to recognise their own courses.
+        hint: `${course.itemCount} item${course.itemCount === 1 ? "" : "s"} · ${course.sources
+          .map((source) => SOURCE_TITLE[source as never] ?? source)
+          .join(", ")}`,
+        checked: !course.disabled,
+        onChange: (enabled) => {
           void send({
             type: "set-course-disabled",
             course: course.key,
             disabled: !enabled,
           }).then(refreshOptions);
         },
-      ),
+      }),
     );
   }
 
@@ -632,27 +763,25 @@ async function renderOptions(): Promise<void> {
     // `List updated 9/11/2026, 6:19:34 PM` was eight tokens answering a
     // question whose real answer is "recently". The exact stamp moves to the
     // tooltip, where it is still there for anyone debugging.
-    const fetched = timeAgo(adapterState.fetchedAt, new Date());
+    const fetched = timeAgo(adapterState.fetchedAt, now);
     registryStatus.textContent = fetched ? `Updated ${fetched}` : "Not fetched yet";
     registryStatus.title = fullStamp(adapterState.fetchedAt) ?? "";
     // §4.5: adapters carry a term and expire; stale ones are hidden.
     const current = adapterState.adapters.filter((a) => a.currentTerm);
     if (current.length === 0) {
       adaptersEl.append(
-        el(
-          "p",
-          "No course-site adapters available for this term yet. They are published " +
-            "separately, so this list can fill in without updating the extension.",
-          "muted",
+        plainRow(
+          "None for this term yet",
+          "They are published separately, so this list can fill in without updating the extension.",
         ),
       );
     }
     for (const adapter of current) {
-      const row = checkboxRow(
-        adapter.label,
-        adapter.enabled && adapter.granted,
-        `${adapter.courseCode} · ${new URL(adapter.url).hostname}`,
-        (enabled) => {
+      const row = switchRow({
+        name: adapter.label,
+        hint: `${adapter.courseCode} · ${new URL(adapter.url).hostname}`,
+        checked: adapter.enabled && adapter.granted,
+        onChange: (enabled) => {
           // Requested here, synchronously in the handler: a user gesture does
           // not survive an await, so asking from the service worker — as this
           // first did — meant Chrome refused the prompt and the checkbox
@@ -675,9 +804,24 @@ async function renderOptions(): Promise<void> {
             );
           });
         },
-      );
+      });
       if (adapter.enabled && !adapter.granted) {
-        row.append(el("span", "permission missing", "opt-note state-needs_login"));
+        // Switched on, but Chrome never granted the host — so it reads nothing
+        // and says nothing. A chip and a button rather than a note, because
+        // there is exactly one thing to do about it.
+        // Not "Sign in needed": nothing about this is a login. Chrome was
+        // asked for permission to read one host and did not grant it, and the
+        // button beside this asks again.
+        const chip = stateChip("needs_login", undefined, "Chrome has not granted access to this site");
+        chip.textContent = "Permission missing";
+        row.append(chip);
+        const allow = el("button", "Allow", "btn btn-secondary btn-sm");
+        allow.addEventListener("click", () => {
+          void chrome.permissions
+            .request({ origins: [adapter.hostPattern] })
+            .then((granted) => (granted ? refreshOptions() : undefined));
+        });
+        row.append(allow);
       }
       adaptersEl.append(row);
     }
@@ -687,13 +831,11 @@ async function renderOptions(): Promise<void> {
   const setAside = document.getElementById("set-aside")!;
   setAside.replaceChildren();
   if (state.setAsideCourses.length === 0) {
-    setAside.append(el("p", "None — every Canvas course is in the current term.", "muted"));
+    setAside.append(plainRow("None", "Every Canvas course is in the current term."));
   }
   for (const course of state.setAsideCourses) {
-    const row = el("div", undefined, "opt-row");
-    row.append(el("span", `${course.courseCode ?? ""} ${course.name}`.trim()));
-    row.append(el("span", course.reason, "opt-note"));
-    const keep = el("button", "Put back");
+    const row = plainRow(`${course.courseCode ?? ""} ${course.name}`.trim(), course.reason);
+    const keep = el("button", "Put back", "btn btn-secondary btn-sm");
     keep.addEventListener("click", () => {
       void send({ type: "keep-course", courseId: course.id, keep: true }).then(refreshOptions);
     });
@@ -709,17 +851,164 @@ async function renderOptions(): Promise<void> {
   // every reminder is created and dropped, so this section would otherwise
   // describe settings that cannot possibly take effect.
   if (state.notificationsBlocked) {
-    const warning = el(
-      "p",
-      "Chrome is blocking notifications from Illini Dash, so none of these will reach you. " +
-        "Turn them back on in Chrome's notification settings for this extension.",
-      "verdict-error",
+    const banner = el("div", undefined, "banner-line banner-err");
+    banner.append(
+      icon("warning"),
+      el(
+        "span",
+        "Chrome is blocking reminders from Illini Dash, so none of these will reach you.",
+        "banner-line--text",
+      ),
     );
-    reminders.append(warning);
+    banner.style.borderRadius = "8px";
+    banner.style.marginBottom = "10px";
+    reminders.append(banner);
   }
-  const testRow = el("p", "", "muted");
-  const testButton = el("button", "Send a test reminder");
-  const testResult = el("span", "", "opt-note");
+
+  const remindRows = el("div", undefined, "rows");
+
+  /* When. Two lead times, because §7 has two and a third cannot exist. */
+  const leads = el("div", undefined, "srow2");
+  leads.append(el("span"), el("span", "When to remind me", "srow2--name"));
+  leads.append(el("span", "Before the deadline the source states.", "srow2--hint"));
+  const leadBox = el("span", undefined, "row-actions");
+  leadBox.style.margin = "0";
+  for (const lead of ["24h", "2h"] as const) {
+    const on = state.settings.leadTimes.includes(lead);
+    const chip = el("button", lead === "24h" ? "24 hours" : "2 hours", "chip-base");
+    chip.setAttribute("aria-pressed", String(on));
+    if (on) {
+      chip.style.background = "var(--accent-wash)";
+      chip.style.borderColor = "var(--accent)";
+    } else {
+      chip.style.opacity = ".55";
+    }
+    chip.addEventListener("click", () => {
+      const leadTimes = on
+        ? state.settings.leadTimes.filter((l) => l !== lead)
+        : [...new Set([...state.settings.leadTimes, lead])];
+      void send({ type: "update-settings", settings: { leadTimes } }).then(refreshOptions);
+    });
+    leadBox.append(chip);
+  }
+  leads.append(leadBox);
+  remindRows.append(leads);
+
+  remindRows.append(
+    switchRow({
+      name: "Remind me about not-for-credit work",
+      hint: "Practice quizzes and surveys stay in the list either way — this is only about interrupting you.",
+      checked: state.settings.remindNotForCredit,
+      onChange: (remindNotForCredit) => {
+        void send({ type: "update-settings", settings: { remindNotForCredit } }).then(
+          refreshOptions,
+        );
+      },
+    }),
+  );
+  remindRows.append(
+    switchRow({
+      name: "Hide submitted and graded work",
+      hint: "Finished work still shows on days that have already passed, so a week you worked through does not look empty.",
+      checked: state.settings.hideSubmitted,
+      onChange: (hideSubmitted) => {
+        void send({ type: "update-settings", settings: { hideSubmitted } }).then(refreshOptions);
+      },
+    }),
+  );
+
+  /* Quiet hours: two clocks, not two numbers between 0 and 23. */
+  const quiet = state.settings.quietHours;
+  const quietRow = switchRow({
+    name: "Quiet hours",
+    hint: "Reminders due in this window wait until it ends.",
+    checked: quiet !== null,
+    onChange: (enabled) => {
+      void send({
+        type: "update-settings",
+        settings: { quietHours: enabled ? { start: 23, end: 8 } : null },
+      }).then(refreshOptions);
+    },
+  });
+  if (quiet) {
+    const times = el("span", undefined, "row-actions");
+    times.style.margin = "0";
+    const hourField = (value: number) => {
+      const input = el("input", undefined, "field") as HTMLInputElement;
+      input.type = "time";
+      input.step = "3600";
+      input.value = `${String(value).padStart(2, "0")}:00`;
+      return input;
+    };
+    const from = hourField(quiet.start);
+    const to = hourField(quiet.end);
+    const push = () => {
+      // `Number("")` is 0, which is a legitimate hour, so a cleared box would
+      // silently become midnight and narrow the window rather than being
+      // rejected. `<input type=time>` can still be empty, so this checks.
+      const hour = (input: HTMLInputElement): number | undefined => {
+        const match = /^(\d{2}):/.exec(input.value);
+        if (!match) return undefined;
+        const n = Number(match[1]);
+        return Number.isInteger(n) && n >= 0 && n <= 23 ? n : undefined;
+      };
+      const start = hour(from);
+      const end = hour(to);
+      if (start === undefined || end === undefined) {
+        dataStatus().textContent = "Quiet hours need a start and an end.";
+        void refreshOptions();
+        return;
+      }
+      void send({ type: "update-settings", settings: { quietHours: { start, end } } }).then(
+        refreshOptions,
+      );
+    };
+    from.addEventListener("change", push);
+    to.addEventListener("change", push);
+    times.append(el("span", "from", "opt-note"), from, el("span", "to", "opt-note"), to);
+    quietRow.append(times);
+  }
+  remindRows.append(quietRow);
+
+  /* How often. A select, because the useful values are four and the box let
+     you type 17 minutes and wonder why nothing changed. */
+  const pollRow = el("div", undefined, "srow2");
+  pollRow.append(el("span"), el("span", "Check for changes", "srow2--name"));
+  pollRow.append(
+    el("span", "Opening the popup also checks, at most once every five minutes.", "srow2--hint"),
+  );
+  const poll = el("select", undefined, "field") as HTMLSelectElement;
+  for (const minutes of [15, 30, 60, 120]) {
+    if (minutes < MIN_POLL_MINUTES || minutes > MAX_POLL_MINUTES) continue;
+    const option = document.createElement("option");
+    option.value = String(minutes);
+    option.textContent = minutes < 60 ? `Every ${minutes} minutes` : `Every ${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+    option.selected = minutes === state.settings.pollMinutes;
+    poll.append(option);
+  }
+  // A stored value that is not one of the four — set by an older build, or by
+  // hand — would otherwise silently select the first option and then save it.
+  if (!offersValue(poll, state.settings.pollMinutes)) {
+    const option = document.createElement("option");
+    option.value = String(state.settings.pollMinutes);
+    option.textContent = `Every ${state.settings.pollMinutes} minutes`;
+    option.selected = true;
+    poll.append(option);
+  }
+  poll.addEventListener("change", () => {
+    void send({
+      type: "update-settings",
+      settings: { pollMinutes: Number(poll.value) },
+    }).then(refreshOptions);
+  });
+  pollRow.append(poll);
+  remindRows.append(pollRow);
+
+  const testRow = el("div", undefined, "srow2");
+  testRow.append(el("span"), el("span", "Send a test reminder", "srow2--name"));
+  const testResult = el("span", "One notification, now, so you can see what they look like.", "srow2--hint");
+  testRow.append(testResult);
+  const testButton = el("button", "Send", "btn btn-secondary btn-sm");
   testButton.addEventListener("click", () => {
     testResult.textContent = "Sending…";
     void send({ type: "test-notification" }).then((response) => {
@@ -731,122 +1020,17 @@ async function renderOptions(): Promise<void> {
           : "Sent. If nothing appeared, Chrome or the operating system is hiding it.";
     });
   });
-  testRow.append(testButton, testResult);
-  reminders.append(testRow);
-
-  for (const lead of ["24h", "2h"] as const) {
-    reminders.append(
-      checkboxRow(
-        lead === "24h" ? "24 hours before" : "2 hours before",
-        state.settings.leadTimes.includes(lead),
-        "",
-        (checked) => {
-          const leadTimes = checked
-            ? [...new Set([...state.settings.leadTimes, lead])]
-            : state.settings.leadTimes.filter((l) => l !== lead);
-          void send({ type: "update-settings", settings: { leadTimes } }).then(refreshOptions);
-        },
-      ),
-    );
-  }
-  reminders.append(
-    checkboxRow(
-      "Remind me about not-for-credit work",
-      state.settings.remindNotForCredit,
-      "Practice quizzes and surveys still appear in the list either way.",
-      (remindNotForCredit) => {
-        void send({ type: "update-settings", settings: { remindNotForCredit } }).then(
-          refreshOptions,
-        );
-      },
-    ),
-  );
-  reminders.append(
-    checkboxRow(
-      "Hide submitted and graded work",
-      state.settings.hideSubmitted,
-      "",
-      (hideSubmitted) => {
-        void send({ type: "update-settings", settings: { hideSubmitted } }).then(refreshOptions);
-      },
-    ),
-  );
-
-  const quiet = state.settings.quietHours;
-  const quietRow = checkboxRow("Quiet hours", quiet !== null, "", (enabled) => {
-    void send({
-      type: "update-settings",
-      settings: { quietHours: enabled ? { start: 23, end: 8 } : null },
-    }).then(refreshOptions);
-  });
-  if (quiet) {
-    const from = el("input");
-    from.type = "number";
-    from.min = "0";
-    from.max = "23";
-    from.value = String(quiet.start);
-    const to = el("input");
-    to.type = "number";
-    to.min = "0";
-    to.max = "23";
-    to.value = String(quiet.end);
-    const push = () => {
-      // `Number("")` is 0, which is a legitimate hour, so a cleared box would
-      // silently become midnight and narrow the window rather than being
-      // rejected. `<input min max>` is decorative outside a form, so check here.
-      const hour = (input: HTMLInputElement): number | undefined => {
-        const value = input.value.trim();
-        if (value === "") return undefined;
-        const n = Number(value);
-        return Number.isInteger(n) && n >= 0 && n <= 23 ? n : undefined;
-      };
-      const start = hour(from);
-      const end = hour(to);
-      if (start === undefined || end === undefined) {
-        dataStatus().textContent = "Quiet hours must be two hours between 0 and 23.";
-        void refreshOptions();
-        return;
-      }
-      void send({ type: "update-settings", settings: { quietHours: { start, end } } }).then(
-        refreshOptions,
-      );
-    };
-    from.addEventListener("change", push);
-    to.addEventListener("change", push);
-    quietRow.append(el("span", "from", "opt-note"), from, el("span", "to", "opt-note"), to);
-  }
-  reminders.append(quietRow);
-
-  const pollRow = el("div", undefined, "opt-row");
-  const pollLabel = el("label", "Check every");
-  const poll = el("input");
-  poll.type = "number";
-  poll.min = String(MIN_POLL_MINUTES);
-  poll.max = String(MAX_POLL_MINUTES);
-  poll.value = String(state.settings.pollMinutes);
-  poll.addEventListener("change", () => {
-    void send({
-      type: "update-settings",
-      settings: { pollMinutes: Number(poll.value) },
-    }).then(refreshOptions);
-  });
-  pollRow.append(
-    pollLabel,
-    poll,
-    el("span", `minutes (${MIN_POLL_MINUTES}–${MAX_POLL_MINUTES})`, "opt-note"),
-  );
-  reminders.append(pollRow);
+  testRow.append(testButton);
+  remindRows.append(testRow);
+  reminders.append(remindRows);
 
   /* Hidden items (§8.1's Hide, undoable) */
   const hidden = document.getElementById("hidden")!;
   hidden.replaceChildren();
-  if (state.hiddenItems.length === 0) {
-    hidden.append(el("p", "Nothing hidden.", "muted"));
-  }
+  if (state.hiddenItems.length === 0) hidden.append(plainRow("Nothing hidden"));
   for (const item of state.hiddenItems) {
-    const row = el("div", undefined, "opt-row");
-    row.append(el("span", `${item.courseLabel} — ${item.title}`));
-    const unhide = el("button", "Unhide");
+    const row = plainRow(item.title, item.courseLabel);
+    const unhide = el("button", "Unhide", "btn btn-secondary btn-sm");
     unhide.addEventListener("click", () => {
       void send({ type: "override", action: { kind: "unhide", itemId: item.id } }).then(
         refreshOptions,
@@ -859,13 +1043,10 @@ async function renderOptions(): Promise<void> {
   /* Ticked off by hand — the only way back for a row the popup no longer shows */
   const done = document.getElementById("done")!;
   done.replaceChildren();
-  if (state.doneItems.length === 0) {
-    done.append(el("p", "Nothing ticked off.", "muted"));
-  }
+  if (state.doneItems.length === 0) done.append(plainRow("Nothing ticked off"));
   for (const item of state.doneItems) {
-    const row = el("div", undefined, "opt-row");
-    row.append(el("span", `${item.courseLabel} — ${item.title}`));
-    const undo = el("button", "Not done");
+    const row = plainRow(item.title, item.courseLabel);
+    const undo = el("button", "Not done", "btn btn-secondary btn-sm");
     undo.addEventListener("click", () => {
       void send({ type: "override", action: { kind: "undone", itemId: item.id } }).then(
         refreshOptions,
@@ -874,6 +1055,13 @@ async function renderOptions(): Promise<void> {
     row.append(undo);
     done.append(row);
   }
+
+  renderPageNav();
+}
+
+/** Whether a `<select>` already offers this value. */
+function offersValue(select: HTMLSelectElement, value: number): boolean {
+  return [...select.options].some((option) => option.value === String(value));
 }
 
 /**
@@ -1088,6 +1276,9 @@ void (() => {
   const field = document.getElementById("report-url") as HTMLInputElement | null;
   if (!field) return;
   field.value = target;
+  // The whole report form is behind a disclosure now, so filling it in without
+  // opening it would put the URL somewhere nobody can see.
+  (document.getElementById("report-box") as HTMLDetailsElement | null)?.setAttribute("open", "");
   field.scrollIntoView({ block: "center" });
   field.focus();
   const status = document.getElementById("report-status");

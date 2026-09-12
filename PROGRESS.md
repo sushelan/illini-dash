@@ -25,6 +25,33 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## UX plan phase D — Settings — 2026-09-12
+- A 1900px essay becomes a page you can navigate: a sticky section list built from the
+  sections themselves (`data-nav`, so there is one list rather than two that can
+  disagree), one line of description per section, and the paragraphs behind a "Why?"
+  disclosure — still there, and out of the way of anyone who wants a switch.
+- Top line: `Illini Dash 0.1.0 · All 5 OK · 11:16 PM`, from the same `healthPill()` the
+  popup's header uses, so the two surfaces cannot disagree about the same second.
+- Rows are switch · name · who it is for · state chip. **Sources finally say who each
+  site is for** — the first-run screen had those hints and Settings listed the same five
+  names with nothing to tell them apart. One copy now, `SOURCE_HINT` in `core/names.ts`;
+  `core/setup.ts` reads it too.
+- Quiet hours are two `<input type="time">` rather than two numbers between 0 and 23; the
+  poll interval is a select (15 / 30 / 60 / 120) rather than a box that accepted 17.
+  A stored value outside the four is added as its own option rather than silently
+  becoming the first one.
+- Reset is alone in a bordered "Careful" block. "Permission missing" no longer reads
+  "Sign in needed" — nothing about a Chrome host grant is a login.
+- m8: the NetID and full-name fields are behind "Prepare a report" under Help, with the
+  reason ("used *only* to find them in the page and take them out") above them rather
+  than in the middle of Settings on a page whose pitch is "never sees a password".
+- The theme picker shows three swatches per row — the page, the accent, a course colour.
+  "High contrast" and "Neutral" do not say what they look like, and the choice is visual.
+- Two stale-build warnings share one container in the page's own margins; the
+  `?stale=1` harness confirms both render and the other eight sections still draw.
+  A `chrome.runtime.getManifest()` throw took the whole page down while this was being
+  built — guarded, and the stub gained the method (worker rule 8).
+
 ## UX plan phase C — popup information architecture — 2026-09-12
 
 Sushi's three decisions from ux-plan §7: agenda, rolling week, one health pill. All three

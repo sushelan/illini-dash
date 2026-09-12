@@ -120,8 +120,12 @@ writeFileSync(
       }
       const pages = { options: "preview-options.html", components: "components.html" };
       const page = pages[q.get("page")] || "preview-popup.html";
-      for (const key of ["page", "tab", "theme", "hidden"]) q.delete(key);
-      location.replace(page + (q.toString() ? "?" + q.toString() : ""));
+      // \`hash\`, not a literal # in the URL: a fragment on *this* page is never
+      // sent on, so a shot asking for a section further down the Settings page
+      // silently came out at the top.
+      const hash = q.get("hash") ? "#" + q.get("hash") : "";
+      for (const key of ["page", "tab", "theme", "hidden", "hash"]) q.delete(key);
+      location.replace(page + (q.toString() ? "?" + q.toString() : "") + hash);
     </script>
   </body>
 </html>

@@ -25,6 +25,7 @@
  * "show my calendar" is always clickable.
  */
 
+import { SOURCE_HINT, SOURCE_NAME } from "./names.js";
 import type { Source, SourceStatus } from "../sources/types.js";
 import type { StoreV1Plus } from "./store.js";
 
@@ -44,20 +45,28 @@ export interface SetupRow {
   status: SourceStatus | undefined;
 }
 
-/** §4.5's course-site adapters are chosen individually in Settings, not here. */
-const SETUP_SOURCES: { source: Source; label: string; hint: string }[] = [
-  { source: "canvas", label: "Canvas", hint: "Every UIUC course" },
-  { source: "gradescope", label: "Gradescope", hint: "Most CS, ECE and Math courses" },
-  { source: "prairielearn", label: "PrairieLearn", hint: "CS and ECE homework and quizzes" },
-  { source: "prairietest", label: "PrairieTest", hint: "Exams booked at the CBTF" },
-  { source: "smartphysics", label: "smartPhysics", hint: "PHYS 211, 212, 213 and 214 only" },
+/**
+ * §4.5's course-site adapters are chosen individually in Settings, not here.
+ *
+ * The names and hints come from `core/names.ts`. They used to be written out a
+ * second time in this file and a third time, without hints, on the options page
+ * — so Settings listed the same five sites with nothing to say which was which.
+ */
+const SETUP_SOURCES: Source[] = [
+  "canvas",
+  "gradescope",
+  "prairielearn",
+  "prairietest",
+  "smartphysics",
 ];
 
 export function setupRows(store: StoreV1Plus): SetupRow[] {
-  return SETUP_SOURCES.map((row) => ({
-    ...row,
-    enabled: store.sources[row.source]?.enabled ?? false,
-    status: store.sources[row.source],
+  return SETUP_SOURCES.map((source) => ({
+    source,
+    label: SOURCE_NAME[source],
+    hint: SOURCE_HINT[source],
+    enabled: store.sources[source]?.enabled ?? false,
+    status: store.sources[source],
   }));
 }
 

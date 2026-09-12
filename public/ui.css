@@ -515,20 +515,151 @@ pre {
   font: 11px/1.4 ui-monospace, Menlo, monospace;
 }
 
-/* §8.2 options */
-hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 8px; }
-.opt-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 0; border-bottom: 1px solid var(--line);
+/* ==========================================================================
+ * The Settings page
+ * ==========================================================================
+ *
+ * What it replaces: a 1900px single column of thirteen `h2` sections, each
+ * followed by a paragraph explaining itself, with `SPEC.md §0` cited to the
+ * student and "Service worker alive, build 20260912T041431" as its first line.
+ * Finding "Reminders" meant scrolling past everything else, and the only way to
+ * know whether a paragraph mattered was to read it.
+ *
+ * So: a sticky section list, one line of description per section, and the
+ * paragraphs behind a "Why?" disclosure — still there for anyone who wants the
+ * reasoning, and not in the way of anyone who wants a switch.
+ */
+body.page { padding: 0; }
+.page--head { padding: 20px 24px 0; max-width: 1120px; margin: 0 auto; }
+.page--head h1 { font-size: 20px; margin: 0 0 2px; }
+.page--head .muted { font-size: 12px; margin: 0; }
+.page > .back { display: inline-block; margin: 12px 0 0 24px; }
+#build-info:not([hidden]) {
+  margin: 12px auto 0; max-width: 1072px; padding: 0 24px;
 }
-.opt-row:last-child { border-bottom: 0; }
-.opt-row label { flex: 1; cursor: pointer; }
+#build-info p {
+  margin: 0 0 6px; padding: 8px 12px;
+  font-size: 12px; line-height: 1.45;
+  color: var(--err); background: var(--err-wash);
+  border: 1px solid var(--err); border-radius: 8px;
+}
+
+.page--split {
+  display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 32px;
+  max-width: 1120px; margin: 0 auto; padding: 8px 24px 80px;
+}
+.page--body { min-width: 0; }
+
+/* Sticky, because the list is the point: it is only useful while you are deep
+   enough in the page that you cannot see the headings. */
+.pagenav { position: sticky; top: 16px; align-self: start; padding-top: 20px; }
+.pagenav a {
+  display: block; padding: 5px 10px; margin-bottom: 1px;
+  font-size: 12px; color: var(--muted); text-decoration: none;
+  border-radius: 6px; border-left: 2px solid transparent;
+}
+.pagenav a:hover { color: var(--fg); background: var(--hover); }
+.pagenav a[aria-current="true"] {
+  color: var(--fg); font-weight: 600;
+  background: var(--accent-wash); border-left-color: var(--accent);
+}
+
+.page--body section { padding: 20px 0 8px; border-top: 1px solid var(--line); }
+.page--body section:first-child { border-top: 0; }
+.page--body h2 { font-size: 15px; margin: 0 0 4px; }
+.page--body h3 { margin: 22px 0 4px; color: var(--muted); }
+/* One line per section, and it says what the section is for rather than why it
+   exists. The why is in the disclosure under it. */
+.lede { font-size: 12px; color: var(--muted); margin: 0 0 10px; max-width: 68ch; line-height: 1.45; }
+
+.why { margin: 0 0 12px; }
+.why > summary {
+  font-size: 12px; color: var(--muted); cursor: pointer;
+  list-style: none; display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 0;
+}
+.why > summary::-webkit-details-marker { display: none; }
+.why > summary::before {
+  content: ""; width: 0; height: 0; flex: none;
+  border: 4px solid transparent; border-left-color: currentColor;
+  transition: transform 120ms ease-out;
+}
+.why[open] > summary::before { transform: rotate(90deg) translateX(-1px); }
+.why > summary:hover { color: var(--fg); }
+.why > p { font-size: 12px; color: var(--muted); max-width: 68ch; line-height: 1.5; margin: 6px 0 0 13px; }
+.why > .lede { margin-left: 13px; }
+.why > .row-actions, .why > div { margin-left: 13px; }
+
+/* ---- a settings row ----
+ *
+ * Switch, name, who it is for, state. The state is a chip rather than a
+ * sentence: "Connected · 5 min ago" and "Sign in needed" are answers, and a
+ * student scanning six rows for the broken one is scanning for a colour.
+ */
+.rows { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.rows:empty { display: none; }
+.srow2 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center; gap: 6px 12px;
+  padding: 10px 12px; border-top: 1px solid var(--line);
+}
+.srow2:first-child { border-top: 0; }
+/*
+ * Every cell is placed explicitly.
+ *
+ * With only the name and hint placed, auto-placement put a trailing button in
+ * column 1 — because the button spans both rows and column 1 was the first
+ * place a two-row span fit. "Put back" ended up to the *left* of the course it
+ * put back.
+ */
+.srow2--lead { grid-column: 1; grid-row: 1 / span 2; }
+.srow2--name { grid-column: 2; grid-row: 1; font-size: 13px; font-weight: 600; }
+.srow2--hint {
+  grid-column: 2; grid-row: 2;
+  font-size: 11px; color: var(--muted); line-height: 1.4;
+}
+.srow2 > .chip-base { grid-column: 3; grid-row: 1 / span 2; justify-self: end; }
+.srow2 > .btn, .srow2 > .row-actions { grid-column: 4; grid-row: 1 / span 2; justify-self: end; }
+/* A row with no hint collapses to one line rather than leaving a gap. */
+.srow2:not(:has(.srow2--hint)) > * { grid-row: auto; }
+
+.row-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 10px 0 0;
+}
+.fieldlabel { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.field--grow { flex: 1; min-width: 18rem; }
+
+/* Irreversible, and it takes the user's own corrections with it. A border and a
+   word, so it cannot be clicked on the way past. */
+.careful {
+  margin: 14px 0 0; padding: 4px 12px 12px;
+  border: 1px solid var(--err); border-radius: 8px; background: var(--err-wash);
+}
+.careful--head {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--err); margin: 10px 0 2px;
+}
+.careful .srow2 { border-top: 0; padding: 0; }
+.careful .btn { border-color: var(--err); color: var(--err); background: var(--bg); }
+
+/* The theme picker's rows: the whole row is the label, so anywhere is
+   clickable rather than just three characters of text. */
+.themerow { cursor: pointer; }
+.themerow:hover { background: var(--hover); }
+.swatches {
+  grid-column: 3; grid-row: 1 / span 2; justify-self: end;
+  display: inline-flex; gap: 0; border: 1px solid var(--line);
+  border-radius: 6px; overflow: hidden;
+}
+.swatches i { width: 22px; height: 22px; display: block; }
+
 .opt-note { color: var(--muted); font-size: 11px; }
 .state-ok { color: var(--ok); }
 .state-needs_login { color: var(--warn); }
 .state-parse_error, .state-network_error { color: var(--err); }
 .state-disabled { color: var(--muted); }
-input[type="number"] { width: 5em; font: inherit; padding: 2px 4px; }
 
 /* The way back out of Settings. */
 .back {

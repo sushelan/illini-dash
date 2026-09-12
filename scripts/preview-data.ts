@@ -139,14 +139,17 @@ const stale = query.has("stale");
 const pageBuild =
   (globalThis as unknown as { __PREVIEW_BUILD__?: string }).__PREVIEW_BUILD__ ?? "dev";
 
+// Source *keys*, the way the worker actually sends them — the page is what
+// turns them into names, and a stub that pre-names them cannot catch it failing
+// to.
 const courses = [
-  { key: "cs357", label: "CS357", itemCount: 12, sources: ["PrairieLearn", "Canvas"], disabled: false },
-  { key: "cs425", label: "CS425", itemCount: 5, sources: ["Gradescope"], disabled: false },
-  { key: "cs424", label: "CS424", itemCount: 3, sources: ["the course website"], disabled: false },
-  { key: "ece374", label: "ECE374", itemCount: 7, sources: ["PrairieTest", "PrairieLearn"], disabled: false },
-  { key: "phys435", label: "PHYS435", itemCount: 4, sources: ["Gradescope"], disabled: true },
-  { key: "phys214", label: "PHYS214", itemCount: 6, sources: ["smartPhysics"], disabled: false },
-  { key: "cs411", label: "CS411", itemCount: 2, sources: ["Canvas"], disabled: false },
+  { key: "cs357", label: "CS357", itemCount: 12, sources: ["prairielearn", "canvas"], disabled: false },
+  { key: "cs425", label: "CS425", itemCount: 5, sources: ["gradescope"], disabled: false },
+  { key: "cs424", label: "CS424", itemCount: 3, sources: ["site"], disabled: false },
+  { key: "ece374", label: "ECE374", itemCount: 7, sources: ["prairietest", "prairielearn"], disabled: false },
+  { key: "phys435", label: "PHYS435", itemCount: 4, sources: ["gradescope"], disabled: true },
+  { key: "phys214", label: "PHYS214", itemCount: 6, sources: ["smartphysics"], disabled: false },
+  { key: "cs411", label: "CS411", itemCount: 2, sources: ["canvas"], disabled: false },
 ];
 
 const setAsideCourses = [
@@ -249,6 +252,7 @@ const sources = {
       return { type: "ok" };
     },
     getURL: (p: string) => p,
+    getManifest: () => ({ version: "0.1.0", name: "Illini Dash" }),
     openOptionsPage: () => undefined,
   },
   tabs: { create: () => undefined },
