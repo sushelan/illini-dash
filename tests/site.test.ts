@@ -12,6 +12,7 @@ import {
   parseAdapterDate,
   parseAdapterDateParts,
   runAdapter,
+  statedTimeInText,
   supportedDateFormats,
 } from "../src/sources/site.js";
 import {
@@ -649,5 +650,157 @@ describe("header-anchored columns, against the real ECE 310 page", () => {
     for (const item of runAdapter(ADAPTER, doc(), page)) {
       expect(item.url).toBe(ADAPTER.url);
     }
+  });
+});
+
+/**
+ * ECE 391's schedule, captured 2026-09-12 from the live public page after a
+ * beta tester reported "it's not reading the ece 391 page that well".
+ *
+ * The report turned out to be three separate things, and only one was a bug:
+ *
+ * 1. The adapter was pointed at the course's landing page, whose only `<table>`
+ *    is instructor office hours. There are no deadlines on it to read.
+ * 2. `exams.html` says "Time and location to be determined" for all three
+ *    exams. There is nothing there either — the extension was right to show
+ *    nothing, and the tester could not tell that apart from a failure.
+ * 3. `schedule.html` **can** be read, and reading it exposed the real defect:
+ *    every deadline landed at 23:59 when the page plainly says 18:00.
+ *
+ * The 9-digit numbers in this fixture are MediaSpace channel ids on public
+ * lecture-recording links, not student identifiers.
+ */
+describe("ECE 391's schedule (a real page, a real beta report)", () => {
+  const doc = () =>
+    parseHTML(
+      readFileSync(new URL("../fixtures/site/ece391-schedule.html", import.meta.url), "utf8"),
+    ).document as unknown as Document;
+
+  const ECE391 = {
+    id: "ece391-fa26",
+    label: "ECE 391 course site",
+    courseCode: "ECE391",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "table tr",
+    title: "td:nth-child(2)",
+    due: "td:nth-child(1)",
+    dateFormat: "MMM d, h:mm a",
+    timezone: "America/Chicago",
+    // Most rows are lectures and discussions. The word that makes a row a
+    // deadline is the one that selects it.
+    filter: { include: "\\bdue\\b" },
+    minExtensionVersion: "1.0.0",
+  } as never;
+
+  const run = () =>
+    runAdapter(ECE391, doc(), {
+      url: "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
+      fetchedAt: "2026-09-12T18:00:00.000Z",
+    });
+
+  it("finds the machine problems and none of the lectures", () => {
+    const items = run();
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) expect(item.title.toLowerCase()).toContain("due");
+    expect(items.some((i) => i.title.startsWith("MP0"))).toBe(true);
+  });
+
+  it("reads the 18:00 the page states, rather than inventing 23:59", () => {
+    /*
+     * The defect this fixture exists for. The date cell is `Fri, Aug 28` and
+     * states no time, so `timeAssumed` fired and the row landed at 23:59 —
+     * **six hours late**, and a two-hour reminder for it would have arrived at
+     * 21:59, nearly four hours after the deadline passed.
+     *
+     * Worker rule 3: whenever a default is filled in, ask what downstream
+     * treats it as authoritative. §5.3 ranks `site` above `canvas` for `dueAt`,
+     * so this invention could also overwrite a real instructor-set deadline.
+     */
+    const mp0 = run().find((i) => i.title.startsWith("MP0"))!;
+    expect(mp0.dueAt).toMatch(/T18:00/);
+    expect(mp0.extra?.["timeAssumed"]).toBeUndefined();
+  });
+});
+
+/**
+ * `statedTimeInText` on constructed strings.
+ *
+ * The ECE 391 fixture proves the fix works and cannot prove much else: every
+ * one of its rows says "due at 18:00", so precedence, ambiguity and the
+ * anchoring all survived mutation against it. Parser rule 10 — where a
+ * realistic capture cannot tell a right implementation from a wrong one, the
+ * values are built on purpose and said to be built on purpose.
+ */
+describe("statedTimeInText", () => {
+  it("reads a cutoff the row states in prose", () => {
+    expect(statedTimeInText("MP0 due at 18:00 US Central time")).toEqual({ hour: 18, minute: 0 });
+    expect(statedTimeInText("Homework 3 due by 11:59 pm")).toEqual({ hour: 23, minute: 59 });
+    expect(statedTimeInText("Lab due at 5pm")).toEqual({ hour: 17, minute: 0 });
+    expect(statedTimeInText("Quiz due at noon")).toEqual({ hour: 12, minute: 0 });
+    expect(statedTimeInText("Essay due by midnight")).toEqual({ hour: 0, minute: 0 });
+  });
+
+  it("ignores a time that is not this row's deadline", () => {
+    // A schedule row is full of times — lecture slots, office hours, discussion
+    // sections. Matching any of them would read this as a 9am deadline.
+    expect(statedTimeInText("Lect at 9:00, MP1 due")).toBeUndefined();
+    expect(statedTimeInText("Office hours at 4pm")).toBeUndefined();
+  });
+
+  it("refuses a bare time that could mean either end of the day", () => {
+    // The same rule the date parser uses. Guessing `5:00` as 05:00 would move a
+    // 5 PM deadline twelve hours earlier while looking like a stated time.
+    expect(statedTimeInText("MP2 due at 5:00")).toBeUndefined();
+    expect(statedTimeInText("MP2 due at 05:00")).toEqual({ hour: 5, minute: 0 });
+    expect(statedTimeInText("MP2 due at 17:00")).toEqual({ hour: 17, minute: 0 });
+  });
+
+  it("finds nothing in a row that states no time", () => {
+    for (const text of ["MP3 due", "Disc: RISC-V Assembly", ""]) {
+      expect(statedTimeInText(text), text).toBeUndefined();
+    }
+  });
+
+  it("is only consulted when the date cell states no time of its own", () => {
+    /*
+     * A time beside the date is this row's own answer. If the cell says
+     * `Sep 4, 11:59 pm` and the title says "due at 5pm", the cell wins — it is
+     * the field the adapter was pointed at, and the prose is a fallback for
+     * when that field is silent, not a competitor to it.
+     */
+    const withTime = parseAdapterDateParts(
+      "Sep 4, 11:59 pm",
+      "MMM d, h:mm a",
+      "America/Chicago",
+      "2026-09-01T12:00:00.000Z",
+      { hour: 17, minute: 0 },
+    );
+    expect(withTime?.iso).toMatch(/T23:59/);
+    expect(withTime?.timeAssumed).toBe(false);
+
+    const withoutTime = parseAdapterDateParts(
+      "Sep 4",
+      "MMM d, h:mm a",
+      "America/Chicago",
+      "2026-09-01T12:00:00.000Z",
+      { hour: 17, minute: 0 },
+    );
+    expect(withoutTime?.iso).toMatch(/T17:00/);
+    expect(withoutTime?.timeAssumed).toBe(false);
+  });
+
+  it("still invents 23:59 when nothing anywhere states a time", () => {
+    // And still says so, because §5.3 ranks `site` above `canvas` and an
+    // invented instant must never outrank a real one silently.
+    const guessed = parseAdapterDateParts(
+      "Sep 4",
+      "MMM d, h:mm a",
+      "America/Chicago",
+      "2026-09-01T12:00:00.000Z",
+    );
+    expect(guessed?.iso).toMatch(/T23:59/);
+    expect(guessed?.timeAssumed).toBe(true);
   });
 });

@@ -68,6 +68,53 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## First beta report: three things, one of them a bug — 2026-09-12
+
+*"The course website thing is slightly buggy, for example it's not reading the ece 391 page
+that well. It also seems like it's not reading where the exam dates might be on a course
+syllabus rather than an assignment or module. But if it's a module or an assignment on
+canvas gradescope or prairielearn/test it's working really good."*
+
+ECE 391's site is public, so this cost the tester nothing more to diagnose. Three findings,
+and only the third is a defect:
+
+1. **The adapter was reading a page with no deadlines on it.** The course's landing page
+   has exactly two tables and the first is *instructor office hours* — so `table tr` matched
+   it and produced nothing useful. The deadlines are on `schedule.html`, mixed in with
+   lectures and discussion sections; `assignments.html` has **zero** tables and is prose.
+
+2. **The exams are genuinely not there.** `exams.html` says "Time and location to be
+   determined" for all three. There is nothing to read, and the extension showed nothing,
+   which is right — **but the tester could not tell that apart from a failure**, and that
+   is a real finding about the UI rather than about ECE 391.
+
+3. **Every deadline landed six hours late.** This is the bug. `schedule.html` prints
+   `Fri, Aug 28 | MP0 due at 18:00 US Central time` — the date in one cell, the time in the
+   other, inside the title. The date cell parses cleanly and states no time, so
+   `timeAssumed` fired and the row went to 23:59. **A two-hour reminder for it would have
+   arrived at 21:59, nearly four hours after the deadline passed.** Worker rule 3 in its
+   sharpest form: the value was not merely invented, it was invented *next to the real one*.
+
+`statedTimeInText` reads a cutoff the row states in prose, anchored on the word that makes
+it a deadline — a schedule row is full of times, and only the one attached to "due" is this
+row's. The date cell still wins where it states a time, and an ambiguous bare `5:00` is
+still refused, because guessing would move a 5 PM deadline twelve hours.
+
+A guard written alongside it **survived its mutation and was deleted**: the `stated ?`
+ternaries already reject exactly what it rejected. Three other survivors were the opposite
+case — untested, because every row in the ECE 391 fixture says "due at 18:00", so
+precedence, ambiguity and the anchoring could not be exercised by it at all. Those got
+constructed tests that say they are constructed.
+
+`ece391-fa26` is in the bundled registry now, pointed at `schedule.html` with a due filter.
+
+**Still open:** an adapter is one fixed URL, and this course splits its work across
+`schedule.html` and `exams.html`. A course whose exams live on a different page can only
+ever be half-read — which is the general form of the tester's second point, and it needs a
+decision rather than a patch.
+
+1020 tests.
+
 ## Renaming a course, and the two cases that are not the same — 2026-09-12
 
 **`CS 498DK2` needed no rename and still does not.** Sushi: *"idk if u can just eliminate

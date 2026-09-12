@@ -191,6 +191,58 @@ export function timeLikeTail(tail: string): string | undefined {
     : undefined;
 }
 
+/**
+ * A cutoff the row states in prose, when the date cell states none.
+ *
+ * ECE 391's schedule prints `Fri, Aug 28 | MP0 due at 18:00 US Central time` —
+ * the date in one cell, the time in the other, inside the title. The date cell
+ * parses cleanly and states no time, so `timeAssumed` fired and the row landed
+ * at 23:59. **Six hours late, and a two-hour reminder for it would arrive at
+ * 21:59 — nearly four hours after the deadline had passed.** A tracker that is
+ * confidently wrong about a cutoff is worse than one that admits it does not
+ * know, which is worker rule 3: whenever a default is filled in, ask what
+ * downstream treats it as authoritative. §5.3 ranks `site` above `canvas`.
+ *
+ * Anchored on the word that makes it a deadline. A schedule row is full of
+ * times — lecture slots, office hours, discussion sections — and the only one
+ * that is this row's cutoff is the one the sentence attaches to "due". Matching
+ * any time in the row would read "Lect 9:00, MP1 due" as a 9am deadline.
+ *
+ * The ambiguity rule from `parseAdapterDateParts` applies unchanged: a bare
+ * `5:00` with no meridiem could be either end of the day, and guessing would
+ * move a 5 PM deadline twelve hours. Ambiguous stays unstated.
+ */
+export function statedTimeInText(text: string): { hour: number; minute: number } | undefined {
+  const match =
+    /\bdue\b[^.;]{0,24}?\b(?:at|by)\s+(?:(\d{1,2})\s*:\s*(\d{2})\s*([ap]m)?|(\d{1,2})\s*([ap]m)|(noon|midnight))/i.exec(
+      text,
+    );
+  if (!match) return undefined;
+
+  const word = match[6]?.toLowerCase();
+  if (word === "noon") return { hour: 12, minute: 0 };
+  if (word === "midnight") return { hour: 0, minute: 0 };
+
+  if (match[4] !== undefined) {
+    let hour = Number(match[4]);
+    const ampm = match[5]!.toLowerCase();
+    if (ampm === "pm" && hour < 12) hour += 12;
+    if (ampm === "am" && hour === 12) hour = 0;
+    return hour <= 23 ? { hour, minute: 0 } : undefined;
+  }
+
+  const raw = match[1]!;
+  const minute = Number(match[2]);
+  const ampm = match[3]?.toLowerCase();
+  // Same test as the date parser: 24-hour only when it cannot mean anything
+  // else — past noon, or written with a leading zero.
+  if (ampm === undefined && Number(raw) < 13 && !/^0\d$/.test(raw)) return undefined;
+  let hour = Number(raw);
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  return hour <= 23 && minute <= 59 ? { hour, minute } : undefined;
+}
+
 export function supportedDateFormats(): string[] {
   return Object.keys(DATE_FORMATS);
 }
@@ -239,6 +291,8 @@ export function parseAdapterDateParts(
   format: string,
   timezone: string,
   reference: string,
+  /** A cutoff the row stated elsewhere; used only when this cell states none. */
+  statedElsewhere?: { hour: number; minute: number },
 ): AdapterDate | undefined {
   const pattern = DATE_FORMATS[format];
   if (!pattern) return undefined;
@@ -269,8 +323,18 @@ export function parseAdapterDateParts(
     !/^0\d$/.test(rawHour);
 
   const stated = rawHour !== undefined && !ambiguous;
-  let hour = stated ? Number(rawHour) : 23;
-  const minute = stated ? (g["minute"] ? Number(g["minute"]) : 0) : 59;
+  /*
+   * The date cell wins: a time beside the date is this row's own answer, and a
+   * sentence elsewhere in the row is consulted only when there is none.
+   *
+   * That precedence is the `stated ?` in the two lines below and nowhere else.
+   * A `stated ? undefined : statedElsewhere` guard was written here first and
+   * **survived its mutation** — because these ternaries already reject exactly
+   * what it rejected. Mutation house rule 2's third case: a second guard
+   * duplicating a reachable one is not defence, it is another thing to read.
+   */
+  let hour = stated ? Number(rawHour) : (statedElsewhere?.hour ?? 23);
+  const minute = stated ? (g["minute"] ? Number(g["minute"]) : 0) : (statedElsewhere?.minute ?? 59);
   if (ampm === "pm" && hour < 12) hour += 12;
   if (ampm === "am" && hour === 12) hour = 0;
 
@@ -297,7 +361,8 @@ export function parseAdapterDateParts(
   try {
     return {
       iso: wallClockToIso({ ...parts, year }, timezone),
-      timeAssumed: !stated,
+      // Not assumed when the row said it, wherever in the row it said it.
+      timeAssumed: !stated && statedElsewhere === undefined,
       ...(unparsedTime ? { unparsedTime } : {}),
     };
   } catch {
@@ -377,7 +442,15 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       ? cellByHeader(row, adapter.columns.due)
       : select(row, adapter.due);
     const parsed = rawDate
-      ? parseAdapterDateParts(rawDate, adapter.dateFormat, adapter.timezone, page.fetchedAt)
+      ? parseAdapterDateParts(
+          rawDate,
+          adapter.dateFormat,
+          adapter.timezone,
+          page.fetchedAt,
+          // Read from the row's own text, not the whole page: the sentence that
+          // states this deadline's cutoff is in this row.
+          statedTimeInText(row.textContent ?? ""),
+        )
       : undefined;
     const dueAt = parsed?.iso;
     const linkHref = adapter.columns?.link

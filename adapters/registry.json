@@ -1,5 +1,5 @@
 {
-  "$comment": "Course-site adapters (SPEC.md \u00a74.5). Adapters are DATA: selectors and a date format, never code. See docs/adapters.md.",
+  "$comment": "Course-site adapters (SPEC.md §4.5). Adapters are DATA: selectors and a date format, never code. See docs/adapters.md.",
   "adapters": [
     {
       "id": "cs424-fa26",
@@ -37,6 +37,23 @@
       "dateFormat": "M/d",
       "timezone": "America/Chicago",
       "minExtensionVersion": "0.1.0"
+    },
+    {
+      "id": "ece391-fa26",
+      "label": "ECE 391 course site",
+      "courseCode": "ECE391",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "table tr",
+      "title": "td:nth-child(2)",
+      "due": "td:nth-child(1)",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "filter": {
+        "include": "\\bdue\\b"
+      },
+      "minExtensionVersion": "1.0.0"
     }
   ]
 }
