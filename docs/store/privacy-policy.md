@@ -1,10 +1,10 @@
 # Illini Dash — Privacy Policy
 
-_Last updated: 2026-09-10_
+_Last updated: 2026-09-12_
 
 Illini Dash runs entirely in your browser. It reads assignment and exam information from
-Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you explicitly
-enable, using the login sessions already in your browser. It never sees or stores your
+Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics, and course websites you
+explicitly enable, using the login sessions already in your browser. It never sees or stores your
 password. All data is stored locally in your browser's extension storage and is never
 transmitted to the developer or any third party. The extension makes one network request
 to GitHub once a day to update its list of supported course websites; that request
@@ -20,6 +20,7 @@ While you are signed in, and only from sites you have enabled:
 | `www.gradescope.com` | Your course list and each course's assignments table |
 | `us.prairielearn.com` | Your course instances and their assessment lists |
 | `us.prairietest.com` | Your exam reservations and exams open for reservation |
+| `smart.physics.illinois.edu` | Your PHYS 211–214 enrolments and each one's prelecture, checkpoint and homework list |
 | A course website you enable | Only the single page that course's adapter names |
 
 It requests the same pages your browser would if you clicked through the sites yourself,
@@ -30,8 +31,9 @@ no more often than every 15 minutes, and only pages your own account can already
 Nothing about you.
 
 The only outbound request the extension makes that is not to one of the sites above is a
-daily fetch of a public file on GitHub listing which course websites are supported. That
-request is made without cookies and carries no information about you.
+daily fetch of one public file on `raw.githubusercontent.com`, listing which course
+websites are supported. That request is made without cookies and carries no information
+about you.
 
 There is no server, no account, no analytics, no telemetry, and no error reporting.
 
@@ -52,7 +54,8 @@ Deadlines more than 60 days past are deleted automatically.
 | `alarms` | To check for new deadlines on a schedule and to fire reminders |
 | `notifications` | To show the reminders |
 | `offscreen` | To read fetched pages with the browser's own HTML parser, which a service worker does not have |
-| Access to the four sites above | To read your deadlines from them |
+| `contextMenus` | To add one right-click item, "Report this page to Illini Dash", which opens this extension's own settings page with the address filled in. It uploads nothing. |
+| Access to the five sites above | To read your deadlines from them |
 | Access to `*.illinois.edu` (optional) | Requested only if you turn on a specific course website, and only for that site |
 
 It does not request access to all websites, to your browsing history, or to your tabs.

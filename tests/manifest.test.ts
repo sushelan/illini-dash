@@ -20,6 +20,7 @@ import { PRAIRIELEARN_ORIGIN } from "../src/sources/prairielearn.js";
 import { PRAIRIETEST_ORIGIN } from "../src/sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../src/sources/smartphysics.js";
 import { REGISTRY_URL } from "../src/core/registry.js";
+import { SOURCE_NAME } from "../src/core/names.js";
 
 const manifest = JSON.parse(
   readFileSync(new URL("../public/manifest.json", import.meta.url), "utf8"),
@@ -28,6 +29,7 @@ const manifest = JSON.parse(
   host_permissions: string[];
   optional_host_permissions: string[];
   version: string;
+  description: string;
   homepage_url?: string;
   commands?: Record<string, { suggested_key?: { default?: string }; description?: string }>;
   icons: Record<string, string>;
@@ -43,15 +45,21 @@ function covers(pattern: string, origin: string): boolean {
   return wildcard ? url.hostname === host || url.hostname.endsWith(`.${host}`) : url.hostname === host;
 }
 
-describe("every origin the extension fetches is granted", () => {
-  const SOURCES: [string, string][] = [
-    ["canvas", CANVAS_ORIGIN],
-    ["gradescope", GRADESCOPE_ORIGIN],
-    ["prairielearn", PRAIRIELEARN_ORIGIN],
-    ["prairietest", PRAIRIETEST_ORIGIN],
-    ["smartphysics", SMARTPHYSICS_ORIGIN],
-  ];
+/**
+ * The five hosted sources, each with the `Source` key its display name is
+ * filed under. One list: the host-permission check and the privacy policy
+ * must be talking about the same five sites, and the way they stopped being
+ * the same was two lists.
+ */
+const SOURCES: ["canvas" | "gradescope" | "prairielearn" | "prairietest" | "smartphysics", string][] = [
+  ["canvas", CANVAS_ORIGIN],
+  ["gradescope", GRADESCOPE_ORIGIN],
+  ["prairielearn", PRAIRIELEARN_ORIGIN],
+  ["prairietest", PRAIRIETEST_ORIGIN],
+  ["smartphysics", SMARTPHYSICS_ORIGIN],
+];
 
+describe("every origin the extension fetches is granted", () => {
   for (const [name, origin] of SOURCES) {
     it(`${name} (${origin})`, () => {
       // Up front, not optional: these five are fetched by the sync loop with no
@@ -98,6 +106,53 @@ describe("the permission list and its justifications", () => {
   });
 });
 
+/**
+ * The privacy policy against the manifest.
+ *
+ * `listing.md` was pinned by the block above and stayed correct. The privacy
+ * policy was pinned by nothing, and it is the file that drifted: it named four
+ * sites when the manifest held an up-front permission for five, and it did not
+ * mention `contextMenus` at all. That is the one store document with a public
+ * URL and a legal claim in it, telling students the extension reads less than
+ * it reads.
+ *
+ * Worker rule 2's shape, one document over: what the project *asserts* has to
+ * be derived from what it actually does. So the policy is checked against the
+ * manifest and the source modules, not against a reviewer's memory.
+ */
+describe("the privacy policy describes the extension that ships", () => {
+  const policy = readFileSync(new URL("../docs/store/privacy-policy.md", import.meta.url), "utf8");
+
+  for (const [name, origin] of SOURCES) {
+    it(`names ${name}'s host, because it is read without asking again`, () => {
+      expect(policy.includes(new URL(origin).hostname), `${origin} missing from the policy`).toBe(
+        true,
+      );
+    });
+  }
+
+  it("names the registry host, the one request that is not to a source", () => {
+    // "a public file on GitHub" is not a host a reviewer can check against
+    // `host_permissions`; the hostname is.
+    expect(policy.includes(new URL(REGISTRY_URL).hostname)).toBe(true);
+  });
+
+  it("discloses every permission the manifest claims", () => {
+    for (const permission of manifest.permissions) {
+      expect(policy.includes(`\`${permission}\``), `${permission} missing from the policy`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("counts the sites it grants, rather than a number written once by hand", () => {
+    // The sentence that went stale said "the four sites above" while five were
+    // granted. Anchor it on the count instead of on the word.
+    const words = ["zero", "one", "two", "three", "four", "five", "six", "seven"];
+    expect(policy).toContain(`the ${words[SOURCES.length]} sites above`);
+  });
+});
+
 describe("what the store asks for", () => {
   it("ships a 32px icon, which the toolbar is most often drawn at", () => {
     /*
@@ -134,6 +189,18 @@ describe("what the store asks for", () => {
     // A popup is otherwise only reachable by aiming at a 16px target, and the
     // whole point of this extension is being quick to check.
     expect(manifest.commands?.["_execute_action"]?.suggested_key?.default).toBeTruthy();
+  });
+
+  it("names every source it holds an up-front permission for", () => {
+    /*
+     * The store listing's own one-liner named smartPhysics; the manifest
+     * description did not, so the text under the install button promised less
+     * than the permission prompt beside it asked for. Chrome caps this at 132.
+     */
+    for (const [key] of SOURCES) {
+      expect(manifest.description, key).toContain(SOURCE_NAME[key]);
+    }
+    expect(manifest.description.length).toBeLessThanOrEqual(132);
   });
 
   it("is not still calling itself a preview", () => {
