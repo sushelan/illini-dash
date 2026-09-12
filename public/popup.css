@@ -472,6 +472,20 @@ h2.section {
    click away in the day view. */
 .mpill--name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mpill--event { background: transparent; border-left-style: dotted; opacity: .75; }
+/*
+ * The same vocabulary the list uses, in the one place that never had it.
+ *
+ * A month of finished work looked exactly like a month of work still owed —
+ * which is the single question a month is for. Struck and dimmed for done,
+ * the overdue red on the code for late-and-lost, the warn edge for a window
+ * still open.
+ */
+.mpill--done { opacity: .55; }
+.mpill--done .mpill--name { text-decoration: line-through; }
+.mpill--overdue { border-left-color: var(--err); }
+.mpill--overdue .mpill--code { color: var(--err); }
+.mpill--late { border-left-color: var(--warn); }
+.mpill--late .mpill--code { color: var(--warn); }
 .mpill--opening { background: transparent; border-left-style: dashed; opacity: .8; }
 .mpill--exam { background: var(--warn-wash-strong); }
 .mpill--untimed .mpill--name { font-style: italic; }

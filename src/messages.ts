@@ -34,6 +34,15 @@ export type Request =
   | { type: "add-local-adapter"; adapter: unknown }
   | { type: "remove-local-adapter"; adapterId: string }
   | { type: "complete-setup" }
+  /**
+   * Show the full view, reusing the tab it is already in.
+   *
+   * Handled by the worker rather than by `chrome.tabs.create` at the call site,
+   * because the worker is the only thing with continuity across popup opens —
+   * a popup is destroyed the moment it loses focus and cannot remember which
+   * tab it opened last time. Every click was spawning a duplicate.
+   */
+  | { type: "open-full-view" }
   | { type: "restart-setup" }
   | { type: "gate0" }
   | { type: "parse-selftest" }

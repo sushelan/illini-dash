@@ -641,6 +641,47 @@ export function examCount(items: Item[], now: Date): number {
 }
 
 /* -------------------------------------------------------------------------- */
+/* What a row is, in one word                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The state a drawn item is in, for whatever is drawing it.
+ *
+ * This lived inline in the popup's `renderRow` and nowhere else, so the month
+ * grid — which draws pills rather than rows — knew none of it. Completed work
+ * appeared there looking exactly like work still owed, and so did overdue work.
+ * That was invisible until finished items started showing up on the calendar at
+ * all; before that the month simply had nothing to get wrong.
+ *
+ * One function, because it is one decision, and the two surfaces disagreeing
+ * about whether a deadline is done is the kind of thing nobody notices for a
+ * month.
+ */
+export type ItemTone = "booking" | "done" | "event" | "overdue" | "late" | "open";
+
+export function itemTone(item: Item, now: Date): ItemTone {
+  // A booking is a window, not a deadline: it is never overdue and never done,
+  // because there is nothing to hand in (§4.4).
+  if (item.kind === "booking") return "booking";
+  // Before `event`, because a Canvas event a student has somehow marked done is
+  // still done. And before the deadline checks, because finished work is not
+  // overdue however long ago it was due.
+  if (isItemDone(item) || isTickedDone(item)) return "done";
+  // An event is something that happens, not something owed, so it can never be
+  // overdue — it is over.
+  if (item.kind === "event") return "event";
+
+  const live = liveDeadline(item, now);
+  if (live === undefined) return "open";
+  // Overdue red is for work that can no longer be handed in. A row whose full
+  // credit has gone but whose late window is still open is amber: it is late,
+  // not lost, and painting it red tells a student to give up on something
+  // Gradescope is still accepting.
+  if (live.at < now.getTime()) return "overdue";
+  return live.late ? "late" : "open";
+}
+
+/* -------------------------------------------------------------------------- */
 /* Course colour                                                               */
 /* -------------------------------------------------------------------------- */
 

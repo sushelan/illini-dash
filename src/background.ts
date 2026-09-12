@@ -554,6 +554,62 @@ chrome.contextMenus.onClicked.addListener((info) => {
   void chrome.tabs.create({ url: target });
 });
 
+/**
+ * The full view, in the tab it is already in.
+ *
+ * Every click on Month, and every click on "Open in a tab", called
+ * `chrome.tabs.create` — so a student who checked the month four times had four
+ * Illini Dash tabs. The popup cannot fix this itself: it is destroyed the moment
+ * it loses focus, so it has nowhere to remember the tab it opened.
+ *
+ * The id lives in `chrome.storage.session`, which is exactly its lifetime: a
+ * tab id means nothing after the browser restarts, and session storage is gone
+ * by then too. No new permission — `tabs.get` and `tabs.update` work on an id
+ * you already hold, and the `tabs` permission (which the store listing says is
+ * not requested) is only needed to *search* for tabs or read their URLs.
+ */
+const FULL_VIEW_TAB = "fullViewTabId";
+
+async function openFullView(): Promise<void> {
+  const url = chrome.runtime.getURL("popup.html?view=full");
+  let remembered: unknown;
+  try {
+    remembered = (await chrome.storage.session.get(FULL_VIEW_TAB))[FULL_VIEW_TAB];
+  } catch {
+    // Session storage unavailable. Opening a second tab is a worse outcome than
+    // it used to be, not a new one.
+  }
+
+  if (typeof remembered === "number") {
+    try {
+      const tab = await chrome.tabs.get(remembered);
+      // `tab.url` is redacted without the `tabs` permission, so it is checked
+      // only when present: a tab the student navigated elsewhere must not be
+      // yanked back, and an undefined url is not evidence that they did.
+      if (tab.url === undefined || tab.url.startsWith(chrome.runtime.getURL("popup.html"))) {
+        await chrome.tabs.update(remembered, { active: true });
+        if (tab.windowId !== undefined) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+        console.log(`[full-view] focused the tab already open (${remembered})`);
+        return;
+      }
+      console.log(`[full-view] tab ${remembered} is showing something else now`);
+    } catch {
+      // Both branches logged, because "it was closed" and "the lookup never ran"
+      // are otherwise the same silence (worker rule 5).
+      console.log(`[full-view] tab ${remembered} is gone`);
+    }
+  } else {
+    console.log("[full-view] no tab remembered");
+  }
+
+  const created = await chrome.tabs.create({ url });
+  if (created.id !== undefined) {
+    await chrome.storage.session.set({ [FULL_VIEW_TAB]: created.id }).catch(() => undefined);
+  }
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
   createReportMenu();
@@ -779,6 +835,9 @@ chrome.runtime.onMessage.addListener(
           }
         }).then(() => ({ type: "ok" }) as const),
       );
+    }
+    if (request?.type === "open-full-view") {
+      return answer(openFullView().then(() => ({ type: "ok" }) as const));
     }
     if (request?.type === "keep-course") {
       const { courseId, keep } = request;

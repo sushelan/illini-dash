@@ -246,6 +246,13 @@ const sources = {
           ],
         };
       }
+      if (req.type === "open-full-view") {
+        // The worker focuses an existing tab in the extension; in the harness
+        // there is no tab to focus, so this just says so rather than silently
+        // doing nothing and looking like the bug it fixes.
+        console.log("[preview] open-full-view — the worker would focus or open the tab");
+        return { type: "ok" };
+      }
       if (req.type === "ping") {
         // A different id is what the page compares against to decide whether
         // the worker is stale, so `?stale=1` has to change this too.

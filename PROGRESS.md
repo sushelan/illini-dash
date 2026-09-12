@@ -25,6 +25,38 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: the month's vocabulary, and duplicate tabs — 2026-09-12
+
+- **The month showed finished work as if it were still owed.** The "is this done, late,
+  or lost" decision lived inline in the popup's `renderRow`, and the month draws pills
+  rather than rows — so it knew none of it. Extracted to `itemTone()` in
+  `core/calendar.ts`, used by both, tested and mutation-checked three ways. The month now
+  strikes through and dims finished work, takes `--err` on the edge and the course code
+  for overdue, and `--warn` for a window still open.
+
+  Worth noting *why* this surfaced now: before the previous fix, finished work never
+  appeared on the calendar at all, so the month had nothing to get wrong. One fix made
+  the next defect visible.
+
+- **Clicking Month opened a new tab every time**, and so did "Open in a tab". The popup
+  cannot fix this itself — it is destroyed the moment it loses focus, so it has nowhere
+  to remember the tab it opened. The worker owns it now (`open-full-view`), keeping the
+  tab id in `chrome.storage.session`, which is exactly the right lifetime: a tab id means
+  nothing after a browser restart and session storage is gone by then too.
+
+  **No new permission.** `tabs.get` and `tabs.update` work on an id you already hold; the
+  `tabs` permission is only needed to *search* for tabs or read their URLs, and the store
+  listing says it is not requested. `tab.url` is redacted without it, so it is checked
+  only when present — a tab the student navigated elsewhere must not be yanked back, and
+  an undefined url is not evidence that they did.
+
+  The *view* is handed over through `localStorage`: both documents are the same extension
+  origin, so a write fires a `storage` event in an already-open tab. A dedicated key, not
+  `VIEW_KEY` — that one is written on every ordinary tab change, and a full view that
+  followed the popup around would be a surprise.
+
+940 tests.
+
 ## Live run: tab icons, and a month that stops moving the page — 2026-09-12
 
 - **Icons on the popup tabs.** Dropped in phase C on the grounds that five labelled tabs

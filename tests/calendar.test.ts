@@ -26,6 +26,7 @@ import {
   dayKey,
   hourRange,
   isActionable,
+  itemTone,
   minutesInto,
   monthCells,
   visibleItems,
@@ -1022,5 +1023,59 @@ describe("finished work with a late window still open", () => {
     const sep16 = dayContents([unfinished], new Date(2026, 8, 16), NOW);
     expect(allTimed(sep16).map((p) => p.item.title)).toEqual(["not handed in"]);
     expect(attentionGroups([unfinished], NOW)).toEqual([]);
+  });
+});
+
+describe("itemTone (one answer for the list and the month)", () => {
+  /*
+   * This decision lived inline in the popup's row renderer, so the month grid —
+   * which draws pills, not rows — knew none of it: finished work there looked
+   * exactly like work still owed, which is the one question a month is for. It
+   * only became visible once finished work started appearing on the calendar at
+   * all; before that the month had nothing to get wrong.
+   */
+  it("calls finished work done, however long ago it was due", () => {
+    const submitted = item({
+      status: "submitted",
+      dueAt: at(2026, 8, 1, 12),
+      members: [member(undefined, "submitted")],
+    });
+    expect(itemTone(submitted, NOW)).toBe("done");
+    // And a hand-ticked row, which is the only way a course-website row is ever
+    // finished — those sources never report a submission.
+    expect(itemTone(item({ done: true, dueAt: at(2026, 8, 1, 12) }), NOW)).toBe("done");
+  });
+
+  it("never calls finished work overdue", () => {
+    // The ordering is the point: the done check comes before the clock does.
+    const late = item({
+      status: "graded",
+      dueAt: at(2026, 8, 1, 12),
+      members: [member(undefined, "graded")],
+    });
+    expect(itemTone(late, NOW)).not.toBe("overdue");
+  });
+
+  it("separates lost from merely late", () => {
+    // Amber is a window still open. Painting it red tells a student to give up
+    // on something Gradescope is still accepting.
+    expect(itemTone(item({ dueAt: at(2026, 8, 1, 12) }), NOW)).toBe("overdue");
+    expect(
+      itemTone(item({ dueAt: at(2026, 8, 1, 12), lateDueAt: at(2026, 8, 20, 12) }), NOW),
+    ).toBe("late");
+    expect(itemTone(item({ dueAt: at(2026, 8, 20, 12) }), NOW)).toBe("open");
+  });
+
+  it("never calls an event or a booking overdue", () => {
+    // An event is over, not outstanding; a booking is a window with nothing to
+    // hand in (§4.4).
+    expect(itemTone(item({ kind: "event", dueAt: at(2026, 8, 1, 12) }), NOW)).toBe("event");
+    expect(itemTone(item({ kind: "booking", dueAt: at(2026, 8, 1, 12) }), NOW)).toBe("booking");
+  });
+
+  it("says nothing about a row with no deadline at all", () => {
+    // `open` earns no class on either surface, which is what an undated row
+    // should look like.
+    expect(itemTone(item({ title: "undated" }), NOW)).toBe("open");
   });
 });

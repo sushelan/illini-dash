@@ -31,6 +31,7 @@ import {
   agendaRows,
   allTimed,
   attentionCount,
+  itemTone,
   examBoard,
   examCount,
   attentionGroups,
@@ -311,9 +312,7 @@ function renderActions(): void {
     // "⤢ full view" named the mechanism. What a student wants from it is that
     // the window stops vanishing when they click on the course page behind it.
     const full = iconButton("open-tab", "Open in a tab");
-    full.addEventListener("click", () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
-    });
+    full.addEventListener("click", () => openFullView());
     actionsEl.append(full);
   }
 
@@ -498,27 +497,10 @@ function renderRow(
   if (colours?.has(item.courseLabel)) {
     row.classList.add(`course-${colours.get(item.courseLabel)!}`);
   }
-  if (item.kind === "booking") {
-    row.classList.add("row-booking");
-  } else if (isItemDone(item) || isTickedDone(item)) {
-    // Only reachable in the past now: finished work is still filtered out of
-    // everything ahead. It reads as done so it cannot be mistaken for a thing
-    // still owed while looking back over a week.
-    row.classList.add("row-done");
-  } else if (item.kind === "event") {
-    // An event is something that happens, not something owed. It reads as
-    // background so a list of deadlines still looks like a list of deadlines —
-    // and it can never be overdue, so it takes neither of the classes below.
-    row.classList.add("row-event");
-  } else {
-    // Overdue red is for work that can no longer be handed in. A row whose full
-    // credit has gone but whose late or reduced-credit window is still open is
-    // amber: it is late, not lost, and painting it red told the student to give
-    // up on something Gradescope was still accepting.
-    const live = liveDeadline(item, now);
-    if (live && live.at < now.getTime()) row.classList.add("row-overdue");
-    else if (live?.late) row.classList.add("row-late");
-  }
+  // The one decision, from core, so the month grid cannot disagree with the
+  // list about whether a deadline is done. `open` earns no class.
+  const tone = itemTone(item, now);
+  if (tone !== "open") row.classList.add(`row-${tone}`);
 
   const chip = document.createElement("span");
   chip.className = "chip";
@@ -1341,15 +1323,59 @@ function renderTabs(counts: Partial<Record<ViewName, number>>): void {
 
 function selectTab(name: ViewName): void {
   if (!isFullView && FULL_VIEW_ONLY.has(name)) {
-    // Remembered first, so the tab that opens is the one just clicked.
-    writeStored(VIEW_KEY, name);
-    chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
+    openFullView(name);
     return;
   }
   view = name;
   dayOffset = 0;
   writeStored(VIEW_KEY, name);
   void refresh();
+}
+
+/**
+ * Show the full view, without piling up tabs.
+ *
+ * The worker owns the "is it already open" half — a popup is destroyed the
+ * moment it loses focus, so it has nowhere to remember the tab it opened, which
+ * is why every click on Month used to spawn another one.
+ *
+ * The *view* half is handed over through `localStorage`. Both documents are the
+ * same extension origin, so writing here fires a `storage` event in an already
+ * open tab; a tab that has yet to be created reads `VIEW_KEY` on load instead.
+ * Two keys rather than one, because `VIEW_KEY` is written on every ordinary tab
+ * change and a full view that followed the popup around would be a surprise.
+ */
+const HANDOFF_KEY = "illini-dash.openView";
+
+function openFullView(view_?: ViewName): void {
+  if (view_) {
+    // Remembered first, so a tab that opens fresh lands on the tab just clicked.
+    writeStored(VIEW_KEY, view_);
+    writeStored(HANDOFF_KEY, JSON.stringify({ view: view_, at: Date.now() }));
+  }
+  void send({ type: "open-full-view" });
+}
+
+/**
+ * The receiving half, in the tab.
+ *
+ * Only in the full view, and only for the handoff key: a `storage` event fires
+ * for every write this origin makes, including the popup's own remembered tab.
+ */
+if (isFullView) {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== HANDOFF_KEY || !event.newValue) return;
+    try {
+      const asked = JSON.parse(event.newValue) as { view?: string };
+      if (!VIEWS.includes(asked.view as ViewName)) return;
+      view = asked.view as ViewName;
+      dayOffset = 0;
+      writeStored(VIEW_KEY, view);
+      void refresh();
+    } catch {
+      /* Written by a build that meant something else by it. */
+    }
+  });
 }
 
 /**
@@ -1821,7 +1847,7 @@ function renderMonthView(items: Item[], now: Date, colours: Map<string, number>)
     box.append(num);
 
     for (const placed of cell.items.slice(0, MONTH_CELL_ROWS)) {
-      box.append(renderMonthPill(placed, colours));
+      box.append(renderMonthPill(placed, now, colours));
     }
     if (cell.items.length > MONTH_CELL_ROWS) {
       const more = document.createElement("button");
@@ -1849,7 +1875,11 @@ function renderMonthView(items: Item[], now: Date, colours: Map<string, number>)
  * because the question a month answers is "which days are heavy", and the full
  * title is one click away in the day view.
  */
-function renderMonthPill(placed: PlacedItem, colours: Map<string, number>): HTMLElement {
+function renderMonthPill(
+  placed: PlacedItem,
+  now: Date,
+  colours: Map<string, number>,
+): HTMLElement {
   const { item, anchor } = placed;
   const pill = document.createElement("div");
   pill.className = `mpill course-${colours.get(item.courseLabel) ?? 0}`;
@@ -1857,6 +1887,11 @@ function renderMonthPill(placed: PlacedItem, colours: Map<string, number>): HTML
   else if (item.kind === "exam") pill.classList.add("mpill--exam");
   if (anchor.opening) pill.classList.add("mpill--opening");
   if (anchor.assumed) pill.classList.add("mpill--untimed");
+  // The same tone the list uses. Without it a month of finished work looked
+  // exactly like a month of work still owed, which is the one question a month
+  // is for.
+  const tone = itemTone(item, now);
+  if (tone !== "open") pill.classList.add(`mpill--${tone}`);
 
   const code = document.createElement("span");
   code.className = "mpill--code";
