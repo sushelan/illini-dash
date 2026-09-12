@@ -26,6 +26,12 @@ While you are signed in, and only from sites you have enabled:
 It requests the same pages your browser would if you clicked through the sites yourself,
 no more often than every 15 minutes, and only pages your own account can already see.
 
+It also notices when a page **on one of those same sites** finishes loading in one of your
+tabs, and only then, so that signing in is noticed straight away instead of up to half an
+hour later. Chrome reveals a tab's address only to an extension that already has
+permission for that site, so this sees nothing it could not already read. It is not a
+history: the address is checked against the list above and discarded.
+
 ## What leaves your browser
 
 Nothing about you.

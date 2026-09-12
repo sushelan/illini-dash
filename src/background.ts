@@ -27,7 +27,8 @@ import {
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
-import { badgeFor, statusAfterEnable } from "./core/health.js";
+import { badgeFor, sourcesToRecheck, statusAfterEnable } from "./core/health.js";
+import { sourceForUrl } from "./core/origins.js";
 import { needsSetup, opensOnInstall, setupRows } from "./core/setup.js";
 import { detectInOffscreen } from "./core/offscreen-client.js";
 import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
@@ -568,6 +569,53 @@ function createReportMenu(): void {
     });
   });
 }
+
+/**
+ * Finishing a page on a source's own site is the signal that a login happened.
+ *
+ * This is the gap every login defect in this project has come through. Signing
+ * in happens on another origin, in a tab this extension does not own, and
+ * nothing crosses back — so the only prompt to look again was the student
+ * returning to the popup. That made the symptom Sushi reported on the clean run
+ * exactly what it was: *"gradescope and prairietest dont sync until i click on
+ * smth in them after signing in."* The click was not completing the session; it
+ * was producing the trip back that finally made us ask.
+ *
+ * `tabs.onUpdated` is the event we were missing, and it needs no new permission:
+ * Chrome only reveals a tab's URL to an extension that already holds a host
+ * permission for it, so this sees the five sites the student switched on and
+ * nothing else — not history, not other tabs, not the SSO hosts in between,
+ * which is also why waiting for the *final* landing is the right moment.
+ *
+ * It fires on every completed navigation rather than only the first, which is
+ * what makes it correct whichever way the session actually settles: if the
+ * cookie is live at the redirect we catch it there, and if the site needs one
+ * more click we catch that too.
+ *
+ * `sourcesToRecheck` is what keeps this from being a fetch per page view — it
+ * answers only for a source that is *currently* waiting on a login, and it
+ * holds the debounce.
+ */
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "complete") return;
+  const url = tab.url ?? changeInfo.url;
+  if (!url) return;
+  void (async () => {
+    const store = await loadStore();
+    const hosts = allAdapters(store)
+      .filter((adapter) => store.enabledAdapters.includes(adapter.id))
+      .map((adapter) => new URL(adapter.url).hostname);
+    const source = sourceForUrl(url, hosts);
+    if (!source) return;
+    if (!sourcesToRecheck(store.sources, Date.now()).includes(source)) return;
+    // Both branches would otherwise be one silence (worker rule 5): "a page
+    // finished on a site we were waiting for" and "the listener never ran".
+    console.log(`[illini-dash] ${source} finished loading in a tab — re-reading it`);
+    await sync("manual").catch((err: unknown) => {
+      console.warn(`[illini-dash] the sync after ${source} loaded failed:`, err);
+    });
+  })();
+});
 
 chrome.contextMenus.onClicked.addListener((info) => {
   if (info.menuItemId !== REPORT_MENU_ID || !info.pageUrl) return;

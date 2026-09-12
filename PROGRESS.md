@@ -68,6 +68,48 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## The signal we never had: a page finishing on the site itself — 2026-09-12
+
+*"Gradescope and prairietest dont sync until i click on smth in them after signing in."*
+
+**The click was not completing the session. It was producing the trip back.** Every login
+defect in this project has come through the same hole: the only thing that ever prompted a
+re-check was the student *returning to the popup*. Sign in, stay on Gradescope, and
+nothing happens; click around, wander back, and it works — which reads as "clicking fixes
+it" and is really "looking at us fixes it".
+
+Chrome does have the event, and it needs **no new permission**: `tabs.onUpdated` reveals a
+tab's URL only to an extension that already holds a host permission for it. That is
+exactly the five sites the student switched on — not history, not other tabs, and not the
+SSO hosts in between, which is also why the *final* landing is the right moment to act on.
+
+It fires on **every** completed navigation rather than only the first, and that is what
+makes it correct whichever way the session actually settles: if the cookie is live at the
+redirect we catch it there, and if the site needs one more click we catch that too. So it
+does not depend on my being right about *why* Gradescope and PrairieTest lagged — which
+matters, because I am not certain. Those two are the only sources whose signed-out
+detection reads a body marker rather than a status code (house rule 11), so a transitional
+page is a live hypothesis, and the `[sync]` line now carries the status, final URL and
+first 120 characters of whatever was served.
+
+`sourcesToRecheck` is what keeps this from being a fetch per page view: it answers only
+for a source *currently* waiting on a login, and it holds the debounce.
+
+`core/origins.ts` matches hostnames **in full**. `endsWith` would accept
+`evilwww.gradescope.com`, and the consequence is not cosmetic — this function decides
+whether a page finishing in any tab makes the extension go and fetch. The mutation
+**survived** the first suite, because the hosts I had reached for (`notgradescope.com`,
+`www.gradescope.com.evil.test`) do not end with `www.gradescope.com` and so pass a suffix
+match too. House rule 12 in its most literal form: the adversarial case has to be built on
+purpose, and a plausible-looking one is not it.
+
+**The privacy policy now says this**, and is republished. No permission changed and no new
+data is read, but "it notices when a page on one of those sites finishes loading in a tab"
+is a true sentence about the extension that was not in the document, and the policy is the
+one place that has to be complete rather than merely accurate.
+
+982 tests.
+
 ## The sync took the sum of its sources — 2026-09-12
 
 *"There's a delay when I log into gradescope, prairielearn and prairietest and on the sign
