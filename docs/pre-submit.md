@@ -172,9 +172,22 @@ Seven yeses is the gate. The second half is worth more than the first.
 
 Once G4 passes, the remaining store items are the ones only an account can do:
 
-- [ ] Register the Chrome Web Store developer account (one-time $5)
-- [ ] Upload `release/illini-dash-1.0.0-<build>.zip`
-- [ ] Paste <https://sushelan.github.io/illini-dash/privacy.html> into the Privacy tab
-- [ ] Copy the per-permission justifications from `docs/store/listing.md` §Permissions
+- [x] Register the Chrome Web Store developer account — done; item id
+      `mimgaiaicopabbiabakmknkcbfekplei`, status Draft
+- [ ] Upload the current `release/illini-dash-1.0.0-<build>.zip` — **re-upload after any
+      manifest change**, and the manifest has changed twice since the first upload
+- [x] Paste <https://sushelan.github.io/illini-dash/privacy.html> into the Privacy tab
+- [x] Per-permission justifications — the exact text is in
+      [privacy-practices.txt](store/privacy-practices.txt), measured against the
+      1000-character limit each
 - [ ] Upload the screenshots from `docs/ux/after/` (1280×800) and the promo tile (440×280)
-- [ ] Declare data use: **no data collected** — which is true, and the policy says why
+- [ ] Declare data use: **Website content only**.
+
+      This said "no data collected", and that was wrong. Google's User Data FAQ: extensions
+      must disclose how they handle user data *"even when data is processed or stored
+      locally on a user's device and is not transmitted to external servers or third
+      parties"*, where handle means "collecting, transmitting, using, or sharing". Local
+      only is not exempt. Reasoning for every other box is in `privacy-practices.txt`.
+- [ ] Test instructions (Access tab, 500-character limit) — a reviewer has no UIUC account
+      and will otherwise see five sources saying "Sign in needed" and call it non-functional
+- [ ] Distribution tab → Visibility → **Unlisted**, then Submit for review
