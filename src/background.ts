@@ -27,7 +27,7 @@ import {
 } from "./core/registry.js";
 import { dedupe } from "./core/dedupe.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
-import { badgeFor, sourcesToRecheck, statusAfterEnable } from "./core/health.js";
+import { badgeFor, sourcesToRecheck, statusAfterEnable, type NavigatedAt } from "./core/health.js";
 import { sourceForUrl } from "./core/origins.js";
 import { needsSetup, opensOnInstall, setupRows } from "./core/setup.js";
 import { detectInOffscreen } from "./core/offscreen-client.js";
@@ -278,6 +278,22 @@ function syncAfterEnable(what: string): Promise<unknown> {
  * to disk.
  */
 const SYNCING_KEY = "illini-dash.syncing";
+/**
+ * When a page last finished loading on each source's own site.
+ *
+ * In `storage.session` so the *pages* can read it too: the popup re-checks on
+ * open, and it has to apply the same "has anything happened" rule the worker
+ * does, or the two disagree about whether an attempt is out of date. Session
+ * scope is the right lifetime — a navigation from a previous browser session
+ * says nothing about this one's cookies.
+ */
+const NAVIGATED_KEY = "illini-dash.navigated";
+
+async function readNavigated(): Promise<NavigatedAt> {
+  const stored = await chrome.storage.session.get(NAVIGATED_KEY).catch(() => undefined);
+  const value = stored?.[NAVIGATED_KEY];
+  return typeof value === "object" && value !== null ? (value as NavigatedAt) : {};
+}
 
 async function setSyncing(value: boolean): Promise<void> {
   await chrome.storage.session.set({ [SYNCING_KEY]: value }).catch(() => undefined);
@@ -623,7 +639,12 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
       .map((adapter) => new URL(adapter.url).hostname);
     const source = sourceForUrl(url, hosts);
     if (!source) return;
-    if (!sourcesToRecheck(store.sources, Date.now()).includes(source)) return;
+    // Recorded *before* the decision, and the decision is then made with it:
+    // this navigation is itself the evidence that the last attempt is stale,
+    // which is what lets it through the debounce.
+    const navigated: NavigatedAt = { ...(await readNavigated()), [source]: Date.now() };
+    await chrome.storage.session.set({ [NAVIGATED_KEY]: navigated }).catch(() => undefined);
+    if (!sourcesToRecheck(store.sources, Date.now(), navigated).includes(source)) return;
     // Both branches would otherwise be one silence (worker rule 5): "a page
     // finished on a site we were waiting for" and "the listener never ran".
     console.log(`[illini-dash] ${source} finished loading in a tab — re-reading it`);

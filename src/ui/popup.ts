@@ -66,6 +66,7 @@ import {
   sourceRows,
   sourcesToRecheck,
   staleNotice,
+  type NavigatedAt,
 } from "../core/health.js";
 import { downloadIcs } from "./download.js";
 import { type IconName, icon, iconButton } from "./icons.js";
@@ -2429,6 +2430,7 @@ let syncing = false;
  */
 let workerSyncing = false;
 const SYNCING_KEY = "illini-dash.syncing";
+const NAVIGATED_KEY = "illini-dash.navigated";
 const isSyncing = () => syncing || workerSyncing;
 
 /** Stops the spinner and lets the pill go back to reporting from the store. */
@@ -2527,7 +2529,12 @@ async function recheckLogins(): Promise<void> {
   try {
     const response = await send({ type: "get-state" });
     if (response.type !== "state") return;
-    const due = sourcesToRecheck(response.sources ?? {}, Date.now());
+    // The same "has anything happened" rule the worker applies. Without it this
+    // page would refuse a re-check that the worker would have made — which is
+    // exactly the ten seconds Sushi had to wait out after signing in.
+    const stored = await chrome.storage?.session?.get(NAVIGATED_KEY).catch(() => undefined);
+    const navigated = (stored?.[NAVIGATED_KEY] ?? {}) as NavigatedAt;
+    const due = sourcesToRecheck(response.sources ?? {}, Date.now(), navigated);
     if (due.length === 0) return;
     // Both branches logged, or "came back, nothing was waiting on a login" and
     // "came back, the check never ran" are the same silence (worker rule 5).

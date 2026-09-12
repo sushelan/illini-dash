@@ -404,6 +404,69 @@ describe("sourcesToRecheck (the one state fixed where we cannot see it)", () => 
     expect(sourcesToRecheck(justTried, at(-RECHECK_AFTER_MS))).toEqual(["gradescope"]);
   });
 
+  /**
+   * Sushi, 2026-09-12, diagnosing it exactly: "when I go to the popup it checks,
+   * then when I sign in and come back within 10s it doesn't check again cuz
+   * it's within the 10s time, so I have to wait until that 10s period is over
+   * then come back to the popup for it to check."
+   *
+   * The debounce asked *how long has it been*. The question is *has anything
+   * happened*. Signing in is evidence; a tab switch is not, and a clock cannot
+   * tell them apart.
+   */
+  describe("a page loading on the site itself outranks the debounce", () => {
+    it("re-checks inside the window when the site was visited after the attempt", () => {
+      const sources = { gradescope: status({ state: "needs_login", lastAttemptAt: iso(3_000) }) };
+      expect(sourcesToRecheck(sources, NOW.getTime())).toEqual([]);
+      expect(
+        sourcesToRecheck(sources, NOW.getTime(), { gradescope: NOW.getTime() - 1_000 }),
+      ).toEqual(["gradescope"]);
+    });
+
+    it("ignores a visit that happened before the attempt", () => {
+      // That navigation is already accounted for — the attempt came after it.
+      // Without this the clause would re-fire forever off one stale timestamp.
+      const sources = { gradescope: status({ state: "needs_login", lastAttemptAt: iso(3_000) }) };
+      expect(
+        sourcesToRecheck(sources, NOW.getTime(), { gradescope: NOW.getTime() - 9_000 }),
+      ).toEqual([]);
+    });
+
+    it("is self-limiting: the attempt it triggers is newer than the navigation", () => {
+      // Which is what stops a sync loop without needing a second timer.
+      const visited = NOW.getTime() - 5_000;
+      const after = { gradescope: status({ state: "needs_login", lastAttemptAt: iso(0) }) };
+      expect(sourcesToRecheck(after, NOW.getTime(), { gradescope: visited })).toEqual([]);
+    });
+
+    it("re-checks on a tie, because the two mistakes are not equal", () => {
+      // `lastAttemptAt` is stamped when the sync starts, so a navigation on the
+      // same millisecond may or may not have been seen. An unnecessary
+      // re-check costs one request; a skipped one costs half an hour.
+      const at = NOW.getTime() - 3_000;
+      const sources = {
+        gradescope: status({ state: "needs_login", lastAttemptAt: new Date(at).toISOString() }),
+      };
+      expect(sourcesToRecheck(sources, NOW.getTime(), { gradescope: at })).toEqual(["gradescope"]);
+    });
+
+    it("does not resurrect a source that is not waiting on a login", () => {
+      // Visiting Canvas is not a reason to re-fetch a page that failed to parse.
+      const sources = { canvas: status({ source: "canvas", state: "parse_error" }) };
+      expect(sourcesToRecheck(sources, NOW.getTime(), { canvas: NOW.getTime() })).toEqual([]);
+    });
+
+    it("re-checks a source visited before it had ever been attempted", () => {
+      const fresh = status({ state: "needs_login" });
+      delete (fresh as { lastAttemptAt?: string }).lastAttemptAt;
+      // `pending` still wins: with no attempt recorded, `displayState` says
+      // pending and a sync is already coming.
+      expect(sourcesToRecheck({ gradescope: fresh }, NOW.getTime(), { gradescope: NOW.getTime() })).toEqual(
+        [],
+      );
+    });
+  });
+
   it("an unreadable timestamp does not get to suppress the check", () => {
     // Parser rule 5: `Date.parse("soon")` is NaN and every comparison against
     // NaN is false, so a naive `now - attempted < window` would let a corrupt

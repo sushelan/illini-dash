@@ -68,6 +68,38 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## The debounce asked the wrong question — 2026-09-12
+
+Sushi, diagnosing it exactly: *"When I go to the popup it checks. Then when I sign in and
+come back within 10s, it doesn't check again cuz it's within the 10s time, so I have to
+wait until that 10s period is over then come back to the popup for it to check."*
+
+Right, and it is my error rather than a tuning problem. `RECHECK_AFTER_MS` asked **how long
+has it been**. The question is **has anything happened**. Signing in is evidence; idle
+tab-switching is not; a clock cannot tell them apart — so the debounce suppressed precisely
+the case it exists to serve, and it suppressed the *navigation-triggered* sync too, which
+is why the new listener did not rescue it either.
+
+The worker records when a page last finished loading on each source's own site
+(`storage.session`, since a navigation from a previous browser session says nothing about
+this one's cookies), and `sourcesToRecheck` treats a navigation newer than the last attempt
+as overriding the window entirely. Both the worker and the popup read the same map, or the
+two would disagree about whether an attempt is stale — which is the ten seconds all over
+again, one process apart.
+
+**Self-limiting without a second timer**: once the re-check runs, `lastAttemptAt` is newer
+than the navigation and the clause stops firing until the next page load. That is the
+property worth keeping; a timer would have needed one more number to get wrong.
+
+One mutation survived — `>` against `>=` on the tie — and it was a real undecided case
+rather than an untested one. `lastAttemptAt` is stamped when the sync *starts*, so a
+navigation on the same millisecond may or may not have been seen by the fetch, and **the
+two mistakes are not equal**: an unnecessary re-check costs one request, a skipped one
+costs the student half an hour of "Sign in needed" while signed in. Decided for `>=`, and
+pinned.
+
+988 tests.
+
 ## A screen that could not say "checking" — 2026-09-12
 
 A screenshot: a fully signed-in Gradescope Course Dashboard, with the first-run screen on

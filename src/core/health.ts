@@ -101,6 +101,15 @@ export function statusAfterEnable(status: SourceStatus, enabled: boolean): Sourc
 export const RECHECK_AFTER_MS = 10_000;
 
 /**
+ * When a page last finished loading on each source's own site.
+ *
+ * Keyed by source, values are epoch milliseconds. The worker records these; the
+ * pages read them. Absent means "nothing has happened on that site since this
+ * browser session began", which is the normal state.
+ */
+export type NavigatedAt = Partial<Record<Source, number>>;
+
+/**
  * The sources to re-attempt when the student comes back to the page.
  *
  * **`needs_login` is the only state whose fix happens where the extension
@@ -123,12 +132,39 @@ export const RECHECK_AFTER_MS = 10_000;
 export function sourcesToRecheck(
   sources: Partial<Record<Source, SourceStatus>>,
   now: number,
+  navigatedAt: NavigatedAt = {},
 ): Source[] {
   const due: Source[] = [];
   for (const status of Object.values(sources)) {
     if (status === undefined) continue;
     if (displayState(status) !== "needs_login") continue;
     const attempted = status.lastAttemptAt === undefined ? undefined : Date.parse(status.lastAttemptAt);
+
+    /*
+     * A page finished loading on this source's own site *after* our last
+     * attempt, so the attempt is out of date whatever the clock says.
+     *
+     * The debounce below was keyed on "how long since we asked", which cannot
+     * tell idle tab-switching from the one case it exists to serve. Sushi found
+     * it exactly: "when I go to the popup it checks, then when I sign in and
+     * come back within 10s it doesn't check again, so I have to wait until that
+     * 10s period is over." Signing in is *evidence*; a tab switch is not. The
+     * question is not how long it has been, it is whether anything has happened.
+     *
+     * This is self-limiting without a timer: once the re-check runs,
+     * `lastAttemptAt` is newer than the navigation and the clause stops firing
+     * until the next page load.
+     */
+    const navigated = navigatedAt[status.source];
+    // `>=`, not `>`. `lastAttemptAt` is stamped when the sync *starts*, so a
+    // navigation landing on the same millisecond may or may not have been seen
+    // by the fetch — and the two errors are not equal. A re-check we did not
+    // need costs one request; a re-check we skipped costs the student half an
+    // hour of "sign in needed" while signed in.
+    if (navigated !== undefined && (attempted === undefined || navigated >= attempted)) {
+      due.push(status.source);
+      continue;
+    }
     /*
      * Phrased as "was it recent" rather than "was it long ago", because an
      * unreadable timestamp must not suppress the check and the two forms differ
