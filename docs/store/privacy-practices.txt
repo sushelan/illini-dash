@@ -118,9 +118,12 @@ raw.githubusercontent.com is read once a day for one public JSON file listing
 which UIUC course websites are supported, without cookies and carrying no
 information about the user.
 
-*.illinois.edu is optional and not granted at install: it is requested at
-runtime only when a user switches on a specific course site, and only for that
-site.
+Optional host permission: nothing is granted at install. A course website is
+whatever host that course uses - many UIUC courses are on their own domains
+(cs124.org, cs225.org) rather than a university subdomain - so the host cannot
+be known in advance. It is requested at runtime, per site, only when the user
+switches that course on, and Chrome's prompt names that one host. An entry may
+not name a host already granted above.
 
 No content scripts are registered.
 

@@ -62,7 +62,7 @@ Deadlines more than 60 days past are deleted automatically.
 | `offscreen` | To read fetched pages with the browser's own HTML parser, which a service worker does not have |
 | `contextMenus` | To add one right-click item, "Report this page to Illini Dash", which opens this extension's own settings page with the address filled in. It uploads nothing. |
 | Access to the five sites above | To read your deadlines from them |
-| Access to `*.illinois.edu` (optional) | Requested only if you turn on a specific course website, and only for that site |
+| Access to one course website (optional) | Requested only when you switch that course's site on, and only for that one site. Nothing is granted when you install. Many UIUC course sites are on their own domains rather than `illinois.edu`, so which host it is cannot be known in advance — Chrome names it in the prompt |
 
 It does not request access to all websites, to your browsing history, or to your tabs.
 
