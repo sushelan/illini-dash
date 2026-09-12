@@ -1,0 +1,165 @@
+===============================================================================
+CHROME WEB STORE — PRIVACY PRACTICES FORM
+Paste each block into the matching field. All are plain text, all under 1000.
+===============================================================================
+
+------------------------------------------------------------------- [1 of 8] --
+SINGLE PURPOSE DESCRIPTION
+-------------------------------------------------------------------------------
+Illini Dash shows a University of Illinois student their own assignment and exam
+deadlines from the course sites they already use, gathered onto one calendar,
+with reminders before each one is due.
+
+That is its only function. It reads deadline pages using the login sessions
+already present in the browser, extracts the due dates, and displays them. Every
+permission requested exists to do that and nothing else: to read those pages, to
+keep the result on the user's own device, and to remind them in time.
+
+It does not modify the sites it reads, inject anything into web pages, or run
+content scripts. It has no account, no server and no second feature.
+
+------------------------------------------------------------------- [2 of 8] --
+"storage" JUSTIFICATION
+-------------------------------------------------------------------------------
+Stores the deadlines that have been read, the course names they belong to, and
+the user's own settings and corrections — which sources are switched on, which
+courses are hidden, entries they have merged or split, and items they have
+marked done.
+
+Without it the extension would have to re-fetch every source each time the popup
+is opened, which would be slow and would hit the course sites far more often
+than necessary. Instead the calendar is on screen instantly and survives a
+browser restart.
+
+Everything is written to chrome.storage.local on the user's own device. Nothing
+is synced between devices and nothing is transmitted. Uninstalling the extension
+deletes all of it.
+
+------------------------------------------------------------------- [3 of 8] --
+"alarms" JUSTIFICATION
+-------------------------------------------------------------------------------
+Two things must happen on a schedule, and a Manifest V3 service worker is torn
+down when idle and cannot stay resident to do either.
+
+First, checking the sources for new, changed or removed deadlines — every 30
+minutes by default, adjustable by the user between 15 and 120 minutes.
+
+Second, firing each reminder at the moment it is due: 24 hours and 2 hours
+before a deadline, and once a day for an exam that is open for booking but not
+yet reserved.
+
+chrome.alarms is the only supported way to wake a service worker at a set time,
+so it is required for both.
+
+------------------------------------------------------------------- [4 of 8] --
+"notifications" JUSTIFICATION
+-------------------------------------------------------------------------------
+Shows the deadline reminders, which are one of the main reasons a user installs
+this extension.
+
+A notification appears 24 hours and 2 hours before an assignment or exam is due,
+naming the course, the item and when it is due. A separate daily reminder covers
+exams that are open for booking at the campus testing centre but have not been
+reserved yet, because that deadline is otherwise invisible.
+
+Quiet hours are respected, so nothing fires overnight. Both lead times and quiet
+hours are configurable, and reminders can be switched off entirely in Settings.
+
+Notifications are only ever about the user's own deadlines. There is no
+promotional, marketing or other unsolicited notification of any kind.
+
+------------------------------------------------------------------- [5 of 8] --
+"offscreen" JUSTIFICATION
+-------------------------------------------------------------------------------
+The deadline data lives inside HTML pages and must be parsed, and a Manifest V3
+service worker has no DOM parser available to it.
+
+Fetched pages are parsed in an offscreen document using the browser's own inert
+HTML parser — the document parses markup into elements and reads text out of
+them; it runs no scripts and loads no subresources. This is the documented
+DOM_PARSER reason for the offscreen API and is the intended use of it.
+
+The offscreen document is created for this and nothing else. It stores no data,
+holds nothing between calls, and is not used for audio, clipboard, scraping or
+any other purpose.
+
+------------------------------------------------------------------- [6 of 8] --
+"contextMenus" JUSTIFICATION
+-------------------------------------------------------------------------------
+Adds exactly one right-click menu item: "Report this page to Illini Dash".
+
+If a course page's deadlines are not being read correctly, the user right-clicks
+that page and chooses it. This opens the extension's own settings page with the
+address filled in, where the user can then choose to prepare a report.
+
+Nothing is fetched or sent as a result of the click itself, and nothing is
+uploaded at any point: the report is assembled locally, identifying details are
+removed, and the user is handed a file that they alone decide what to do with.
+
+This is the only context menu item the extension adds, and it appears only on
+the course sites the extension supports.
+
+------------------------------------------------------------------- [7 of 8] --
+HOST PERMISSION JUSTIFICATION
+-------------------------------------------------------------------------------
+Reads the user's own assignment and exam pages from the five sites that hold
+them, using the login session already in the browser: canvas.illinois.edu,
+www.gradescope.com, us.prairielearn.com, us.prairietest.com and
+smart.physics.illinois.edu.
+
+It requests only pages the account can already see, no more often than every 15
+minutes, and parses them locally for due dates, titles and course names. It
+never signs in, never sees a password and never writes to these sites.
+
+They are up front rather than optional because the check runs on a background
+schedule, where no user gesture exists to request a permission from.
+
+raw.githubusercontent.com is read once a day for one public JSON file listing
+which UIUC course websites are supported, without cookies and carrying no
+information about the user.
+
+*.illinois.edu is optional and not granted at install: it is requested at
+runtime only when a user switches on a specific course site, and only for that
+site.
+
+No content scripts are registered.
+
+------------------------------------------------------------------- [8 of 8] --
+REMOTE CODE
+-------------------------------------------------------------------------------
+Answer: "No, I am not using Remote code."
+
+(Not a field — background if a reviewer asks. The daily fetch from
+raw.githubusercontent.com returns DATA, not code: a JSON list of CSS selectors,
+a date format, a timezone and a filter pattern per supported course site. It is
+interpreted by a runner that ships inside the package. The extension contains no
+eval(), no new Function(), no remotely-loaded <script>, and no externally
+referenced modules. All executable code is in the uploaded zip.)
+
+===============================================================================
+DATA USAGE — LEAVE EVERY BOX UNCHECKED
+===============================================================================
+Personally identifiable information .... no
+Health information .................... no
+Financial and payment information ..... no
+Authentication information ............ no
+Personal communications ............... no
+Location .............................. no
+Web history ........................... no
+User activity ......................... no
+Website content ....................... no
+
+This form asks what user data you COLLECT. Illini Dash transmits nothing off the
+device — there is no server, no account, no analytics and no error reporting.
+Page content is read, parsed and stored locally, and never leaves the machine.
+Checking a box here would publish a claim on the listing page that contradicts
+the privacy policy.
+
+Then certify all three: no selling or transferring to third parties, no use
+unrelated to the single purpose, no creditworthiness or lending use. All three
+are true.
+
+===============================================================================
+PRIVACY POLICY URL
+===============================================================================
+https://sushelan.github.io/illini-dash/privacy.html
