@@ -9,7 +9,7 @@
  */
 
 import { BUILD_ID } from "../build-info.js";
-import { THEME_KEY, allThemeClasses, normalizeTheme, themeClass } from "../core/theme.js";
+import { applyStoredTheme } from "./theme-panel.js";
 import { send } from "../messages.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
 import {
@@ -103,24 +103,8 @@ const LOGIN_URL: Partial<Record<Source, string>> = {
   smartphysics: "https://smart.physics.illinois.edu/",
 };
 
-/* ---- Colour scheme ----
- * Read before the first paint, which is why it is in `localStorage` and not the
- * store: anything in the store costs a message to the service worker, and that
- * is a flash of the wrong colours on every single open.
- */
+/* Before the first paint. See src/ui/theme-panel.ts. */
 applyStoredTheme();
-
-function applyStoredTheme(): void {
-  let stored: string | null = null;
-  try {
-    stored = window.localStorage.getItem(THEME_KEY);
-  } catch {
-    /* A blocked storage accessor throws on read; the default is fine. */
-  }
-  const root = document.documentElement;
-  root.classList.remove(...allThemeClasses());
-  root.classList.add(themeClass(normalizeTheme(stored)));
-}
 
 // Set before the first paint so the full view never flashes at popup width.
 if (new URLSearchParams(location.search).get("view") === "full") {
