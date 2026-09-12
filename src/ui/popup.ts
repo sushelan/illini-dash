@@ -67,6 +67,7 @@ import {
   sourcesToRecheck,
   staleNotice,
 } from "../core/health.js";
+import { downloadIcs } from "./download.js";
 import { type IconName, icon, iconButton } from "./icons.js";
 import {
   LOGIN_URL,
@@ -372,6 +373,33 @@ function renderActions(): void {
     full.addEventListener("click", () => openFullView());
     actionsEl.append(full);
   }
+
+  /*
+   * Export, in the header rather than four clicks into Settings.
+   *
+   * It was under Data & privacy, which is where you go to *understand* what
+   * the extension stores — not where you go to put this week in your calendar.
+   * Sushi: "there should be a calendar icon in the popup/full screen view at
+   * the top right directly instead of having to go into settings each time."
+   *
+   * It stays a one-time file, and the title says so. A calendar that updated
+   * itself would be a subscription, which needs a URL a calendar app can poll,
+   * which needs a server — and this extension has none, by design and in its
+   * published privacy policy. Promising "sync" here would be promising the one
+   * thing the architecture rules out.
+   */
+  const exportIcs = iconButton("calendar-out", "Save this list as a calendar file (.ics)");
+  exportIcs.addEventListener("click", () => {
+    void send({ type: "get-state" }).then((response) => {
+      if (response.type !== "state") return;
+      const count = downloadIcs(response.items);
+      showStatus(
+        `Saved ${count} deadline${count === 1 ? "" : "s"} to illini-dash.ics — a one-time copy, ` +
+          `not a subscription. Import it into Google Calendar, Apple Calendar or Outlook.`,
+      );
+    });
+  });
+  actionsEl.append(exportIcs);
 
   const settings = iconButton("settings", "Settings");
   settings.addEventListener("click", () => {

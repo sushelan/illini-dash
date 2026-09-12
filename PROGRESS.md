@@ -68,6 +68,74 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## The sync took the sum of its sources — 2026-09-12
+
+*"There's a delay when I log into gradescope, prairielearn and prairietest and on the sign
+in screen it says they're not connected. It takes some time, maybe it gets hung."*
+
+It was hung, in the sense that mattered. The loop **awaited each source in turn**, so a
+sync cost the sum of its sources rather than the slowest one. With `REQUEST_TIMEOUT_MS` at
+20 seconds and six sources, one site sitting on a request delays every source queued
+behind it — and because the store is written **once**, at the end
+(`background.ts:287`), the screen shows the pre-sync answer for the entire wait. Three
+sources reading "not connected" while they are in fact being read is not a cosmetic
+problem; it is the screen asserting something false.
+
+Every source that is going to be read now starts before any of them is awaited. The
+decision of *whether* to read still happens first, so §6's backoff is not quietly
+defeated, and outcomes are still applied in `PLANS` order, so the store does not depend on
+which host answered first.
+
+**Safe because the fetches were already concurrent one level down.**
+`MAX_CONCURRENT_PER_HOST` runs four requests per source at a time, so the offscreen parser
+has always had several parses in flight; different sources are different hosts, so nothing
+here shares a rate limit either. This is the one argument that makes the change small
+rather than frightening.
+
+The test asserts the property rather than the clock: **every source has begun fetching
+before any of them has finished**, using a gate that records who asked and resolves
+nothing until released. A wall-clock assertion would measure the machine and flake.
+Mutated back to sequential: killed. Mutated to start a backed-off source: killed.
+
+**And the `[sync]` line now carries a duration** — `prairielearn: ok (12 items, 9
+requests, 8.4s)`. "The sync feels slow" is not actionable; "one source sat for 20.0s" and
+"one source made nine requests" want opposite fixes and now say which. Worker rule 5: add
+the line rather than spend another round trip in Sushi's browser. A resting source prints
+no duration, because "0.0s" would read as "answered instantly" when it means "was never
+asked".
+
+## Export moved to the bar, and it cost thirteen pixels — 2026-09-12
+
+*"There should be a calendar icon in the popup/full screen view at the top right directly
+instead of having to go into settings each time to download a .ics."*
+
+It lived under **Data & privacy**, which is where you go to understand what the extension
+stores — not where you go to put this week in your calendar. It is an icon in the bar now,
+in both windows, and `src/ui/download.ts` holds the one answer to "which items go in the
+file" that Settings and the bar now share. Two copies of that filter is how one surface
+ends up exporting hidden rows and the other does not.
+
+**The popup is 400px and the sixth control cost the sentence.** Measured, not guessed:
+"Gradescope didn't answer" went **13px** over and ellipsed. The pill is the only thing in
+that bar that can shrink, and it is the thing that says what is wrong, so the 13 came back
+off the fixed costs instead — two pixels from each of four icons (26 → 24), two from the
+bar's padding, one from the pill's. All five pill sentences measure unclipped at
+`bodyW: 400`.
+
+**The full view's buttons were borrowing the popup's answer.** 28px in a 1280px bar made
+the only three controls up there read as an afterthought. 34px, with 18px glyphs — still
+smaller than the tab strip below, which is where the eye should land first.
+
+**On making the .ics sync itself:** it cannot, and the reason is architectural rather than
+effort. A calendar that updates itself is a *subscription* — a URL the calendar app polls
+on its own schedule — and that needs a server. This extension has none, deliberately, and
+the published privacy policy says so in as many words: "There is no server, no account, no
+analytics, no telemetry." The button's status line says "a one-time copy, not a
+subscription" for that reason. The nearest real alternative is **Add to Google Calendar**,
+already on each row's `⋯` menu, which hands one deadline to a calendar that does sync.
+
+975 tests.
+
 ## Still open — PrairieLearn and PrairieTest "have a delay to show connected"
 
 Reported on the same run and **not diagnosed**. What the code establishes: the sync loop

@@ -291,7 +291,13 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
       await reschedule();
       for (const outcome of result.outcomes) {
         console.log(
-          `[sync] ${outcome.source}: ${outcome.state} (${outcome.items.length} items, ${outcome.requests} requests)` +
+          `[sync] ${outcome.source}: ${outcome.state} (${outcome.items.length} items, ` +
+            `${outcome.requests} requests` +
+            // A source that was resting has no duration, and printing "0.0s"
+            // for it would read as "answered instantly" — the opposite of what
+            // happened, which is that it was never asked.
+            (outcome.ms === undefined ? "" : `, ${(outcome.ms / 1000).toFixed(1)}s`) +
+            `)` +
             (outcome.error ? ` — ${outcome.error}` : ""),
         );
       }

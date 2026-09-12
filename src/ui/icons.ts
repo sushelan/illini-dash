@@ -31,6 +31,17 @@ const NS = "http://www.w3.org/2000/svg";
  * header icon are the same weight.
  */
 export const ICON_PATHS = {
+  /**
+   * Export to a calendar file.
+   *
+   * A calendar outline with an arrow leaving it downward, rather than a bare
+   * download tray: the tray says "a file arrives" and says nothing about what
+   * is in it, and this button sits beside a sync icon and a tab icon that both
+   * already mean "something moves". The month tab glyph is deliberately not
+   * reused — the tab switches a view, this one produces a file.
+   */
+  "calendar-out":
+    "M5 1.5v2.5M11 1.5v2.5M2 6.5h12M2.5 3.5h11a.5.5 0 0 1 .5.5v3.5M2.5 3.5a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h6M12 9.5V15m0 0 2-2m-2 2-2-2",
   sync: "M14 4v3.5h-3.5M2 12V8.5h3.5M3.6 6.6a5.5 5.5 0 0 1 9.2-1.6M12.4 9.4a5.5 5.5 0 0 1-9.2 1.6",
   "open-tab": "M9 2.5h4.5V7M13 3 8 8M12 9.5V13a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 3 13V5a.5.5 0 0 1 .5-.5H7",
   settings:

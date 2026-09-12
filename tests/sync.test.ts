@@ -91,6 +91,92 @@ function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
   };
 }
 
+/**
+ * Reported 2026-09-12: "there's a delay when I log into gradescope,
+ * prairielearn and prairietest and on the sign in screen it says they're not
+ * connected. It takes some time, maybe it gets hung."
+ *
+ * It was hung, in the sense that mattered: the loop awaited each source in
+ * turn, so a sync cost the **sum** of its sources. With a 20-second request
+ * timeout and six of them, one slow site delayed every source queued behind it,
+ * and since the store is written once at the end the screen showed the pre-sync
+ * answer for the whole wait.
+ *
+ * Timing is not asserted here — a wall-clock test would be flaky and would
+ * measure the machine. What is asserted is the property that makes the timing
+ * true: **every source has begun fetching before any of them has finished.**
+ */
+describe("the sync reads its sources at the same time, not one after another", () => {
+  /** Resolves nothing until `release()` is called, recording who asked. */
+  function gate() {
+    const started: string[] = [];
+    let release!: () => void;
+    const open = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return {
+      started,
+      release: () => release(),
+      async fetchPage(url: string) {
+        started.push(url);
+        await open;
+        const body = PAGES[url];
+        if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+        return { url, finalUrl: url, status: 200, body };
+      },
+    };
+  }
+
+  it("has every source in flight before the first response arrives", async () => {
+    const g = gate();
+    const store = emptyStore();
+    const running = runSync(store, "manual", deps({ fetchPage: g.fetchPage }));
+
+    // Let every synchronously-reachable fetch be issued. Nothing can have
+    // *completed*: the gate is still shut.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const hosts = new Set(g.started.map((url) => new URL(url).hostname));
+    // Four hosted sources reach the network on their first step; smartPhysics
+    // is off by default and `site` has no adapters enabled here.
+    expect(hosts, `only ${[...hosts].join(", ")} had started`).toEqual(
+      new Set([
+        "canvas.illinois.edu",
+        "www.gradescope.com",
+        "us.prairielearn.com",
+        "us.prairietest.com",
+      ]),
+    );
+
+    g.release();
+    const { outcomes } = await running;
+    // Applied in `PLANS` order regardless of which host answered first, so the
+    // store this produces does not depend on the network's timing. `site` and
+    // `smartphysics` are off by default and contribute no outcome.
+    expect(outcomes.map((o) => o.source)).toEqual([
+      "canvas",
+      "gradescope",
+      "prairielearn",
+      "prairietest",
+    ]);
+  });
+
+  it("does not start a source that is resting in backoff", async () => {
+    // The decision of *whether* to read is still made before the fetch, so
+    // starting them all does not quietly defeat §6's backoff.
+    const g = gate();
+    const store = emptyStore();
+    store.backoffUntil.gradescope = "2026-09-10T19:00:00.000Z";
+    const running = runSync(store, "alarm", deps({ fetchPage: g.fetchPage }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(g.started.some((url) => url.includes("gradescope"))).toBe(false);
+    g.release();
+    await running;
+  });
+});
+
 describe("migrate (§3)", () => {
   it("fills an empty or junk store with defaults", () => {
     for (const junk of [undefined, null, 42, "x", {}]) {

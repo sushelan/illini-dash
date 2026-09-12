@@ -11,7 +11,7 @@ import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { coursesUrl } from "../sources/canvas.js";
-import { buildIcs } from "../core/ics.js";
+import { downloadFile, downloadIcs } from "./download.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY } from "../core/store.js";
 import {
   isGrantedUpFront,
@@ -321,16 +321,6 @@ function suggestFilename(url: string, contentType: string | undefined): string {
   return `${host}-${path}.${ext}`;
 }
 
-function download(filename: string, text: string, mime: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: mime }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  // Revoke on the next task so the download has taken the reference.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 function renderCapture(result: CaptureResult): void {
   captureResult.replaceChildren();
 
@@ -417,13 +407,13 @@ function renderCapture(result: CaptureResult): void {
   saveScrubbed.textContent = blockers.length
     ? `Download anyway (${blockers.length} unresolved — do not commit)`
     : `Download scrubbed (${filename})`;
-  saveScrubbed.addEventListener("click", () => download(filename, scrubbed, mime));
+  saveScrubbed.addEventListener("click", () => downloadFile(filename, scrubbed, mime));
 
   const saveRaw = document.createElement("button");
   saveRaw.textContent = "Download raw (do not commit)";
   saveRaw.style.marginLeft = "8px";
   saveRaw.addEventListener("click", () =>
-    download(`RAW-DO-NOT-COMMIT-${filename}`, result.body, mime),
+    downloadFile(`RAW-DO-NOT-COMMIT-${filename}`, result.body, mime),
   );
 
   const buttons = document.createElement("p");
@@ -1101,9 +1091,8 @@ const dataStatus = () => document.getElementById("data-status")!;
 document.getElementById("download-ics")!.addEventListener("click", async () => {
   const state = await send({ type: "get-state" });
   if (state.type !== "state") return;
-  const visible = state.items.filter((item) => !item.hidden);
-  download("illini-dash.ics", buildIcs(visible), "text/calendar");
-  dataStatus().textContent = `Exported ${visible.length} items. This is a one-time copy, not a subscription.`;
+  const count = downloadIcs(state.items);
+  dataStatus().textContent = `Exported ${count} items. This is a one-time copy, not a subscription.`;
 });
 
 document.getElementById("copy-diagnostics")!.addEventListener("click", async () => {
@@ -1122,7 +1111,7 @@ document.getElementById("copy-diagnostics")!.addEventListener("click", async () 
 document.getElementById("export")!.addEventListener("click", async () => {
   const response = await send({ type: "export" });
   if (response.type !== "export") return;
-  download("illini-dash-export.json", response.json, "application/json");
+  downloadFile("illini-dash-export.json", response.json, "application/json");
   dataStatus().textContent = "Exported.";
 });
 
@@ -1260,7 +1249,7 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
     ? `Download anyway (${blockers.length} unresolved — read it first)`
     : "Download report";
   save.addEventListener("click", () => {
-    download(
+    downloadFile(
       `illini-dash-report-${Date.now()}.txt`,
       `${context}${html}`,
       "text/plain",

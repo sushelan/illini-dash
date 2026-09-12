@@ -101,6 +101,16 @@ export interface SourceOutcome {
   requests: number;
   /** Only for `needs_login`, and only where the page is not a fixed login form. */
   loginUrl?: string;
+  /**
+   * Wall-clock milliseconds this source took.
+   *
+   * Logged per source because "the sync feels slow" is not actionable and
+   * "prairielearn: ok (12 items, 9 requests, 8.4s)" is — it says whether a
+   * source is doing a lot of work or sitting on one request until the 20s
+   * timeout, and those want opposite fixes. Worker rule 5: add the line rather
+   * than spend another round trip in Sushi's browser.
+   */
+  ms?: number;
 }
 
 /**
@@ -429,6 +439,7 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
   const plan = PLANS[source];
   if (!plan) return { source, state: "disabled", items: [], requests: 0 };
 
+  const startedAt = Date.now();
   let requests = 0;
   const counting: SyncDeps = {
     ...deps,
@@ -438,11 +449,13 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
     },
   };
 
+  const ms = () => Date.now() - startedAt;
   try {
-    return { source, state: "ok", items: await plan(counting), requests };
+    const items = await plan(counting);
+    return { source, state: "ok", items, requests, ms: ms() };
   } catch (err) {
     if (err instanceof SourceDisabled) {
-      return { source, state: "disabled", items: [], error: err.message, requests };
+      return { source, state: "disabled", items: [], error: err.message, requests, ms: ms() };
     }
     if (err instanceof NeedsLogin) {
       // `page.url` — what we asked for — rather than `finalUrl`, which is
@@ -455,6 +468,7 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
         error: err.message,
         loginUrl: err.page.url,
         requests,
+        ms: ms(),
       };
     }
     // §6 distinguishes these: a ParseError means the page changed and the user
@@ -467,6 +481,7 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
       items: [],
       error: message,
       requests,
+      ms: ms(),
     };
   }
 }
@@ -578,6 +593,36 @@ export async function runSync(
     for (const key of keysOf(source)) delete raw[key];
   };
 
+  /*
+   * Every source that is going to be read starts reading **now**, before the
+   * loop below awaits any of them.
+   *
+   * The loop used to `await syncOneSource` inside the iteration, so the sync
+   * took the *sum* of its sources. With a 20s request timeout and six sources,
+   * one site that hangs delays every other one behind it — and since the store
+   * is written once at the end, the screen shows the pre-sync answer for all of
+   * that, which is what "I signed in and it still says not connected, it takes
+   * some time, maybe it gets hung" is. The wait is now the slowest source
+   * rather than the total.
+   *
+   * Safe because the fetches were already concurrent one level down —
+   * `MAX_CONCURRENT_PER_HOST` runs four requests per source at a time, so the
+   * offscreen parser has always had several parses in flight. Different sources
+   * are different hosts, so nothing here shares a rate limit either.
+   *
+   * Deciding *whether* to attempt is done here too, and reads only this
+   * source's own entry in `next`, which no other source's application touches.
+   * Results are still applied in `PLANS` order below, so the store this
+   * produces does not depend on which site answered first.
+   */
+  const attempts = new Map<Source, Promise<SourceOutcome>>();
+  for (const source of Object.keys(PLANS) as Source[]) {
+    const status = next.sources[source];
+    if (!status.enabled) continue;
+    if (trigger !== "manual" && inBackoff(next, source, now)) continue;
+    attempts.set(source, syncOneSource(source, deps));
+  }
+
   for (const source of Object.keys(PLANS) as Source[]) {
     const status = next.sources[source];
     if (!status.enabled) {
@@ -598,7 +643,8 @@ export async function runSync(
       continue;
     }
 
-    const outcome = await syncOneSource(source, deps);
+    // Started above; awaited here in a fixed order.
+    const outcome = await attempts.get(source)!;
 
     // §0 rule 3 at the loop level. A source that held items and now reports none
     // has more likely short-circuited than emptied — Gradescope's dashboard

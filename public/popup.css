@@ -98,21 +98,38 @@ html.view-full,
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   box-sizing: border-box; min-height: 40px;
-  padding: 6px 6px 6px 8px; border-bottom: 1px solid var(--line);
+  padding: 6px 4px 6px 6px; border-bottom: 1px solid var(--line);
   position: sticky; top: 0; background: var(--tint); color: var(--fg); z-index: 2;
 }
 .bar--right { display: flex; align-items: center; gap: 0; flex: none; }
 /*
- * 26px, not 28, and only in the popup's bar.
+ * 24px, and only in the popup's bar.
  *
- * The bar now carries five things in 400px — the wordmark, the health pill, the
- * pill's action, and three icons — and the pill is the only one that can
- * shrink. Every pixel taken off the fixed ones is a character the sentence
- * keeps, and the sentence is the thing that says what is wrong.
+ * The bar carries six things in 400px — the wordmark, the health pill, the
+ * pill's action, and four icons — and the pill is the only one that can shrink.
+ * Every pixel taken off the fixed ones is a character the sentence keeps, and
+ * the sentence is the thing that says what is wrong.
+ *
+ * The export icon cost 26 of those pixels and put "Gradescope didn't answer"
+ * 13px over the edge — measured, not guessed. Two pixels off each of the four
+ * icons, two off the bar's padding and one off the pill's gives 13 back, so the
+ * sentence survives the control that was added beside it. `tests/` cannot see
+ * this; `npm run shots` and the measurement in PROGRESS can.
  */
-.bar .btn-icon { width: 26px; height: 26px; }
-.view-full .bar .btn-icon { width: 28px; height: 28px; }
-.bar #health .btn { padding: 0 7px; }
+.bar .btn-icon { width: 24px; height: 24px; }
+/*
+ * The full view is not short of room, and was borrowing the popup's answer.
+ *
+ * 28px in a 1280px bar made three controls that are the only things to press up
+ * there read as an afterthought, next to a 15px wordmark and a pill with a
+ * whole sentence in it. 34 is a comfortable pointer target and still smaller
+ * than the tab strip below it, which is where the eye is meant to go first.
+ */
+.view-full .bar .btn-icon { width: 34px; height: 34px; }
+.view-full .bar .btn-icon svg { width: 18px; height: 18px; }
+.view-full .bar--right { gap: 2px; }
+.bar #health .btn { padding: 0 6px; }
+.view-full .bar #health .btn { padding: 0 9px; }
 /*
  * Wordmark, then the pill, then whatever the pill's state needs.
  *
