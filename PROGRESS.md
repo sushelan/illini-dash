@@ -25,6 +25,22 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: the hour axis had no room above it — 2026-09-12
+
+"8 AM" was touching the 11:59 PM row above it. Measured: the end-of-day band ended at
+y=411, the grid started at y=414 — three pixels — and the first hour label started at
+y=409, which is *five pixels above the grid* and two pixels inside the last end-of-day
+row.
+
+Every hour label is shifted up 5px so it straddles its own gridline, which is what makes
+an axis read as an axis. **The first label has no line above it to straddle**, so those
+5px put it outside the grid entirely, on top of whatever band is there. The grid takes
+5px of top padding to hold it in, the gutter takes an equal negative margin so its tint
+still reaches the grid's top edge, and a 14px margin separates the two blocks.
+
+Gap 3px → 17px, label inside the grid, tint flush with the top edge — all three measured
+rather than eyeballed.
+
 ## Live run: the month's vocabulary, and duplicate tabs — 2026-09-12
 
 - **The month showed finished work as if it were still owed.** The "is this done, late,

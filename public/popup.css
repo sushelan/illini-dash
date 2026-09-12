@@ -406,9 +406,22 @@ h2.section {
 .band { border-bottom: 1px solid var(--line); background: var(--tint); }
 .band--note { font-size: 11px; color: var(--muted); padding: 6px 12px 2px; margin: 0; line-height: 1.35; }
 
-/* ---- day grid ---- */
-.grid { display: grid; grid-template-columns: 42px 1fr; }
-.grid--hours { border-right: 1px solid var(--line); }
+/* ---- day grid ----
+ *
+ * Every hour label is shifted up 5px so it straddles its own gridline, which is
+ * what makes an axis read as an axis. The first label has no line above it to
+ * straddle, so those 5px put it *outside* the grid entirely — sitting on top of
+ * whatever band is above. Measured: "8 AM" started 5px above the grid and 2px
+ * inside the last end-of-day row, so the 11:59 PM deadline and the start of the
+ * morning were touching.
+ *
+ * The grid takes 5px of top padding to hold the label in, and the gutter takes
+ * an equal negative margin so its tint still reaches the grid's top edge rather
+ * than starting a notch below it. The margin above is separation from the band,
+ * which had three pixels.
+ */
+.grid { display: grid; grid-template-columns: 42px 1fr; margin-top: 14px; padding-top: 5px; }
+.grid--hours { border-right: 1px solid var(--line); margin-top: -5px; padding-top: 5px; }
 .grid--hour {
   height: 26px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums;
   text-align: right; padding-right: 5px; transform: translateY(-5px);
