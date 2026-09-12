@@ -1,0 +1,46 @@
+Illini Dash puts every UIUC deadline in one place.
+
+Canvas, Gradescope, PrairieLearn, PrairieTest and smartPhysics each hold part of your
+semester, and none of them shows you the others. Checking five sites to find out what is
+due this week is how a deadline gets missed — not because it was hidden, but because it
+was somewhere you didn't look that day.
+
+Illini Dash reads all of them and puts what it finds on one calendar, in your browser,
+using the logins you already have. Click the icon and you can see the week.
+
+WHAT IT DOES
+
+• Day, week and month views, plus a list of just the things that need attention. Your
+  courses are colour-coded, and any course can be switched off with one click.
+
+• One entry per assignment. Work posted in Gradescope and mirrored into Canvas shows up
+  once, linked to the place you actually submit it — not twice, from two sites that
+  disagree about the title.
+
+• Exams in their own place, with the room and how long each one runs, including the ones
+  further out than the calendar reaches.
+
+• CBTF exams you have reserved, and a daily reminder about exams that are open for
+  booking and not yet reserved — the deadline that has no deadline on it.
+
+• Reminders 24 hours and 2 hours before something is due, with quiet hours so nothing
+  wakes you at 3am.
+
+• Reduced-credit deadlines. PrairieLearn's "80% until Tuesday" is a real deadline, and it
+  is shown as one.
+
+• Your own course websites. Plenty of courses keep the real schedule on their own page.
+  Paste the address, see exactly what was found, and add it once it looks right.
+
+• Calendar export. Save everything as an .ics file from the toolbar, or send a single
+  deadline to Google Calendar.
+
+NO ACCOUNT, NO PASSWORD, NO SERVER
+
+Illini Dash reads the pages you are already signed in to, the same way your browser would
+if you opened them yourself, and keeps everything on your own device. It never sees a
+password. Nothing is uploaded anywhere, because there is nowhere to upload it to — there
+is no server, no account and no analytics. Uninstalling it deletes everything it stored.
+
+Built for UIUC students. Not affiliated with, endorsed by or connected to the University
+of Illinois, Instructure, Gradescope or PrairieLearn.

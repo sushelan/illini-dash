@@ -15,6 +15,20 @@ Illini Dash
 
 ## Detailed description
 
+**Paste [description.txt](description.txt), not the copy below.** The store's Description
+field is **plain text** — it preserves line breaks and nothing else — so the Markdown that
+made this document readable would ship as literal asterisks and hyphens in the listing.
+That is the whole reason the real copy lives in a `.txt` beside this file: a document
+written to be read in a repo and a field that renders nothing are not the same medium, and
+keeping one copy meant shipping the wrong one.
+
+The store's own hint under that field is *"Focus on explaining what the item does and why
+users should install it."* The draft below opened with a feature list, which answers
+neither. `description.txt` leads with the problem — five sites, none of which shows you the
+others — then what it does about it, then the privacy position, then the disclaimer.
+
+### Earlier draft, kept for the wording only
+
 > Illini Dash collects your deadlines from Canvas, Gradescope, PrairieLearn, PrairieTest
 > and smartPhysics onto one calendar, so you are not checking five sites to find out what
 > is due.
