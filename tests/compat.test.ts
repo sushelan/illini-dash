@@ -29,6 +29,7 @@ function current(): Record<string, unknown> {
     hiddenItems: [],
     doneItems: [],
     setAsideCourses: [{ id: "1", name: "Old course", reason: "not in the current term" }],
+    courseNames: { CS424: "Distributed Systems" },
     lastSyncAt: "2026-09-10T18:00:00.000Z",
   };
 }
@@ -56,6 +57,7 @@ describe("normalizeOptionsState", () => {
     const { missing } = normalizeOptionsState<Record<string, unknown>>({ type: "options-state" });
     // Sorted: the order they are reported in is not a requirement, the set is.
     expect([...missing].sort()).toEqual([
+      "courseNames",
       "courses",
       "doneItems",
       "hiddenItems",
@@ -72,6 +74,9 @@ describe("normalizeOptionsState", () => {
     expect(state["doneItems"]).toEqual([]);
     expect(state["setAsideCourses"]).toEqual([]);
     expect(state["sources"]).toEqual({});
+    // An older worker sends no renames, and "no renames" is the derived label
+    // everywhere — never a guess at what the student might have called it.
+    expect(state["courseNames"]).toEqual({});
   });
 
   it("treats a field of the wrong type as missing", () => {
@@ -110,7 +115,7 @@ describe("normalizeOptionsState", () => {
   it("survives a response that is not an object at all", () => {
     for (const junk of [undefined, null, "options-state", 42, []]) {
       const { missing } = normalizeOptionsState<Record<string, unknown>>(junk);
-      expect(missing.length, String(junk)).toBe(6);
+      expect(missing.length, String(junk)).toBe(7);
     }
   });
 
@@ -139,6 +144,7 @@ describe("normalizePopupState", () => {
       sources: { canvas: { source: "canvas", enabled: true, state: "ok" } },
       settings: { ...DEFAULT_SETTINGS },
       notificationsBlocked: false,
+      courseNames: {},
       lastSyncAt: "2026-09-10T18:00:00.000Z",
     };
   }
@@ -150,11 +156,13 @@ describe("normalizePopupState", () => {
     expect(state).toEqual(message);
   });
 
-  it("guards the two fields the popup dereferences immediately", () => {
+  it("guards the fields the popup dereferences immediately", () => {
     // `renderDots` iterates sources and `render` iterates items, both before
-    // anything is drawn — so either one missing is a blank popup.
+    // anything is drawn — so either one missing is a blank popup. `courseNames`
+    // joined them when renaming landed: every row looks a course up in it, so
+    // an older worker's message would throw once per row rather than once.
     const { state, missing } = normalizePopupState<Record<string, unknown>>({ type: "state" });
-    expect([...missing].sort()).toEqual(["items", "sources"]);
+    expect([...missing].sort()).toEqual(["courseNames", "items", "sources"]);
     expect(state["items"]).toEqual([]);
     expect(state["sources"]).toEqual({});
   });

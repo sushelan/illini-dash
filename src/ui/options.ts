@@ -21,6 +21,7 @@ import {
 } from "../capture.js";
 import { actionFor, displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
 import {
+  courseLabel,
   displayCourseLabel,
   SOURCE_HINT,
   SOURCE_TITLE,
@@ -739,9 +740,8 @@ async function renderOptions(): Promise<void> {
     courses.append(plainRow("No courses yet", "Nothing has been read from a source yet."));
   }
   for (const course of state.courses) {
-    courses.append(
-      switchRow({
-        name: displayCourseLabel(course.label),
+    const row = switchRow({
+        name: courseLabel(course.label, state.courseNames ?? {}),
         // Names, not source keys: `prairielearn, canvas` under a course code is
         // the storage layer leaking onto the one screen a student comes to in
         // order to recognise their own courses.
@@ -756,8 +756,38 @@ async function renderOptions(): Promise<void> {
             disabled: !enabled,
           }).then(refreshOptions);
         },
-      }),
-    );
+      });
+
+    /*
+     * Renaming, for the names no rule can derive.
+     *
+     * A text box rather than a dialog: the thing being renamed is one short
+     * string, and a dialog to change one short string is three clicks around a
+     * keystroke. It shows the *derived* label as its placeholder, so an empty
+     * box is visibly "the name it works out for itself" rather than blank — and
+     * clearing the box is how the student gets that back, which is why
+     * `renameCourse` deletes on empty rather than storing one.
+     *
+     * Saved on `change` (blur or Enter), not on every keystroke: each save is a
+     * queued store write and a redraw of every surface, and doing that per
+     * character would fight the typing.
+     */
+    const rename = el("input", undefined, "srow2--rename") as HTMLInputElement;
+    rename.type = "text";
+    rename.maxLength = 60;
+    rename.placeholder = displayCourseLabel(course.label);
+    rename.value = (state.courseNames ?? {})[course.label] ?? "";
+    rename.title = `Rename ${displayCourseLabel(course.label)}. Clear the box to go back to this name.`;
+    rename.setAttribute("aria-label", `Name for ${displayCourseLabel(course.label)}`);
+    rename.addEventListener("change", () => {
+      void send({
+        type: "set-course-name",
+        course: course.label,
+        name: rename.value,
+      }).then(refreshOptions);
+    });
+    row.append(rename);
+    courses.append(row);
   }
 
   /* Course-site adapters (§4.5) */

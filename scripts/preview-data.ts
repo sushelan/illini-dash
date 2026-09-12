@@ -234,6 +234,9 @@ const sources = {
        * nobody able to see it. `?slow=` sets the delay; the default is enough to
        * notice and short enough not to make the preview annoying.
        */
+      if (req.type === "set-course-name") {
+        return { type: "ok" };
+      }
       if (req.type === "sync") {
         // Counted so a test can ask whether returning to the page actually
         // fetched, rather than only whether it redrew — which is the whole of
@@ -298,6 +301,10 @@ const sources = {
           hiddenItems: [{ id: "h1", courseLabel: "CS411", title: "Course syllabus acknowledgement" }],
           doneItems: [{ id: "d1", courseLabel: "CS424", title: "Homework 1" }],
           setAsideCourses,
+          // One course renamed and one not, so both halves of the control are
+          // visible at once: a filled box beside an empty one whose placeholder
+          // is the derived label.
+          courseNames: { CS424: "Distributed Systems" },
           notificationsBlocked: false,
         };
         // An older worker does not have the field at all — this is the exact

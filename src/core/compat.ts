@@ -37,12 +37,17 @@ const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
   doneItems: "list",
   setAsideCourses: "list",
   sources: "map",
+  courseNames: "map",
 };
 
 /** The `state` fields the popup dereferences. */
 const POPUP_STATE_FIELDS: Record<string, FieldKind> = {
   items: "list",
   sources: "map",
+  // Every row draws a course label, so a worker on a build without this field
+  // would throw once per row rather than once. An empty map is the right
+  // absence: no renames, derived labels everywhere.
+  courseNames: "map",
 };
 
 export interface NormalizedOptionsState<T> {

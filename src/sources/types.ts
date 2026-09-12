@@ -211,6 +211,17 @@ export interface Overrides {
    */
   doneKeys: string[];
   /**
+   * A name the student gave a course, keyed the same way `disabledCourses` is.
+   *
+   * The last resort, deliberately. §5.1 derives a code wherever one exists, and
+   * a student should never have to type `STAT 425` for a label the slug already
+   * contains — that was a parser defect wearing a feature's clothes, and it is
+   * fixed. This is for names no rule can derive: a Gradescope course an
+   * instructor named "Section AL1", or a cross-listing the student thinks of by
+   * the other number.
+   */
+  courseNames: Record<string, string>;
+  /**
    * Canvas course ids (as strings) the student forced back in after §4.1's term
    * filter held them aside.
    *

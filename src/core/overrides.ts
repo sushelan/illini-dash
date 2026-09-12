@@ -123,6 +123,22 @@ export function setCourseDisabled(
   };
 }
 
+/**
+ * Give a course a name, or take the name away.
+ *
+ * An empty or whitespace-only string **removes** the override rather than
+ * storing one, so clearing the box is how a student gets the derived label
+ * back. Storing `""` would blank the course everywhere at once and leave
+ * nothing on screen to click in order to undo it.
+ */
+export function renameCourse(overrides: Overrides, key: string, name: string): Overrides {
+  const trimmed = name.trim().slice(0, 60);
+  const next = { ...overrides.courseNames };
+  if (trimmed) next[key] = trimmed;
+  else delete next[key];
+  return { ...overrides, courseNames: next };
+}
+
 export interface CourseSummary {
   /** The value stored in `disabledCourses` — a code when there is one. */
   key: string;

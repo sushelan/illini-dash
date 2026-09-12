@@ -32,6 +32,7 @@ const NO_OVERRIDES: Overrides = {
   disabledCourses: [],
   doneKeys: [],
   keptCourses: [],
+  courseNames: {},
 };
 
 function raw(partial: Partial<RawItem> & Pick<RawItem, "source" | "sourceId" | "title">): RawItem {

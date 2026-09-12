@@ -53,6 +53,7 @@ export type Request =
   | { type: "update-settings"; settings: Partial<Settings> }
   | { type: "set-source-enabled"; source: Source; enabled: boolean }
   | { type: "set-course-disabled"; course: string; disabled: boolean }
+  | { type: "set-course-name"; course: string; name: string }
   | { type: "keep-course"; courseId: string; keep: boolean }
   | { type: "override"; action: OverrideAction }
   | { type: "export" }
@@ -80,6 +81,15 @@ export type Response =
   | {
       type: "state";
       items: Item[];
+      /**
+       * The student's own names for their courses.
+       *
+       * Sent with the state rather than fetched separately, because every
+       * surface that draws a row also draws a course label — a second round
+       * trip would let the two arrive out of step and paint one frame with the
+       * old name.
+       */
+      courseNames: Record<string, string>;
       sources: Record<Source, SourceStatus>;
       settings: Settings;
       lastSyncAt?: string;
@@ -95,6 +105,8 @@ export type Response =
   | { type: "synced"; skipped: boolean; outcomes: { source: Source; state: string }[] }
   | {
       type: "options-state";
+      /** The student's own names for their courses; see the `state` message. */
+      courseNames: Record<string, string>;
       settings: Settings;
       notificationsBlocked: boolean;
       sources: Record<Source, SourceStatus>;

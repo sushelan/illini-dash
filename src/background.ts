@@ -39,6 +39,7 @@ import {
   markDone,
   markNotDone,
   mergeItems,
+  renameCourse,
   setCourseDisabled,
   splitItem,
   unhideItem,
@@ -806,6 +807,7 @@ chrome.runtime.onMessage.addListener(
               sources: store.sources,
               settings: store.settings,
               lastSyncAt: store.lastSyncAt,
+              courseNames: store.overrides.courseNames,
             }) as const,
         ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
       );
@@ -906,6 +908,7 @@ chrome.runtime.onMessage.addListener(
           notificationsBlocked: await notificationsBlocked(),
           sources: store.sources,
           courses: courseSummaries(store.raw, store.overrides),
+          courseNames: store.overrides.courseNames,
           overrides: store.overrides,
           itemCount: store.items.length,
           hiddenItems: store.items
@@ -968,6 +971,14 @@ chrome.runtime.onMessage.addListener(
         })
           .then(() => sync("manual"))
           .then(() => ({ type: "ok" }) as const),
+      );
+    }
+    if (request?.type === "set-course-name") {
+      const { course, name } = request;
+      return answer(
+        mutate((store) => {
+          store.overrides = renameCourse(store.overrides, course, name);
+        }).then(() => ({ type: "ok" }) as const),
       );
     }
     if (request?.type === "set-course-disabled") {

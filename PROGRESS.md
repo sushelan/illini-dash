@@ -68,6 +68,44 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Renaming a course, and the two cases that are not the same — 2026-09-12
+
+**`CS 498DK2` needed no rename and still does not.** Sushi: *"idk if u can just eliminate
+the dk2 because that's part of the course name."* Right — CS 498 is the special-topics
+number and `DK2` is what says *which* class it is, so the identity is the whole string.
+§5.1 declines it, the raw name falls through untouched, and that is the correct outcome.
+The opposite case, `stat_425_120248_268442`, is a machine slug with the code inside it,
+which is why extraction handles that one and must not touch this one. The only thing wrong
+with `CS 498DK2` was that its space made it look inconsistent beside `CS421`, and that was
+a formatting bug, not a naming one.
+
+**So the rename is for the third case**: names no rule can derive and no formatting can
+rescue — a Gradescope course an instructor called "Section AL1", a cross-listing the
+student thinks of by the other number. It is deliberately the *last* resort. A student
+should never have to type `STAT 425` for a label the slug already contains; that was a
+parser defect wearing a feature's clothes, and it is fixed.
+
+`overrides.courseNames` is the first override that stores **text the student typed**, and
+it is rendered into the calendar, the filter strip and Settings. So:
+
+- **An empty name is not a name.** `renameCourse` *deletes* on empty rather than storing
+  `""`, because clearing the box is how a student gets the derived label back — and a
+  blank label is invisible, so storing one would make the course vanish from the filter
+  strip and its rows lose their chip, with nothing left on screen to click to undo it.
+  `migrateOverrides` refuses to store one and `courseLabel` refuses to trust one anyway:
+  the store is data from a previous build, and that build may not have had the rule
+  (worker rule 8).
+- **Capped at 60 characters.** A 4000-character name is not a name.
+- **One resolver.** Four surfaces draw a course label, and a rename the calendar honours
+  while the filter strip ignores is worse than no rename — the student then has two names
+  for one course and no way to tell which is which.
+
+`courseNames` joined `items` and `sources` in `POPUP_STATE_FIELDS`, because every row looks
+a course up in it: an older worker's message would throw once per row rather than once.
+Four compat tests failed on the new field, which is exactly what those tests are for.
+
+1012 tests.
+
 ## Two paths to a course label, disagreeing about one space — 2026-09-12
 
 *"There's a space between CS 498DK2 but not between CS421."* Both in the same row of

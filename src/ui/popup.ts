@@ -71,7 +71,7 @@ import {
 import { downloadIcs } from "./download.js";
 import { type IconName, icon, iconButton } from "./icons.js";
 import {
-  displayCourseLabel,
+  courseLabel,
   LOGIN_URL,
   SOURCE_CODE,
   SOURCE_NAME,
@@ -591,7 +591,7 @@ function renderRow(
 
   const chip = document.createElement("span");
   chip.className = "chip";
-  chip.textContent = displayCourseLabel(item.courseLabel) || "—";
+  chip.textContent = courseLabel(item.courseLabel, courseNames) || "—";
 
   const title = document.createElement("span");
   title.className = "row--title";
@@ -1582,10 +1582,12 @@ function renderFilters(items: Item[], colours: Map<string, number>): void {
     chip.type = "button";
     chip.className = `fchip course-${colours.get(course) ?? 0}`;
     chip.setAttribute("aria-pressed", String(on));
-    chip.title = on ? `Hide ${displayCourseLabel(course)}` : `Show ${displayCourseLabel(course)} again`;
+    chip.title = on
+      ? `Hide ${courseLabel(course, courseNames)}`
+      : `Show ${courseLabel(course, courseNames)} again`;
     const dot = document.createElement("i");
     const label = document.createElement("span");
-    label.textContent = displayCourseLabel(course);
+    label.textContent = courseLabel(course, courseNames);
     chip.append(dot, label);
     chip.addEventListener("click", () => {
       if (hidden.has(course)) hidden.delete(course);
@@ -2077,7 +2079,7 @@ function renderMonthPill(
 
   const code = document.createElement("span");
   code.className = "mpill--code";
-  code.textContent = displayCourseLabel(item.courseLabel);
+  code.textContent = courseLabel(item.courseLabel, courseNames);
   const name = document.createElement("span");
   name.className = "mpill--name";
   name.textContent = item.title;
@@ -2402,6 +2404,7 @@ async function draw(): Promise<void> {
   // answer to put under its checklist on the next pass.
   const visible = state.items.filter((item) => !item.hidden);
   lastFound = { items: visible.length, courses: coursesIn(visible).length };
+  courseNames = state.courseNames ?? {};
   lastHealth = { sources: state.sources, ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}) };
   renderHealth(state.sources, state.lastSyncAt, now);
   renderBanners(state);
@@ -2496,6 +2499,15 @@ async function runSync(): Promise<void> {
   }
   await refresh();
 }
+
+/**
+ * The student's own names for their courses, refreshed on every draw.
+ *
+ * Module-level for the same reason `lastHealth` is: six render functions each
+ * draw one course label, and threading a map through all of them would put the
+ * same argument in six signatures to serve one lookup.
+ */
+let courseNames: Record<string, string> = {};
 
 /** The last state drawn, so the header can be repainted without a round trip. */
 let lastHealth: { sources: Record<Source, SourceStatus>; lastSyncAt?: string } | undefined;

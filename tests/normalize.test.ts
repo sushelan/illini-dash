@@ -11,7 +11,8 @@
 
 import { describe, expect, it } from "vitest";
 import { extractCourseCodes } from "../src/core/normalize.js";
-import { displayCourseLabel } from "../src/core/names.js";
+import { courseLabel, displayCourseLabel } from "../src/core/names.js";
+import { renameCourse } from "../src/core/overrides.js";
 
 describe("extractCourseCodes", () => {
   it("reads a human-readable name", () => {
@@ -97,5 +98,71 @@ describe("displayCourseLabel (the space §5.1 drops)", () => {
     // Reformatting it would split every course in the store from its own
     // history until the next sync, so this runs on the way to the screen.
     expect(displayCourseLabel("CS 421")).toBe("CS 421");
+  });
+});
+
+describe("courseLabel (a name the student gave it, or the one we derived)", () => {
+  it("prefers the student's name", () => {
+    expect(courseLabel("CS498DK2X", { CS498DK2X: "Deep Learning" })).toBe("Deep Learning");
+  });
+
+  it("falls back to the derived label, spaced", () => {
+    expect(courseLabel("CS421", {})).toBe("CS 421");
+    expect(courseLabel("CS 498DK2")).toBe("CS 498DK2");
+  });
+
+  it("treats a blank or whitespace name as no name", () => {
+    /*
+     * `migrateOverrides` refuses to store one, and this refuses to trust it
+     * anyway: the store is data written by a previous build, and the build that
+     * wrote it may not have had that rule (worker rule 8).
+     *
+     * The failure it prevents is bad in a specific way — a blank label is
+     * invisible, so the course vanishes from the filter strip and its rows lose
+     * their chip, and there is nothing left on screen to click to undo it.
+     */
+    for (const blank of ["", "   ", "\t"]) {
+      expect(courseLabel("CS421", { CS421: blank }), JSON.stringify(blank)).toBe("CS 421");
+    }
+  });
+
+  it("trims, so a stray space does not become the name", () => {
+    expect(courseLabel("CS421", { CS421: "  Systems  " })).toBe("Systems");
+  });
+
+  it("ignores a name given to a different course", () => {
+    expect(courseLabel("CS421", { CS425: "Distributed" })).toBe("CS 421");
+  });
+});
+
+describe("renameCourse", () => {
+  const base = {
+    mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [],
+    doneKeys: [], keptCourses: [], courseNames: {},
+  };
+
+  it("stores a name", () => {
+    expect(renameCourse(base, "CS421", "Programming Languages").courseNames).toEqual({
+      CS421: "Programming Languages",
+    });
+  });
+
+  it("clearing the box removes the override rather than storing empty", () => {
+    // This is how a student gets the derived label back, so it must delete.
+    // Storing "" would blank the course everywhere at once and leave nothing on
+    // screen to click in order to undo it.
+    const named = renameCourse(base, "CS421", "PL");
+    expect(renameCourse(named, "CS421", "").courseNames).toEqual({});
+    expect(renameCourse(named, "CS421", "   ").courseNames).toEqual({});
+  });
+
+  it("caps the length, because a name is not an essay", () => {
+    const long = renameCourse(base, "CS421", "x".repeat(200));
+    expect(long.courseNames["CS421"]).toHaveLength(60);
+  });
+
+  it("leaves every other override alone", () => {
+    const next = renameCourse({ ...base, hiddenKeys: ["gradescope:1"] }, "CS421", "PL");
+    expect(next.hiddenKeys).toEqual(["gradescope:1"]);
   });
 });

@@ -46,6 +46,25 @@ export function displayCourseLabel(label: string): string {
 }
 
 /**
+ * What a course is called on screen: the student's name for it if they gave
+ * one, otherwise the derived label.
+ *
+ * The whole chain lives here so the four surfaces that show a course cannot
+ * end up disagreeing — a rename that the calendar honours and the filter strip
+ * ignores is worse than no rename, because the student then has two names for
+ * one course and no way to tell which is which.
+ *
+ * A blank or whitespace-only override is *not* a name and falls through.
+ * `migrateOverrides` refuses to store one, and this refuses to trust it anyway:
+ * the store is data from a previous build, and the one that wrote it may not
+ * have had that rule (worker rule 8).
+ */
+export function courseLabel(label: string, names: Record<string, string> = {}): string {
+  const custom = names[label]?.trim();
+  return custom ? custom : displayCourseLabel(label);
+}
+
+/**
  * The name to use in a sentence: "Sign in to Gradescope".
  *
  * `site` is lower case and takes an article because it is a category rather

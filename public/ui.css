@@ -663,6 +663,18 @@ body.page { padding: 0; }
   font-size: 11px; color: var(--muted); line-height: 1.4;
 }
 .srow2 > .chip-base { grid-column: 3; grid-row: 1 / span 2; justify-self: end; }
+/*
+ * The rename box, placed explicitly like everything else in this grid.
+ *
+ * Column 3 is where a state chip would go, and a course row has none — the
+ * switch is its state. Sized to the longest thing anyone would type here
+ * rather than stretched: a full-width input beside a 13px course name reads as
+ * the row's main content, and it is not.
+ */
+.srow2 > .srow2--rename {
+  grid-column: 3; grid-row: 1 / span 2; justify-self: end;
+  width: 14ch; min-width: 0;
+}
 .srow2 > .btn, .srow2 > .row-actions { grid-column: 4; grid-row: 1 / span 2; justify-self: end; }
 /* A row with no hint collapses to one line rather than leaving a gap. */
 .srow2:not(:has(.srow2--hint)) > * { grid-row: auto; }

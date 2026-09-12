@@ -148,7 +148,7 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [] },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [], courseNames: {} },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
@@ -333,6 +333,7 @@ function migrateOverrides(stored: unknown): Overrides {
     disabledCourses: [],
     doneKeys: [],
     keptCourses: [],
+    courseNames: {},
   };
   if (!stored || typeof stored !== "object") return base;
   const value = stored as Record<string, unknown>;
@@ -350,6 +351,27 @@ function migrateOverrides(stored: unknown): Overrides {
     // field here is filled in rather than switched on `schemaVersion`.
     doneKeys: strings(value["doneKeys"]),
     keptCourses: strings(value["keptCourses"]),
+    /*
+     * Validated entry by entry, not trusted wholesale.
+     *
+     * This is the first override that stores *text the user typed*, and it is
+     * rendered into the calendar, the filter strip and Settings. Parser rule 5
+     * applies to the store as much as to a page: `typeof x === "string"` passes
+     * an empty string, and an empty name would blank a course's label
+     * everywhere at once with nothing to click to get it back. Length is capped
+     * for the same reason a chip is — a 4000-character name is not a name.
+     */
+    courseNames: isRecord(value["courseNames"])
+      ? Object.fromEntries(
+          Object.entries(value["courseNames"]).filter(
+            (entry): entry is [string, string] =>
+              typeof entry[1] === "string" &&
+              entry[1].trim().length > 0 &&
+              entry[1].length <= 60 &&
+              entry[0].length <= 200,
+          ),
+        )
+      : {},
   };
 }
 
