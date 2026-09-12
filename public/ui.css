@@ -38,6 +38,12 @@
   --tint-strong: #eef2f8;
   --hover: rgba(19, 41, 75, .055);
   --today-tint: #fdeee2;
+  /* Washes behind a state, and the ink that sits on the accent. */
+  --warn-wash: rgba(180, 130, 0, .10);
+  --warn-wash-strong: rgba(180, 130, 0, .16);
+  --err-wash: rgba(200, 40, 30, .10);
+  --accent-ink: #ffffff;
+  --shadow: rgba(0, 0, 0, .25);
 
   /* Course hues: one saturated ink for text and edges, one wash for fills. */
   --course-0: #2f6fd0; --course-0-bg: #e8f0fc;
@@ -74,6 +80,11 @@
     --tint-strong: #16223a;
     --hover: rgba(140, 180, 255, .07);
     --today-tint: #2a1a10;
+    --warn-wash: rgba(212, 167, 44, .12);
+    --warn-wash-strong: rgba(212, 167, 44, .18);
+    --err-wash: rgba(240, 115, 106, .12);
+    --accent-ink: #1a0d04;
+    --shadow: rgba(0, 0, 0, .55);
 
     --course-0: #6ea8ff; --course-0-bg: #142440;
     --course-1: #2fd3aa; --course-1-bg: #0d2b28;

@@ -79,10 +79,10 @@ html.view-full,
 .banner {
   margin: 8px 12px 0; padding: 7px 9px;
   border: 1px solid var(--warn); border-radius: 5px;
-  background: rgba(180, 130, 0, .10); font-size: 12px; line-height: 1.35;
+  background: var(--warn-wash); font-size: 12px; line-height: 1.35;
 }
 .banner button { margin-left: 6px; }
-.banner-err { border-color: var(--err); background: rgba(200, 40, 30, .10); }
+.banner-err { border-color: var(--err); background: var(--err-wash); }
 .row--moved { color: var(--warn); font-size: 10px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
@@ -165,7 +165,7 @@ h2.section {
 .menu {
   position: absolute; z-index: 10; min-width: 190px; max-width: 340px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.25); padding: 4px 0;
+  box-shadow: 0 6px 20px var(--shadow); padding: 4px 0;
 }
 .menu--item {
   display: block; width: 100%; text-align: left; background: none; border: 0;
@@ -187,20 +187,14 @@ h2.section {
  * ====================================================================== */
 
 /* ---- course colour ----
- * A left border rather than a fill: at 3px it reads in both themes without
- * tinting the text, and it survives the row's own overdue and late colours,
- * which are about urgency and must not be overwritten by whose course it is.
+ *
+ * The *values* are all in ui.css. This sheet only spends them.
+ *
+ * A second copy used to live here, and because this sheet loads after ui.css it
+ * quietly won: the pills were drawing the new washes with the old inks. That is
+ * the "two copies of one decision" failure from CLAUDE.md, in CSS, where the
+ * cascade makes it silent.
  */
-:root {
-  --course-0: #4c6ef5; --course-1: #12b886; --course-2: #e8590c; --course-3: #9c36b5;
-  --course-4: #0ca678; --course-5: #f08c00; --course-6: #d6336c; --course-7: #1098ad;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --course-0: #748ffc; --course-1: #38d9a9; --course-2: #ff922b; --course-3: #da77f2;
-    --course-4: #20c997; --course-5: #ffc078; --course-6: #f783ac; --course-7: #3bc9db;
-  }
-}
 /* Each course carries an ink and a wash: the ink for edges and the code, the
    wash for the fill. One class sets both so nothing can use one without the
    other and end up with a blue bar on a green field. */
@@ -326,7 +320,7 @@ h2.section {
 .mnum { font-size: 12px; color: var(--fg); font-weight: 600; padding: 1px 2px 3px; }
 .mcell--out .mnum { color: var(--muted); opacity: .55; }
 .mcell--today .mnum {
-  color: #fff; background: var(--now); border-radius: 50%;
+  color: var(--accent-ink); background: var(--now); border-radius: 50%;
   width: 24px; height: 24px; display: grid; place-items: center;
   font-size: 12px; font-weight: 700;
 }
@@ -348,7 +342,7 @@ h2.section {
 .mpill--name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mpill--event { background: transparent; border-left-style: dotted; opacity: .75; }
 .mpill--opening { background: transparent; border-left-style: dashed; opacity: .8; }
-.mpill--exam { background: rgba(180,130,0,.16); }
+.mpill--exam { background: var(--warn-wash-strong); }
 .mpill--untimed .mpill--name { font-style: italic; }
 .mmore {
   font: inherit; font-size: 9px; color: var(--muted); background: none;
@@ -360,7 +354,7 @@ h2.section {
 .book {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px; border-bottom: 1px solid var(--line);
-  background: rgba(180,130,0,.10);
+  background: var(--warn-wash);
 }
 .book--text { flex: 1; min-width: 0; font-size: 12px; }
 .book--text b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -538,16 +532,7 @@ h2.section {
  * its green and its orange collapse toward each other. Adapted from Okabe and
  * Ito's qualitative set, which exists for exactly this.
  */
-.theme-contrast {
-  --course-0: #0072b2; --course-1: #009e73; --course-2: #d55e00; --course-3: #cc79a7;
-  --course-4: #56b4e9; --course-5: #e69f00; --course-6: #7a4fbf; --course-7: #333333;
-}
-@media (prefers-color-scheme: dark) {
-  .theme-contrast {
-    --course-0: #56b4e9; --course-1: #33d6a6; --course-2: #ff7f2a; --course-3: #f29ec4;
-    --course-4: #8fd3f4; --course-5: #f0c33c; --course-6: #b18cf0; --course-7: #cccccc;
-  }
-}
+/* The values are in ui.css, under `.theme-contrast`. */
 
 /*
  * And a shape per state, because a 9px dot in five colours is a colour-only

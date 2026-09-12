@@ -2,12 +2,17 @@
 
 Everything that decides what Illini Dash looks like, and nothing else. Four files:
 
-| File | What it is |
-|---|---|
-| `public/ui.css` | Every token. Three themes × light and dark. **Start here.** |
-| `public/popup.css` | Where the tokens are spent — tabs, chips, grid, pills, rows |
-| `src/core/theme.ts` | The theme list, the default, validation |
-| `src/ui/theme-panel.ts` | The picker in Settings, and applying the choice before paint |
+| File | What it is | Edit it to… |
+|---|---|---|
+| `public/ui.css` | **Every colour value in the extension.** Three themes × light and dark. | change any colour |
+| `public/popup.css` | Where those tokens are spent. Contains no colour values at all. | change *how* colour is applied — pill shape, which surfaces get tinted |
+| `src/core/theme.ts` | The theme list, the default, validation | add, remove or rename a theme |
+| `src/ui/theme-panel.ts` | The picker in Settings, and applying the choice before paint | change the picker itself — rarely |
+
+**To change the colour scheme, edit `ui.css` and nothing else.** It is the only file in
+the project containing a colour value; `popup.css` was checked and has none. If a change
+there does not show up, the token is not being consumed — grep `popup.css` for it rather
+than adding a value somewhere new.
 
 `public/options.html` needs one line for the panel to mount into:
 
@@ -36,6 +41,15 @@ colours on every open.
 
 Every theme must define all of these. A missing one falls through to the `:root` value,
 which will be from a different palette and will look like a bug rather than read as one.
+
+**Washes and ink**
+
+| Token | Use |
+|---|---|
+| `--warn-wash` / `--warn-wash-strong` | Behind a booking strip, a banner, an exam pill |
+| `--err-wash` | Behind an error banner |
+| `--accent-ink` | Text sitting *on* the accent, e.g. today's date in its circle |
+| `--shadow` | The row menu's drop shadow |
 
 **Surfaces**
 
@@ -76,7 +90,7 @@ both together so nothing can end up with a blue edge on a green field.
 
 ---
 
-## Three rules that are not taste
+## Four rules that are not taste
 
 **1. A course is a label. Being late is a meaning.** The two must not compete. A course
 pill identifies itself with three weak signals of one hue — a solid edge, a weak fill, a
@@ -93,7 +107,12 @@ ones.** Measure the composited result rather than trusting the alpha:
 getComputedStyle(el).backgroundColor
 ```
 
-**3. Verify in dark.** It is the only mode the author of this project sees, and a change
+**3. One file holds the values.** Two copies of the course palette used to exist — one in
+`ui.css` and a stale one in `popup.css` — and because `popup.css` loads second it quietly
+won, so the pills drew the new washes with the old inks. Nothing failed; it just looked
+slightly wrong for days. If you add a value outside `ui.css`, you are recreating that.
+
+**4. Verify in dark.** It is the only mode the author of this project sees, and a change
 that reads clearly in light mode has already shipped twice looking like nothing at all.
 `resize_window` takes a `colorScheme`, so there is no excuse.
 
