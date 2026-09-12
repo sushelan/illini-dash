@@ -131,6 +131,19 @@ pill identifies itself with three weak signals of one hue — a solid edge, a we
 saturated code — and that reads clearly without ever being as loud as `--err`. If a course
 colour starts shouting as much as the overdue red, the screen has no hierarchy left.
 
+**1b. Both ends of the range carry the hue.** Rule 1's "the page itself is navy, not
+grey with a blue bar on top" was written for dark and only ever applied there: light was
+`#ffffff` with two faintly blue tints on it, which is the same grey box wearing a hat, in
+white. The light surfaces are a blue ramp now — `--bg #eaf1fb`, `--tint #dbe7f7`,
+`--tint-strong #ccdcf2` — and `--surface-raised` stays pure white, which is what makes a
+menu read as *raised* rather than as more page.
+
+Everything that sits on those had to be re-measured against them rather than against
+white, and two things had quietly slipped under AA: `--ok` at `#1a7f37` was 4.42:1 on the
+header tint, and the wordmark 4.47:1. `tests/tokens.test.ts` now computes `--fg`,
+`--muted`, `--ok`, `--warn` and `--err` against both `--bg` and `--tint` in all six
+palettes, so the next palette change cannot slip the same way.
+
 **2. A tint does different work at each end of the range.** A wash composites toward its
 own luminance, so the same alpha is not the same change. 5.5% of navy on white drops the
 surface 12 points out of 255; 6% of pale blue on `#1c1c1c` lifts it 8, and the eye is far

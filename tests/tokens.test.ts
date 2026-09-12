@@ -90,12 +90,36 @@ function palettes(): Map<string, Map<string, string>> {
   return out;
 }
 
+/**
+ * What a token actually resolves to in one palette.
+ *
+ * The fallback chain is the part that has to be right, and it was not: a theme
+ * block only redefines what it changes, so `.theme-neutral.is-dark` inherits
+ * `--ok` from `:root.is-dark` — the *dark* root, not the light one. Reading
+ * through to the light root instead reported neutral-dark as having a dark
+ * green on a near-black page, a 2.83:1 failure that does not exist.
+ *
+ * A test that measures the wrong values is worse than no test: this one would
+ * have sent someone to fix a palette that was already correct.
+ */
+function chainFor(name: string, all: Map<string, Map<string, string>>): Map<string, string>[] {
+  const chain: Map<string, string>[] = [];
+  const add = (key: string) => {
+    const found = all.get(key);
+    if (found) chain.push(found);
+  };
+  add(name);
+  if (name.endsWith("(dark)")) add(":root (dark)");
+  add(":root");
+  return chain;
+}
+
 /** Resolve `var(--x)` one hop, which is as deep as this stylesheet goes. */
-function resolve(vars: Map<string, string>, token: string, fallback?: Map<string, string>): string {
-  const raw = vars.get(token) ?? fallback?.get(token);
+function resolve(chain: Map<string, string>[], token: string): string {
+  const raw = chain.find((vars) => vars.has(token))?.get(token);
   if (raw === undefined) return "";
   const indirect = /^var\((--[a-z0-9-]+)\)$/.exec(raw);
-  if (indirect) return resolve(vars, indirect[1]!, fallback);
+  if (indirect) return resolve(chain, indirect[1]!);
   return raw;
 }
 
@@ -147,20 +171,19 @@ describe("the ink tokens", () => {
   }
 
   it("puts legible ink on the accent, in all six", () => {
-    const light = all.get(":root")!;
-    for (const [name, vars] of all) {
-      const base = name.includes("neutral") || name.includes("contrast") ? light : undefined;
-      const accent = resolve(vars, "--accent", base);
-      const ink = resolve(vars, "--accent-ink", base);
-      // Neutral's accent is `var(--muted)`, which resolves inside its own block.
-      const ratio = contrast(ink, accent.startsWith("#") ? accent : resolve(vars, "--muted", base));
+    for (const name of all.keys()) {
+      const chain = chainFor(name, all);
+      const accent = resolve(chain, "--accent");
+      const ink = resolve(chain, "--accent-ink");
+      const ratio = contrast(ink, accent);
       expect(ratio, `${name}: ${ink} on ${accent} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA);
     }
   });
 
   it("puts legible ink on the primary button, in all six", () => {
-    for (const [name, vars] of all) {
-      const ratio = contrast(resolve(vars, "--primary-ink"), resolve(vars, "--primary"));
+    for (const name of all.keys()) {
+      const chain = chainFor(name, all);
+      const ratio = contrast(resolve(chain, "--primary-ink"), resolve(chain, "--primary"));
       expect(ratio, `${name}: primary is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA);
     }
   });
@@ -173,10 +196,9 @@ describe("the ink tokens", () => {
      *
      * 3:1 rather than 4.5:1 because this is a large block of colour, not text.
      */
-    const light = all.get(":root")!;
-    for (const [name, vars] of all) {
-      const base = name === ":root" ? undefined : light;
-      const ratio = contrast(resolve(vars, "--primary", base), resolve(vars, "--bg", base));
+    for (const name of all.keys()) {
+      const chain = chainFor(name, all);
+      const ratio = contrast(resolve(chain, "--primary"), resolve(chain, "--bg"));
       expect(ratio, `${name}: primary on bg is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
     }
   });
@@ -190,15 +212,44 @@ describe("the ink tokens", () => {
      * The brand orange stays the brand orange wherever it is a surface. Where
      * it has to be read it is darkened, and this is the check that says so.
      */
-    const light = all.get(":root")!;
-    for (const [name, vars] of all) {
-      const base = name === ":root" ? undefined : light;
-      const ink = resolve(vars, "--brand-mark", base);
-      const bar = resolve(vars, "--tint", base);
+    for (const name of all.keys()) {
+      const chain = chainFor(name, all);
+      const ink = resolve(chain, "--brand-mark");
+      const bar = resolve(chain, "--tint");
       // Neutral's tint is a translucent overlay rather than a colour, so the
       // page behind it is the honest thing to measure against.
-      const ratio = contrast(ink, bar.startsWith("#") ? bar : resolve(vars, "--bg", base));
+      const ratio = contrast(ink, bar.startsWith("#") ? bar : resolve(chain, "--bg"));
       expect(ratio, `${name}: ${ink} on ${bar} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("keeps the meaning colours readable on the page and on the header", () => {
+    /*
+     * Red is overdue, amber is a window still open, green is a source that
+     * answered. They are the only colours in this project that carry a fact, so
+     * they are the last ones that may be hard to read.
+     *
+     * Nothing checked them until the light palette stopped being white:
+     * `--ok` at `#1a7f37` measured 4.42:1 on the new header tint, which is the
+     * kind of near-miss that ships. The page and the header are both checked,
+     * because a source's state word appears on both.
+     */
+    for (const name of all.keys()) {
+      const chain = chainFor(name, all);
+      for (const token of ["--fg", "--muted", "--ok", "--warn", "--err"] as const) {
+        const ink = resolve(chain, token);
+        for (const surface of ["--bg", "--tint"] as const) {
+          const behind = resolve(chain, surface);
+          // A translucent tint is an overlay, not a colour; the page behind it
+          // is the honest thing to measure against.
+          const solid = behind.startsWith("#") ? behind : resolve(chain, "--bg");
+          const ratio = contrast(ink, solid);
+          expect(
+            ratio,
+            `${name}: ${token} ${ink} on ${surface} ${solid} is ${ratio.toFixed(2)}:1`,
+          ).toBeGreaterThanOrEqual(AA);
+        }
+      }
     }
   });
 

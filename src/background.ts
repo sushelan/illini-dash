@@ -250,6 +250,24 @@ const withStore = createStoreQueue();
 /** One sync at a time: two overlapping runs would race on the same store. */
 let running: Promise<void> | null = null;
 
+/**
+ * A source has just been switched on, so go and read it.
+ *
+ * Fire and forget, deliberately: the message returns at once so the switch
+ * moves under the finger, and the page learns the outcome from the store
+ * change. Awaiting it would hold the click for the length of a full sync.
+ *
+ * Not inside the `withStore` that wrote the flag — `sync` takes the queue
+ * across every fetch of a run, and starting it from inside one is a nested
+ * hold nobody needs to reason about.
+ */
+function syncAfterEnable(what: string): Promise<unknown> {
+  console.log(`[sources] ${what} switched on — reading it now`);
+  return sync("manual").catch((err: unknown) => {
+    console.warn(`[sources] the sync after switching on ${what} failed:`, err);
+  });
+}
+
 async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   if (running) {
     await running;
@@ -833,7 +851,11 @@ chrome.runtime.onMessage.addListener(
             store.items = trimmed.items;
             console.log(`[sources] ${source} off — dropped its rows`);
           }
-        }).then(() => ({ type: "ok" }) as const),
+        })
+          .then(() => {
+            if (enabled) void syncAfterEnable(source);
+            return { type: "ok" } as const;
+          }),
       );
     }
     if (request?.type === "open-full-view") {
@@ -940,18 +962,32 @@ chrome.runtime.onMessage.addListener(
               fresh.items = trimmed.items;
               console.log(`[sites] ${adapterId} off — dropped its rows`);
             }
-            // Enabling the first adapter is what switches the source on at all.
-            fresh.sources.site = {
-              ...fresh.sources.site,
-              enabled: fresh.enabledAdapters.length > 0,
-              state: fresh.enabledAdapters.length > 0 ? "ok" : "disabled",
-            };
+            /*
+             * Enabling the first adapter is what switches the source on at all.
+             *
+             * Through `statusAfterEnable`, not by hand: this wrote
+             * `state: "ok"` directly, which is worker rule 2's own defect —
+             * a source reporting success before a single request. It was masked
+             * only because `displayState` calls a source with no attempt
+             * `pending` anyway; switch a site off and back on after it had run
+             * once, and Settings said "Connected" over a fetch that never
+             * happened.
+             */
+            fresh.sources.site = statusAfterEnable(
+              fresh.sources.site,
+              fresh.enabledAdapters.length > 0,
+            );
             // §6's ladder must not outlive the thing it was punishing: a site
             // that failed while unconfigured would otherwise keep the source
             // resting for up to four hours after the user finally enables it.
             delete fresh.backoffUntil.site;
             await saveStore(fresh);
           });
+          // Read it now, not at the next poll. Switching a site on and watching
+          // it say "Checking…" for half an hour is indistinguishable from it
+          // not working — and the first-run screen has always done this, so
+          // Settings was the one place that did not.
+          if (enabled) void syncAfterEnable(`site adapter ${adapterId}`);
           return { type: "permission", granted: true } as const;
         })(),
       );

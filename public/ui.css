@@ -27,25 +27,40 @@
    *    code stays fully saturated — that split is what lets a label be
    *    identifiable without being loud.
    */
+  /*
+   * Light carries the brand hue too.
+   *
+   * Point 1 above says the page itself is navy rather than grey with a blue bar
+   * on top — and that was only ever true of dark. Light was `#ffffff` with two
+   * faintly blue tints on it, which is the grey box wearing a hat, in white.
+   * The whole surface stack is blue now, at the light end of the same ramp
+   * dark sits at the dark end of.
+   *
+   * Every pair below is measured against these, not against white:
+   * `--ok` and the wordmark both dropped under 4.5:1 on the header tint at
+   * their old values and were darkened until they cleared it.
+   */
   --fg: #10264d;
-  --muted: #5b6a82;
-  --bg: #ffffff;
-  --surface: #f6f8fb;
-  --line: #d8e2ef;
+  --muted: #44576f;
+  --bg: #eaf1fb;
+  --surface: #dbe7f7;
+  --line: #b5cce7;
 
-  --ok: #1a7f37;
-  --warn: #9a6700;
-  --err: #b42318;
+  --ok: #166b2c;
+  --warn: #805400;
+  --err: #a81f15;
 
   --brand: #13294b;
   --brand-ink: #ffffff;
   --accent: #ff5f05;
   --now: var(--accent);
 
-  --tint: #f6f8fb;
-  --tint-strong: #eef2f8;
-  --hover: rgba(19, 41, 75, .055);
-  --today-tint: #fdeee2;
+  --tint: #dbe7f7;
+  --tint-strong: #ccdcf2;
+  --hover: rgba(19, 41, 75, .07);
+  /* Deeper than it was: a warm wash has to separate from a blue page, and it
+     had only ever been asked to separate from white. */
+  --today-tint: #fbdcc0;
   /* Washes behind a state, and the ink that sits on the accent. */
   --warn-wash: rgba(180, 130, 0, .10);
   --warn-wash-strong: rgba(180, 130, 0, .16);
@@ -76,20 +91,23 @@
    * the brand orange everywhere it is a *surface*; where it has to be read at
    * 12px bold it is darkened to 4.82:1. In dark it needs no help (5.74:1).
    */
-  --brand-mark: #c04503;
-  /* Anything that floats above the page: a menu, a popover. */
+  --brand-mark: #ad3d02;
+  /* Anything that floats above the page: a menu, a popover. White now reads as
+     *raised* rather than as the page, which is the job. */
   --surface-raised: #ffffff;
   --shadow: rgba(0, 0, 0, .25);
 
   /* Course hues: one saturated ink for text and edges, one wash for fills. */
-  --course-0: #2f6fd0; --course-0-bg: #e8f0fc;
-  --course-1: #0f9d78; --course-1-bg: #e3f7f1;
-  --course-2: #e0670a; --course-2-bg: #fdeee0;
-  --course-3: #8b46cf; --course-3-bg: #f2e9fc;
-  --course-4: #0d8fa8; --course-4-bg: #e0f4f8;
-  --course-5: #c2255c; --course-5-bg: #fce8ef;
-  --course-6: #5b6ad0; --course-6-bg: #ebedfc;
-  --course-7: #7a6a1f; --course-7-bg: #f6f2df;
+  /* Deepened with the page. A wash tuned to sit on white is invisible on a
+     blue ground — measured as colour distance from `--bg`, not by eye. */
+  --course-0: #2f6fd0; --course-0-bg: #d3e4fd;
+  --course-1: #0f9d78; --course-1-bg: #cbeee4;
+  --course-2: #e0670a; --course-2-bg: #fbdcc2;
+  --course-3: #8b46cf; --course-3-bg: #e6d6fa;
+  --course-4: #0d8fa8; --course-4-bg: #cbeaf3;
+  --course-5: #c2255c; --course-5-bg: #f9d3e1;
+  --course-6: #5b6ad0; --course-6-bg: #d8ddfa;
+  --course-7: #7a6a1f; --course-7-bg: #ede6c6;
 }
 
 :root.is-dark { color-scheme: dark; }

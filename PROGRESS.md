@@ -25,6 +25,52 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Light carries the brand hue; switching a site on now reads it — 2026-09-12
+
+**"Why is light mode just white and orange?"** Because the palette's own first principle
+was only ever applied to one end of it: *"the page itself is navy, not grey with a blue
+bar on top — that is the whole difference between an Illini product and a grey box wearing
+a hat."* Light was `#ffffff` with two faintly blue tints, which is that grey box in white.
+The light surfaces are a blue ramp now — `--bg #eaf1fb`, `--tint #dbe7f7`,
+`--tint-strong #ccdcf2`, `--line #b5cce7` — with `--surface-raised` staying pure white,
+which is what makes a menu read as *raised* rather than as more page. The course washes
+were deepened with it: a wash tuned to sit on white is invisible on a blue ground.
+
+Everything on those surfaces was re-measured against them rather than against white, and
+**two things had slipped under AA**: `--ok` at 4.42:1 on the new header tint, and the
+wordmark at 4.47:1. `tests/tokens.test.ts` now computes `--fg`, `--muted`, `--ok`,
+`--warn` and `--err` against both `--bg` and `--tint` in all six palettes — and writing it
+exposed a bug in the test itself, which resolved a dark theme's missing tokens through the
+*light* root instead of `:root.is-dark`, reporting a 2.83:1 failure that did not exist.
+A test that measures the wrong values is worse than no test.
+
+**"I enabled the CS 424 course site and it still says checking."** Three separate faults
+in one sentence:
+
+1. **Nothing fetched.** Enabling a source or an adapter wrote the flag and stopped, so the
+   state stayed `pending` until the next poll — up to half an hour of "Checking…", which
+   is indistinguishable from broken. The first-run screen has always synced on enable;
+   Settings was the one place that did not.
+2. **`set-adapter-enabled` wrote `state: "ok"` by hand**, which is worker rule 2's own
+   defect — a source reporting success before a single request. Masked only because
+   `displayState` calls a never-attempted source `pending` anyway; switch a site off and
+   on after it had run once and Settings said "Connected" over a fetch that never
+   happened. It goes through `statusAfterEnable` now, like every other toggle.
+3. **Settings never redrew.** The popup has listened to `chrome.storage.onChanged` since
+   the calendar landed; this page never did, so even once the sync finished the screen
+   kept saying "Checking…" until a reload. Guarded on a focused control, so the switch
+   under your finger does not move.
+
+**Week view: merging labels shifted the due time.** The source column was `auto`, and the
+comment that chose it — *"empty on a single-source row, so the title gets those 44px
+back"* — stopped being true the day source codes started appearing on every row rather
+than only merged ones. The reason went; the `auto` stayed. Measured across 17 real rows,
+the clock landed at **five different x positions**, 700 for `PL`, 711 for `WEB`, 729 for a
+merged `CV WEB`. Fixed at 44px (two codes; three ellipse, and the tooltip has named them
+in full all along) — now one x for all 17.
+
+950 tests.
+
 ## Light mode, the wordmark, and a pill that closes — 2026-09-12
 
 - **Light or dark is a setting now.** It was never one: every dark value lived behind

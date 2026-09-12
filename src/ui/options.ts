@@ -12,7 +12,7 @@ import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { buildIcs } from "../core/ics.js";
-import { MAX_POLL_MINUTES, MIN_POLL_MINUTES } from "../core/store.js";
+import { MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY } from "../core/store.js";
 import {
   isGrantedUpFront,
   originPattern,
@@ -1464,3 +1464,25 @@ function buildAdapter(
 
 
 renderThemePanel();
+
+/**
+ * Redraw when the store changes underneath.
+ *
+ * The popup has had this since the calendar landed; this page never did, so a
+ * sync finishing while Settings was open changed nothing on screen. Switching
+ * a course site on showed "Checking…" and kept showing it — the read had
+ * happened, the store said Connected, and the only way to find out was to
+ * reload the page.
+ *
+ * Guarded on a focused control: `refreshOptions` replaces the switch you are
+ * standing on, and having it move under the keyboard mid-interaction is worse
+ * than a stale row for a second.
+ */
+chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area !== "local" || !(STORAGE_KEY in changes)) return;
+  const focused = document.activeElement;
+  if (focused && focused !== document.body && document.querySelector(".rows")?.contains(focused)) {
+    return;
+  }
+  void refreshOptions();
+});
