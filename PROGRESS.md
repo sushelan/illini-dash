@@ -25,6 +25,64 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## The one source with no login page — 2026-09-12
+
+*"For reading the cs424 website it just says sign in needed but it doesnt link me to the
+sign in page."*
+
+`LOGIN_URL` has no entry for `site`, and the comment saying why is correct: *"a course
+website is whatever host the adapter points at, and there is no single page to open."*
+True in general — and the reason the one source a student cannot guess the address of was
+also the one with nothing to press.
+
+But the page **is** known, at the moment the logout is detected: it is the adapter URL
+that just answered 401. `syncOneSource` records it (`SourceStatus.loginUrl`), and
+`actionFor` falls back to it when there is no fixed form. For a Shibboleth-protected
+course page that URL is both the sign-in trigger and the destination — the student lands
+on the schedule rather than on a login form and then nowhere. The **requested** URL, not
+`finalUrl`: `finalUrl` is the middle of a SAML handshake.
+
+Chasing it found the real shape of the bug. **Four surfaces were each deciding what a
+sign-in link is**, all by reading `LOGIN_URL[source]` for themselves: the first-run
+checklist, the popover row, the empty state and the stale banner. One decision in four
+places, wrong in all four for the same source. They go through one `signInUrl` now. One of
+them had its own defect alongside: the button counted the sources and *then* skipped the
+ones with no URL, so "Open all 5 sign-in pages" could open four and say nothing about the
+fifth.
+
+Two things about the mutation pass. `loginUrl: err.page.finalUrl` **survived**, because
+the 401 fixture answers in place — `url === finalUrl` there, so it cannot tell them apart.
+The assertion moved to the Shibboleth fixture, which is the only one where they differ
+(parser rule 10: where a realistic fixture cannot distinguish a wrong implementation, use
+the one that can). And the harness could not reach the state at all until `?fail=sitelogin`
+existed, which is the same finding as every previous live defect.
+
+**And the preview stated a version that does not exist.** `getManifest` was stubbed
+`0.1.0` while the manifest said `1.0.0`, so every Settings capture — and
+`docs/ux/after/options*.png` are candidates for the store listing — showed a version
+nobody could install. It is defined in from `public/manifest.json` at bundle time now: a
+harness that asserts a fact about the build has to read it from the build.
+
+`node scripts/shots.mjs <name>` already filtered; using it turned a twelve-minute
+iteration into thirty seconds.
+
+973 tests, 38 shots.
+
+## Still open — PrairieLearn and PrairieTest "have a delay to show connected"
+
+Reported on the same run and **not diagnosed**. What the code establishes: the sync loop
+is sequential over sources and the store is written **once**, after all of them
+(`background.ts:287`). So within one sync no source can turn Connected before another —
+they flip together. That leaves two candidates, wanting opposite fixes:
+
+- they are genuinely the slowest (PrairieLearn fetches course instances, then an
+  assessment list per course), and the whole sync waits on them; or
+- a sync **skipped** them — a non-manual trigger skips sources in backoff
+  (`sync.ts:581`), which would park them for up to half an hour after one early failure.
+
+The `[sync] <source>: <state> (N items, R requests)` line distinguishes these in one
+reading, and Sushi has been asked for it.
+
 ## Clean-profile run: signing in changed nothing until you pressed Sync — 2026-09-12
 
 The first thing the clean-profile walk found, and it is the first five minutes of

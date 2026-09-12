@@ -99,6 +99,8 @@ export interface SourceOutcome {
   items: RawItem[];
   error?: string;
   requests: number;
+  /** Only for `needs_login`, and only where the page is not a fixed login form. */
+  loginUrl?: string;
 }
 
 /**
@@ -443,7 +445,17 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
       return { source, state: "disabled", items: [], error: err.message, requests };
     }
     if (err instanceof NeedsLogin) {
-      return { source, state: "needs_login", items: [], error: err.message, requests };
+      // `page.url` — what we asked for — rather than `finalUrl`, which is
+      // wherever the SSO bounced to. Opening the request URL signs the student
+      // in *and* lands them on the page they were missing.
+      return {
+        source,
+        state: "needs_login",
+        items: [],
+        error: err.message,
+        loginUrl: err.page.url,
+        requests,
+      };
     }
     // §6 distinguishes these: a ParseError means the page changed and the user
     // should see a red dot; anything else is treated as a network problem, which
@@ -648,6 +660,9 @@ export async function runSync(
         state: outcome.state,
         lastAttemptAt: now,
         lastError: outcome.error,
+        // Cleared, not merged, when this attempt was not a logout: a stale URL
+        // from a previous 401 would offer "Sign in" over a network error.
+        loginUrl: outcome.loginUrl,
         consecutiveFailures: failures,
       };
       next.backoffUntil[source] = nextAttemptAt(failures, now);

@@ -674,6 +674,39 @@ describe("course-site adapters in the loop (§4.5)", () => {
     });
     const { store } = await runSync(enableSite(emptyStore()), "alarm", expired);
     expect(store.sources.site.state).toBe("needs_login");
+    /*
+     * And it records *which* page, which is the half the UI needs.
+     *
+     * "For reading the cs424 website it just says sign in needed but it doesnt
+     * link me to the sign in page" (2026-09-12). `LOGIN_URL` has no entry for
+     * `site` and cannot have one — a course website is whatever host an adapter
+     * points at — so the row had the words and nothing to press. The URL that
+     * answered 401 is the answer, and this is the only place that knows it.
+     *
+     * The requested URL, not `finalUrl`: opening it triggers SSO *and* lands
+     * the student on the page they were missing.
+     */
+    expect(store.sources.site.loginUrl).toBe(ADAPTER.url);
+  });
+
+  it("clears the recorded page when the next failure is not a login", async () => {
+    // Otherwise a stale 401 leaves a "Sign in" button over a network error,
+    // which is worse than no button: it sends the student to sign into a
+    // session that is already valid.
+    const flaky = deps({
+      async enabledAdapters() {
+        return [ADAPTER] as never;
+      },
+      async fetchPage(url) {
+        if (url.includes("cs999")) throw new TypeError("Failed to fetch");
+        return { url, finalUrl: url, status: 200, body: PAGES[url] ?? "" };
+      },
+    });
+    const before = enableSite(emptyStore());
+    before.sources.site = { ...before.sources.site, loginUrl: ADAPTER.url };
+    const { store } = await runSync(before, "alarm", flaky);
+    expect(store.sources.site.state).not.toBe("needs_login");
+    expect(store.sources.site.loginUrl).toBeUndefined();
   });
 
   it("still reports a 404 as an adapter failure, not a login problem", async () => {
@@ -710,6 +743,17 @@ describe("course-site adapters in the loop (§4.5)", () => {
     });
     const { store } = await runSync(enableSite(emptyStore()), "alarm", login);
     expect(store.sources.site.state).toBe("needs_login");
+    /*
+     * The course page, **not** the SSO host it bounced to.
+     *
+     * This is the only fixture where the two differ — the 401-in-place case
+     * above has `url === finalUrl`, so it cannot tell them apart, and a
+     * `finalUrl` mutation survived there. Sending the student to
+     * `shibboleth.illinois.edu/idp/profile/SAML2` directly is sending them to
+     * the middle of a handshake with no course page on the other side of it.
+     */
+    expect(store.sources.site.loginUrl).toBe(ADAPTER.url);
+    expect(store.sources.site.loginUrl).not.toContain("shibboleth");
   });
 
   it("fetches nothing when no adapter is enabled", async () => {

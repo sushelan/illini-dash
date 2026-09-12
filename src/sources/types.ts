@@ -163,6 +163,19 @@ export interface SourceStatus {
   lastSuccessAt?: string;
   /** Short, human-readable. */
   lastError?: string;
+  /**
+   * Where to send the student to fix a `needs_login`, when the answer is not a
+   * fixed login form.
+   *
+   * `LOGIN_URL` covers the four hosted sources, and deliberately has no entry
+   * for `site`: a course website is whatever host an adapter points at, so
+   * there is no single page to open — which left "Sign in needed" on the one
+   * source with nothing to click. But the page *is* known, at the moment the
+   * logout is detected: it is the adapter URL that just answered 401. Recorded
+   * here, it also sends the student back to the course page once SSO completes,
+   * rather than to a login form and then nowhere.
+   */
+  loginUrl?: string;
   consecutiveFailures: number;
 }
 

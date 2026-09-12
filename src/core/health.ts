@@ -250,9 +250,21 @@ export type SourceAction =
   /** The page was not what the parser expected. Open it and look. */
   | { kind: "open"; source: Source; url: string };
 
-export function actionFor(source: Source, state: SourceState): SourceAction | undefined {
+/**
+ * `loginUrl` is the page the *last attempt* found locked, recorded by the sync
+ * loop. It only matters for `site`: the four hosted sources have a fixed login
+ * form in `LOGIN_URL`, and a course website has none by construction, which is
+ * why its row said "Sign in needed" over nothing to click. A fixed form still
+ * wins where one exists — it is a page built for signing in, and the recorded
+ * URL is merely a page that happens to demand it.
+ */
+export function actionFor(
+  source: Source,
+  state: SourceState,
+  loginUrl?: string,
+): SourceAction | undefined {
   if (state === "needs_login") {
-    const url = LOGIN_URL[source];
+    const url = LOGIN_URL[source] ?? loginUrl;
     return url ? { kind: "login", source, url } : undefined;
   }
   // A network error is the recoverable one, and retrying is the whole fix in
@@ -321,7 +333,7 @@ export function healthPill(
 
   if (summary.needsLogin.length > 0) {
     const first = summary.needsLogin[0]!;
-    const action = actionFor(first, "needs_login");
+    const action = actionFor(first, "needs_login", sources[first]?.loginUrl);
     return {
       tone: "warn",
       text:
@@ -357,7 +369,9 @@ export function healthPill(
         summary.failing.length === 1
           ? `${SOURCE_NAME[lead]} ${verb}`
           : `${summary.failing.length} sites ${plural}`,
-      ...(actionFor(lead, state) ? { action: actionFor(lead, state)! } : {}),
+      ...(actionFor(lead, state, sources[lead]?.loginUrl)
+        ? { action: actionFor(lead, state, sources[lead]?.loginUrl)! }
+        : {}),
     };
   }
 
@@ -419,7 +433,7 @@ export function sourceRows(
     if (!status) continue;
     const source = key as Source;
     const state = displayState(status);
-    const action = actionFor(source, state);
+    const action = actionFor(source, state, status.loginUrl);
     rows.push({
       source,
       state,

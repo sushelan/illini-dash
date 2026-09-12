@@ -19,9 +19,8 @@ import {
   reportUrlFromHash,
   type CaptureResult,
 } from "../capture.js";
-import { displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
+import { actionFor, displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
 import {
-  LOGIN_URL,
   SOURCE_HINT,
   SOURCE_TITLE,
   STATE_WORD,
@@ -694,11 +693,10 @@ async function renderOptions(): Promise<void> {
           .join("\n") || undefined,
       ),
     );
-    if (shown === "needs_login" && LOGIN_URL[source as never]) {
+    const signIn = actionFor(source as never, shown, status.loginUrl);
+    if (signIn?.kind === "login") {
       const login = el("button", "Sign in", "btn btn-secondary btn-sm");
-      login.addEventListener("click", () =>
-        chrome.tabs.create({ url: LOGIN_URL[source as never]! }),
-      );
+      login.addEventListener("click", () => chrome.tabs.create({ url: signIn.url }));
       row.append(login);
     }
     sources.append(row);
@@ -722,6 +720,23 @@ async function renderOptions(): Promise<void> {
     row.append(
       stateChip(shown, shown === "ok" ? facts?.lastRead : undefined, siteStatus.lastError),
     );
+    /*
+     * The button this row never had.
+     *
+     * A course website has no entry in `LOGIN_URL` — there is no one page to
+     * open, by construction — so this said "Sign in needed" with nothing beside
+     * it, on the only source where the student cannot guess the address either.
+     * `actionFor` now falls back to the page the last attempt found locked,
+     * which for a Shibboleth-protected course page is both the sign-in trigger
+     * and the destination.
+     */
+    const siteAction = actionFor("site", shown, siteStatus.loginUrl);
+    if (siteAction?.kind === "login") {
+      const login = el("button", "Sign in", "btn btn-secondary btn-sm");
+      login.title = `Opens ${new URL(siteAction.url).hostname}, which signs you in and lands on the page`;
+      login.addEventListener("click", () => chrome.tabs.create({ url: siteAction.url }));
+      row.append(login);
+    }
     box.append(row);
     siteHealth.append(box);
   }

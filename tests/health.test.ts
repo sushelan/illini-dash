@@ -747,4 +747,59 @@ describe("sourceRows (the pill's popover, and Settings)", () => {
     // single URL — and a row with no action is the dead end this fixes.
     expect(actionFor("site", "parse_error")).toEqual({ kind: "retry", source: "site" });
   });
+
+  /**
+   * Reported 2026-09-12, from the clean-profile run: "for reading the cs424
+   * website it just says sign in needed but it doesnt link me to the sign in
+   * page."
+   *
+   * `LOGIN_URL` has no entry for `site` and correctly cannot: a course website
+   * is whatever host an adapter points at. But the page *is* known by the time
+   * the row is drawn — it is the URL that answered 401 — and the sync loop now
+   * records it.
+   */
+  describe("a course website has no login form, but it does have a page", () => {
+    const PAGE = "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html";
+
+    it("offers the page the last attempt found locked", () => {
+      expect(actionFor("site", "needs_login", PAGE)).toEqual({
+        kind: "login",
+        source: "site",
+        url: PAGE,
+      });
+    });
+
+    it("still has nothing to offer when no attempt recorded one", () => {
+      // Honest: before the first fetch there is no way to know which of several
+      // course sites needs signing into, and inventing one is worse than a row
+      // with no button.
+      expect(actionFor("site", "needs_login")).toBeUndefined();
+    });
+
+    it("a real login form still wins over a page that merely demanded one", () => {
+      const action = actionFor("gradescope", "needs_login", "https://www.gradescope.com/courses/1");
+      expect(action).toEqual({
+        kind: "login",
+        source: "gradescope",
+        url: "https://www.gradescope.com/login",
+      });
+    });
+
+    it("reaches the popover row, which is where it was missing", () => {
+      const rows = sourceRows(
+        { site: status({ source: "site", state: "needs_login", loginUrl: PAGE }) },
+        NOW,
+      );
+      expect(rows[0]?.action).toEqual({ kind: "login", source: "site", url: PAGE });
+    });
+
+    it("and the pill, so the header button opens it too", () => {
+      const pill = healthPill(
+        { site: status({ source: "site", state: "needs_login", loginUrl: PAGE }) },
+        NOW.toISOString(),
+        NOW,
+      );
+      expect(pill.action).toEqual({ kind: "login", source: "site", url: PAGE });
+    });
+  });
 });

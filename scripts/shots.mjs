@@ -96,6 +96,11 @@ const SHOTS = [
    */
   { name: "options", query: "page=options", size: [1280, 4100] },
   { name: "options-stale", query: "page=options&stale=1", size: [1280, 800] },
+  // The course-website source signed out. It is the only source with no fixed
+  // login form, which is how its row shipped reading "Sign in needed" with
+  // nothing beside it — a state no capture could reach until `fail=sitelogin`
+  // existed, and therefore one nobody had looked at.
+  { name: "options-sitelogin", query: "page=options&fail=sitelogin", size: [1280, 1600] },
   { name: "components", query: "page=components", size: [960, 1700] },
   { name: "full-exams", query: "tab=exams&view=full", size: [1280, 800] },
   { name: "full-attention", query: "tab=attention&view=full", size: [1280, 800] },

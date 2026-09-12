@@ -181,6 +181,8 @@ const adapters = [
     enabled: true, granted: false, currentTerm: true },
 ];
 
+declare const __MANIFEST_VERSION__: string;
+
 const sources = {
   // `?fail=` picks a failure to look at: `network` is the one Sushi hit on a
   // live run (Gradescope, fixed by pressing Sync now), `parse` is a page that
@@ -204,7 +206,13 @@ const sources = {
   prairielearn: { source: "prairielearn", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   prairietest: { source: "prairietest", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   smartphysics: { source: "smartphysics", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
-  site: { source: "site", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+  // `?fail=sitelogin`: the course-website source signed out. Its own state, not
+  // a variant of another source's, because it is the only source with no fixed
+  // login form — which is exactly how it came to render "Sign in needed" with
+  // nothing beside it. Unreachable here until now, so nothing could see it.
+  site: query.get("fail") === "sitelogin"
+    ? { source: "site", enabled: true, state: "needs_login", lastAttemptAt: new Date(now - 2 * 60_000).toISOString(), lastSuccessAt: new Date(now - 26 * 3600_000).toISOString(), lastError: "401 at https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html", loginUrl: "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html", consecutiveFailures: 2 }
+    : { source: "site", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
 };
 
 (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -307,7 +315,11 @@ const sources = {
       return { type: "ok" };
     },
     getURL: (p: string) => p,
-    getManifest: () => ({ version: "0.1.0", name: "Illini Dash" }),
+    // `__MANIFEST_VERSION__` is defined from public/manifest.json by
+    // preview.mjs. It was "0.1.0" here while the manifest said 1.0.0, so every
+    // Settings capture stated a version that does not exist — on images that
+    // are candidates for the store listing.
+    getManifest: () => ({ version: __MANIFEST_VERSION__, name: "Illini Dash" }),
     openOptionsPage: () => undefined,
   },
   tabs: { create: () => undefined },

@@ -59,6 +59,8 @@ import {
   type HealthPill,
   type SourceAction,
   type SourceRow,
+  actionFor,
+  displayState,
   emptyStateFor,
   healthPill,
   sourceRows,
@@ -270,6 +272,29 @@ function renderSourceRow(row: SourceRow): HTMLElement {
  * forward: you clicked "Gradescope couldn't be read", got a list, and the list
  * had nothing on it either.
  */
+/**
+ * The page that signs this source in, or nothing.
+ *
+ * Three surfaces open one — the first-run checklist, the empty state, and the
+ * stale banner — and all three used to read `LOGIN_URL[source]` for themselves.
+ * That is one decision in four places, and it was wrong in all of them for the
+ * same source: a course website has no fixed login form, so `site` rendered
+ * "Sign in needed" with nothing beside it. `actionFor` knows the page that
+ * actually answered 401, and now everything asks it.
+ *
+ * `assume` is for the banner, which has already established that this source
+ * needs a login and is describing how long ago rather than re-deriving it.
+ */
+function signInUrl(
+  source: Source,
+  status: SourceStatus | undefined,
+  assume?: SourceState,
+): string | undefined {
+  if (!status) return undefined;
+  const action = actionFor(source, assume ?? displayState(status), status.loginUrl);
+  return action?.kind === "login" ? action.url : undefined;
+}
+
 function actionButton(action: SourceAction | undefined): HTMLButtonElement | undefined {
   if (!action) return undefined;
   const button = document.createElement("button");
@@ -413,7 +438,7 @@ function renderBanners(state: {
       stale.hours === undefined
         ? "never read — nothing from it is listed"
         : `signed out ${stale.hours}h — rows may be old`;
-    const login = LOGIN_URL[stale.source];
+    const login = signInUrl(stale.source, state.sources[stale.source], "needs_login");
     banners.push({
       tone: "warn",
       glyph: "warning",
@@ -1076,7 +1101,15 @@ function renderSetup(rows: SetupRow[]): void {
   const actions = document.createElement("div");
   actions.className = "setup--actions";
 
-  const outstanding = loginsToOpen(rows);
+  // Resolved to URLs *before* the label is written. It used to count the
+  // sources and then skip the ones with no page to open, so a button reading
+  // "Open all 5 sign-in pages" could open four and say nothing about the fifth.
+  const outstanding = loginsToOpen(rows)
+    .map((source) => ({
+      source,
+      url: signInUrl(source, rows.find((row) => row.source === source)?.status) ?? LOGIN_URL[source],
+    }))
+    .filter((entry): entry is { source: Source; url: string } => entry.url !== undefined);
   if (outstanding.length > 0) {
     const all = document.createElement("button");
     all.className = "btn btn-secondary";
@@ -1084,11 +1117,10 @@ function renderSetup(rows: SetupRow[]): void {
       outstanding.length === 1 ? "Open the sign-in page" : `Open all ${outstanding.length} sign-in pages`;
     all.title = "Opens a tab for each site you picked that is not signed in yet";
     all.addEventListener("click", () => {
-      for (const source of outstanding) {
-        const url = LOGIN_URL[source];
+      for (const { url } of outstanding) {
         // Not focused: four tabs stealing focus one after another would leave
         // the student on whichever opened last, with no idea where they are.
-        if (url) chrome.tabs.create({ url, active: false });
+        chrome.tabs.create({ url, active: false });
       }
     });
     actions.append(all);
@@ -1169,7 +1201,7 @@ function renderSetupRow(row: SetupRow): HTMLElement {
   // The action, beside the state rather than instead of it: "Sign in needed"
   // and a button that does it are two different things, and replacing the first
   // with the second left a row whose state was a verb.
-  const login = row.enabled && row.status?.state === "needs_login" ? LOGIN_URL[row.source] : undefined;
+  const login = row.enabled ? signInUrl(row.source, row.status) : undefined;
   if (login) {
     const button = document.createElement("button");
     button.type = "button";
@@ -2252,7 +2284,7 @@ function render(
       const actions = document.createElement("div");
       actions.className = "empty--actions";
       for (const source of state.logins) {
-        const url = LOGIN_URL[source];
+        const url = signInUrl(source, sources[source]);
         if (!url) continue;
         const button = document.createElement("button");
         button.type = "button";

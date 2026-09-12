@@ -34,9 +34,28 @@ if (!existsSync(join(dist, "popup.js"))) {
 
 const stubSource = join(root, "scripts", "preview-data.ts");
 const stubOut = join(root, "node_modules", ".cache-preview-stub.js");
+/*
+ * The real version, defined in rather than typed twice.
+ *
+ * The stub hard-coded "0.1.0" while the manifest said 1.0.0, so every Settings
+ * capture — and `docs/ux/after/options*.png` are candidate store screenshots —
+ * showed a version that does not exist. A harness that states a fact about the
+ * build has to read it from the build.
+ */
+const manifestVersion = JSON.parse(
+  readFileSync(join(root, "public", "manifest.json"), "utf8"),
+).version;
 execFileSync(
   "npx",
-  ["esbuild", stubSource, "--bundle", "--format=esm", `--outfile=${stubOut}`, "--log-level=error"],
+  [
+    "esbuild",
+    stubSource,
+    "--bundle",
+    "--format=esm",
+    `--outfile=${stubOut}`,
+    "--log-level=error",
+    `--define:__MANIFEST_VERSION__=${JSON.stringify(manifestVersion)}`,
+  ],
   { cwd: root },
 );
 
