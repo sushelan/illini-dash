@@ -46,6 +46,9 @@ export const ICON_PATHS = {
   pin: "M6 2h4M8 2v5M4.5 12h7l-1.6-3.4a1 1 0 0 1-.1-.4V7h-3.6v1.2a1 1 0 0 1-.1.4zM8 12v2.5",
   plus: "M8 3.5v9M3.5 8h9",
   close: "M4 4l8 8M12 4l-8 8",
+  /* Chrome's extensions menu, so the pin card can point at the real thing. */
+  puzzle:
+    "M6.5 2.2a1.7 1.7 0 0 1 3 0c0 .5-.2.9-.2 1.3h2.6a.6.6 0 0 1 .6.6v2.6c.4 0 .8-.2 1.3-.2a1.7 1.7 0 0 1 0 3c-.5 0-.9-.2-1.3-.2v2.6a.6.6 0 0 1-.6.6H9.3c0-.4.2-.8.2-1.3a1.7 1.7 0 0 0-3 0c0 .5.2.9.2 1.3H4.1a.6.6 0 0 1-.6-.6V9.3c-.4 0-.8.2-1.3.2a1.7 1.7 0 0 1 0-3c.5 0 .9.2 1.3.2V4.1a.6.6 0 0 1 .6-.6h2.6c0-.4-.2-.8-.2-1.3z",
   "tab-day": "M3 4h10v9H3zM3 7h10M5 2v2M11 2v2M5.5 10h5",
   "tab-week": "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
   "tab-month": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",

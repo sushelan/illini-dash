@@ -604,6 +604,16 @@ function renderRow(
 /** All items currently rendered, so "Merge with…" can offer same-course rows. */
 let currentItems: Item[] = [];
 
+/**
+ * What the last draw actually found.
+ *
+ * The first-run screen and the calendar are the same page, and `get-setup`
+ * answers before `get-state` — so on the run where setup is still showing, the
+ * counts are from whatever the previous draw saw. Undefined until then, which
+ * is why `setupSummary` has to keep working without it.
+ */
+let lastFound: { items: number; courses: number } | undefined;
+
 /** A correction that silently did nothing is worse than one that says so. */
 function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
   if (response.type === "error") showStatus(response.message);
@@ -885,6 +895,9 @@ function renderSetup(rows: SetupRow[]): void {
   const page = document.createElement("div");
   page.className = "setup--page";
 
+  const pin = renderPinCard();
+  if (pin) page.append(pin);
+
   const heading = document.createElement("h1");
   heading.className = "setup--title";
   heading.textContent = "Which sites do your courses use?";
@@ -903,7 +916,10 @@ function renderSetup(rows: SetupRow[]): void {
 
   const summary = document.createElement("p");
   summary.className = "setup--summary";
-  summary.textContent = setupSummary(setupProgress(rows));
+  // What was actually found, once anything has been. `found` comes from the
+  // last draw's state, so on the first paint it is undefined and the line falls
+  // back to the connection count — which is the only true thing available then.
+  summary.textContent = setupSummary(setupProgress(rows), lastFound);
 
   // The line Sushi asked for. It goes under the list rather than in the blurb
   // because this is the worry the list creates — "what if I pick wrong" — and
@@ -956,6 +972,7 @@ function renderSetupRow(row: SetupRow): HTMLElement {
 
   const box = document.createElement("input");
   box.type = "checkbox";
+  box.className = "switch";
   box.checked = row.enabled;
   box.id = `setup-${row.source}`;
   box.addEventListener("change", async () => {
@@ -979,35 +996,42 @@ function renderSetupRow(row: SetupRow): HTMLElement {
   hint.textContent = row.hint;
   label.append(name, hint);
 
+  // The same chips Settings uses, so a student who has seen one screen can read
+  // the other. "✓ connected", "needs sign-in", "could not read" and "not used"
+  // were four wordings this screen invented for itself.
   const state = document.createElement("span");
-  state.className = "setup--state";
   if (!row.enabled) {
-    state.textContent = "not used";
-    state.classList.add("setup--state-off");
+    state.className = "chip-base chip-state";
+    state.textContent = "Not used";
   } else if (row.status?.lastSuccessAt !== undefined) {
-    state.textContent = "✓ connected";
-    state.classList.add("setup--state-ok");
+    state.className = "chip-base chip-state is-ok";
+    state.textContent = "Connected";
   } else if (row.status?.state === "needs_login") {
-    const url = LOGIN_URL[row.source];
-    if (url) {
-      const button = document.createElement("button");
-      button.className = "btn btn-secondary btn-sm";
-      button.textContent = "Sign in";
-      button.addEventListener("click", () => chrome.tabs.create({ url }));
-      state.append(button);
-    } else {
-      state.textContent = "needs sign-in";
-    }
-    state.classList.add("setup--state-login");
+    state.className = "chip-base chip-state is-warn";
+    state.textContent = "Sign in needed";
   } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
-    state.textContent = "could not read";
+    state.className = "chip-base chip-state is-err";
+    state.textContent = "Couldn't read";
     state.title = row.status.lastError ?? "";
-    state.classList.add("setup--state-err");
   } else {
-    state.textContent = "checking…";
+    state.className = "chip-base chip-state";
+    state.textContent = "Checking…";
   }
 
   line.append(box, label, state);
+
+  // The action, beside the state rather than instead of it: "Sign in needed"
+  // and a button that does it are two different things, and replacing the first
+  // with the second left a row whose state was a verb.
+  const login = row.enabled && row.status?.state === "needs_login" ? LOGIN_URL[row.source] : undefined;
+  if (login) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-secondary btn-sm";
+    button.textContent = "Sign in";
+    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
+    line.append(button);
+  }
   return line;
 }
 
@@ -1053,6 +1077,60 @@ viewEl.addEventListener("keydown", (event) => {
   next.tabIndex = 0;
   next.focus();
 });
+
+/**
+ * "Pin Illini Dash", and the two clicks that do it.
+ *
+ * Chrome leaves a newly installed extension unpinned, which means the badge —
+ * the only thing that ever tells a student something is due without them
+ * asking — lives behind the puzzle-piece menu where nobody looks. Everything
+ * else in this project is about not failing silently; an unpinned icon is that
+ * failure at the operating-system level.
+ *
+ * Dismissible, and it stays dismissed: a card that reappears after being
+ * dismissed is worse than one that was never shown.
+ */
+const PIN_DISMISSED_KEY = "illini-dash.pinCardDismissed";
+
+function renderPinCard(): HTMLElement | undefined {
+  /*
+   * The tab only.
+   *
+   * This is the screen `onInstalled` opens, and the install is the moment the
+   * advice is for. In a 400px popup the card costs about 90px of a 600px window
+   * and pushes "Show my calendar" — the one thing on the screen that has to be
+   * reachable — below the fold, to give advice to somebody who has just
+   * demonstrated they can find the icon.
+   */
+  if (!isFullView) return undefined;
+  if (readStored(PIN_DISMISSED_KEY) === "1") return undefined;
+
+  const card = document.createElement("div");
+  card.className = "pincard";
+
+  const glyph = icon("puzzle");
+  glyph.classList.add("pincard--glyph");
+
+  const text = document.createElement("div");
+  text.className = "pincard--text";
+  const title = document.createElement("b");
+  title.textContent = "Pin Illini Dash to your toolbar";
+  const how = document.createElement("span");
+  how.textContent =
+    "Click the puzzle-piece icon at the top right of Chrome, then the pin beside Illini Dash. " +
+    "Until you do, the badge that counts what is due is hidden behind that menu.";
+  text.append(title, how);
+
+  const dismiss = iconButton("close", "Dismiss");
+  dismiss.classList.add("btn-sm");
+  dismiss.addEventListener("click", () => {
+    writeStored(PIN_DISMISSED_KEY, "1");
+    card.remove();
+  });
+
+  card.append(glyph, text, dismiss);
+  return card;
+}
 
 /* -------------------------------------------------------------------------- */
 /* View state                                                                  */
@@ -2020,6 +2098,11 @@ async function draw(): Promise<void> {
   // TypeScript cannot know that (see core/compat.ts).
   const { state, missing } = normalizePopupState<typeof response>(response);
   const now = new Date();
+  // Recorded before anything is drawn, so the first-run screen — which is the
+  // same page and runs before this on the draw where it shows — has a real
+  // answer to put under its checklist on the next pass.
+  const visible = state.items.filter((item) => !item.hidden);
+  lastFound = { items: visible.length, courses: coursesIn(visible).length };
   renderHealth(state.sources, state.lastSyncAt, now);
   renderBanners(state);
   render(state.items, state.settings ?? DEFAULT_SETTINGS, state.sources, now);

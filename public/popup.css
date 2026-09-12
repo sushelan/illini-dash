@@ -518,19 +518,32 @@ h2.section {
 .setup--title { font-size: 15px; margin: 0 0 6px; }
 .setup--blurb { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
 .setup--row {
-  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto;
-  align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  align-items: center; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--line);
 }
 .setup--label { min-width: 0; cursor: pointer; }
-.setup--name { display: block; font-size: 13px; }
+.setup--name { display: block; font-size: 13px; font-weight: 600; }
 /* Who each site is for. Unchecking something you do need is the expensive
    mistake here, and nobody can answer a checklist of names they do not know. */
 .setup--hint { display: block; font-size: 11px; color: var(--muted); line-height: 1.35; }
-.setup--state { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.setup--state-ok { color: var(--ok); }
-.setup--state-login { color: var(--warn); }
-.setup--state-err { color: var(--err); cursor: help; }
-.setup--state-off { opacity: .6; }
+/*
+ * "Pin Illini Dash to your toolbar".
+ *
+ * Chrome leaves a new extension unpinned, so the badge — the only thing that
+ * tells a student something is due without them asking — sits behind the
+ * puzzle-piece menu. Everything else in this project is about not failing
+ * silently; an unpinned icon is that failure one level below the extension.
+ */
+.pincard {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) 24px;
+  align-items: start; gap: 10px;
+  padding: 10px 12px; margin: 0 0 14px;
+  border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent-wash);
+}
+.pincard--glyph { width: 20px; height: 20px; color: var(--accent); }
+.pincard--text { font-size: 11px; line-height: 1.45; color: var(--muted); }
+.pincard--text b { display: block; font-size: 12px; color: var(--fg); margin-bottom: 2px; }
 
 .setup--summary {
   font-size: 12px; margin: 12px 0 2px; padding-top: 12px;

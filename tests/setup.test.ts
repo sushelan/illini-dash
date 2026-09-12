@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   loginsToOpen,
   needsSetup,
+  opensOnInstall,
   setupProgress,
   setupRows,
   setupSummary,
@@ -192,5 +193,90 @@ describe("setupProgress and setupSummary", () => {
       }),
     );
     expect(setupSummary(setupProgress(one))).toContain("1 site.");
+  });
+});
+
+describe("setupSummary, once something has actually been read", () => {
+  const ok = "2026-09-10T18:00:00.000Z";
+  const connected = () =>
+    setupProgress(
+      setupRows(
+        storeWith({
+          canvas: { lastSuccessAt: ok },
+          gradescope: { lastSuccessAt: ok },
+          prairielearn: { enabled: false },
+          prairietest: { enabled: false },
+          smartphysics: { enabled: false },
+        }),
+      ),
+    );
+
+  it("says what it found rather than how many sites answered", () => {
+    // "All 2 connected" is a fact about plumbing. The student installed this
+    // for the deadlines, and this line is the first evidence they get that it
+    // worked at all.
+    expect(setupSummary(connected(), { items: 43, courses: 6 })).toBe(
+      "Found 43 deadlines across 6 courses.",
+    );
+  });
+
+  it("counts one of each without reading as a plural", () => {
+    expect(setupSummary(connected(), { items: 1, courses: 1 })).toBe(
+      "Found 1 deadline across 1 course.",
+    );
+  });
+
+  it("falls back to the connection count when nothing was found", () => {
+    // Week one, or every deadline further out than the horizon. "Found 0
+    // deadlines" reads as a failure; "All 2 connected" is the true statement
+    // available at that moment.
+    expect(setupSummary(connected(), { items: 0, courses: 0 })).toBe("All 2 connected.");
+    expect(setupSummary(connected())).toBe("All 2 connected.");
+  });
+
+  it("never claims a find while a source still needs signing in", () => {
+    // The count would be from the sources that *did* answer, and presenting it
+    // as the whole picture is the §11 failure with a friendly face.
+    const partial = setupProgress(
+      setupRows(
+        storeWith({
+          canvas: { lastSuccessAt: ok },
+          gradescope: { state: "needs_login" },
+          prairielearn: { enabled: false },
+          prairietest: { enabled: false },
+          smartphysics: { enabled: false },
+        }),
+      ),
+    );
+    expect(setupSummary(partial, { items: 43, courses: 6 })).toContain("sign in");
+  });
+});
+
+describe("opensOnInstall", () => {
+  it("opens the first-run screen when the extension is installed", () => {
+    // Nothing used to happen on install. The worker synced silently behind an
+    // icon Chrome does not pin, so the badge — the only thing that would ever
+    // tell a student something was due — was invisible to exactly the student
+    // who never opens the popup.
+    expect(opensOnInstall("install")).toBe(true);
+  });
+
+  it("never opens a tab on an update", () => {
+    /*
+     * The branch where this would be actively wrong. Chrome updates extensions
+     * in the background, so a tab that opens by itself over whatever someone
+     * was reading is the behaviour that gets an extension uninstalled — and an
+     * update is the one case where the student has already been through setup.
+     */
+    for (const reason of ["update", "chrome_update", "shared_module_update"]) {
+      expect(opensOnInstall(reason), reason).toBe(false);
+    }
+  });
+
+  it("does not open a tab for a reason it has never heard of", () => {
+    // A future Chrome release adding a fifth reason must not default to
+    // "spawn a tab".
+    expect(opensOnInstall("something_new")).toBe(false);
+    expect(opensOnInstall("")).toBe(false);
   });
 });

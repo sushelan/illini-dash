@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (894 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (901 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -24,6 +24,31 @@ from here.**
   the popup's 322px of chrome, a component system, Settings, first run, notifications and
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
+
+## UX plan phase E — first run and install — 2026-09-12
+- **M13** nothing used to happen on install. `opensOnInstall(reason)` in `core/setup.ts`
+  — tested and mutation-checked — and `onInstalled` opens `popup.html?view=full` on
+  `install` only. `update` is the branch where this would be actively wrong: Chrome
+  updates in the background, and a tab that opens over what someone was reading is the
+  behaviour that gets an extension uninstalled. Both branches log (worker rule 5).
+- A dismissible **"Pin Illini Dash to your toolbar"** card, with the two clicks. Chrome
+  leaves a new extension unpinned, so the badge — the only thing that tells a student
+  something is due without them asking — sits behind the puzzle-piece menu. It is the
+  project's own "never fail silently" rule at the operating-system level.
+  **Only in the tab**, which is the screen the install opens: in a 400px popup it cost
+  ~90px and pushed "Show my calendar" below the fold, to give advice to somebody who has
+  just demonstrated they can find the icon.
+- The checklist uses the same switches and state chips as Settings. It had invented four
+  wordings of its own ("✓ connected", "needs sign-in", "could not read", "not used"), and
+  "Sign in" replaced the state rather than sitting beside it — leaving a row whose state
+  was a verb.
+- `setupSummary` gained a `found` argument: once every chosen source has answered it says
+  **"Found 43 deadlines across 6 courses"** rather than "All 3 connected". The second is a
+  fact about plumbing; the first is what the student installed this for. It falls back
+  whenever nothing was found, because "Found 0 deadlines" reads as a failure.
+- 901 tests.
+- **Still Sushi's:** the clean-profile install check (does the tab open, does the pin card
+  read right). See the list at the end of this file.
 
 ## UX plan phase D — Settings — 2026-09-12
 - A 1900px essay becomes a page you can navigate: a sticky section list built from the

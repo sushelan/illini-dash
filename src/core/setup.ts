@@ -71,6 +71,28 @@ export function setupRows(store: StoreV1Plus): SetupRow[] {
 }
 
 /**
+ * Whether an install should open the first-run screen in a tab.
+ *
+ * Nothing used to happen on install. The worker synced silently, and Chrome
+ * leaves a new extension unpinned — so the badge, which is the only thing that
+ * would ever tell a student something was due, is behind the puzzle-piece menu
+ * and invisible to exactly the student who never opens the popup. A first run
+ * that nobody sees is a first run that did not happen.
+ *
+ * **Only `install`.** `update` is the branch where this would be actively
+ * wrong: Chrome updates extensions in the background, and a tab opening by
+ * itself over whatever someone was reading is the behaviour that gets an
+ * extension uninstalled. `chrome_update` and `shared_module_update` are not
+ * this extension changing at all.
+ *
+ * In core with a test rather than as a comparison inside the listener, because
+ * it is a decision and `background.ts` is the file the suite cannot reach.
+ */
+export function opensOnInstall(reason: string): boolean {
+  return reason === "install";
+}
+
+/**
  * Whether the setup screen should be shown at all.
  *
  * One field, asked plainly. It used to also accept "some source has succeeded"
@@ -124,8 +146,17 @@ export function setupProgress(rows: readonly SetupRow[]): SetupProgress {
  * It never says "you are done" while nothing has been read, and it never
  * blocks: "show my calendar" stays clickable throughout, because a student who
  * wants to look at an empty calendar is allowed to.
+ *
+ * `found` is the whole point of the last branch. "All 3 connected" is a fact
+ * about plumbing; "Found 43 deadlines across 6 courses" is the thing the
+ * student installed this for, and it is the first evidence they get that it
+ * worked. The connection count stays for every state before that, because
+ * until something has been read there is nothing to count.
  */
-export function setupSummary(progress: SetupProgress): string {
+export function setupSummary(
+  progress: SetupProgress,
+  found?: { items: number; courses: number },
+): string {
   if (progress.chosen === 0) {
     return "Nothing selected yet, so there is nothing to read. Pick the sites your courses use.";
   }
@@ -134,6 +165,11 @@ export function setupSummary(progress: SetupProgress): string {
   }
   if (progress.connected < progress.chosen) {
     return `${progress.connected} of ${progress.chosen} connected. The rest still need you to sign in.`;
+  }
+  if (found && found.items > 0) {
+    const items = `${found.items} deadline${found.items === 1 ? "" : "s"}`;
+    const courses = `${found.courses} course${found.courses === 1 ? "" : "s"}`;
+    return `Found ${items} across ${courses}.`;
   }
   return `All ${progress.chosen} connected.`;
 }

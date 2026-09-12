@@ -28,7 +28,7 @@ import {
 import { dedupe } from "./core/dedupe.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, statusAfterEnable } from "./core/health.js";
-import { needsSetup, setupRows } from "./core/setup.js";
+import { needsSetup, opensOnInstall, setupRows } from "./core/setup.js";
 import { detectInOffscreen } from "./core/offscreen-client.js";
 import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
 import { createStoreQueue } from "./core/queue.js";
@@ -545,6 +545,17 @@ chrome.contextMenus.onClicked.addListener((info) => {
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
   createReportMenu();
+  if (opensOnInstall(details.reason)) {
+    // The first thing that happens, before the sync: a fresh install otherwise
+    // does its work silently behind an icon Chrome has not pinned, so the badge
+    // is invisible to exactly the student who never opens the popup.
+    console.log("[illini-dash] first install — opening the setup tab");
+    chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
+  } else {
+    // Both branches logged (worker rule 5): "this was an update, so no tab" and
+    // "the listener never ran" are otherwise the same silence.
+    console.log(`[illini-dash] ${details.reason}: no setup tab`);
+  }
   void scheduleAlarm()
     .then(() =>
       // Only on `update`. `install` has nothing resting yet, and

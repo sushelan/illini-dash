@@ -63,6 +63,8 @@ const SHOTS = [
   { name: "popup-exams", query: "tab=exams", size: [400, 600] },
   { name: "popup-attention", query: "tab=attention", size: [400, 600] },
   { name: "popup-setup", query: "tab=day&setup=1", size: [400, 600] },
+  // The screen `onInstalled` actually opens. The pin card lives only here.
+  { name: "full-setup", query: "tab=day&setup=1&view=full", size: [1280, 800] },
   { name: "full-month", query: "tab=month&view=full", size: [1280, 800] },
   { name: "full-week", query: "tab=week&view=full", size: [1280, 800] },
   { name: "full-day", query: "tab=day&view=full", size: [1280, 800] },
