@@ -396,6 +396,15 @@ export function attentionGroups(items: Item[], now: Date): AttentionGroup[] {
     // never reach this branch.
     if (anchor.at < now.getTime()) {
       if (item.kind === "event") continue;
+      // An exam that has been sat cannot be handed in late.
+      //
+      // "Overdue" means work whose window has closed and which you still owe.
+      // An exam has no submission, so `isItemDone` can never become true for
+      // one — which is exactly why it fell through to here and sat in Overdue
+      // for a week. The Exams tab already calls the same row "Just sat", so
+      // the two tabs contradicted each other about the same exam, and the one
+      // in red was the wrong one.
+      if (item.kind === "exam") continue;
       // Handed in. It is in the past and it is on the grid, but it is not
       // asking for anything — and it only reaches here at all because past
       // work stopped being filtered out of the views.

@@ -2,10 +2,64 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (628 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (857 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## UI reference refresh — 2026-09-11
+- Updated light/navy surfaces, orange selected tabs and today marker, rounded course
+  filters, sync toolbar, and full-width framed calendar with larger date navigation.
+  No Illinois logo, building, or slogans. Existing calendar behavior is unchanged.
+- Verified dark and light month previews and dark compact popup using the real popup
+  document with canned data. Build, typecheck, and all 831 tests pass.
+- G4/G5 remain pending. Native Chrome popup sizing still requires Sushi's extension
+  reload; no body/html scroll container or popup width media query was added.
+
+## UX plan for the store release — 2026-09-11
+- Reviewed every surface in the real popup document (dark first), the full view and
+  Settings; six "before" captures in `docs/ux/before/`. Findings and a seven-phase plan in
+  [ux-plan.md](docs/ux-plan.md): three blockers (a sat exam counted as Overdue, the
+  first-run primary button invisible in dark, white on the orange accent at 3.0:1), then
+  the popup's 322px of chrome, a component system, Settings, first run, notifications and
+  store assets. Five decisions for Sushi are listed in its §7.
+- Nothing in the extension changed. G4/G5 unchanged.
+
+## UX plan phase A — trust and correctness — 2026-09-12
+- **B1** an exam already sat is no longer "Overdue". An exam has no submission, so
+  `isItemDone` was never true for one and it fell through to the past branch for a week
+  while the Exams tab called the same row "Just sat". Two tests, mutation-checked.
+- **B2 + B3** new tokens `--primary` / `--primary-ink` / `--accent-wash` / `--focus` /
+  `--surface-raised` in all six palettes, and `--accent-ink` back to `#1a0d04`.
+  "Show my calendar" was `--brand` on a `--brand`-family page: 1.00:1 in dark, i.e.
+  plain text. White on the orange accent was 2.87:1. `tests/tokens.test.ts` now parses
+  `ui.css` and computes every pair, so neither can come back silently; both mutations
+  were checked.
+- **M8 + m1** one vocabulary module, `core/names.ts`. `GS`, `gradescope` and
+  `gradescope: due date` are gone from every sentence; the two-letter code stays only in
+  the row's source column. It also holds `timeAgo`, which retires
+  `List updated 9/11/2026, 6:19:34 PM` (m6).
+- **M9** the build id leaves the popup's status line and lands in Settings › Developer,
+  beside the worker's. The stale-worker warnings are rewritten to say what happened and
+  what to do (m7); the build ids stay in the one sentence they are the evidence for.
+- **M12** the full view is capped again — 1100px for list-shaped views, 1400px for the
+  month — keyed off `body[data-view]`, not a width media query. The comment that still
+  argued for the cap now matches the code.
+- `h3` had no rule at all, so "Older courses" rendered larger than "Courses". `SPEC.md §0`
+  is out of the Sources copy.
+- **m12, and the finding that matters most here.** The framed preview is deleted (it
+  mounted `#list` and threw, and by construction it cannot reproduce a `body`-level
+  sizing bug). `npm run preview` now emits `preview-popup.html`, `preview-options.html`
+  (`?stale=1` for an older worker) and `shot.html`; `npm run shots` renders all ten
+  surfaces dark and light to `docs/ux/after/`.
+
+  **`--force-dark-mode` does not set `prefers-color-scheme`**, which ux-plan.md §6
+  asserts and a probe disproved: on macOS headless Chrome follows the system theme, so on
+  a dark machine every capture is dark with or without it, and the twenty "light" files
+  were byte-identical to the dark ones. `--blink-settings=preferredColorScheme=0|1` is
+  the one that works, and both halves now state it rather than leaving dark implicit.
+- 857 tests, typecheck and build pass. Verified in the real popup document in **dark and
+  light**: width invariant still 400/400/visible, no element past 401.
 
 ## Done
 

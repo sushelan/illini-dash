@@ -8,7 +8,6 @@
  * getting it wrong is exploitable.
  */
 
-import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme } from "./theme-panel.js";
 import { send } from "../messages.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
@@ -51,9 +50,17 @@ import {
   type SectionName,
 } from "../core/grouping.js";
 import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
+import {
+  LOGIN_URL,
+  SOURCE_CODE,
+  SOURCE_NAME,
+  STATE_PHRASE,
+  fullStamp,
+  timeAgo,
+} from "../core/names.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
-import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
+import type { Item, Settings, Source, SourceStatus } from "../sources/types.js";
 
 const ALLOWED_HOSTS = new Set([
   "canvas.illinois.edu",
@@ -76,33 +83,6 @@ function safeUrl(raw: string): string | undefined {
   return undefined;
 }
 
-const SOURCE_LABEL: Record<Source, string> = {
-  canvas: "CV",
-  gradescope: "GS",
-  prairielearn: "PL",
-  prairietest: "PT",
-  smartphysics: "SP",
-  site: "WEB",
-};
-
-/** Full names, for the places where two letters are not enough. */
-const SOURCE_NAME: Record<Source, string> = {
-  canvas: "Canvas",
-  gradescope: "Gradescope",
-  prairielearn: "PrairieLearn",
-  prairietest: "PrairieTest",
-  smartphysics: "smartPhysics",
-  site: "the course website",
-};
-
-const LOGIN_URL: Partial<Record<Source, string>> = {
-  canvas: "https://canvas.illinois.edu/login",
-  gradescope: "https://www.gradescope.com/login",
-  prairielearn: "https://us.prairielearn.com/pl/",
-  prairietest: "https://us.prairietest.com/pt/",
-  smartphysics: "https://smart.physics.illinois.edu/",
-};
-
 /* Before the first paint. See src/ui/theme-panel.ts. */
 applyStoredTheme();
 
@@ -123,16 +103,6 @@ const statusEl = document.getElementById("status")!;
 const staleEl = document.getElementById("stale")!;
 const blockedEl = document.getElementById("blocked")!;
 
-/** Wording for the state a dot is showing, since the raw enum is for the log. */
-const STATE_WORDS: Record<SourceState, string> = {
-  ok: "read successfully",
-  pending: "not checked yet",
-  needs_login: "needs you to sign in",
-  parse_error: "the page was not what we expected",
-  network_error: "could not be reached",
-  disabled: "switched off",
-};
-
 function renderDots(sources: Record<Source, SourceStatus>, lastSyncAt?: string): void {
   dotsEl.replaceChildren();
   for (const source of ALL_SOURCES) {
@@ -143,10 +113,9 @@ function renderDots(sources: Record<Source, SourceStatus>, lastSyncAt?: string):
     const state = displayState(status);
     const dot = document.createElement("span");
     dot.className = `dot dot-${state}`;
-    const when = status.lastSuccessAt
-      ? `last read ${new Date(status.lastSuccessAt).toLocaleString()}`
-      : "never read successfully";
-    dot.title = `${SOURCE_LABEL[source]} — ${STATE_WORDS[state]}\n${when}${
+    const read = timeAgo(status.lastSuccessAt, new Date());
+    const when = read ? `last read ${read}` : "never read successfully";
+    dot.title = `${SOURCE_NAME[source]} ${STATE_PHRASE[state]}\n${when}${
       status.lastError ? `\n${status.lastError}` : ""
     }`;
     if (state === "needs_login" && LOGIN_URL[source]) {
@@ -157,7 +126,10 @@ function renderDots(sources: Record<Source, SourceStatus>, lastSyncAt?: string):
   // §8.1's line, from core so the "n of m" rule is testable: `lastSyncAt` is set
   // whether or not any source succeeded, so "Synced 10:32" was equally cheerful
   // after four failures.
-  statusEl.textContent = `${statusLine(sources, lastSyncAt, new Date())} · build ${BUILD_ID}`;
+  // No build id. It was the last line every student saw, and it is evidence for
+  // exactly one question — "is the worker running the same code as this page?" —
+  // which Settings › Developer answers, next to the rest of the evidence.
+  statusEl.textContent = statusLine(sources, lastSyncAt, new Date());
 }
 
 /**
@@ -178,7 +150,7 @@ function renderStaleBanner(sources: Record<Source, SourceStatus>): void {
       ? "has never been read successfully"
       : `hasn't been read successfully for ${notice.hours}h`;
   const text = document.createElement("span");
-  text.textContent = `${SOURCE_LABEL[notice.source]} ${age}. Anything it lists may be out of date.`;
+  text.textContent = `${SOURCE_NAME[notice.source]} ${age}. Anything it lists may be out of date.`;
   staleEl.append(text);
 
   const login = LOGIN_URL[notice.source];
@@ -281,7 +253,7 @@ function renderRow(
   // it was bought with came back anyway once the date column stopped repeating
   // the section heading.
   const distinct = [...new Set(item.members.map((m) => m.source))];
-  sources.textContent = distinct.map((source) => SOURCE_LABEL[source]).join(" ");
+  sources.textContent = distinct.map((source) => SOURCE_CODE[source]).join(" ");
   sources.title =
     distinct.length > 1
       ? `One deadline, seen by ${distinct.length} sources: ` +
@@ -528,14 +500,6 @@ function bookingWindowText(item: Item): { primary: string; detail?: string } {
 /* First run                                                                   */
 /* -------------------------------------------------------------------------- */
 
-const SOURCE_TITLE: Partial<Record<Source, string>> = {
-  canvas: "Canvas",
-  gradescope: "Gradescope",
-  prairielearn: "PrairieLearn",
-  prairietest: "PrairieTest",
-  smartphysics: "smartPhysics",
-};
-
 /**
  * The first-run screen: which sites this student's courses actually use.
  *
@@ -654,7 +618,7 @@ function renderSetupRow(row: SetupRow): HTMLElement {
   label.htmlFor = box.id;
   const name = document.createElement("span");
   name.className = "setup--name";
-  name.textContent = SOURCE_TITLE[row.source] ?? row.source;
+  name.textContent = SOURCE_NAME[row.source];
   const hint = document.createElement("span");
   hint.className = "setup--hint";
   hint.textContent = row.hint;
@@ -1466,6 +1430,11 @@ function render(
   closeMenus();
   currentItems = items;
   viewEl.replaceChildren();
+  // What the full view's width cap keys off. A month may use 1400px; a list of
+  // rows stops at 1100 so the clock does not end up a foot from the title. Set
+  // from the view rather than from a media query, because Chrome lays the
+  // document out to decide the popup's width and a width rule can feed itself.
+  document.body.dataset["view"] = view;
 
   const onGrid = visibleItems(items, settings, hidden, now);
   const colours = courseColours(coursesIn(visibleItems(items, settings, new Set(), now)));
@@ -1512,7 +1481,7 @@ function render(
         if (!url) continue;
         const button = document.createElement("button");
         button.className = "link";
-        button.textContent = `Sign in to ${SOURCE_LABEL[source]}`;
+        button.textContent = `Sign in to ${SOURCE_NAME[source]}`;
         button.addEventListener("click", () => chrome.tabs.create({ url }));
         const line = document.createElement("p");
         line.className = "empty";

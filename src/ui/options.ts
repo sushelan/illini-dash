@@ -20,20 +20,17 @@ import {
   type CaptureResult,
 } from "../capture.js";
 import { displayState } from "../core/health.js";
+import {
+  LOGIN_URL,
+  SOURCE_TITLE,
+  STATE_PHRASE,
+  fullStamp,
+  timeAgo,
+} from "../core/names.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
 import { send } from "../messages.js";
-
-/** Plain wording for a source's state; the raw enum is for the console. */
-const STATE_WORDS: Record<string, string> = {
-  ok: "read successfully",
-  pending: "not checked yet",
-  needs_login: "needs you to sign in",
-  parse_error: "page was not what we expected",
-  network_error: "could not be reached",
-  disabled: "switched off",
-};
 
 const runButton = document.getElementById("run-gate0") as HTMLButtonElement;
 const copyButton = document.getElementById("copy-gate0") as HTMLButtonElement;
@@ -51,28 +48,56 @@ applyStoredTheme();
  */
 const buildInfo = document.getElementById("build-info")!;
 
+/**
+ * Where the build ids go when nothing is wrong.
+ *
+ * They are evidence for exactly one question — is the worker running the same
+ * code as this page — and "Service worker alive, build 20260912T041431" was the
+ * first line of Settings, above anything a student came here to change.
+ */
+const devBuild = document.getElementById("dev-build");
+
 void (async () => {
+  const mine = `This page: build ${BUILD_ID}.`;
   try {
     const resp = await send({ type: "ping" });
     if (resp.type !== "pong") {
-      buildInfo.textContent = `Service worker answered unexpectedly: ${JSON.stringify(resp)}`;
+      buildInfo.textContent =
+        "The background part of Illini Dash answered something unexpected. Open " +
+        "chrome://extensions and click Reload on the Illini Dash card.";
       buildInfo.className = "verdict-error";
+      if (devBuild) devBuild.textContent = `${mine} Worker answered: ${JSON.stringify(resp)}`;
       return;
     }
+    if (devBuild) devBuild.textContent = `${mine} Service worker: build ${resp.buildId}.`;
     if (resp.buildId === BUILD_ID) {
-      buildInfo.textContent = `Service worker alive, build ${resp.buildId}.`;
+      // Both branches logged, because "already fine" and "never ran" were
+      // indistinguishable here (worker rule 5).
+      buildInfo.textContent = "";
+      buildInfo.hidden = true;
       return;
     }
+    buildInfo.hidden = false;
+    // The build ids stay in the sentence: this is the one warning they are the
+    // evidence for. Everything before them says what happened and what to do.
     buildInfo.textContent =
-      `STALE SERVICE WORKER: this page is build ${BUILD_ID}, the worker is build ` +
-      `${resp.buildId}. Open chrome://extensions and click Reload on the Illini Dash ` +
-      `card before trusting anything below.`;
+      "Illini Dash was updated, but the background part is still running the old " +
+      "version, so this page may be wrong. Open chrome://extensions and click " +
+      `Reload on the Illini Dash card. (This page is build ${BUILD_ID}; the ` +
+      `background part is build ${resp.buildId}.)`;
     buildInfo.className = "verdict-error";
   } catch (err) {
-    buildInfo.textContent = `Service worker unreachable: ${
-      err instanceof Error ? err.message : String(err)
-    }`;
+    buildInfo.hidden = false;
+    buildInfo.textContent =
+      "The background part of Illini Dash is not answering, so nothing on this " +
+      "page can be changed. Open chrome://extensions and click Reload on the " +
+      "Illini Dash card.";
     buildInfo.className = "verdict-error";
+    if (devBuild) {
+      devBuild.textContent = `${mine} Worker unreachable: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+    }
   }
 })();
 
@@ -95,6 +120,8 @@ function showMissingFields(missing: readonly string[]): void {
     missingFieldsEl.className = "verdict-error";
     buildInfo.after(missingFieldsEl);
   }
+  // Its own element, and its own visibility: `buildInfo` is hidden on the happy
+  // path now, and a warning inserted after a hidden sibling is still shown.
   missingFieldsEl.textContent = staleWorkerNotice(missing);
 }
 
@@ -442,23 +469,6 @@ captureButton.addEventListener("click", async () => {
  * this page displays course names the extension did not author.
  */
 
-const SOURCE_NAMES: Record<string, string> = {
-  canvas: "Canvas",
-  gradescope: "Gradescope",
-  prairielearn: "PrairieLearn",
-  prairietest: "PrairieTest",
-  smartphysics: "smartPhysics",
-  site: "Course websites",
-};
-
-const SOURCE_LOGIN: Record<string, string> = {
-  canvas: "https://canvas.illinois.edu/login",
-  gradescope: "https://www.gradescope.com/login",
-  prairielearn: "https://us.prairielearn.com/pl/",
-  prairietest: "https://us.prairietest.com/pt/",
-  smartphysics: "https://smart.physics.illinois.edu/",
-};
-
 const PRIVACY_TEXT =
   "Illini Dash runs entirely in your browser. It reads assignment and exam information " +
   "from Canvas, Gradescope, PrairieLearn, PrairieTest, and course websites you " +
@@ -511,6 +521,9 @@ async function refreshOptions(): Promise<void> {
   try {
     await renderOptions();
   } catch (err) {
+    // Un-hidden explicitly: the happy path hides this element, and an error
+    // written into a hidden element is an error nobody sees.
+    buildInfo.hidden = false;
     buildInfo.textContent =
       `The settings page could not finish drawing: ` +
       `${err instanceof Error ? err.message : String(err)}. ` +
@@ -542,7 +555,7 @@ async function renderOptions(): Promise<void> {
     // sets this flag anyway. Its health is rendered under Course websites.
     if (source === "site") continue;
     const row = checkboxRow(
-      SOURCE_NAMES[source] ?? source,
+      SOURCE_TITLE[source as never] ?? source,
       status.enabled,
       "",
       (enabled) => {
@@ -555,12 +568,19 @@ async function renderOptions(): Promise<void> {
     // has no result, and the stored value seeded before the first fetch used to
     // render as a healthy "ok" here too.
     const shown = displayState(status);
-    const stateLabel = el("span", STATE_WORDS[shown] ?? shown, `opt-note state-${shown}`);
-    if (status.lastError) stateLabel.title = status.lastError;
+    const read = timeAgo(status.lastSuccessAt, new Date());
+    const stateLabel = el(
+      "span",
+      read && shown === "ok" ? `read ${read}` : (STATE_PHRASE[shown] ?? shown),
+      `opt-note state-${shown}`,
+    );
+    stateLabel.title = [status.lastError, fullStamp(status.lastSuccessAt)]
+      .filter(Boolean)
+      .join("\n");
     row.append(stateLabel);
-    if (shown === "needs_login" && SOURCE_LOGIN[source]) {
+    if (shown === "needs_login" && LOGIN_URL[source as never]) {
       const login = el("a", "log in");
-      login.href = SOURCE_LOGIN[source]!;
+      login.href = LOGIN_URL[source as never]!;
       login.target = "_blank";
       login.className = "opt-note";
       row.append(login);
@@ -575,7 +595,7 @@ async function renderOptions(): Promise<void> {
   const siteStatus = state.sources.site;
   if (siteStatus) {
     const shown = displayState(siteStatus);
-    const label = el("span", `Course websites — ${STATE_WORDS[shown] ?? shown}`, `state-${shown}`);
+    const label = el("span", `Course websites ${STATE_PHRASE[shown] ?? shown}`, `state-${shown}`);
     if (siteStatus.lastError) label.title = siteStatus.lastError;
     siteHealth.append(label);
   }
@@ -609,9 +629,12 @@ async function renderOptions(): Promise<void> {
   const adapterState = await send({ type: "get-adapters" });
   adaptersEl.replaceChildren();
   if (adapterState.type === "adapters") {
-    registryStatus.textContent = adapterState.fetchedAt
-      ? `List updated ${new Date(adapterState.fetchedAt).toLocaleString()}`
-      : "List not fetched yet";
+    // `List updated 9/11/2026, 6:19:34 PM` was eight tokens answering a
+    // question whose real answer is "recently". The exact stamp moves to the
+    // tooltip, where it is still there for anyone debugging.
+    const fetched = timeAgo(adapterState.fetchedAt, new Date());
+    registryStatus.textContent = fetched ? `Updated ${fetched}` : "Not fetched yet";
+    registryStatus.title = fullStamp(adapterState.fetchedAt) ?? "";
     // §4.5: adapters carry a term and expire; stale ones are hidden.
     const current = adapterState.adapters.filter((a) => a.currentTerm);
     if (current.length === 0) {

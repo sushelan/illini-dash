@@ -17,6 +17,7 @@
  */
 
 import { groupItems } from "./grouping.js";
+import { nameList } from "./names.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 /**
@@ -267,9 +268,12 @@ export function badgeFor(
     return {
       text: "!",
       color: BADGE_RED,
+      // Names, not source keys. This string is a tooltip on the toolbar icon,
+      // which is the first thing a student sees when something is wrong, and
+      // "gradescope, prairietest" is not what those sites are called.
       title: login
-        ? `Illini Dash — sign in to ${summary.needsLogin.join(", ")}`
-        : `Illini Dash — ${summary.failing.join(", ")} could not be read`,
+        ? `Illini Dash — sign in to ${nameList(summary.needsLogin)}`
+        : `Illini Dash — ${nameList(summary.failing)} could not be read`,
     };
   }
 
@@ -328,7 +332,7 @@ export function emptyStateFor(
   }
   if (summary.needsLogin.length > 0) {
     return {
-      text: `Nothing to show: ${summary.needsLogin.join(" and ")} ${
+      text: `Nothing to show: ${nameList(summary.needsLogin)} ${
         summary.needsLogin.length === 1 ? "needs" : "need"
       } you to sign in.`,
       logins: summary.needsLogin,
@@ -336,7 +340,7 @@ export function emptyStateFor(
   }
   if (summary.failing.length > 0) {
     return {
-      text: `Nothing to show: ${summary.failing.join(" and ")} could not be read, so this list is incomplete.`,
+      text: `Nothing to show: ${nameList(summary.failing)} could not be read, so this list is incomplete.`,
       logins: [],
     };
   }

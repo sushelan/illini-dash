@@ -569,6 +569,34 @@ describe("attentionGroups", () => {
     expect(groups).toEqual([]);
   });
 
+  it("never calls an exam that has been sat overdue", () => {
+    /*
+     * An exam sat two hours ago was listed under "Overdue (2)" while the Exams
+     * tab called the same row "Just sat". Overdue means work whose window has
+     * closed and which you still owe; an exam has no submission, so
+     * `isItemDone` is never true for one and it fell through to the past
+     * branch for a week.
+     *
+     * The booking beside it is the other half: a window that has closed is not
+     * a thing you are late for either.
+     */
+    const groups = attentionGroups(
+      [
+        item({ title: "CS 357 Quiz 1", kind: "exam", dueAt: at(2026, 8, 10, 9) }),
+        item({ title: "ECE 374 Midterm 1", kind: "exam", dueAt: at(2026, 8, 8, 19) }),
+      ],
+      NOW,
+    );
+    expect(groups).toEqual([]);
+  });
+
+  it("still calls an exam with no date at all undated", () => {
+    // The exemption is about the *past*, not about exams. A row a source
+    // listed with no date anywhere is still a row with nowhere to go.
+    const groups = attentionGroups([item({ title: "TBD final", kind: "exam" })], NOW);
+    expect(groups.map((g) => g.name)).toEqual(["No date at all"]);
+  });
+
   it("does not call work that has not opened yet overdue", () => {
     const groups = attentionGroups(
       [item({ title: "GPS4", members: [member({ releasedAt: at(2026, 8, 12, 9) })] })],

@@ -126,9 +126,9 @@ export function normalizePopupState<T>(raw: unknown): NormalizedOptionsState<T> 
  */
 export function staleWorkerNotice(missing: readonly string[]): string {
   return (
-    `The service worker is running older code than this page: it did not send ` +
-    `${missing.join(", ")}. What you see below is incomplete. Open ` +
-    `chrome://extensions and click Reload on the Illini Dash card, then reopen ` +
-    `this page.`
+    `Illini Dash was updated, but the background part is still running the old ` +
+    `version, so some of this page is incomplete (missing: ${missing.join(", ")}). ` +
+    `Open chrome://extensions and click Reload on the Illini Dash card, then ` +
+    `reopen this page.`
   );
 }

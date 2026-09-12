@@ -144,12 +144,22 @@ describe("unreadableDeadline", () => {
 
 describe("unreadableSummary", () => {
   it("names the source and the field, without repeating the row's own word", () => {
-    // The row's date column already reads "unreadable"; saying it twice on one
-    // row spends the second line on nothing.
+    /*
+     * The row's date column already reads "unreadable"; saying it twice on one
+     * row spends the second line on nothing.
+     *
+     * This test used to assert `gradescope: due date` — a storage key, a colon
+     * and a field name, which is the shape of a log line. It was pinning the
+     * defect rather than the requirement (worker rule 6). The requirement, from
+     * the UX plan's copy guide, is that nothing from a spec, a house rule or a
+     * worker reaches a student's screen, and that a source is named the way the
+     * site names itself.
+     */
     const flags = unreadableDeadline(
       item({ members: [member("gradescope", { unparsedDueDate: "junk" })] }),
     );
-    expect(unreadableSummary(flags)).toBe("gradescope: due date");
+    expect(unreadableSummary(flags)).toBe("Gradescope's due date couldn't be read");
+    expect(unreadableSummary(flags)).not.toContain("gradescope:");
   });
 
   it("counts the rest rather than listing them all in a 400px row", () => {

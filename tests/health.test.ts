@@ -258,7 +258,11 @@ describe("badgeFor (worker rule 2: a failure outranks any number)", () => {
     // A calm "2" over a source that failed is the green dot one step further
     // from the evidence.
     expect(badge.text).toBe("!");
-    expect(badge.title).toContain("gradescope");
+    // The name, not the key. This string is the toolbar tooltip — the first
+    // thing a student sees when something is wrong — and it was reading
+    // "gradescope could not be read".
+    expect(badge.title).toContain("Gradescope");
+    expect(badge.title).not.toContain("gradescope ");
   });
 
   it("names signing in when that is what is wrong", () => {

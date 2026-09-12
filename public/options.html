@@ -19,7 +19,14 @@
     -->
     <a id="back" class="back" href="popup.html?view=full">← Illini Dash</a>
     <h1>Illini Dash — Settings</h1>
-    <p id="build-info" class="muted">Checking service worker…</p>
+    <!--
+      A warning slot, empty and hidden unless something is actually wrong. It
+      used to open with "Service worker alive, build 20260912T041431", which is
+      the first line a student read on this page and means nothing to them. The
+      build ids live under Developer tools now, which is where the question they
+      answer is asked.
+    -->
+    <p id="build-info" class="verdict-error" hidden></p>
 
     <section id="settings-panel">
       <h2>Appearance</h2>
@@ -39,7 +46,7 @@
       </p>
       <p class="muted">
         Each source is read using the login session already in your browser. Nothing
-        here ever sees a password (SPEC.md §0).
+        here ever sees a password.
       </p>
       <div id="sources"></div>
       <p class="muted">
@@ -164,6 +171,13 @@
         Diagnostics for building and debugging the extension. Nothing here runs
         on its own, and none of it is needed to use Illini Dash.
       </p>
+      <!--
+        Chrome reloads this page from disk on every open but keeps the running
+        service worker until the extension itself is reloaded, so the two can be
+        different builds. The warning for that is at the top of the page; this is
+        the evidence behind it.
+      -->
+      <p id="dev-build" class="muted">Checking the background part…</p>
 
     <h2>Gate 0 — cookie-authenticated fetch from the service worker</h2>
     <p class="muted">

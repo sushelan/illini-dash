@@ -19,11 +19,11 @@
    *    code stays fully saturated — that split is what lets a label be
    *    identifiable without being loud.
    */
-  --fg: #101a2c;
+  --fg: #10264d;
   --muted: #5b6a82;
   --bg: #ffffff;
   --surface: #f6f8fb;
-  --line: #e2e7ef;
+  --line: #d8e2ef;
 
   --ok: #1a7f37;
   --warn: #9a6700;
@@ -42,7 +42,25 @@
   --warn-wash: rgba(180, 130, 0, .10);
   --warn-wash-strong: rgba(180, 130, 0, .16);
   --err-wash: rgba(200, 40, 30, .10);
-  --accent-ink: #ffffff;
+  /*
+   * Text *on* the accent. White measures 3.05:1 on #ff5f05 and 2.87:1 on the
+   * dark accent — below the 4.5:1 AA floor for text this size, and this token
+   * carries today's date at 12px bold. #1a0d04 is 6.25:1 and 6.64:1.
+   * Measured, not judged: see docs/colour-layer.md rule 2.
+   */
+  --accent-ink: #1a0d04;
+  /* The one filled button on a screen, and its label. In light that is the
+     brand navy; in dark the brand *is* the page, so it would be invisible
+     (1.00:1) and the accent takes the job instead. */
+  --primary: #13294b;
+  --primary-ink: #ffffff;
+  /* A tint of the accent, for a selected tab or a pressed chip: a fill that
+     says "this one" without competing with --err, --warn and --ok. */
+  --accent-wash: rgba(255, 95, 5, .12);
+  /* Named so a focus ring is not four separate opinions about the accent. */
+  --focus: var(--accent);
+  /* Anything that floats above the page: a menu, a popover. */
+  --surface-raised: #ffffff;
   --shadow: rgba(0, 0, 0, .25);
 
   /* Course hues: one saturated ink for text and edges, one wash for fills. */
@@ -63,10 +81,10 @@
      * hue family as the brand, which is why the header stops looking bolted on.
      */
     --fg: #e8eef8;
-    --muted: #8fa0ba;
-    --bg: #0b1220;
-    --surface: #0f1829;
-    --line: #1e2c44;
+    --muted: #9bb3d0;
+    --bg: #0b1726;
+    --surface: #102033;
+    --line: #293d53;
 
     --ok: #4ac26b;
     --warn: #d4a72c;
@@ -76,14 +94,27 @@
     --brand-ink: #e8eef8;
     --accent: #ff6a1a;
 
-    --tint: #0f1829;
+    --tint: #102033;
     --tint-strong: #16223a;
     --hover: rgba(140, 180, 255, .07);
-    --today-tint: #2a1a10;
+    --today-tint: #30231f;
     --warn-wash: rgba(212, 167, 44, .12);
     --warn-wash-strong: rgba(212, 167, 44, .18);
     --err-wash: rgba(240, 115, 106, .12);
     --accent-ink: #1a0d04;
+    /* Not --brand here: in dark the brand is #0d1626 on a #0b1726 page, which
+       is 1.00:1 — the primary button was rendering as plain text. */
+    --primary: #ff6a1a;
+    --primary-ink: #1a0d04;
+    /* Roughly half again as strong as the light one. A wash composites toward
+       its own luminance and the eye is far less sensitive to lightening
+       near-black than to darkening white (colour-layer.md rule 2). */
+    --accent-wash: rgba(255, 106, 26, .16);
+    --surface-raised: #132339;
+    /* Month pills in dark Illini: one navy fill under every course rather than
+       eight washes, which at 11px on a dense grid read as noise. The course
+       still carries its ink on the edge and the code. */
+    --pill-fill: #1a3050;
     --shadow: rgba(0, 0, 0, .55);
 
     --course-0: #6ea8ff; --course-0-bg: #142440;
@@ -101,6 +132,11 @@
 .theme-neutral {
   --brand: transparent; --brand-ink: var(--fg); --accent: var(--muted);
   --now: #b42318;
+  /* No brand hue anywhere, so the one filled button is ink on paper. */
+  --primary: #10264d; --primary-ink: #ffffff;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(127, 127, 127, .14);
+  --surface-raised: #ffffff;
   --tint: rgba(127, 127, 127, .06); --tint-strong: rgba(127, 127, 127, .11);
   --hover: rgba(127, 127, 127, .10); --today-tint: rgba(127, 127, 127, .09);
 }
@@ -110,6 +146,10 @@
     --fg: #e6e6e6; --muted: #9a9a9a; --now: #f0736a;
     --tint: rgba(255, 255, 255, .06); --tint-strong: rgba(255, 255, 255, .10);
     --hover: rgba(255, 255, 255, .08); --today-tint: rgba(255, 255, 255, .08);
+    --primary: #e6e6e6; --primary-ink: #1c1c1c;
+    --accent-ink: #1c1c1c;
+    --accent-wash: rgba(255, 255, 255, .12);
+    --surface-raised: #2a2a2a;
   }
 }
 
@@ -118,6 +158,10 @@
   --fg: #000; --muted: #3d3d3d; --bg: #fff; --surface: #f0f0f0; --line: #8a8a8a;
   --ok: #0b6b2c; --warn: #7a4f00; --err: #96140b;
   --brand: #0b1b33; --accent: #c24500;
+  --primary: #0b1b33; --primary-ink: #ffffff;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(194, 69, 0, .16);
+  --surface-raised: #ffffff;
   --tint: #eef1f6; --tint-strong: #e2e7f0; --hover: rgba(11, 27, 51, .12);
   --today-tint: #ffe6d2;
   --course-0: #0059b3; --course-0-bg: #e2eefb;
@@ -135,6 +179,10 @@
     --ok: #5ee27f; --warn: #f0c33c; --err: #ff8f85; --accent: #ff9b52;
     --tint: #101010; --tint-strong: #1c1c1c; --hover: rgba(255, 255, 255, .14);
     --today-tint: #3a2410;
+    --primary: #ff9b52; --primary-ink: #000000;
+    --accent-ink: #1a0d04;
+    --accent-wash: rgba(255, 155, 82, .22);
+    --surface-raised: #141414;
     --course-0: #66b8ff; --course-0-bg: #0b2337;
     --course-1: #4fe0b4; --course-1-bg: #072b25;
     --course-2: #ff9f57; --course-2-bg: #33210f;
@@ -155,6 +203,13 @@ body {
 }
 h1 { font-size: 15px; margin: 0 0 8px; }
 h2 { font-size: 13px; margin: 16px 0 6px; }
+/*
+ * `h3` had no rule at all, so it rendered at the browser default — which is
+ * larger than the `h2` above it. "Older courses" was set bigger than "Courses",
+ * the section it is a subsection of, which inverts the one thing a heading
+ * level is for.
+ */
+h3 { font-size: 12px; font-weight: 600; margin: 14px 0 4px; }
 p { margin: 0 0 8px; }
 .muted { color: var(--muted); }
 button {

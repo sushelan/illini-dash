@@ -123,6 +123,48 @@ const items = [
 
 let setupDone = false;
 
+const query = new URLSearchParams(location.search);
+
+/**
+ * `?stale=1` — a worker on an older build than the page.
+ *
+ * The one state on the options page that is hard to reach and expensive to get
+ * wrong: an older worker does not send every field the page dereferences, and
+ * the page used to throw halfway through drawing with nothing on screen to say
+ * that one click on chrome://extensions was the fix (worker rule 8).
+ */
+const stale = query.has("stale");
+
+/** The build the page was compiled with, injected by scripts/preview.mjs. */
+const pageBuild =
+  (globalThis as unknown as { __PREVIEW_BUILD__?: string }).__PREVIEW_BUILD__ ?? "dev";
+
+const courses = [
+  { key: "cs357", label: "CS357", itemCount: 12, sources: ["PrairieLearn", "Canvas"], disabled: false },
+  { key: "cs425", label: "CS425", itemCount: 5, sources: ["Gradescope"], disabled: false },
+  { key: "cs424", label: "CS424", itemCount: 3, sources: ["the course website"], disabled: false },
+  { key: "ece374", label: "ECE374", itemCount: 7, sources: ["PrairieTest", "PrairieLearn"], disabled: false },
+  { key: "phys435", label: "PHYS435", itemCount: 4, sources: ["Gradescope"], disabled: true },
+  { key: "phys214", label: "PHYS214", itemCount: 6, sources: ["smartPhysics"], disabled: false },
+  { key: "cs411", label: "CS411", itemCount: 2, sources: ["Canvas"], disabled: false },
+];
+
+const setAsideCourses = [
+  { id: "48211", name: "Academic Integrity Training", courseCode: "AIT",
+    reason: "Canvas lists no term for it" },
+];
+
+const adapters = [
+  { id: "cs424-fa26", label: "CS 424 course site", courseCode: "CS424",
+    url: "https://courses.grainger.illinois.edu/cs424/fa2026/schedule/",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: true, granted: true, currentTerm: true },
+  { id: "phys214-fa26", label: "PHYS 214 course site", courseCode: "PHYS214",
+    url: "https://physics.illinois.edu/phys214/schedule",
+    hostPattern: "https://physics.illinois.edu/*",
+    enabled: true, granted: false, currentTerm: true },
+];
+
 const sources = {
   canvas: { source: "canvas", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   gradescope: { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
@@ -162,6 +204,42 @@ const sources = {
           ],
         };
       }
+      if (req.type === "ping") {
+        // A different id is what the page compares against to decide whether
+        // the worker is stale, so `?stale=1` has to change this too.
+        return { type: "pong", buildId: stale ? "20260101T000000" : pageBuild };
+      }
+      if (req.type === "get-options-state") {
+        const base = {
+          type: "options-state",
+          sources,
+          settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
+                      hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
+          courses,
+          hiddenItems: [{ id: "h1", courseLabel: "CS411", title: "Course syllabus acknowledgement" }],
+          doneItems: [{ id: "d1", courseLabel: "CS424", title: "Homework 1" }],
+          setAsideCourses,
+          notificationsBlocked: false,
+        };
+        // An older worker does not have the field at all — this is the exact
+        // shape that threw, so the preview reproduces the omission rather than
+        // sending an empty array.
+        if (stale) delete (base as Record<string, unknown>)["setAsideCourses"];
+        return base;
+      }
+      if (req.type === "get-adapters") {
+        return {
+          type: "adapters",
+          adapters,
+          fetchedAt: new Date(now - 5 * 60_000).toISOString(),
+        };
+      }
+      if (req.type === "get-diagnostics") {
+        return { type: "diagnostics", report: "illini-dash diagnostics (preview)" };
+      }
+      if (req.type === "export") {
+        return { type: "export", json: "{}" };
+      }
       if (req.type === "get-state") {
         return { type: "state", items, sources, notificationsBlocked: false,
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
@@ -174,6 +252,13 @@ const sources = {
     openOptionsPage: () => undefined,
   },
   tabs: { create: () => undefined },
+  // The options page asks before fetching any host outside the four sources.
+  // Answering "granted" keeps the preview on the path a real profile takes
+  // after the first prompt.
+  permissions: {
+    contains: async () => true,
+    request: async () => true,
+  },
   // Present because the real page has it, not because the preview needs it.
   // The live-refresh listener threw here and the harness said nothing — the
   // same shape as every other bug this preview has missed: a state it could

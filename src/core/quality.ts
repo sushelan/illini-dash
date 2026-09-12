@@ -14,6 +14,7 @@
  * a deadline. Nothing anywhere says so.
  */
 
+import { SOURCE_NAME } from "./names.js";
 import type { Item, RawItem } from "../sources/types.js";
 
 /**
@@ -97,13 +98,19 @@ export function unreadableDeadline(item: Item): QualityFlag[] {
 }
 
 /**
- * The detail line for a row whose date could not be read: "gradescope: due
- * date". The row's own date column already says *that* it is unreadable, so
- * this says which source and which field, and does not repeat the word.
+ * The detail line for a row whose date could not be read.
+ *
+ * It used to read `gradescope: due date`, which is a storage key and a field
+ * name with a colon between them — the shape of a log line, printed under a row
+ * on a student's screen. The facts are the same and the sentence is now a
+ * sentence: "Gradescope's due date couldn't be read".
+ *
+ * The row's own date column says "unreadable", so this does not repeat *that*;
+ * it says whose date and which one.
  */
 export function unreadableSummary(flags: QualityFlag[]): string | undefined {
   if (flags.length === 0) return undefined;
   const first = flags[0]!;
   const more = flags.length > 1 ? ` (+${flags.length - 1} more)` : "";
-  return `${first.source}: ${first.field}${more}`;
+  return `${SOURCE_NAME[first.source]}'s ${first.field} couldn't be read${more}`;
 }

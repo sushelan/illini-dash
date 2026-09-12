@@ -44,19 +44,25 @@ html.view-full,
   padding: 0;
 }
 /*
- * The full view fills the window.
+ * The full view fills the window, up to a cap that depends on the view.
  *
- * It was capped at 760px, which is what a month grid *needs* rather than what
- * it should get: opening a tab called "full view" and finding a narrow column
- * in the middle of a black screen reads as broken. More width is strictly
- * better for the month, where every extra pixel is title that stops being
- * truncated.
+ * Both halves of that are load-bearing, and an earlier pass kept only one of
+ * them. A flat 760px cap was what a month grid *needs* rather than what it
+ * should get: opening a tab called "full view" and finding a narrow column in
+ * the middle of a black screen reads as broken, and every extra pixel a month
+ * gets is title that stops being truncated. Then the cap was removed outright
+ * and the opposite failure appeared: an agenda row on a 27" monitor puts its
+ * clock 2400px from its title, which is exactly the scanning problem the row's
+ * fixed tracks exist to prevent.
  *
- * The cap is only there so an agenda row on a very wide monitor does not end up
- * with its clock a foot away from its title, which is the scanning problem the
- * row's fixed tracks exist to prevent.
+ * So a list-shaped view stops at 1100px and the month may use 1400px. The
+ * value is a token on `body` rather than a media query, because Chrome lays the
+ * document out to decide the popup's width and a rule keyed on window width can
+ * feed itself (see the note at the top of this file). `data-view` is written by
+ * the renderer from the tab it just drew.
  */
-.view-full body { padding: 0 0 32px; max-width: 1400px; margin: 0 auto; }
+.view-full body { padding: 0 0 24px; margin: 0; --full-max: 1100px; }
+.view-full body[data-view="month"] { --full-max: 1400px; }
 .view-full .bar { border-radius: 0; }
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -222,7 +228,7 @@ h2.section {
 .tab {
   display: flex; align-items: center; gap: 6px;
   font: inherit; font-size: 12.5px; padding: 6px 11px; cursor: pointer;
-  border: 1px solid transparent; border-radius: 20px;
+  border: 1px solid transparent; border-radius: 10px;
   background: none; color: var(--muted); white-space: nowrap;
 }
 .tab:hover { color: var(--fg); }
@@ -521,7 +527,7 @@ h2.section {
 
 /* A 2px rule rather than a fill: the tab strip sits under a coloured bar, and
    two filled blocks stacked read as one confusing shape. */
-.tab[aria-selected="true"] { box-shadow: inset 0 2px 0 0 var(--accent); }
+.tab[aria-selected="true"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent); }
 .theme-neutral .tab[aria-selected="true"] { box-shadow: none; }
 
 /*
@@ -585,14 +591,21 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 
 /* Keyboard focus, which had no style at all and therefore Chrome's default. */
 :where(button, a, input, summary):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
   border-radius: 3px;
 }
 
-/* The one primary action in the app. */
-.setup--primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
-.theme-neutral .setup--primary { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+/*
+ * The one primary action in the app.
+ *
+ * `--brand` was wrong here and invisibly so: in dark the brand is #0d1626 on a
+ * #0b1726 page, 1.00:1, so "Show my calendar" rendered as plain text on the one
+ * screen a new student has to get past. `--primary` exists to be the fill that
+ * is guaranteed to differ from the page it sits on, in every theme, and
+ * tests/tokens.test.ts computes that rather than trusting it.
+ */
+.setup--primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
 
 /*
  * In the popup, only the selected tab is named.
@@ -607,3 +620,73 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full .tab--label { display: inline; }
 .tab { padding: 6px 9px; }
 .tab[aria-selected="true"], .view-full .tab { padding: 6px 11px; }
+
+/* Reference refresh: a quiet toolbar and a single framed calendar. Full-view
+   sizing is URL-scoped so it cannot affect Chrome's intrinsic popup measure. */
+.bar { background: var(--tint); color: var(--fg); min-height: 30px; }
+.bar .link, .bar .link:hover { color: var(--fg); opacity: 1; }
+#sync { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+#sync svg { width: 17px; height: 17px; }
+#settings { font-size: 21px; padding-left: 12px; border-left: 1px solid var(--line); }
+.tabs { background: var(--bg); }
+.tab[aria-selected="true"] { color: var(--fg); background: var(--today-tint); }
+.tab[aria-selected="true"] svg { color: var(--accent); }
+.filters { background: var(--bg); border-bottom: 0; gap: 8px; padding: 10px 12px; }
+.fchip { box-shadow: 0 1px 3px color-mix(in srgb, var(--line) 60%, transparent); }
+.datenav { background: var(--surface); }
+.datenav--arrow { font-size: 24px; color: var(--fg); padding: 0 5px; }
+.view-full .bar { padding: 10px 28px; min-height: 32px; }
+.view-full .tabs { padding: 16px 24px 12px; gap: 12px; flex-wrap: wrap; }
+.view-full .tab { font-size: 16px; gap: 10px; padding: 10px 18px; border-radius: 10px; }
+.view-full .tab svg { width: 21px; height: 21px; }
+.view-full .filters { padding: 12px 24px 16px; gap: 10px; }
+.view-full .fchip { font-size: 14px; padding: 7px 17px 7px 13px; gap: 10px; }
+.view-full .fchip i { width: 13px; height: 13px; }
+.view-full .datenav { margin: 0 20px; padding: 14px 16px; gap: 16px;
+  border: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+.view-full .datenav--label { font-size: 24px; font-weight: 650; letter-spacing: -.5px; }
+.view-full .datenav--today { font-size: 12px; padding: 4px 10px; }
+.view-full #view { margin: 0 20px; border: 1px solid var(--line);
+  border-top: 0; border-radius: 0 0 12px 12px; }
+.view-full .datenav[hidden] + #view { border-top: 1px solid var(--line); border-radius: 12px; }
+.view-full .mhead { border-bottom: 0; }
+.view-full .mhead div { font-size: 12px; padding: 9px 0; letter-spacing: .07em; }
+.view-full .mcell { min-height: 112px; padding: 7px; gap: 3px; }
+.view-full .mgrid { grid-auto-rows: minmax(128px, 1fr); }
+.view-full .mcell:nth-last-child(7) { border-bottom-left-radius: 12px; }
+.view-full .mcell:last-child { border-bottom-right-radius: 12px; }
+.view-full .mnum { font-size: 14px; font-weight: 500; min-height: 22px; }
+.view-full .mcell--today .mnum { width: 30px; height: 30px; padding: 0; margin: -3px 0 -2px;
+  font-weight: 650; }
+.view-full .mpill { font-size: 12px; padding: 4px 7px; border-left-width: 4px; border-radius: 5px; }
+.view-full .mpill--code { font-size: 11px; }
+.view-full .mpill:hover { filter: brightness(1.12); }
+.view-full #status { padding: 10px 24px 0; font-size: 11px; }
+.view-full .wday { padding: 12px; }
+.view-full .wrow { grid-template-columns: 76px 1fr; }
+.view-full .wday--num { font-size: 23px; }
+.view-full .witems { padding: 8px 0; }
+.view-full .setup--page { max-width: 700px; margin: 24px auto; }
+/* The value is `--pill-fill`, in ui.css. A hex here is the "two copies of one
+   decision" failure the header of this file already records once. */
+@media (prefers-color-scheme: dark) {
+  .theme-illini .mpill:not(.mpill--exam):not(.mpill--opening):not(.mpill--event) {
+    background: var(--pill-fill);
+  }
+}
+
+/*
+ * The cap itself. `max(gutter, half the slack)` centres the column once the
+ * window is wider than the cap and keeps a real gutter before that, with no
+ * extra element and no media query.
+ *
+ * These come last on purpose: `.datenav` and `#view` set `margin` as a
+ * shorthand above, so a `margin-inline` has to follow it to win.
+ */
+.view-full .bar { padding-inline: max(28px, calc((100% - var(--full-max)) / 2)); }
+.view-full .tabs,
+.view-full .filters,
+.view-full #status { padding-inline: max(24px, calc((100% - var(--full-max)) / 2)); }
+.view-full .datenav,
+.view-full #view { margin-inline: max(20px, calc((100% - var(--full-max)) / 2)); }
