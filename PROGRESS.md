@@ -25,6 +25,45 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Light mode, the wordmark, and a pill that closes — 2026-09-12
+
+- **Light or dark is a setting now.** It was never one: every dark value lived behind
+  `@media (prefers-color-scheme: dark)`, so a student on a dark machine could not have a
+  light calendar and one on a light machine could not have a dark one. The stylesheet
+  keys on **one class**, `is-dark`, resolved once by `resolveDark(mode, systemPrefersDark)`
+  — because a media query cannot be overridden by a choice without writing every dark
+  value twice, which is colour-layer.md rule 3 in its most expensive form. Settings gains
+  a "Light or dark" group under the palette: Match my system (default) / Light / Dark.
+  `color-scheme` is stated per mode so a forced-light calendar does not get dark
+  scrollbars.
+
+  Two consequences, both found by looking: the component gallery renders light without
+  `applyMode()` (fixed), and the theme picker's swatches paint themselves in their own
+  palette and do **not** inherit the root's class — so the picker previewed three light
+  palettes on a dark page until `syncSwatchMode()` kept them in step.
+
+- **The pill closes when you press it again.** `openHealthPopover` closed whatever was
+  open and then opened its own, so the second press closed the panel and rebuilt it in
+  the same gesture — the one thing everybody tries.
+
+- **"Illini Dash" in the bar**, top left, with the health pill beside it, in both windows.
+  `flex: none` on the wordmark and the pill absorbing the slack, since the pill already
+  ellipses.
+
+  The bar now carries five things in 400px, so the fixed costs were trimmed (26px icons,
+  tighter gaps, "Retry" rather than "Try again") until all four pill sentences fit
+  unclipped. **And the orange failed contrast**: `--accent` on the header tint is
+  **2.86:1** at 12px bold — the same failure `--accent-ink` had in phase A, on the one
+  word that names the product. `--brand-mark` is a darkened orange in light (4.82:1) and
+  the accent itself in dark (5.74:1); `tests/tokens.test.ts` computes it for all six
+  palettes, mutation-checked.
+
+- Rendering reviewed as asked, in both modes, across popup / full view / Settings /
+  first run: a sweep for overlapping siblings and clipped text found **no overlaps** and
+  no clipping except the row title's intended ellipsis. Width invariant holds.
+
+949 tests.
+
 ## Live run: the source list was cut off — 2026-09-12
 
 Reported on the Attention tab, and the tab is the clue. **A floating panel is positioned

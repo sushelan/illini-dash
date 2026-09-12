@@ -134,6 +134,7 @@ function renderHealth(
   now: Date,
 ): void {
   healthEl.replaceChildren();
+  healthEl.append(renderWordmark());
   /*
    * A sync in flight outranks whatever the store still holds.
    *
@@ -168,6 +169,15 @@ function renderHealth(
 
   button.addEventListener("click", (event) => {
     event.stopPropagation();
+    // A toggle, not an opener. `openHealthPopover` closes whatever is open and
+    // then opens its own, so pressing the pill a second time closed the panel
+    // and immediately rebuilt it — the one gesture everybody tries to dismiss
+    // it with was the one that could not.
+    if (button.getAttribute("aria-expanded") === "true") {
+      closeMenus();
+      button.removeAttribute("aria-expanded");
+      return;
+    }
     openHealthPopover(sources, now, button);
   });
   healthEl.append(button);
@@ -279,7 +289,12 @@ function actionButton(action: SourceAction | undefined): HTMLButtonElement | und
   // Retry. A failed fetch is transient far more often than not, and pressing
   // this is the whole fix — which is what makes reporting it as "the page
   // changed" so expensive.
-  button.textContent = "Try again";
+  //
+  // One word rather than two: in the popup's bar this button sits between the
+  // wordmark and three icons, and "Try again" cost the health sentence its last
+  // four characters. The sentence is what says what is wrong; the button only
+  // has to say what pressing it does, and "Retry" does.
+  button.textContent = "Retry";
   button.title = `Read ${SOURCE_NAME[action.source]} again`;
   button.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -300,6 +315,22 @@ function toneFor(state: SourceState): "ok" | "warn" | "err" | "pending" | "off" 
 
 /** Sync, open-in-a-tab, settings. Drawn once; only the sync state changes. */
 let syncButton: HTMLButtonElement | undefined;
+
+/**
+ * The name, in the accent, at the top left of both windows.
+ *
+ * A popup has no title bar and a tab's is four words of browser chrome, so
+ * without this there is nothing on screen that says what the thing is — and the
+ * full view is a page a student may land on from an install with no context at
+ * all. `flex: none`, so it never gives up its width; the pill beside it is what
+ * shrinks, and it has an ellipsis for exactly that.
+ */
+function renderWordmark(): HTMLElement {
+  const mark = document.createElement("span");
+  mark.className = "wordmark";
+  mark.textContent = "Illini Dash";
+  return mark;
+}
 
 function renderActions(): void {
   actionsEl.replaceChildren();
@@ -995,10 +1026,7 @@ function renderSetup(rows: SetupRow[]): void {
   // whole job — leaving the pill in the bar as well would be the same fact
   // twice, in a header that has nothing else to do yet. The name instead.
   healthEl.replaceChildren();
-  const name = document.createElement("span");
-  name.className = "setup--brand";
-  name.textContent = "Illini Dash";
-  healthEl.append(name);
+  healthEl.append(renderWordmark());
   bannersEl.replaceChildren();
   tabsEl.replaceChildren();
   filtersEl.replaceChildren();

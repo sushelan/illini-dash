@@ -94,7 +94,7 @@ const SHOTS = [
    * screenshots from the document origin anyway — so the "lower half" capture
    * came out as 1500px of empty navy. One tall window is the thing that works.
    */
-  { name: "options", query: "page=options", size: [1280, 3800] },
+  { name: "options", query: "page=options", size: [1280, 4100] },
   { name: "options-stale", query: "page=options&stale=1", size: [1280, 800] },
   { name: "components", query: "page=components", size: [960, 1700] },
   { name: "full-exams", query: "tab=exams&view=full", size: [1280, 800] },

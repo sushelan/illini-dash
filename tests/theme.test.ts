@@ -7,7 +7,14 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  DARK_CLASS,
+  DEFAULT_MODE,
   DEFAULT_THEME,
+  MODES,
+  MODE_KEY,
+  isModeName,
+  normalizeMode,
+  resolveDark,
   THEMES,
   THEME_KEY,
   allThemeClasses,
@@ -85,5 +92,62 @@ describe("isThemeName", () => {
     expect(isThemeName("illini")).toBe(true);
     expect(isThemeName("Illini")).toBe(false);
     expect(isThemeName("theme-illini")).toBe(false);
+  });
+});
+
+describe("light or dark", () => {
+  /*
+   * The palette and the mode are two questions: which hues carry meaning, and
+   * which end of the range they sit at. They were one setting only because the
+   * mode was never a setting at all — every dark value lived behind
+   * `@media (prefers-color-scheme: dark)`, so a student on a dark machine could
+   * not have a light calendar and one on a light machine could not have a dark
+   * one.
+   */
+  it("follows the machine unless told otherwise", () => {
+    expect(DEFAULT_MODE).toBe("system");
+    expect(resolveDark("system", true)).toBe(true);
+    expect(resolveDark("system", false)).toBe(false);
+  });
+
+  it("lets the choice beat the machine, in both directions", () => {
+    // The whole point. Either override alone would be half a feature.
+    expect(resolveDark("light", true)).toBe(false);
+    expect(resolveDark("dark", false)).toBe(true);
+  });
+
+  it("falls back rather than throwing on anything else", () => {
+    // A value written by a later build, or edited by hand. Throwing here leaves
+    // the page unstyled, which is worse than the wrong mode.
+    for (const junk of [undefined, null, "", "auto", 42, {}, []]) {
+      expect(normalizeMode(junk), String(junk)).toBe(DEFAULT_MODE);
+    }
+  });
+
+  it("accepts exactly the three modes", () => {
+    expect(MODES.map((m) => m.name)).toEqual(["system", "light", "dark"]);
+    expect(isModeName("system")).toBe(true);
+    expect(isModeName("System")).toBe(false);
+  });
+
+  it("says something about every mode, because the names do not explain themselves", () => {
+    // "Match my system" is not obvious to everyone, and neither is what happens
+    // to it when the machine changes its mind.
+    for (const mode of MODES) {
+      expect(mode.label.length, mode.name).toBeGreaterThan(0);
+      expect(mode.hint.length, mode.name).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps its own storage key, separate from the palette", () => {
+    // Changing the palette must not reset the mode, or the reverse.
+    expect(MODE_KEY).toBe("illini-dash.mode");
+    expect(MODE_KEY).not.toBe(THEME_KEY);
+  });
+
+  it("keys the stylesheet on one class rather than a media query", () => {
+    // A media query cannot be overridden by a setting without writing every
+    // dark value twice, and two copies of a palette is colour-layer.md rule 3.
+    expect(DARK_CLASS).toBe("is-dark");
   });
 });

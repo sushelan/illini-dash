@@ -6,7 +6,7 @@ Everything that decides what Illini Dash looks like, and nothing else. Four file
 |---|---|---|
 | `public/ui.css` | **Every colour value in the extension.** Three themes × light and dark. | change any colour |
 | `public/popup.css` | Where those tokens are spent. Contains no colour values at all. | change *how* colour is applied — pill shape, which surfaces get tinted |
-| `src/core/theme.ts` | The theme list, the default, validation | add, remove or rename a theme |
+| `src/core/theme.ts` | The theme list, the light/dark mode, the defaults, validation | add, remove or rename a theme |
 | `src/ui/theme-panel.ts` | The picker in Settings, and applying the choice before paint | change the picker itself — rarely |
 
 **To change the colour scheme, edit `ui.css` and nothing else.** It is the only file in
@@ -26,6 +26,28 @@ Both pages call `applyStoredTheme()` before their first paint. The choice lives 
 store would mean a message to the service worker, which is a visible flash of the wrong
 colours on every open.
 
+## Light and dark are a class, not a media query
+
+`is-dark` on `<html>`, put there by `applyMode()` from `illini-dash.mode`
+(`system` / `light` / `dark`) and the machine's own preference. **There is no
+`@media (prefers-color-scheme: dark)` anywhere in either stylesheet**, and adding one
+back would undo the setting: a media query cannot be overridden by a choice without
+writing every dark value twice, once inside it and once for the forced case — which is
+rule 3 below, in its most expensive form.
+
+Two consequences worth knowing before you edit:
+
+- **A page that does not call `applyStoredTheme()` renders light.** That is right for the
+  store assets (`promo.html`, `toast.html`), which must look the same for everyone, and
+  wrong for anything else — `components.html` calls `applyMode()` for exactly this reason.
+- **A descendant does not inherit the root's class.** Anything that paints itself in a
+  *different* palette than the page — the theme picker's swatches — has to carry
+  `is-dark` itself, and `syncSwatchMode()` keeps them in step. Without it the picker
+  previews three light palettes on a dark page.
+
+`color-scheme` is stated per mode rather than left as `light dark`, so a forced-light
+calendar does not get dark scrollbars on a dark machine.
+
 ---
 
 ## Adding a theme
@@ -33,7 +55,7 @@ colours on every open.
 1. Add it to `THEMES` in `src/core/theme.ts`. It needs a `name`, a `label` and a `hint`
    saying who it is for — a list of names nobody recognises cannot be answered.
 2. Add `.theme-<name>` to `public/ui.css` defining **every** token below, plus a
-   `@media (prefers-color-scheme: dark)` block redefining them for dark.
+   `.theme-<name>.is-dark` block redefining them for dark.
 3. Nothing else. `allThemeClasses()` is derived from `THEMES`, so switching removes the
    previous class on its own, and `tests/theme.test.ts` will fail if you forget a hint.
 

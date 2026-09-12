@@ -17,24 +17,83 @@
  */
 
 import {
+  DARK_CLASS,
+  MODES,
+  MODE_KEY,
   THEMES,
   THEME_KEY,
   allThemeClasses,
+  normalizeMode,
   normalizeTheme,
+  resolveDark,
   themeClass,
+  type ModeName,
   type ThemeName,
 } from "../core/theme.js";
 
-/** The stored choice, or the default. Never throws. */
-export function storedTheme(): ThemeName {
-  let raw: string | null = null;
+function read(key: string): string | null {
   try {
-    raw = window.localStorage.getItem(THEME_KEY);
+    return window.localStorage.getItem(key);
   } catch {
     // The accessor itself throws in a profile with site data blocked. The
     // default is a perfectly good answer.
+    return null;
   }
-  return normalizeTheme(raw);
+}
+
+function write(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Nothing to do. The choice applies to this page and will not persist.
+  }
+}
+
+/** The stored choice, or the default. Never throws. */
+export function storedTheme(): ThemeName {
+  return normalizeTheme(read(THEME_KEY));
+}
+
+/** Light, dark, or follow the machine. */
+export function storedMode(): ModeName {
+  return normalizeMode(read(MODE_KEY));
+}
+
+function systemPrefersDark(): boolean {
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    // No `matchMedia` is not a dark machine; it is no information.
+    return false;
+  }
+}
+
+/**
+ * Puts `is-dark` on the root, or takes it off.
+ *
+ * The stylesheet keys on this one class rather than on a media query, so that
+ * the setting can win. Resolved here, once, from the choice and the machine.
+ */
+export function applyMode(mode: ModeName = storedMode()): void {
+  const dark = resolveDark(mode, systemPrefersDark());
+  document.documentElement.classList.toggle(DARK_CLASS, dark);
+  syncSwatchMode(dark);
+}
+
+/**
+ * The theme swatches preview a palette, so they have to preview it in the mode
+ * that is actually on.
+ *
+ * Each swatch carries its own `.theme-*` class in order to paint itself, and
+ * dark used to arrive through a media query, which applied to them for free.
+ * Now it is a class on the root — which a descendant does not inherit — so
+ * without this the picker showed three light palettes on a dark page: a preview
+ * that shows the wrong thing is worse than no preview.
+ */
+function syncSwatchMode(dark: boolean): void {
+  for (const swatch of document.querySelectorAll(".swatches")) {
+    swatch.classList.toggle(DARK_CLASS, dark);
+  }
 }
 
 /**
@@ -49,14 +108,28 @@ export function applyStoredTheme(): void {
   const root = document.documentElement;
   root.classList.remove(...allThemeClasses());
   root.classList.add(themeClass(storedTheme()));
+  applyMode();
+}
+
+/*
+ * A machine that changes its mind while the page is open.
+ *
+ * Only matters on `system`, which is the default and so the common case: a
+ * laptop switching to dark at sunset should take the calendar with it rather
+ * than leaving a white rectangle open on a dark desktop.
+ */
+try {
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (storedMode() === "system") applyMode("system");
+    });
+} catch {
+  /* No `matchMedia`. The class set at load stands. */
 }
 
 function remember(name: ThemeName): void {
-  try {
-    window.localStorage.setItem(THEME_KEY, name);
-  } catch {
-    // Nothing to do. The choice applies to this page and will not persist.
-  }
+  write(THEME_KEY, name);
 }
 
 /**
@@ -117,6 +190,9 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
      */
     const swatches = document.createElement("span");
     swatches.className = `swatches ${themeClass(theme.name)}`;
+    if (document.documentElement.classList.contains(DARK_CLASS)) {
+      swatches.classList.add(DARK_CLASS);
+    }
     for (const token of ["--bg", "--accent", "--course-1"]) {
       const chip = document.createElement("i");
       chip.style.background = `var(${token})`;
@@ -127,4 +203,57 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
     rows.append(row);
   }
   host.append(rows);
+  host.append(renderModePanel());
+}
+
+/**
+ * Light, dark, or follow the machine.
+ *
+ * Its own group under the palette, because they are two questions: the palette
+ * says which hues carry meaning, the mode says which end of the range they sit
+ * at. They were one setting only because the mode was never a setting — every
+ * dark value lived behind a media query, so a student on a dark machine could
+ * not have a light calendar and one on a light machine could not have a dark
+ * one.
+ */
+function renderModePanel(): HTMLElement {
+  const chosen = storedMode();
+  const wrap = document.createElement("div");
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Light or dark";
+  wrap.append(heading);
+
+  const rows = document.createElement("div");
+  rows.className = "rows";
+  for (const mode of MODES) {
+    const row = document.createElement("label");
+    row.className = "srow2 themerow";
+    row.htmlFor = `mode-${mode.name}`;
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "mode";
+    radio.id = `mode-${mode.name}`;
+    radio.className = "srow2--lead";
+    radio.checked = mode.name === chosen;
+    radio.addEventListener("change", () => {
+      write(MODE_KEY, mode.name);
+      // Applied under the click. A mode you have to reload to see is one nobody
+      // tries twice, which is the same reason the palette applies immediately.
+      applyMode(mode.name);
+    });
+
+    const label = document.createElement("span");
+    label.className = "srow2--name";
+    label.textContent = mode.label;
+    const hint = document.createElement("span");
+    hint.className = "srow2--hint";
+    hint.textContent = mode.hint;
+
+    row.append(radio, label, hint);
+    rows.append(row);
+  }
+  wrap.append(rows);
+  return wrap;
 }

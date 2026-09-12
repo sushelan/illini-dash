@@ -1,5 +1,13 @@
 :root {
-  color-scheme: light dark;
+  /*
+   * Stated, not inherited.
+   *
+   * `light dark` tells the browser "either is fine, follow the machine" — which
+   * is wrong the moment the student picks one. It is set from the resolved mode
+   * instead, so a forced-light calendar does not get dark scrollbars and native
+   * controls on a dark machine.
+   */
+  color-scheme: light;
 
   /*
    * ==========================================================================
@@ -59,6 +67,16 @@
   --accent-wash: rgba(255, 95, 5, .12);
   /* Named so a focus ring is not four separate opinions about the accent. */
   --focus: var(--accent);
+  /*
+   * The wordmark, and the one place the accent is used as *text*.
+   *
+   * `--accent` itself is 2.86:1 on the header tint, which is the same failure
+   * `--accent-ink` was fixed for in phase A — below the 4.5:1 AA floor for text
+   * this size, on the one word that names the product. The brand orange stays
+   * the brand orange everywhere it is a *surface*; where it has to be read at
+   * 12px bold it is darkened to 4.82:1. In dark it needs no help (5.74:1).
+   */
+  --brand-mark: #c04503;
   /* Anything that floats above the page: a menu, a popover. */
   --surface-raised: #ffffff;
   --shadow: rgba(0, 0, 0, .25);
@@ -74,83 +92,85 @@
   --course-7: #7a6a1f; --course-7-bg: #f6f2df;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /*
-     * Deep navy rather than near-black. The mockup's surfaces are all the same
-     * hue family as the brand, which is why the header stops looking bolted on.
-     */
-    --fg: #e8eef8;
-    --muted: #9bb3d0;
-    --bg: #0b1726;
-    --surface: #102033;
-    --line: #293d53;
+:root.is-dark { color-scheme: dark; }
 
-    --ok: #4ac26b;
-    --warn: #d4a72c;
-    --err: #f0736a;
+:root.is-dark {
+  /*
+   * Deep navy rather than near-black. The mockup's surfaces are all the same
+   * hue family as the brand, which is why the header stops looking bolted on.
+   */
+  --fg: #e8eef8;
+  --muted: #9bb3d0;
+  --bg: #0b1726;
+  --surface: #102033;
+  --line: #293d53;
 
-    --brand: #0d1626;
-    --brand-ink: #e8eef8;
-    --accent: #ff6a1a;
+  --ok: #4ac26b;
+  --warn: #d4a72c;
+  --err: #f0736a;
 
-    --tint: #102033;
-    --tint-strong: #16223a;
-    --hover: rgba(140, 180, 255, .07);
-    --today-tint: #30231f;
-    --warn-wash: rgba(212, 167, 44, .12);
-    --warn-wash-strong: rgba(212, 167, 44, .18);
-    --err-wash: rgba(240, 115, 106, .12);
-    --accent-ink: #1a0d04;
-    /* Not --brand here: in dark the brand is #0d1626 on a #0b1726 page, which
-       is 1.00:1 — the primary button was rendering as plain text. */
-    --primary: #ff6a1a;
-    --primary-ink: #1a0d04;
-    /* Roughly half again as strong as the light one. A wash composites toward
-       its own luminance and the eye is far less sensitive to lightening
-       near-black than to darkening white (colour-layer.md rule 2). */
-    --accent-wash: rgba(255, 106, 26, .16);
-    --surface-raised: #132339;
-    /* Month pills in dark Illini: one navy fill under every course rather than
-       eight washes, which at 11px on a dense grid read as noise. The course
-       still carries its ink on the edge and the code. */
-    --pill-fill: #1a3050;
-    --shadow: rgba(0, 0, 0, .55);
+  --brand: #0d1626;
+  --brand-ink: #e8eef8;
+  --accent: #ff6a1a;
 
-    --course-0: #6ea8ff; --course-0-bg: #142440;
-    --course-1: #2fd3aa; --course-1-bg: #0d2b28;
-    --course-2: #ff8a3d; --course-2-bg: #33210f;
-    --course-3: #b98cff; --course-3-bg: #231a3c;
-    --course-4: #3fc7e0; --course-4-bg: #0e2a33;
-    --course-5: #ff7aa8; --course-5-bg: #331525;
-    --course-6: #8f9dff; --course-6-bg: #1a1f3f;
-    --course-7: #d8c26a; --course-7-bg: #2b2614;
-  }
+  --tint: #102033;
+  --tint-strong: #16223a;
+  --hover: rgba(140, 180, 255, .07);
+  --today-tint: #30231f;
+  --warn-wash: rgba(212, 167, 44, .12);
+  --warn-wash-strong: rgba(212, 167, 44, .18);
+  --err-wash: rgba(240, 115, 106, .12);
+  --accent-ink: #1a0d04;
+  --brand-mark: var(--accent);
+  /* Not --brand here: in dark the brand is #0d1626 on a #0b1726 page, which
+     is 1.00:1 — the primary button was rendering as plain text. */
+  --primary: #ff6a1a;
+  --primary-ink: #1a0d04;
+  /* Roughly half again as strong as the light one. A wash composites toward
+     its own luminance and the eye is far less sensitive to lightening
+     near-black than to darkening white (colour-layer.md rule 2). */
+  --accent-wash: rgba(255, 106, 26, .16);
+  --surface-raised: #132339;
+  /* Month pills in dark Illini: one navy fill under every course rather than
+     eight washes, which at 11px on a dense grid read as noise. The course
+     still carries its ink on the edge and the code. */
+  --pill-fill: #1a3050;
+  --shadow: rgba(0, 0, 0, .55);
+
+  --course-0: #6ea8ff; --course-0-bg: #142440;
+  --course-1: #2fd3aa; --course-1-bg: #0d2b28;
+  --course-2: #ff8a3d; --course-2-bg: #33210f;
+  --course-3: #b98cff; --course-3-bg: #231a3c;
+  --course-4: #3fc7e0; --course-4-bg: #0e2a33;
+  --course-5: #ff7aa8; --course-5-bg: #331525;
+  --course-6: #8f9dff; --course-6-bg: #1a1f3f;
+  --course-7: #d8c26a; --course-7-bg: #2b2614;
 }
 
 /* ---- Neutral: no brand hue anywhere ---- */
 .theme-neutral {
   --brand: transparent; --brand-ink: var(--fg); --accent: var(--muted);
   --now: #b42318;
-  /* No brand hue anywhere, so the one filled button is ink on paper. */
+  /* No brand hue anywhere, so the one filled button is ink on paper — and the
+     wordmark is ink too, for the same reason. */
   --primary: #10264d; --primary-ink: #ffffff;
+  --brand-mark: var(--fg);
   --accent-ink: #ffffff;
   --accent-wash: rgba(127, 127, 127, .14);
   --surface-raised: #ffffff;
   --tint: rgba(127, 127, 127, .06); --tint-strong: rgba(127, 127, 127, .11);
   --hover: rgba(127, 127, 127, .10); --today-tint: rgba(127, 127, 127, .09);
 }
-@media (prefers-color-scheme: dark) {
-  .theme-neutral {
-    --bg: #1c1c1c; --surface: #232323; --line: #3a3a3a;
-    --fg: #e6e6e6; --muted: #9a9a9a; --now: #f0736a;
-    --tint: rgba(255, 255, 255, .06); --tint-strong: rgba(255, 255, 255, .10);
-    --hover: rgba(255, 255, 255, .08); --today-tint: rgba(255, 255, 255, .08);
-    --primary: #e6e6e6; --primary-ink: #1c1c1c;
-    --accent-ink: #1c1c1c;
-    --accent-wash: rgba(255, 255, 255, .12);
-    --surface-raised: #2a2a2a;
-  }
+.theme-neutral.is-dark {
+  --bg: #1c1c1c; --surface: #232323; --line: #3a3a3a;
+  --fg: #e6e6e6; --muted: #9a9a9a; --now: #f0736a;
+  --tint: rgba(255, 255, 255, .06); --tint-strong: rgba(255, 255, 255, .10);
+  --hover: rgba(255, 255, 255, .08); --today-tint: rgba(255, 255, 255, .08);
+  --primary: #e6e6e6; --primary-ink: #1c1c1c;
+  --brand-mark: var(--fg);
+  --accent-ink: #1c1c1c;
+  --accent-wash: rgba(255, 255, 255, .12);
+  --surface-raised: #2a2a2a;
 }
 
 /* ---- High contrast: built for telling things apart ---- */
@@ -159,6 +179,7 @@
   --ok: #0b6b2c; --warn: #7a4f00; --err: #96140b;
   --brand: #0b1b33; --accent: #c24500;
   --primary: #0b1b33; --primary-ink: #ffffff;
+  --brand-mark: #a63a02;
   --accent-ink: #ffffff;
   --accent-wash: rgba(194, 69, 0, .16);
   --surface-raised: #ffffff;
@@ -173,25 +194,24 @@
   --course-6: #3b49a8; --course-6-bg: #e6e9fa;
   --course-7: #5c4f00; --course-7-bg: #f4f0d8;
 }
-@media (prefers-color-scheme: dark) {
-  .theme-contrast {
-    --fg: #fff; --muted: #c8c8c8; --bg: #000; --surface: #101010; --line: #6e6e6e;
-    --ok: #5ee27f; --warn: #f0c33c; --err: #ff8f85; --accent: #ff9b52;
-    --tint: #101010; --tint-strong: #1c1c1c; --hover: rgba(255, 255, 255, .14);
-    --today-tint: #3a2410;
-    --primary: #ff9b52; --primary-ink: #000000;
-    --accent-ink: #1a0d04;
-    --accent-wash: rgba(255, 155, 82, .22);
-    --surface-raised: #141414;
-    --course-0: #66b8ff; --course-0-bg: #0b2337;
-    --course-1: #4fe0b4; --course-1-bg: #072b25;
-    --course-2: #ff9f57; --course-2-bg: #33210f;
-    --course-3: #c9a3ff; --course-3-bg: #241a3a;
-    --course-4: #5cd8f0; --course-4-bg: #07272f;
-    --course-5: #ff92b8; --course-5-bg: #331522;
-    --course-6: #a3b0ff; --course-6-bg: #1a1f3d;
-    --course-7: #e8d47a; --course-7-bg: #2b2612;
-  }
+.theme-contrast.is-dark {
+  --fg: #fff; --muted: #c8c8c8; --bg: #000; --surface: #101010; --line: #6e6e6e;
+  --ok: #5ee27f; --warn: #f0c33c; --err: #ff8f85; --accent: #ff9b52;
+  --tint: #101010; --tint-strong: #1c1c1c; --hover: rgba(255, 255, 255, .14);
+  --today-tint: #3a2410;
+  --primary: #ff9b52; --primary-ink: #000000;
+  --brand-mark: var(--accent);
+  --accent-ink: #1a0d04;
+  --accent-wash: rgba(255, 155, 82, .22);
+  --surface-raised: #141414;
+  --course-0: #66b8ff; --course-0-bg: #0b2337;
+  --course-1: #4fe0b4; --course-1-bg: #072b25;
+  --course-2: #ff9f57; --course-2-bg: #33210f;
+  --course-3: #c9a3ff; --course-3-bg: #241a3a;
+  --course-4: #5cd8f0; --course-4-bg: #07272f;
+  --course-5: #ff92b8; --course-5-bg: #331522;
+  --course-6: #a3b0ff; --course-6-bg: #1a1f3d;
+  --course-7: #e8d47a; --course-7-bg: #2b2612;
 }
 
 
@@ -359,7 +379,7 @@
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
   box-sizing: border-box;
-  height: 24px; padding: 0 8px; max-width: 100%;
+  height: 24px; padding: 0 7px; max-width: 100%;
   font: inherit; font-size: 11px; font-weight: 600; line-height: 1;
   border: 1px solid var(--line); border-radius: 999px;
   background: var(--surface); color: var(--fg);

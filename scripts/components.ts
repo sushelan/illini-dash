@@ -11,6 +11,7 @@
 
 import { ICON_PATHS, type IconName, icon, iconButton } from "../src/ui/icons.js";
 import { allThemeClasses, themeClass } from "../src/core/theme.js";
+import { applyMode } from "../src/ui/theme-panel.js";
 
 /* ---- theme switcher ---- */
 for (const button of document.querySelectorAll<HTMLElement>("[data-theme]")) {
@@ -20,6 +21,10 @@ for (const button of document.querySelectorAll<HTMLElement>("[data-theme]")) {
   });
 }
 document.documentElement.classList.add(themeClass("illini"));
+// Dark is a class now rather than a media query, and this page does not run
+// `applyStoredTheme` — so without this the gallery renders light on a dark
+// machine, which is the one mode it most needs to show.
+applyMode("system");
 
 /* ---- icon buttons ---- */
 const iconRow = document.getElementById("icon-buttons")!;

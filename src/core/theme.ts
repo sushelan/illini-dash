@@ -61,3 +61,61 @@ export function themeClass(name: ThemeName): string {
 export function allThemeClasses(): string[] {
   return THEMES.map((theme) => themeClass(theme.name));
 }
+
+/* -------------------------------------------------------------------------- */
+/* Light or dark                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Light, dark, or whatever the machine says — and the last one is the default.
+ *
+ * The palette and the mode are two separate choices. "Illini" describes which
+ * hues carry meaning; "dark" describes which end of the range they sit at. They
+ * were one setting only because the mode was never a setting at all: every dark
+ * value lived behind `@media (prefers-color-scheme: dark)`, so a student on a
+ * dark machine could not have a light calendar and one on a light machine could
+ * not have a dark one.
+ *
+ * `system` stays the default because it is right almost always, and because it
+ * is the only value that keeps following the machine after the student stops
+ * thinking about it.
+ */
+export type ModeName = "system" | "light" | "dark";
+
+export const MODES: { name: ModeName; label: string; hint: string }[] = [
+  { name: "system", label: "Match my system", hint: "Follows your computer's light or dark setting" },
+  { name: "light", label: "Light", hint: "Always light, whatever the computer says" },
+  { name: "dark", label: "Dark", hint: "Always dark, whatever the computer says" },
+];
+
+export const DEFAULT_MODE: ModeName = "system";
+
+/** Its own key: changing the palette must not reset the mode, or the reverse. */
+export const MODE_KEY = "illini-dash.mode";
+
+export function isModeName(value: unknown): value is ModeName {
+  return MODES.some((mode) => mode.name === value);
+}
+
+export function normalizeMode(stored: unknown): ModeName {
+  return isModeName(stored) ? stored : DEFAULT_MODE;
+}
+
+/**
+ * Which end of the range to actually paint, given the choice and the machine.
+ *
+ * The stylesheet keys on **one class**, `is-dark`, rather than on a media
+ * query. A media query cannot be overridden by a setting without writing every
+ * dark value twice — once inside it and once for the forced case — and two
+ * copies of a palette is the failure `docs/colour-layer.md` rule 3 is about.
+ * Resolving it here means the media query is consulted once, in one place, and
+ * the answer is a class.
+ */
+export function resolveDark(mode: ModeName, systemPrefersDark: boolean): boolean {
+  if (mode === "dark") return true;
+  if (mode === "light") return false;
+  return systemPrefersDark;
+}
+
+/** The class the stylesheet keys on for the dark end of every palette. */
+export const DARK_CLASS = "is-dark";

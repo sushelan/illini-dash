@@ -23,7 +23,7 @@ import { describe, expect, it } from "vitest";
 
 const CSS = readFileSync(new URL("../public/ui.css", import.meta.url), "utf8");
 
-/** A `:root` / `.theme-*` block, and whether it is the dark variant. */
+/** A `:root` / `.theme-*` block. */
 interface Block {
   name: string;
   vars: Map<string, string>;
@@ -32,39 +32,34 @@ interface Block {
 /**
  * The six palettes: three themes × light and dark.
  *
+ * The dark half used to be found by tracking `@media (prefers-color-scheme:
+ * dark)` nesting. It is a class now — `:root.is-dark`, `.theme-neutral.is-dark`
+ * — because a media query cannot be overridden by a Light/Dark setting without
+ * writing every dark value twice, and two copies of a palette is the failure
+ * `docs/colour-layer.md` rule 3 exists for. So this reads the selector directly,
+ * which is both simpler and closer to what the stylesheet actually says.
+ *
  * Written as a scan rather than with a CSS parser because the only structure
  * that matters is "which declarations are inside this selector", and adding a
- * dependency to read one stylesheet is the kind of thing SPEC.md's no-runtime-
- * dependency rule exists to discourage.
+ * dependency to read one stylesheet is the kind of thing SPEC.md's
+ * no-runtime-dependency rule exists to discourage.
  */
+const PALETTE_SELECTOR = /^(:root|\.theme-[a-z]+)(\.is-dark)?\s*\{/;
+
 function blocks(): Block[] {
   const found: Block[] = [];
-  let dark = false;
-  let depth = 0;
   let current: Block | undefined;
-  const lines = CSS.split("\n");
 
-  for (const line of lines) {
+  for (const line of CSS.split("\n")) {
     const trimmed = line.trim();
-    if (/^@media\s*\(prefers-color-scheme:\s*dark\)/.test(trimmed)) {
-      dark = true;
-      depth = 0;
-      continue;
-    }
-    const selector = /^([:.][A-Za-z-]+)\s*\{/.exec(trimmed);
+    const selector = PALETTE_SELECTOR.exec(trimmed);
     if (selector) {
-      current = { name: `${selector[1]}${dark ? " (dark)" : ""}`, vars: new Map() };
+      current = { name: `${selector[1]}${selector[2] ? " (dark)" : ""}`, vars: new Map() };
       found.push(current);
-      depth += 1;
       continue;
     }
     if (trimmed.startsWith("}")) {
-      if (current) {
-        current = undefined;
-        depth -= 1;
-      } else if (dark && depth <= 0) {
-        dark = false;
-      }
+      current = undefined;
       continue;
     }
     if (!current) continue;
@@ -81,15 +76,13 @@ function blocks(): Block[] {
  *
  * Declarations are **merged**, not replaced, because a selector may legitimately
  * appear more than once — `:root` carries the palette near the top of the file
- * and one `accent-color` line further down. Overwriting on the second match
- * silently emptied the palette and turned five assertions below into
- * `expected NaN`, which is the "checking nothing" failure the first test in this
- * file exists to catch.
+ * and a `color-scheme` line elsewhere. Overwriting on the second match silently
+ * emptied the palette and turned five assertions below into `expected NaN`,
+ * which is the "checking nothing" failure the first test in this file catches.
  */
 function palettes(): Map<string, Map<string, string>> {
   const out = new Map<string, Map<string, string>>();
   for (const block of blocks()) {
-    if (!block.name.startsWith(":root") && !block.name.startsWith(".theme-")) continue;
     const existing = out.get(block.name);
     if (existing) for (const [k, v] of block.vars) existing.set(k, v);
     else out.set(block.name, block.vars);
@@ -142,7 +135,7 @@ describe("the ink tokens", () => {
     ]);
   });
 
-  for (const token of ["--accent-ink", "--primary", "--primary-ink"] as const) {
+  for (const token of ["--accent-ink", "--primary", "--primary-ink", "--brand-mark"] as const) {
     it(`is restated by every theme: ${token}`, () => {
       // Inheriting one of these from `:root` is how B2 happened: the neutral
       // and contrast themes redefine `--accent` and `--brand`, so an ink
@@ -185,6 +178,27 @@ describe("the ink tokens", () => {
       const base = name === ":root" ? undefined : light;
       const ratio = contrast(resolve(vars, "--primary", base), resolve(vars, "--bg", base));
       expect(ratio, `${name}: primary on bg is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("puts a legible wordmark on the header, in all six", () => {
+    /*
+     * The one place the accent is used as *text*, and it failed the first time
+     * for the same reason `--accent-ink` did: `#ff5f05` on the header tint is
+     * 2.86:1, at 12px bold, on the word that names the product.
+     *
+     * The brand orange stays the brand orange wherever it is a surface. Where
+     * it has to be read it is darkened, and this is the check that says so.
+     */
+    const light = all.get(":root")!;
+    for (const [name, vars] of all) {
+      const base = name === ":root" ? undefined : light;
+      const ink = resolve(vars, "--brand-mark", base);
+      const bar = resolve(vars, "--tint", base);
+      // Neutral's tint is a translucent overlay rather than a colour, so the
+      // page behind it is the honest thing to measure against.
+      const ratio = contrast(ink, bar.startsWith("#") ? bar : resolve(vars, "--bg", base));
+      expect(ratio, `${name}: ${ink} on ${bar} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA);
     }
   });
 

@@ -98,11 +98,36 @@ html.view-full,
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   box-sizing: border-box; min-height: 40px;
-  padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--line);
+  padding: 6px 6px 6px 8px; border-bottom: 1px solid var(--line);
   position: sticky; top: 0; background: var(--tint); color: var(--fg); z-index: 2;
 }
-.bar--right { display: flex; align-items: center; gap: 2px; flex: none; }
-#health { min-width: 0; display: flex; }
+.bar--right { display: flex; align-items: center; gap: 0; flex: none; }
+/*
+ * 26px, not 28, and only in the popup's bar.
+ *
+ * The bar now carries five things in 400px — the wordmark, the health pill, the
+ * pill's action, and three icons — and the pill is the only one that can
+ * shrink. Every pixel taken off the fixed ones is a character the sentence
+ * keeps, and the sentence is the thing that says what is wrong.
+ */
+.bar .btn-icon { width: 26px; height: 26px; }
+.view-full .bar .btn-icon { width: 28px; height: 28px; }
+.bar #health .btn { padding: 0 7px; }
+/*
+ * Wordmark, then the pill, then whatever the pill's state needs.
+ *
+ * `min-width: 0` on the row and `flex: none` on the wordmark is the whole
+ * arrangement: the name never gives up a pixel, and the pill — which already
+ * ellipses — is what absorbs a narrow window.
+ */
+#health { min-width: 0; display: flex; align-items: center; gap: 6px; flex: 1; }
+#health .pill { min-width: 0; }
+.wordmark {
+  flex: none;
+  font-size: 12px; font-weight: 700; letter-spacing: -.2px;
+  color: var(--brand-mark); white-space: nowrap;
+}
+.view-full .wordmark { font-size: 15px; }
 
 /* The per-source list behind the pill. Same facts as Settings › Sources, from
    the same `sourceRows`. */
@@ -639,7 +664,7 @@ h2.section {
 }
 .setup--note { font-size: 11px; color: var(--muted); margin: 0 0 14px; }
 .setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.setup--brand { font-size: 12px; font-weight: 600; }
+
 
 /*
  * A group that is present but not asking for anything.
@@ -693,10 +718,8 @@ h2.section {
 h2.section { color: var(--brand); opacity: .85; }
 h2.section.section--err { color: var(--err); opacity: 1; }
 .band--head { color: var(--brand); opacity: .85; }
-@media (prefers-color-scheme: dark) {
-  h2.section { color: var(--accent); opacity: .8; }
-  .band--head { color: var(--accent); opacity: .8; }
-}
+.is-dark h2.section { color: var(--accent); opacity: .8; }
+.is-dark .band--head { color: var(--accent); opacity: .8; }
 .theme-neutral h2.section,
 .theme-neutral .band--head { color: var(--muted); opacity: 1; }
 
@@ -839,25 +862,23 @@ h2.section.section--err { color: var(--err); opacity: 1; }
    carries its ink on the edge and on the code. The value is `--pill-fill`, in
    ui.css — a hex here is the "two copies of one decision" failure this file's
    header already records once. */
-@media (prefers-color-scheme: dark) {
-  .theme-illini .mpill:not(.mpill--exam):not(.mpill--opening):not(.mpill--event) {
-    background: var(--pill-fill);
-  }
-  /*
-   * And the same for a calendar row, which is the same decision at ten times
-   * the area.
-   *
-   * The month pill got this treatment and the week row did not, so the dark
-   * week read as a patchwork of eight saturated fills while the month beside it
-   * read as one calendar. colour-layer.md rule 2, exactly: a wash chosen to sit
-   * behind 11px of pill does different work behind a full-width row, and the
-   * eye is far less sensitive to lightening near-black than to darkening white.
-   *
-   * The course still carries its 3px edge and its saturated code — the two
-   * signals that identify it — so nothing is lost but the noise.
-   */
-  .theme-illini .witems .row,
-  .theme-illini .grid--stack .row,
-  .theme-illini .band .row,
-  .theme-illini .na .row[class*="course-"] { background: var(--pill-fill); }
+.theme-illini.is-dark .mpill:not(.mpill--exam):not(.mpill--opening):not(.mpill--event) {
+  background: var(--pill-fill);
 }
+/*
+ * And the same for a calendar row, which is the same decision at ten times
+ * the area.
+ *
+ * The month pill got this treatment and the week row did not, so the dark
+ * week read as a patchwork of eight saturated fills while the month beside it
+ * read as one calendar. colour-layer.md rule 2, exactly: a wash chosen to sit
+ * behind 11px of pill does different work behind a full-width row, and the
+ * eye is far less sensitive to lightening near-black than to darkening white.
+ *
+ * The course still carries its 3px edge and its saturated code — the two
+ * signals that identify it — so nothing is lost but the noise.
+ */
+.theme-illini.is-dark .witems .row,
+.theme-illini.is-dark .grid--stack .row,
+.theme-illini.is-dark .band .row,
+.theme-illini.is-dark .na .row[class*="course-"] { background: var(--pill-fill); }
