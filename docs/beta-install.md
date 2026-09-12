@@ -1,7 +1,7 @@
 # Installing Illini Dash (beta)
 
-Illini Dash puts every deadline from Canvas, Gradescope, PrairieLearn, PrairieTest and
-some course websites into one list.
+Illini Dash puts every deadline from Canvas, Gradescope, PrairieLearn, PrairieTest,
+smartPhysics and some course websites into one list.
 
 It reads those sites using the logins already in your browser. It never sees a password,
 nothing is uploaded anywhere, and everything it knows is stored on your own machine.
@@ -15,7 +15,7 @@ That takes about two minutes.
 ## Install
 
 1. Unzip the file you were sent. You will get a folder called something like
-   `illini-dash-0.1.0-20260910T184016`.
+   `illini-dash-1.0.0-20260912T193354`.
    **Keep the folder somewhere you will not delete it** — Chrome loads the extension
    from that folder every time it starts, so it cannot go in the trash.
 2. Open Chrome and type `chrome://extensions` in the address bar. (Links to
@@ -62,7 +62,7 @@ Click the Illini Dash icon.
 - **Red means something broke.** Hover it for the reason, and see "If something looks
   wrong" below.
 - Under the dots you should see a line like
-  `Checked 3:21 PM · 4 of 4 sources OK · build 20260910T184016`.
+  `Checked 3:21 PM · 4 of 4 sources OK · build 20260912T193354`.
 
 Sign in to Canvas, Gradescope, PrairieLearn and PrairieTest in this browser if you have
 not already. The extension can only read what you can read.

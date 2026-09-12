@@ -25,6 +25,43 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## The store documents, aligned and published — 2026-09-12
+
+**The one store file no test read is the one that drifted.** `tests/manifest.test.ts`
+pinned `listing.md` against the manifest and said nothing about `privacy-policy.md` — so
+the listing stayed correct and the policy went stale, which is the worse way round: the
+policy is the document with a public URL and a legal claim in it. It told students the
+extension reads **four** sites while the manifest held an up-front host permission for
+**five**. smartPhysics has been a first-class source since 2026-09-10, named in the
+listing's own one-liner, and absent from the policy entirely. `contextMenus` was missing
+too, and the registry fetch was described as "a public file on GitHub" rather than
+`raw.githubusercontent.com`, which is the host a reviewer has to match against
+`host_permissions`.
+
+The policy is now derived from the same things the listing is — every source origin, every
+manifest permission, the registry host, and the number of granted sites written as a
+*count* rather than as a word typed once. The manifest `description` had the identical
+gap, naming four of five sources under an install button that asks for all five. Five
+mutations, five killed. `package.json` still said `0.1.0` next to a manifest at `1.0.0`.
+
+**The policy is live**: <https://sushelan.github.io/illini-dash/privacy.html>, served from
+an orphan `gh-pages` branch holding three files, so nothing in `docs/` becomes a website.
+`scripts/site.mjs` generates it from `docs/store/privacy-policy.md` — a hand-written copy
+would be a second policy checked by nothing, which is exactly how the first one went
+stale. The renderer handles the markdown subset that file uses and **throws** on anything
+else: a bullet list emitted as a literal dash on a legal page is silent-empty in its
+public form. It caught its own first bug that way, when a markdown link leaked through as
+literal text. Measured AA in both modes.
+
+**[pre-submit.md](docs/pre-submit.md)** now holds the two walks that cannot be run from
+here: the clean-profile install (ten ordered steps, each saying what a failure would mean
+— the setup tab on install, the pin card, a real notification, and the course-site enable
+from `962add6`, none of which has ever been observed outside a unit test), and the G4 beta
+(why the spread has to be across *sources* rather than majors, since G3 passed on n=1 and
+the badge-token trade is still unmeasured).
+
+959 tests.
+
 ## Light carries the brand hue; switching a site on now reads it — 2026-09-12
 
 **"Why is light mode just white and orange?"** Because the palette's own first principle
