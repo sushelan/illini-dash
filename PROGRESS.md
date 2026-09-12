@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (866 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (894 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -24,6 +24,55 @@ from here.**
   the popup's 322px of chrome, a component system, Settings, first run, notifications and
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
+
+## UX plan phase C — popup information architecture — 2026-09-12
+
+Sushi's three decisions from ux-plan §7: agenda, rolling week, one health pill. All three
+as recommended.
+
+**The budget, re-measured in the real popup document.** Healthy **145px** of chrome before
+the first deadline (was 215; target 144), worst case **211px** (was 322; target ≤226).
+
+| Block | Was | Now |
+|---|---|---|
+| Header | 48 | 41 |
+| Stale banner | 48 | 33 |
+| Booking strip | 50 | 33 |
+| Tabs | 47 | 36 |
+| Course chips | 81 | 36 |
+| Date navigator | 39 | 32 |
+
+- **M4** six 9px dots and the status line that restated them 800px lower become one
+  health pill, from `healthPill()` in `core/health.ts`. Clicking it opens a per-source
+  list built by `sourceRows()` — the same facts, from the same function, that Settings
+  shows. Signing in outranks a parse error, for `staleNotice`'s reason: one is ten seconds
+  of work and the other needs a new build.
+- **M2** the popup's Day is an agenda (`agendaRows`). Eleven empty ruled hours between a
+  9 AM checkpoint and a 9 PM exam cost ~290px and put the exam below the fold. The full
+  view keeps the grid, where the height exists — `full-day-dark.png` is the evidence for
+  both halves.
+- **M3** the popup's Week is a rolling 7 days from today; the full view stays Sun–Sat.
+- **M5** all five tabs are named. The old rule — five labels measure 454px — was measured
+  at 12.5px with an icon on every tab; without the icons and at 12px they fit in 400 with
+  room to spare, and the width check confirms it.
+- **M6** one 36px scrolling chip row. `overflow-x` is on the strip, never on `body`.
+- **M7** sync spins the button that started it. **M9/M11** the status line is gone except
+  when something is actually wrong.
+- **M11** rows are `<a href>` with a roving tabindex, `⋯` is visible at 35%, the menu
+  handles ↑ ↓ Home End Esc and opens on Shift+F10 / `.`, and its first item names the site.
+  A keyboard walk in the real document found a defect no test could: the arrow handler was
+  re-attached on every draw, so after the popup's own open-sync one press moved three rows.
+- **m11** `popup.css`'s three stacked "refresh" layers are one. `.bar` was set three times
+  and `.tab[aria-selected]` four, with the cascade deciding.
+- Amendment: in dark Illini a calendar row now takes `--pill-fill`, the single navy the
+  month pill already used. Eight washes chosen for an 11px pill read as a patchwork behind
+  a full-width row — colour-layer.md rule 2. Measured: all six rows composite to
+  `rgb(26,48,80)` against a `rgb(11,23,38)` page.
+- Amendment to the width check in colour-layer.md: an element inside a deliberately
+  scrolling strip may sit past 401px. `scrollWidth === 400` is the authoritative test.
+- 894 tests; `agendaRows`, the rolling window, `healthPill` and `sourceRows` each
+  mutation-checked (six mutations, one of which reported a false "survived" until the
+  match count was asserted).
 
 ## UX plan phase B — primitives — 2026-09-12
 - One component layer in `ui.css`, below the palette and containing no colour values of

@@ -18,6 +18,7 @@ import {
   bookings,
   courseColours,
   coursesIn,
+  agendaRows,
   allTimed,
   dayContents,
   examBoard,
@@ -826,5 +827,138 @@ describe("examBoard — the things you have to turn up to", () => {
 
   it("shows nothing on the badge when every exam is booked", () => {
     expect(examCount([exam(at(2026, 8, 20, 19))], NOW)).toBe(0);
+  });
+});
+
+describe("agendaRows (the popup's day)", () => {
+  /*
+   * The hour axis is the right shape for meetings and the wrong one for
+   * deadlines. On a real day a 9 AM checkpoint and a 9 PM exam produce eleven
+   * empty ruled hours between them — about 290px, in a 600px window that has
+   * already spent 215 on chrome — so the exam is below the fold. This is the
+   * sequence that replaces it in the popup; the grid stays in the full view.
+   */
+  const untimed = item({ title: "bare date", dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true });
+  const morning = item({ title: "checkpoint", dueAt: at(2026, 8, 10, 9, 0) });
+  const evening = item({ title: "exam", dueAt: at(2026, 8, 10, 21, 0) });
+  const eod = item({ title: "homework", dueAt: at(2026, 8, 10, 23, 59) });
+
+  const shape = (rows: ReturnType<typeof agendaRows>) =>
+    rows.map((row) =>
+      row.kind === "item"
+        ? row.placed.item.title
+        : row.kind === "untimed"
+          ? row.item.title
+          : row.kind === "heading"
+            ? `# ${row.text}`
+            : "— now —",
+    );
+
+  it("puts the riskiest group first and the invented times out of the clock order", () => {
+    // An invented 11:59 PM can be hiding a 5 PM cutoff; a stated one cannot.
+    // Ordering the day by clock would file it last, next to a real 11:59 PM
+    // deadline, with nothing to say which of the two is a guess.
+    const rows = agendaRows(dayContents([untimed, morning, eod], SEP10, NOW), NOW, true);
+    expect(shape(rows)).toEqual([
+      "# Time not posted",
+      "bare date",
+      "checkpoint",
+      "— now —",
+      "# By end of day",
+      "homework",
+    ]);
+  });
+
+  it("spends nothing on an empty hour", () => {
+    // The whole point. Twelve hours between these two, and two rows.
+    const rows = agendaRows(dayContents([morning, evening], SEP10, NOW), NOW, true);
+    expect(rows.filter((r) => r.kind === "item")).toHaveLength(2);
+    expect(rows).toHaveLength(3); // the two items and the now marker between them
+  });
+
+  it("puts the now marker between what has passed and what has not", () => {
+    const rows = agendaRows(dayContents([morning, evening], SEP10, NOW), NOW, true);
+    expect(shape(rows)).toEqual(["checkpoint", "— now —", "exam"]);
+  });
+
+  it("draws no marker when it would separate nothing", () => {
+    /*
+     * A rule at the very top says what the empty space above the first row
+     * already says, and a rule at the bottom says what the absence of anything
+     * below it already says. Both cost a row and carry nothing.
+     */
+    const allAhead = agendaRows(dayContents([evening], SEP10, NOW), NOW, true);
+    expect(shape(allAhead)).toEqual(["exam"]);
+    const allPast = agendaRows(dayContents([morning], SEP10, NOW), NOW, true);
+    expect(shape(allPast)).toEqual(["checkpoint"]);
+  });
+
+  it("draws no marker at all on a day that is not today", () => {
+    // ‹ › moves the anchor. "Now" on next Tuesday is a line across a day the
+    // clock has nothing to say about.
+    const rows = agendaRows(dayContents([morning, evening], SEP10, NOW), NOW, false);
+    expect(shape(rows)).toEqual(["checkpoint", "exam"]);
+  });
+
+  it("puts the marker above the end-of-day label, not between it and its rows", () => {
+    const rows = agendaRows(dayContents([morning, eod], SEP10, NOW), NOW, true);
+    expect(shape(rows)).toEqual(["checkpoint", "— now —", "# By end of day", "homework"]);
+  });
+
+  it("can put the marker inside the end-of-day pile, which is where it lands late", () => {
+    // 11:45 PM, with one deadline gone at 11:30 and one still open at 11:59.
+    const late = new Date(2026, 8, 10, 23, 45);
+    const gone = item({ title: "closed", dueAt: at(2026, 8, 10, 23, 30) });
+    const rows = agendaRows(dayContents([gone, eod], SEP10, late), late, true);
+    expect(shape(rows)).toEqual(["# By end of day", "closed", "— now —", "homework"]);
+  });
+
+  it("draws exactly one marker", () => {
+    // The boundary between the timed group and the end-of-day group is two
+    // separate places the marker could be emitted from.
+    const rows = agendaRows(dayContents([morning, evening, eod], SEP10, NOW), NOW, true);
+    expect(rows.filter((r) => r.kind === "now")).toHaveLength(1);
+  });
+
+  it("says nothing about a day with nothing on it", () => {
+    expect(agendaRows(dayContents([], SEP10, NOW), NOW, true)).toEqual([]);
+  });
+});
+
+describe("weekDays, rolling", () => {
+  it("starts the popup's week on today", () => {
+    /*
+     * Sushi's decision, and the reason: on a Friday, Sunday–Saturday puts five
+     * days that have already happened above the only row anyone can still act
+     * on, and today ends up the last thing on a 600px screen.
+     */
+    const friday = new Date(2026, 8, 11);
+    const rolling = weekDays(friday, "rolling");
+    expect(rolling[0]!.getDate()).toBe(11);
+    expect(rolling.map((d) => d.getDate())).toEqual([11, 12, 13, 14, 15, 16, 17]);
+  });
+
+  it("leaves the full view's week alone", () => {
+    // One definition of "week" per window, and the tab has room for the one
+    // every other calendar uses.
+    const friday = new Date(2026, 8, 11);
+    expect(weekDays(friday).map((d) => d.getDate())).toEqual([6, 7, 8, 9, 10, 11, 12]);
+    expect(weekDays(friday, "sunday")).toEqual(weekDays(friday));
+  });
+
+  it("still crosses a month boundary cleanly", () => {
+    const late = new Date(2026, 8, 28);
+    const days = weekDays(late, "rolling");
+    expect(days.map((d) => `${d.getMonth()}-${d.getDate()}`)).toEqual([
+      "8-28", "8-29", "8-30", "9-1", "9-2", "9-3", "9-4",
+    ]);
+  });
+
+  it("marks today wherever it falls in the window", () => {
+    const rolling = weekContents([], SEP10, NOW, "rolling");
+    expect(rolling.map((d) => d.isToday)).toEqual([true, false, false, false, false, false, false]);
+    const sunday = weekContents([], SEP10, NOW, "sunday");
+    // Thursday is the fifth column of a Sunday-start week.
+    expect(sunday.map((d) => d.isToday)).toEqual([false, false, false, false, true, false, false]);
   });
 });

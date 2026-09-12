@@ -256,13 +256,119 @@ export function hourRange(contents: DayContents): { start: number; end: number }
 }
 
 /* -------------------------------------------------------------------------- */
+/* A day, as an agenda                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The same day, without an hour axis.
+ *
+ * The axis is the right shape for a calendar of *meetings*, where position
+ * answers "how long until it, and what is next to it". Deadlines are not shaped
+ * like that: fact 1 at the top of this file is that most of them land on the
+ * same minute, so the axis spends its height on hours with nothing in them and
+ * then stacks everything on one line at the bottom.
+ *
+ * Measured on a real day: a 9 AM checkpoint and a 9 PM exam produce eleven
+ * empty ruled hours between them — about 290px, in a window that is 600px tall
+ * and has already spent 215 of them on chrome. The exam ends up below the fold.
+ * An agenda spends one row per item and nothing per empty hour.
+ *
+ * The grid stays in the full view, where the height exists and the position
+ * genuinely helps.
+ */
+export type AgendaRow =
+  | { kind: "heading"; text: string; note?: string }
+  | { kind: "item"; placed: PlacedItem }
+  /** A day with no time stated. Never drawn at 11:59 PM — that is our invention. */
+  | { kind: "untimed"; item: Item }
+  | { kind: "now" };
+
+/** Said once above the rows it applies to, rather than on each of them. */
+export const UNTIMED_HEADING = "Time not posted";
+export const END_OF_DAY_HEADING = "By end of day";
+
+export function agendaRows(contents: DayContents, now: Date, isToday: boolean): AgendaRow[] {
+  const rows: AgendaRow[] = [];
+
+  // Riskiest first. An invented time can hide a 5 PM cutoff; a stated 11:59 PM
+  // cannot — the same reason "Couldn't read" leads the Attention tab.
+  if (contents.untimed.length > 0) {
+    rows.push({ kind: "heading", text: UNTIMED_HEADING });
+    for (const item of contents.untimed) rows.push({ kind: "untimed", item });
+  }
+
+  const timed = contents.timed.flat();
+
+  /*
+   * Where "now" goes, and when it is worth drawing at all.
+   *
+   * Only on today, and only when it actually separates two rows. A rule at the
+   * very top says the same thing as "nothing has passed yet", which the empty
+   * space above the first row already says; a rule at the very bottom says the
+   * day is over, which the absence of anything below it already says. In both
+   * of those it is a line that costs a row and carries no information.
+   *
+   * End-of-day rows count as rows it can sit above: at 11:30 PM the marker
+   * belongs between the timed list and the 11:59 pile, not before both.
+   */
+  const ordered = [...timed, ...contents.endOfDay];
+  const firstAhead = ordered.findIndex((placed) => placed.anchor.at >= now.getTime());
+  // `> 0` drops the all-ahead case and `findIndex`'s -1 drops the all-past one.
+  const marker = isToday && firstAhead > 0 ? firstAhead : -1;
+
+  let index = 0;
+  let markerDrawn = false;
+  const markHere = () => {
+    if (markerDrawn || index !== marker) return;
+    rows.push({ kind: "now" });
+    markerDrawn = true;
+  };
+
+  for (const placed of timed) {
+    markHere();
+    rows.push({ kind: "item", placed });
+    index += 1;
+  }
+
+  if (contents.endOfDay.length > 0) {
+    // Before the heading rather than after it, when the marker lands exactly
+    // between the two groups: "now" should separate rows, not separate a group
+    // from its own label.
+    markHere();
+    rows.push({ kind: "heading", text: END_OF_DAY_HEADING });
+    for (const placed of contents.endOfDay) {
+      markHere();
+      rows.push({ kind: "item", placed });
+      index += 1;
+    }
+  }
+
+  return rows;
+}
+
+/* -------------------------------------------------------------------------- */
 /* A week                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** Sunday through Saturday containing `anchor`, as local midnights. */
-export function weekDays(anchor: Date): Date[] {
-  const sunday = startOfDay(anchor, -anchor.getDay());
-  return Array.from({ length: 7 }, (_, i) => startOfDay(sunday, i));
+/**
+ * Which seven days a "week" is.
+ *
+ * Two answers, and which one is right depends on the window rather than on
+ * taste. In a tab there is room for a calendar week, and Sunday–Saturday is
+ * what a calendar means by "week" — the columns line up with every other
+ * calendar the student has ever seen.
+ *
+ * In a 400px popup it is the wrong seven days on five days out of seven. On a
+ * Friday, Sunday–Saturday puts five days that have already happened — two
+ * struck through, three reading "—" — above the only row anyone can still act
+ * on, and today ends up the last thing on screen. `rolling` starts at today, so
+ * the first row is always the one being asked about.
+ */
+export type WeekMode = "rolling" | "sunday";
+
+export function weekDays(anchor: Date, mode: WeekMode = "sunday"): Date[] {
+  const first = mode === "rolling" ? startOfDay(anchor) : startOfDay(anchor, -anchor.getDay());
+  return Array.from({ length: 7 }, (_, i) => startOfDay(first, i));
 }
 
 export interface WeekDay {
@@ -271,9 +377,14 @@ export interface WeekDay {
   contents: DayContents;
 }
 
-export function weekContents(items: Item[], anchor: Date, now: Date): WeekDay[] {
+export function weekContents(
+  items: Item[],
+  anchor: Date,
+  now: Date,
+  mode: WeekMode = "sunday",
+): WeekDay[] {
   const todayKey = dayKey(now);
-  return weekDays(anchor).map((date) => ({
+  return weekDays(anchor, mode).map((date) => ({
     date,
     isToday: dayKey(date) === todayKey,
     contents: dayContents(items, date, now),

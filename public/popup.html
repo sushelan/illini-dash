@@ -7,22 +7,37 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
+    <!--
+      Every block above `#view` costs the same pixels as a deadline, in a window
+      that is 600px tall. It used to spend 215 of them before the first row in a
+      healthy state and 322 in the worst one — so the thing the popup was opened
+      for started below the midpoint. The budget is now 144 healthy.
+
+      The header is one control on the left and three on the right. The left one
+      is the health pill, which replaced six 9px dots *and* the status line that
+      restated them 800px lower.
+    -->
     <header class="bar">
-      <div id="dots" class="dots"></div>
-      <div class="bar--right">
-        <button id="sync" class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18a8 8 0 0 1-13-3"/></svg>Sync now</button>
-        <a id="full" href="#" class="link">⤢ full view</a>
-        <a id="settings" href="#" class="link" title="Settings" aria-label="Settings">⚙</a>
-      </div>
+      <div id="health"></div>
+      <div class="bar--right" id="actions"></div>
     </header>
-    <div id="blocked" class="banner banner-err" hidden></div>
-    <div id="stale" class="banner" hidden></div>
-    <div id="booking"></div>
-    <nav id="tabs" class="tabs"></nav>
+    <!--
+      One slot, not three. The notification warning, the stale-source warning and
+      the booking strip were three elements that could all be present at once,
+      each with its own height and its own idea of what a banner looks like.
+    -->
+    <div id="banners"></div>
+    <nav id="tabs" class="tabs" role="tablist" aria-label="Views"></nav>
     <div id="filters" class="filters"></div>
     <div id="nav" class="datenav"></div>
     <main id="view"></main>
-    <p id="status" class="muted"></p>
+    <!--
+      Errors only, and hidden the rest of the time. A popup that fails halfway is
+      a blank rectangle with no scrollback and no obvious way into the console,
+      so this is the one channel the surface has — but it is no longer a line
+      that is always there, restating the pill.
+    -->
+    <div id="status" hidden></div>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

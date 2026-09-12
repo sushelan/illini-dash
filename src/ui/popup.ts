@@ -20,10 +20,15 @@ import {
 import { isItemDone, isTickedDone, sameCourse } from "../core/dedupe.js";
 import { googleCalendarUrl } from "../core/ics.js";
 import {
+  type AgendaRow,
   type AttentionName,
   type DayContents,
   type PlacedItem,
   type ViewName,
+  type WeekMode,
+  END_OF_DAY_HEADING,
+  UNTIMED_HEADING,
+  agendaRows,
   allTimed,
   attentionCount,
   examBoard,
@@ -49,18 +54,25 @@ import {
   movedText,
   type SectionName,
 } from "../core/grouping.js";
-import { displayState, emptyStateFor, staleNotice, statusLine } from "../core/health.js";
+import {
+  type HealthPill,
+  type SourceRow,
+  emptyStateFor,
+  healthPill,
+  sourceRows,
+  staleNotice,
+} from "../core/health.js";
+import { type IconName, icon, iconButton } from "./icons.js";
 import {
   LOGIN_URL,
   SOURCE_CODE,
   SOURCE_NAME,
-  STATE_PHRASE,
-  fullStamp,
+  SOURCE_TITLE,
   timeAgo,
 } from "../core/names.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
-import type { Item, Settings, Source, SourceStatus } from "../sources/types.js";
+import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 const ALLOWED_HOSTS = new Set([
   "canvas.illinois.edu",
@@ -97,86 +109,276 @@ const viewEl = document.getElementById("view")!;
 const tabsEl = document.getElementById("tabs")!;
 const filtersEl = document.getElementById("filters")!;
 const dateNavEl = document.getElementById("nav")!;
-const bookingEl = document.getElementById("booking")!;
-const dotsEl = document.getElementById("dots")!;
+const healthEl = document.getElementById("health")!;
+const actionsEl = document.getElementById("actions")!;
+const bannersEl = document.getElementById("banners")!;
 const statusEl = document.getElementById("status")!;
-const staleEl = document.getElementById("stale")!;
-const blockedEl = document.getElementById("blocked")!;
-
-function renderDots(sources: Record<Source, SourceStatus>, lastSyncAt?: string): void {
-  dotsEl.replaceChildren();
-  for (const source of ALL_SOURCES) {
-    const status = sources[source];
-    if (!status) continue;
-    // Not `status.state`: a source that has never been attempted has no result
-    // to show, and rendering the seeded value painted a fresh install green.
-    const state = displayState(status);
-    const dot = document.createElement("span");
-    dot.className = `dot dot-${state}`;
-    const read = timeAgo(status.lastSuccessAt, new Date());
-    const when = read ? `last read ${read}` : "never read successfully";
-    dot.title = `${SOURCE_NAME[source]} ${STATE_PHRASE[state]}\n${when}${
-      status.lastError ? `\n${status.lastError}` : ""
-    }`;
-    if (state === "needs_login" && LOGIN_URL[source]) {
-      dot.addEventListener("click", () => chrome.tabs.create({ url: LOGIN_URL[source]! }));
-    }
-    dotsEl.append(dot);
-  }
-  // §8.1's line, from core so the "n of m" rule is testable: `lastSyncAt` is set
-  // whether or not any source succeeded, so "Synced 10:32" was equally cheerful
-  // after four failures.
-  // No build id. It was the last line every student saw, and it is evidence for
-  // exactly one question — "is the worker running the same code as this page?" —
-  // which Settings › Developer answers, next to the rest of the evidence.
-  statusEl.textContent = statusLine(sources, lastSyncAt, new Date());
-}
 
 /**
- * §11's catastrophic case, made visible: a source that failed keeps its old
- * rows, so the list still looks complete while it silently stops updating.
- */
-function renderStaleBanner(sources: Record<Source, SourceStatus>): void {
-  staleEl.replaceChildren();
-  const notice = staleNotice(sources, new Date());
-  if (!notice) {
-    staleEl.hidden = true;
-    return;
-  }
-  staleEl.hidden = false;
-
-  const age =
-    notice.hours === undefined
-      ? "has never been read successfully"
-      : `hasn't been read successfully for ${notice.hours}h`;
-  const text = document.createElement("span");
-  text.textContent = `${SOURCE_NAME[notice.source]} ${age}. Anything it lists may be out of date.`;
-  staleEl.append(text);
-
-  const login = LOGIN_URL[notice.source];
-  if (notice.needsLogin && login) {
-    const button = document.createElement("button");
-    button.className = "link";
-    button.textContent = "Sign in";
-    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
-    staleEl.append(button);
-  }
-}
-
-/**
- * Chrome's notification switch, which one click in any toast can flip.
+ * The header: one pill on the left, three icon buttons on the right, 40px.
  *
- * Worth a banner rather than a line in Settings: while it is off every reminder
- * is silently dropped, and a student who never opens Settings would only find
- * out by missing something.
+ * What it replaces is six 9px dots and, 800px below them, a line of prose
+ * restating what the dots meant. The dots were a colour-only signal (shapes
+ * existed only in the High-contrast theme), the one that was clickable looked
+ * exactly like the five that were not, and nobody scrolled to the line.
+ *
+ * Everything the pill says comes from `healthPill`, which derives it from
+ * `summarize()` — so it cannot claim a source is fine when nothing was fetched.
  */
-function renderBlockedBanner(blocked: boolean): void {
-  blockedEl.replaceChildren();
-  blockedEl.hidden = !blocked;
-  if (!blocked) return;
-  blockedEl.textContent =
-    "Chrome is blocking reminders from Illini Dash, so nothing will notify you. " +
-    "Turn them back on in Chrome's notification settings.";
+function renderHealth(
+  sources: Record<Source, SourceStatus>,
+  lastSyncAt: string | undefined,
+  now: Date,
+): void {
+  healthEl.replaceChildren();
+  const pill = healthPill(sources, lastSyncAt, now);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `pill is-${pill.tone}`;
+  button.setAttribute("aria-haspopup", "dialog");
+  button.title = "Which sites were read, and when";
+
+  const dot = document.createElement("i");
+  dot.className = "pill--dot";
+  const text = document.createElement("span");
+  text.className = "pill--text";
+  text.textContent = pill.text;
+  button.append(dot, text, icon("right"));
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openHealthPopover(sources, now, button);
+  });
+  healthEl.append(button);
+}
+
+/**
+ * Every source, with the one thing to do about each.
+ *
+ * The same facts Settings › Sources shows, from the same `sourceRows` — two
+ * surfaces assembling this separately is how the popup came to say "read
+ * successfully" where Settings said "ok", about the same source in the same
+ * second.
+ */
+function openHealthPopover(
+  sources: Record<Source, SourceStatus>,
+  now: Date,
+  anchor: HTMLElement,
+): void {
+  closeMenus();
+  const menu = document.createElement("div");
+  menu.className = "menu-surface popover";
+  menu.setAttribute("role", "dialog");
+  menu.setAttribute("aria-label", "Source health");
+  menu.addEventListener("click", (event) => event.stopPropagation());
+
+  for (const row of sourceRows(sources, now)) {
+    menu.append(renderSourceRow(row));
+  }
+
+  const box = anchor.getBoundingClientRect();
+  menu.style.top = `${box.bottom + window.scrollY + 4}px`;
+  menu.style.left = `${Math.max(8, box.left)}px`;
+  document.body.append(menu);
+  trapMenuKeys(menu, anchor);
+}
+
+function renderSourceRow(row: SourceRow): HTMLElement {
+  const line = document.createElement("div");
+  line.className = "srow";
+
+  const dot = document.createElement("i");
+  dot.className = `srow--dot is-${toneFor(row.state)}`;
+
+  const name = document.createElement("span");
+  name.className = "srow--name";
+  // `SOURCE_TITLE`, not `SOURCE_NAME`: this is a label in a list, and "the
+  // course website" reads as a sentence fragment sitting between Canvas and
+  // PrairieTest.
+  name.textContent = SOURCE_TITLE[row.source];
+
+  const state = document.createElement("span");
+  state.className = `srow--state is-${toneFor(row.state)}`;
+  // "Connected · 5 min ago" rather than two facts in two columns: the second
+  // one only makes sense as a qualifier on the first.
+  state.textContent = row.lastRead && row.state === "ok" ? `${row.word} · ${row.lastRead}` : row.word;
+  if (row.lastReadExact || row.lastError) {
+    state.title = [row.lastError, row.lastReadExact && `last read ${row.lastReadExact}`]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  line.append(dot, name, state);
+  if (row.loginUrl) {
+    const signIn = document.createElement("button");
+    signIn.type = "button";
+    signIn.className = "btn btn-secondary btn-sm";
+    signIn.textContent = "Sign in";
+    signIn.addEventListener("click", () => chrome.tabs.create({ url: row.loginUrl! }));
+    line.append(signIn);
+  }
+  return line;
+}
+
+/** The four tones the pill, the popover and the chips all share. */
+function toneFor(state: SourceState): "ok" | "warn" | "err" | "pending" | "off" {
+  if (state === "ok") return "ok";
+  if (state === "needs_login") return "warn";
+  if (state === "disabled") return "off";
+  if (state === "pending") return "pending";
+  return "err";
+}
+
+/** Sync, open-in-a-tab, settings. Drawn once; only the sync state changes. */
+let syncButton: HTMLButtonElement | undefined;
+
+function renderActions(): void {
+  actionsEl.replaceChildren();
+
+  syncButton = iconButton("sync", "Sync now");
+  syncButton.addEventListener("click", () => void runSync());
+  actionsEl.append(syncButton);
+
+  if (!isFullView) {
+    // "⤢ full view" named the mechanism. What a student wants from it is that
+    // the window stops vanishing when they click on the course page behind it.
+    const full = iconButton("open-tab", "Open in a tab");
+    full.addEventListener("click", () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
+    });
+    actionsEl.append(full);
+  }
+
+  const settings = iconButton("settings", "Settings");
+  settings.addEventListener("click", () => {
+    if (isFullView) {
+      // Already in a tab, so use it. `openOptionsPage` would leave two Illini
+      // Dash tabs open, with the one being read behind the one now in front.
+      location.href = chrome.runtime.getURL("options.html");
+      return;
+    }
+    chrome.runtime.openOptionsPage();
+  });
+  actionsEl.append(settings);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Banners                                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface Banner {
+  tone: "info" | "warn" | "err";
+  glyph: IconName;
+  text: string;
+  action?: { label: string; run: () => void };
+}
+
+/**
+ * One slot, one line each, one action each.
+ *
+ * Three separate elements used to live here — notifications blocked, a stale
+ * source, and the booking strip — each with its own height, its own colours and
+ * its own idea of what a banner is. All three can be on screen at once, which
+ * is 146px of a 600px window before the first deadline.
+ *
+ * The rule that keeps them short: if a banner needs a second sentence, the
+ * second sentence belongs on the page it links to.
+ */
+function renderBanners(state: {
+  sources: Record<Source, SourceStatus>;
+  notificationsBlocked: boolean;
+  items: Item[];
+}): void {
+  bannersEl.replaceChildren();
+  const banners: Banner[] = [];
+
+  if (state.notificationsBlocked) {
+    banners.push({
+      tone: "err",
+      glyph: "warning",
+      text: "Chrome is blocking reminders, so nothing will notify you",
+      action: {
+        label: "How to fix",
+        run: () => chrome.runtime.openOptionsPage(),
+      },
+    });
+  }
+
+  const stale = staleNotice(state.sources, new Date());
+  if (stale) {
+    // Short enough to fit one 32px line beside an icon and a button at 400px —
+    // about 45 characters. The longer sentence it replaces wrapped, and a
+    // wrapped banner is 41px, which is only nine pixels until three of them
+    // are on screen at once.
+    const age =
+      stale.hours === undefined
+        ? "never read — nothing from it is listed"
+        : `signed out ${stale.hours}h — rows may be old`;
+    const login = LOGIN_URL[stale.source];
+    banners.push({
+      tone: "warn",
+      glyph: "warning",
+      text: `${SOURCE_NAME[stale.source]}: ${age}`,
+      ...(stale.needsLogin && login
+        ? { action: { label: "Sign in", run: () => chrome.tabs.create({ url: login }) } }
+        : {}),
+    });
+  }
+
+  // §4.4: a booking window closes whether or not the student has looked, so it
+  // is pinned above the tabs rather than filed under Exams. One line now: the
+  // title, the window and the word "not booked" all fit on one at 12px.
+  for (const item of bookings(state.items)) {
+    const title = item.title.replace(/^Book a slot:\s*/i, "");
+    const url = safeUrl(item.url);
+    const window_ = bookingWindowRange(item);
+    // Not "· not booked" as well: an amber banner with a button reading Book on
+    // it has already said that, and the words cost the course title its width.
+    banners.push({
+      tone: "warn",
+      glyph: "tab-exams",
+      text: window_ ? `${title} · ${window_}` : `${title} · not booked`,
+      ...(url ? { action: { label: "Book", run: () => chrome.tabs.create({ url }) } } : {}),
+    });
+  }
+
+  for (const banner of banners) bannersEl.append(renderBanner(banner));
+}
+
+function renderBanner(banner: Banner): HTMLElement {
+  const line = document.createElement("div");
+  line.className = `banner-line banner-${banner.tone}`;
+  const text = document.createElement("span");
+  text.className = "banner-line--text";
+  text.textContent = banner.text;
+  // The full sentence is kept where it cannot be truncated away: a banner is
+  // one line by design, and a course title can be longer than one line.
+  text.title = banner.text;
+  line.append(icon(banner.glyph), text);
+  if (banner.action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-quiet btn-sm";
+    button.textContent = banner.action.label;
+    button.addEventListener("click", banner.action.run);
+    line.append(button);
+  }
+  return line;
+}
+
+/**
+ * The one channel a popup has when it cannot draw itself.
+ *
+ * Hidden the rest of the time. It used to be a permanent line at the bottom of
+ * an 883px document carrying "Checked 11:16 PM · 5 of 6 sources OK · build
+ * 20260912T041431" — a fact the header now states, a build id no student can
+ * use, and 800px below the thing it described.
+ */
+function showStatus(text: string | undefined): void {
+  statusEl.replaceChildren();
+  statusEl.hidden = !text;
+  if (!text) return;
+  statusEl.append(renderBanner({ tone: "err", glyph: "warning", text }));
 }
 
 function renderRow(
@@ -186,8 +388,42 @@ function renderRow(
   dueText?: { primary: string; detail?: string },
   colours?: Map<string, number>,
 ): HTMLElement {
-  const row = document.createElement("div");
+  /*
+   * An `<a>`, not a `<div>` with a click handler.
+   *
+   * Every row in this list opened a page and none of them could be reached by
+   * keyboard: Tab went from the tab strip straight past a screenful of
+   * deadlines to whatever came after. A div also cannot be middle-clicked,
+   * cannot be copied as a link, and announces as nothing.
+   *
+   * Rows with no safe URL stay a `<div>` — an `<a>` with no `href` is not
+   * focusable and announces as a link that goes nowhere, which is worse than a
+   * plain row.
+   */
+  const url = safeUrl(item.url);
+  const row = document.createElement(url ? "a" : "div");
   row.className = "row";
+  if (url && row instanceof HTMLAnchorElement) {
+    row.href = url;
+    // Rolled by `makeRowsNavigable` once the view is drawn: one stop for the
+    // whole list, then ↑ ↓ inside it.
+    row.tabIndex = -1;
+    row.addEventListener("click", (event) => {
+      // `chrome.tabs.create` rather than the browser's own navigation: a popup
+      // navigating itself away leaves a 400px window showing Gradescope.
+      event.preventDefault();
+      chrome.tabs.create({ url });
+    });
+    row.addEventListener("keydown", (event) => {
+      // Shift+F10 and the context-menu key are what a list row is expected to
+      // answer; `.` is the shorthand every mail client uses.
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu" || event.key === ".") {
+        event.preventDefault();
+        const trigger = row.querySelector<HTMLElement>(".row--menu");
+        if (trigger) openRowMenu(item, trigger);
+      }
+    });
+  }
   // The course colour is on the row, not only in the legend: a chip strip you
   // have to look up is a lookup table, and the point of colour is to answer
   // "whose is this" without reading.
@@ -328,11 +564,14 @@ function renderRow(
   const moved = movedText(item);
   if (moved) details.push({ text: moved, className: "row--detail row--detail-moved" });
 
-  const menu = document.createElement("button");
-  menu.className = "row--menu";
-  menu.textContent = "⋯";
-  menu.title = "More";
+  // Visible at 35% rather than `opacity: 0` until hover. A control nobody can
+  // see is a control nobody learns, and this one carries Mark done, Hide,
+  // Split and Merge — the whole of §5.3's correction story.
+  const menu = iconButton("more", "More actions");
+  menu.classList.add("row--menu", "btn-sm");
+  menu.tabIndex = -1;
   menu.addEventListener("click", (event) => {
+    event.preventDefault();
     event.stopPropagation();
     openRowMenu(item, menu);
   });
@@ -358,9 +597,7 @@ function renderRow(
     row.append(line);
   }
 
-  const url = safeUrl(item.url);
-  if (url) row.addEventListener("click", () => chrome.tabs.create({ url }));
-  else row.style.cursor = "default";
+  if (!url) row.classList.add("row--flat");
   return row;
 }
 
@@ -369,13 +606,87 @@ let currentItems: Item[] = [];
 
 /** A correction that silently did nothing is worse than one that says so. */
 function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
-  if (response.type === "error") statusEl.textContent = response.message;
+  if (response.type === "error") showStatus(response.message);
 }
 
 function closeMenus(): void {
-  for (const open of document.querySelectorAll(".menu")) open.remove();
+  for (const open of document.querySelectorAll(".menu-surface")) open.remove();
 }
 document.addEventListener("click", closeMenus);
+// Escape closes from anywhere, including from the row the menu was opened on.
+// Without it the only way out of an open menu with the keyboard was Tab, which
+// walked *into* it and then out the far side of the page.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.querySelector(".menu-surface")) {
+    event.preventDefault();
+    const anchor = document.querySelector<HTMLElement>("[aria-expanded=\"true\"]");
+    closeMenus();
+    anchor?.focus();
+  }
+});
+
+/**
+ * Arrow keys inside an open menu, and focus back where it came from on close.
+ *
+ * A menu is a list, so ↑ ↓ Home End are what a list does — and `data-active`
+ * rather than `:focus` for the highlight, so hovering the mouse over a
+ * different row while arrowing does not leave two rows looking selected with
+ * only one of them reachable by Enter.
+ *
+ * Returning focus to `anchor` is the part that is easy to leave out and
+ * impossible to work around: without it, closing a menu drops focus onto
+ * `<body>` and the next Tab starts again from the top of the popup.
+ */
+function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
+  const items = () => [...menu.querySelectorAll<HTMLElement>(".menu-item:not(:disabled)")];
+  anchor.setAttribute("aria-expanded", "true");
+
+  const focusAt = (index: number) => {
+    const all = items();
+    if (all.length === 0) return;
+    const wrapped = (index + all.length) % all.length;
+    for (const item of all) delete item.dataset["active"];
+    all[wrapped]!.dataset["active"] = "true";
+    all[wrapped]!.focus();
+  };
+
+  menu.addEventListener("keydown", (event) => {
+    const all = items();
+    const here = all.findIndex((item) => item === document.activeElement);
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusAt(here + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusAt(here - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusAt(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusAt(all.length - 1);
+        break;
+      default:
+        break;
+    }
+  });
+
+  // Losing focus out of the menu closes it. A menu left open behind the page it
+  // no longer belongs to is how a click lands on the wrong row.
+  menu.addEventListener("focusout", () => {
+    queueMicrotask(() => {
+      if (!menu.isConnected || menu.contains(document.activeElement)) return;
+      menu.remove();
+      anchor.removeAttribute("aria-expanded");
+    });
+  });
+
+  focusAt(0);
+}
 
 /**
  * §8.1's row menu: Hide, Split (if merged), Merge with…, Add to Google Calendar.
@@ -387,21 +698,42 @@ document.addEventListener("click", closeMenus);
 function openRowMenu(item: Item, anchor: HTMLElement): void {
   closeMenus();
   const menu = document.createElement("div");
-  menu.className = "menu";
+  menu.className = "menu-surface";
+  menu.setAttribute("role", "menu");
   menu.addEventListener("click", (event) => event.stopPropagation());
 
-  const add = (label: string, onClick: () => void) => {
+  const add = (label: string, glyph: IconName, onClick: () => void) => {
     const entry = document.createElement("button");
-    entry.className = "menu--item";
-    entry.textContent = label;
+    entry.type = "button";
+    entry.className = "menu-item";
+    entry.setAttribute("role", "menuitem");
+    entry.tabIndex = -1;
+    entry.append(icon(glyph), document.createTextNode(label));
     entry.addEventListener("click", onClick);
     menu.append(entry);
   };
 
-  // First, because it is the one a student reaches for most: two of the five
-  // sources can never report completion, so without it a finished course-site
-  // row sits in Needs attention for a week with only Hide as an escape.
-  add(item.done ? "Not done" : "Mark done", () => {
+  /*
+   * First: the site the row came from.
+   *
+   * Clicking the row already does this, but nothing on screen said so — the
+   * only hint was a tooltip on a 40px column. Naming the site here is also the
+   * one place a student learns which of five sites an assignment lives on
+   * without hovering anything.
+   */
+  const open = safeUrl(item.url);
+  if (open) {
+    const primary = item.members[0]?.source;
+    add(`Open in ${primary ? SOURCE_NAME[primary] : "the source"}`, "open-tab", () => {
+      closeMenus();
+      chrome.tabs.create({ url: open });
+    });
+  }
+
+  // Then the one a student reaches for most: two of the five sources can never
+  // report completion, so without it a finished course-site row sits in Needs
+  // attention for a week with only Hide as an escape.
+  add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", () => {
     void send({
       type: "override",
       action: { kind: item.done ? "undone" : "done", itemId: item.id },
@@ -413,7 +745,7 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
       });
   });
 
-  add(item.hidden ? "Unhide" : "Hide", () => {
+  add(item.hidden ? "Unhide" : "Hide", item.hidden ? "plus" : "close", () => {
     void send({
       type: "override",
       action: { kind: item.hidden ? "unhide" : "hide", itemId: item.id },
@@ -426,7 +758,7 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   });
 
   if (item.members.length > 1) {
-    add(`Split (${item.members.length} sources)`, () => {
+    add(`Split (${item.members.length} sources)`, "more", () => {
       void send({ type: "override", action: { kind: "split", itemId: item.id } })
         .then(reportOverride)
         .then(() => {
@@ -449,14 +781,14 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
       other.members.some((mine) => item.members.some((theirs) => sameCourse(mine, theirs))),
   );
   if (candidates.length > 0) {
-    add("Merge with…", () => {
+    add("Merge with…", "plus", () => {
       menu.replaceChildren();
       const heading = document.createElement("div");
-      heading.className = "menu--heading";
+      heading.className = "menu-heading";
       heading.textContent = `Merge "${item.title}" with:`;
       menu.append(heading);
       for (const other of candidates.slice(0, 12)) {
-        add(other.title, () => {
+        add(other.title, "plus", () => {
           void send({
             type: "override",
             action: { kind: "merge", itemId: item.id, otherItemId: other.id },
@@ -472,12 +804,35 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   }
 
   const calendar = googleCalendarUrl(item);
-  if (calendar) add("Add to Google Calendar", () => chrome.tabs.create({ url: calendar }));
+  if (calendar) {
+    add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
+  }
 
   const box = anchor.getBoundingClientRect();
   menu.style.top = `${box.bottom + window.scrollY}px`;
   menu.style.right = "10px";
   document.body.append(menu);
+  trapMenuKeys(menu, anchor);
+}
+
+/**
+ * "sessions Sep 22–24", for the banner.
+ *
+ * The month is written once. `Sep 22–Sep 24` spends eight characters restating
+ * it, on the one line where the course title is competing for every one.
+ */
+function bookingWindowRange(item: Item): string | undefined {
+  const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
+  const end = item.members.find((m) => m.extra?.["windowEnd"])?.extra?.["windowEnd"];
+  if (!start || !end) return undefined;
+  const from = new Date(start);
+  const to = new Date(end);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return undefined;
+  const month = from.toLocaleDateString(undefined, { month: "short" });
+  const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
+  return sameMonth
+    ? `sessions ${month} ${from.getDate()}–${to.getDate()}`
+    : `sessions ${month} ${from.getDate()}–${to.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 }
 
 /**
@@ -512,15 +867,15 @@ function bookingWindowText(item: Item): { primary: string; detail?: string } {
  */
 function renderSetup(rows: SetupRow[]): void {
   document.body.classList.add("setup");
-  // The dots say how each source is doing, which is the checklist's whole job
-  // here — leaving them in the bar as well would be the same fact twice, and
-  // an empty dot row reads as a bar that failed to load. The name instead.
-  dotsEl.replaceChildren();
+  // The checklist says how each source is doing, which is the health pill's
+  // whole job — leaving the pill in the bar as well would be the same fact
+  // twice, in a header that has nothing else to do yet. The name instead.
+  healthEl.replaceChildren();
   const name = document.createElement("span");
   name.className = "setup--brand";
   name.textContent = "Illini Dash";
-  dotsEl.append(name);
-  bookingEl.replaceChildren();
+  healthEl.append(name);
+  bannersEl.replaceChildren();
   tabsEl.replaceChildren();
   filtersEl.replaceChildren();
   dateNavEl.replaceChildren();
@@ -565,7 +920,7 @@ function renderSetup(rows: SetupRow[]): void {
   const outstanding = loginsToOpen(rows);
   if (outstanding.length > 0) {
     const all = document.createElement("button");
-    all.className = "setup--secondary";
+    all.className = "btn btn-secondary";
     all.textContent =
       outstanding.length === 1 ? "Open the sign-in page" : `Open all ${outstanding.length} sign-in pages`;
     all.title = "Opens a tab for each site you picked that is not signed in yet";
@@ -581,7 +936,7 @@ function renderSetup(rows: SetupRow[]): void {
   }
 
   const done = document.createElement("button");
-  done.className = "setup--primary";
+  done.className = "btn btn-primary";
   done.textContent = "Show my calendar";
   done.addEventListener("click", async () => {
     done.disabled = true;
@@ -636,7 +991,7 @@ function renderSetupRow(row: SetupRow): HTMLElement {
     const url = LOGIN_URL[row.source];
     if (url) {
       const button = document.createElement("button");
-      button.className = "setup--signin";
+      button.className = "btn btn-secondary btn-sm";
       button.textContent = "Sign in";
       button.addEventListener("click", () => chrome.tabs.create({ url }));
       state.append(button);
@@ -655,6 +1010,49 @@ function renderSetupRow(row: SetupRow): HTMLElement {
   line.append(box, label, state);
   return line;
 }
+
+/**
+ * One Tab stop for the whole list, then ↑ ↓ inside it.
+ *
+ * A roving tabindex rather than a tab stop per row: a day with fourteen
+ * deadlines would otherwise be fourteen presses of Tab between the tab strip
+ * and the settings button, and the popup is a 600px window someone opened to
+ * look at one thing.
+ *
+ * Called after every draw, because the rows it is rolling over are replaced
+ * wholesale on each one.
+ */
+function rowsInView(): HTMLElement[] {
+  return [...viewEl.querySelectorAll<HTMLElement>("a.row")];
+}
+
+function makeRowsNavigable(): void {
+  rowsInView().forEach((row, index) => {
+    row.tabIndex = index === 0 ? 0 : -1;
+  });
+}
+
+/*
+ * Attached once, at module scope, rather than inside `makeRowsNavigable`.
+ *
+ * It was inside, and `makeRowsNavigable` runs after every draw — so the
+ * listeners stacked, and after the popup's own open-sync had redrawn twice one
+ * press of ArrowDown moved three rows. The keyboard walk found it in the real
+ * document; nothing in the suite could have, because the bug is "how many times
+ * was this function called", not "what does it do".
+ */
+viewEl.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const rows = rowsInView();
+  const here = rows.findIndex((row) => row === document.activeElement);
+  if (here === -1) return;
+  event.preventDefault();
+  const next = rows[Math.min(rows.length - 1, Math.max(0, here + (event.key === "ArrowDown" ? 1 : -1)))];
+  if (!next) return;
+  for (const row of rows) row.tabIndex = -1;
+  next.tabIndex = 0;
+  next.focus();
+});
 
 /* -------------------------------------------------------------------------- */
 /* View state                                                                  */
@@ -734,79 +1132,80 @@ let hidden = hiddenCourses();
 /* -------------------------------------------------------------------------- */
 
 /**
- * A glyph per view.
+ * The tabs. Named, all five, in both windows.
  *
- * Inline SVG rather than an icon font or an image: §8.1's rendering rule is
- * that nothing from outside is injected as markup, and a font would be a fourth
- * asset to ship for five shapes. Drawn with `currentColor` so a tab's icon and
- * its label cannot disagree about whether it is selected.
+ * Only the *selected* tab used to carry a label, because five labelled tabs
+ * measured 454px against a 400px document and a document wider than the popup
+ * is what opened it at 800px once already. That was a real constraint answered
+ * in the wrong place: the width came from 12.5px type, 11px of padding on each
+ * side and a 14px icon on every tab. Dropping the icon in the popup and taking
+ * the type to 12px fits all five labels with room to spare — measured, not
+ * estimated, by the width check in docs/colour-layer.md after every change.
+ *
+ * Four unlabelled icons is not a smaller version of five labelled ones. A bell
+ * and a sheet of paper do not say "Attention" and "Exams" to somebody who has
+ * not already been told, and there is nothing on the screen that tells them.
  */
-const TAB_PATHS: Record<ViewName, string> = {
-  day: "M3 4h10v9H3zM3 7h10M5 2v2M11 2v2",
-  week: "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
-  month: "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",
-  exams: "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
-  attention: "M8 2a4 4 0 0 0-4 4c0 3-1 4-1 4h10s-1-1-1-4a4 4 0 0 0-4-4zM7 13h2",
-};
-
-function tabIcon(name: ViewName): SVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.3");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", TAB_PATHS[name]);
-  svg.append(path);
-  return svg;
-}
-
 function renderTabs(counts: Partial<Record<ViewName, number>>): void {
   tabsEl.replaceChildren();
   for (const name of VIEWS) {
     const tab = document.createElement("button");
+    tab.type = "button";
     tab.className = "tab";
-    const count = counts[name] ?? 0;
-    // Both counts mean the same thing: something here is asking for an action.
-    // An exam already booked and a row with no date are not, and neither is
-    // counted — a badge that only ever grows is a badge nobody reads.
-    if (count > 0) tab.classList.add(name === "exams" ? "tab-warn" : "tab-err");
+    tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(name === view));
-    // The label is an element rather than a text node so the popup can hide it
-    // on the tabs that are not selected: five labelled tabs measure 454px in a
-    // 400px popup, and a document wider than the popup is the bug that opened
-    // it at 800px once already.
+    // A tab strip with `aria-selected` and no `role` is a row of buttons one of
+    // which claims to be selected — the attribute means nothing without it.
+    tab.tabIndex = name === view ? 0 : -1;
+
+    // Icons only where there is room for both. In the popup the label is the
+    // thing that has to survive.
+    if (isFullView) tab.append(icon(`tab-${name}` as IconName));
     const label = document.createElement("span");
     label.className = "tab--label";
     label.textContent = VIEW_LABEL[name];
-    tab.title = VIEW_LABEL[name];
-    tab.append(tabIcon(name), label);
+    tab.append(label);
+
+    const count = counts[name] ?? 0;
     if (count > 0) {
+      // Both counts mean "something here is asking for an action". An exam
+      // already booked and a row with no date are not, and neither is counted —
+      // a badge that only ever grows is a badge nobody reads.
       const badge = document.createElement("span");
-      badge.className = "tab--count";
+      badge.className = name === "exams" ? "chip-count is-warn" : "chip-count";
       badge.textContent = String(count);
-      tab.append(" ", badge);
+      tab.append(badge);
+      tab.title = `${VIEW_LABEL[name]} — ${count} need${count === 1 ? "s" : ""} attention`;
     }
+
     if (!isFullView && FULL_VIEW_ONLY.has(name)) {
       tab.title = "Opens the full view — a month needs more width than a popup has";
     }
-    tab.addEventListener("click", () => {
-      if (!isFullView && FULL_VIEW_ONLY.has(name)) {
-        // Remembered first, so the tab that opens is the one just clicked.
-        writeStored(VIEW_KEY, name);
-        chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
-        return;
-      }
-      view = name;
-      dayOffset = 0;
-      writeStored(VIEW_KEY, name);
-      void refresh();
+    tab.addEventListener("click", () => selectTab(name));
+    tab.addEventListener("keydown", (event) => {
+      // ← → moves between tabs, which is what a tablist does; Tab leaves the
+      // strip entirely rather than walking five buttons.
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const next = VIEWS[(VIEWS.indexOf(name) + step + VIEWS.length) % VIEWS.length]!;
+      selectTab(next);
     });
     tabsEl.append(tab);
   }
+}
+
+function selectTab(name: ViewName): void {
+  if (!isFullView && FULL_VIEW_ONLY.has(name)) {
+    // Remembered first, so the tab that opens is the one just clicked.
+    writeStored(VIEW_KEY, name);
+    chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
+    return;
+  }
+  view = name;
+  dayOffset = 0;
+  writeStored(VIEW_KEY, name);
+  void refresh();
 }
 
 /**
@@ -828,6 +1227,7 @@ function renderFilters(items: Item[], colours: Map<string, number>): void {
   for (const course of courses) {
     const on = !hidden.has(course);
     const chip = document.createElement("button");
+    chip.type = "button";
     chip.className = `fchip course-${colours.get(course) ?? 0}`;
     chip.setAttribute("aria-pressed", String(on));
     chip.title = on ? `Hide ${course}` : `Show ${course} again`;
@@ -854,46 +1254,28 @@ function renderFilters(items: Item[], colours: Map<string, number>): void {
   }
 }
 
-/** §4.4's booking, pinned above the tabs because the window closes regardless. */
-function renderBookingStrip(items: Item[]): void {
-  bookingEl.replaceChildren();
-  for (const item of bookings(items)) {
-    const strip = document.createElement("div");
-    strip.className = "book";
-    const text = document.createElement("span");
-    text.className = "book--text";
-    const title = document.createElement("b");
-    title.textContent = item.title.replace(/^Book a slot:\s*/i, "");
-    const when = document.createElement("span");
-    const window_ = bookingWindowText(item);
-    when.textContent = window_.detail ? `${window_.detail} · not booked` : "not booked";
-    text.append(title, when);
-
-    const go = document.createElement("button");
-    go.className = "book--go";
-    go.textContent = "Book";
-    const url = safeUrl(item.url);
-    if (url) go.addEventListener("click", () => chrome.tabs.create({ url }));
-    else go.disabled = true;
-
-    strip.append(text, go);
-    bookingEl.append(strip);
-  }
-}
-
 function anchorDate(now: Date): Date {
   return startOfDay(now, dayOffset);
 }
 
+/**
+ * ‹ Sat, Sep 12 ›, and a way back.
+ *
+ * The arrows sit either side of the label rather than at the two ends of a
+ * 400px bar: they are a pair of controls that do the same thing in opposite
+ * directions, and 340px apart they read as two unrelated buttons. The label is
+ * what they act on, so it goes between them.
+ *
+ * "Today" appears only once there is somewhere to come back from. A button that
+ * does nothing is a button that has to be read before it can be ignored.
+ */
 function renderDateNav(label: string, step: number): void {
   dateNavEl.replaceChildren();
   dateNavEl.hidden = step === 0;
   if (step === 0) return;
 
-  const back = document.createElement("button");
-  back.className = "datenav--arrow";
-  back.textContent = "‹";
-  back.title = "Back";
+  const back = iconButton("left", "Back");
+  back.classList.add("btn-sm");
   back.addEventListener("click", () => {
     dayOffset -= step;
     void refresh();
@@ -903,10 +1285,8 @@ function renderDateNav(label: string, step: number): void {
   text.className = "datenav--label";
   text.textContent = label;
 
-  const forward = document.createElement("button");
-  forward.className = "datenav--arrow";
-  forward.textContent = "›";
-  forward.title = "Forward";
+  const forward = iconButton("right", "Forward");
+  forward.classList.add("btn-sm");
   forward.addEventListener("click", () => {
     dayOffset += step;
     void refresh();
@@ -916,7 +1296,8 @@ function renderDateNav(label: string, step: number): void {
 
   if (dayOffset !== 0) {
     const today = document.createElement("button");
-    today.className = "datenav--today";
+    today.type = "button";
+    today.className = "btn btn-quiet btn-sm datenav--today";
     today.textContent = "Today";
     today.addEventListener("click", () => {
       dayOffset = 0;
@@ -1090,9 +1471,79 @@ function renderEndOfDay(
 function renderDayView(items: Item[], now: Date, colours: Map<string, number>): void {
   const day = anchorDate(now);
   const contents = dayContents(items, day, now);
+  // The hour axis needs height to be worth its cost, and the popup does not
+  // have any. Sushi's decision; the reasoning is on `agendaRows`.
+  if (isFullView) renderDayGridView(contents, now, colours);
+  else renderAgenda(contents, now, colours, dayOffset === 0);
+}
 
-  // Riskiest first. An invented time can hide a 5 PM cutoff; a stated 11:59 PM
-  // cannot — the same reason "Couldn't read" leads the Attention tab.
+/**
+ * The popup's day: one row per item and nothing per empty hour.
+ *
+ * The sequence is decided in `agendaRows` and only drawn here — where the "now"
+ * rule goes and whether it is drawn at all are decisions, and decisions in this
+ * project live where the suite can mutate them.
+ */
+function renderAgenda(
+  contents: DayContents,
+  now: Date,
+  colours: Map<string, number>,
+  isToday: boolean,
+): void {
+  // What the narrower "when" column keys off: an agenda row carries a clock,
+  // and the date navigator above it already said which day.
+  viewEl.dataset["shape"] = "agenda";
+  const rows = agendaRows(contents, now, isToday);
+  if (rows.length === 0) {
+    viewEl.append(emptyNote("Nothing due this day."));
+    return;
+  }
+  for (const row of rows) viewEl.append(renderAgendaRow(row, now, colours));
+}
+
+function renderAgendaRow(
+  row: AgendaRow,
+  now: Date,
+  colours: Map<string, number>,
+): HTMLElement {
+  switch (row.kind) {
+    case "heading": {
+      const heading = document.createElement("p");
+      heading.className = "band--head";
+      heading.textContent = row.text;
+      // Said once, above the rows it applies to. Five consecutive course-site
+      // rows each carrying the same sentence is what this replaced; the fact
+      // belongs to the group, not to the row.
+      if (row.text === UNTIMED_HEADING) heading.title = UNTIMED_NOTE;
+      if (row.text === END_OF_DAY_HEADING) {
+        heading.title = "11:59 PM is the site's default, not an hour anyone picked.";
+      }
+      return heading;
+    }
+    case "untimed":
+      return renderRow(row.item, now, undefined, { primary: "" }, colours);
+    case "item":
+      return renderPlaced(row.placed, now, colours);
+    case "now": {
+      const rule = document.createElement("div");
+      rule.className = "nowrule";
+      const label = document.createElement("span");
+      label.textContent = now.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      rule.append(label);
+      return rule;
+    }
+  }
+}
+
+/** The full view's day, which has the height an hour axis is worth. */
+function renderDayGridView(
+  contents: DayContents,
+  now: Date,
+  colours: Map<string, number>,
+): void {
   const band = renderUntimedBand(contents.untimed, now, colours);
   if (band) viewEl.append(band);
   const eod = renderEndOfDay(contents.endOfDay, now, colours);
@@ -1101,13 +1552,13 @@ function renderDayView(items: Item[], now: Date, colours: Map<string, number>): 
   if (contents.timed.length === 0) {
     // No grid at all rather than ten empty ruled hours, which say nothing and
     // push what is above them off the screen.
-    const note = document.createElement("p");
-    note.className = "muted empty";
-    note.textContent =
-      contents.endOfDay.length + contents.untimed.length > 0
-        ? "Nothing else at a set time today."
-        : "Nothing due this day.";
-    viewEl.append(note);
+    viewEl.append(
+      emptyNote(
+        contents.endOfDay.length + contents.untimed.length > 0
+          ? "Nothing else at a set time today."
+          : "Nothing due this day.",
+      ),
+    );
     return;
   }
 
@@ -1117,12 +1568,32 @@ function renderDayView(items: Item[], now: Date, colours: Map<string, number>): 
   fit();
 }
 
+function emptyNote(text: string): HTMLElement {
+  const note = document.createElement("p");
+  note.className = "muted empty";
+  note.textContent = text;
+  return note;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Week                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Seven days, starting wherever `WEEK_MODE` says.
+ *
+ * In the popup that is today (Sushi's decision): on a Friday a Sunday-start
+ * week puts five days that have already happened above the only row anyone can
+ * still act on, and today ends up the last thing on a 600px screen. The full
+ * view keeps Sunday–Saturday, where the columns line up with every other
+ * calendar and there is room for the past half.
+ */
+const WEEK_MODE: WeekMode = document.documentElement.classList.contains("view-full")
+  ? "sunday"
+  : "rolling";
+
 function renderWeekView(items: Item[], now: Date, colours: Map<string, number>): void {
-  for (const day of weekContents(items, anchorDate(now), now)) {
+  for (const day of weekContents(items, anchorDate(now), now, WEEK_MODE)) {
     const row = document.createElement("div");
     row.className = "wrow";
     if (day.isToday) row.classList.add("wrow--today");
@@ -1141,6 +1612,10 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
     box.className = "witems";
     const timed = allTimed(day.contents);
     if (timed.length === 0 && day.contents.untimed.length === 0) {
+      // A 22px row rather than a full-height one. An empty day is worth a line
+      // saying it is empty and nothing more — seven of them at full height is
+      // the whole popup.
+      row.classList.add("wrow--quiet");
       box.classList.add("witems--empty");
       box.textContent = "—";
     } else {
@@ -1374,7 +1849,10 @@ function renderFoldedGroup(
   fold.className = "fold";
   const summary = document.createElement("summary");
   summary.className = "fold--summary";
-  summary.textContent = `${group.name} (${group.items.length})`;
+  // An SVG chevron rather than "▸ " as `content`: a text glyph is whatever the
+  // installed font has, and this one sat on the text baseline rather than on
+  // the label's centre.
+  summary.append(icon("right"), document.createTextNode(`${group.name} (${group.items.length})`));
   summary.title = ATTENTION_NOTE[group.name];
   fold.append(summary);
 
@@ -1400,7 +1878,7 @@ function navFor(view_: ViewName, now: Date): { label: string; step: number } {
         step: 1,
       };
     case "week": {
-      const days = weekContents([], anchor, now);
+      const days = weekContents([], anchor, now, WEEK_MODE);
       const first = days[0]!.date;
       const last = days[6]!.date;
       const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -1430,6 +1908,7 @@ function render(
   closeMenus();
   currentItems = items;
   viewEl.replaceChildren();
+  delete viewEl.dataset["shape"];
   // What the full view's width cap keys off. A month may use 1400px; a list of
   // rows stops at 1100 so the clock does not end up a foot from the title. Set
   // from the view rather than from a media query, because Chrome lays the
@@ -1439,14 +1918,13 @@ function render(
   const onGrid = visibleItems(items, settings, hidden, now);
   const colours = courseColours(coursesIn(visibleItems(items, settings, new Set(), now)));
 
-  renderBookingStrip(items);
   renderTabs({
     exams: examCount(items, now),
     attention: attentionCount(onGrid, now),
   });
   // The header bar is sticky, so without this the tabs slide under it and
-  // switching views means scrolling back to the top of a sixteen-hour grid.
-  // Measured rather than hard-coded: the bar's height is a font metric.
+  // switching views means scrolling back to the top of the list. Measured
+  // rather than hard-coded: the bar's height is a font metric.
   const bar = document.querySelector<HTMLElement>(".bar");
   if (bar) tabsEl.style.top = `${bar.offsetHeight}px`;
   renderFilters(visibleItems(items, settings, new Set(), now), colours);
@@ -1456,6 +1934,7 @@ function render(
 
   if (view === "attention") {
     renderAttentionView(onGrid, now, colours);
+    makeRowsNavigable();
     return;
   }
   if (view === "exams") {
@@ -1463,6 +1942,7 @@ function render(
     // purpose, and an exam is exactly the row a course filter should not be
     // able to hide by accident.
     renderExamsView(items, now, colours);
+    makeRowsNavigable();
     return;
   }
 
@@ -1471,23 +1951,26 @@ function render(
   // are free" and means "I could not look" (§11).
   if (onGrid.length === 0) {
     const state = emptyStateFor(sources, items.length > 0);
-    const empty = document.createElement("p");
-    empty.className = "muted empty";
-    empty.textContent = hidden.size > 0 ? "Every course is switched off above." : state.text;
-    viewEl.append(empty);
+    viewEl.append(
+      emptyNote(hidden.size > 0 ? "Every course is switched off above." : state.text),
+    );
     if (hidden.size === 0) {
+      // A real button under the sentence. These used to be `.link` — text that
+      // looked like the rest of the sentence it sat under, on the one screen
+      // where there is nothing else to click.
+      const actions = document.createElement("div");
+      actions.className = "empty--actions";
       for (const source of state.logins) {
         const url = LOGIN_URL[source];
         if (!url) continue;
         const button = document.createElement("button");
-        button.className = "link";
+        button.type = "button";
+        button.className = "btn btn-primary";
         button.textContent = `Sign in to ${SOURCE_NAME[source]}`;
         button.addEventListener("click", () => chrome.tabs.create({ url }));
-        const line = document.createElement("p");
-        line.className = "empty";
-        line.append(button);
-        viewEl.append(line);
+        actions.append(button);
       }
+      if (actions.childElementCount > 0) viewEl.append(actions);
     }
     return;
   }
@@ -1495,6 +1978,7 @@ function render(
   if (view === "day") renderDayView(onGrid, now, colours);
   else if (view === "week") renderWeekView(onGrid, now, colours);
   else renderMonthView(onGrid, now, colours);
+  makeRowsNavigable();
 }
 
 /**
@@ -1509,9 +1993,11 @@ async function refresh(): Promise<void> {
   try {
     await draw();
   } catch (err) {
-    statusEl.textContent =
-      `Could not draw the list: ${err instanceof Error ? err.message : String(err)}. ` +
-      `Reload the extension at chrome://extensions.`;
+    showStatus(
+      `Illini Dash could not draw the list: ${
+        err instanceof Error ? err.message : String(err)
+      }. Open chrome://extensions and click Reload on the Illini Dash card.`,
+    );
   }
 }
 
@@ -1527,52 +2013,48 @@ async function draw(): Promise<void> {
 
   const response = await send({ type: "get-state" });
   if (response.type !== "state") {
-    statusEl.textContent = response.type === "error" ? response.message : "Unexpected response.";
+    showStatus(response.type === "error" ? response.message : "Unexpected response.");
     return;
   }
   // A worker on an older build does not send every field read below, and
   // TypeScript cannot know that (see core/compat.ts).
   const { state, missing } = normalizePopupState<typeof response>(response);
-  renderDots(state.sources, state.lastSyncAt);
-  renderBlockedBanner(state.notificationsBlocked);
-  renderStaleBanner(state.sources);
-  render(state.items, state.settings ?? DEFAULT_SETTINGS, state.sources, new Date());
-  if (missing.length > 0) {
-    statusEl.textContent = staleWorkerNotice(missing);
+  const now = new Date();
+  renderHealth(state.sources, state.lastSyncAt, now);
+  renderBanners(state);
+  render(state.items, state.settings ?? DEFAULT_SETTINGS, state.sources, now);
+  // Only when there is something wrong. On the happy path this element is
+  // hidden and costs nothing (worker rule 8: an older worker does not send
+  // every field this page reads, and that has to be visible, not thrown).
+  showStatus(missing.length > 0 ? staleWorkerNotice(missing) : undefined);
+}
+
+/**
+ * A sync, with its progress on the control that started it.
+ *
+ * "Syncing…" used to be written to a status line at the bottom of an 883px
+ * document — feedback for a click, placed where the click could not see it.
+ * The button spins and the pill takes over from there.
+ */
+async function runSync(): Promise<void> {
+  if (syncButton) {
+    syncButton.dataset["busy"] = "true";
+    syncButton.disabled = true;
+  }
+  try {
+    await send({ type: "sync", trigger: "manual" });
+    await refresh();
+  } finally {
+    // `renderActions` may have replaced the button underneath us, so this
+    // clears whichever one is on screen rather than the captured one.
+    if (syncButton) {
+      delete syncButton.dataset["busy"];
+      syncButton.disabled = false;
+    }
   }
 }
 
-document.getElementById("sync")!.addEventListener("click", async () => {
-  statusEl.textContent = "Syncing…";
-  await send({ type: "sync", trigger: "manual" });
-  await refresh();
-});
-document.getElementById("full")!.addEventListener("click", (event) => {
-  event.preventDefault();
-  // §8.1: popups close on focus loss, which is maddening while cross-checking
-  // against a course page. The marker is what lets the stylesheet tell a tab
-  // from a popup — Chrome tells the page nothing, and inferring it from the
-  // window width would feed back into how Chrome sizes the popup.
-  chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=full") });
-});
-if (document.documentElement.classList.contains("view-full")) {
-  // Already there. Offering it again just opens a duplicate tab.
-  document.getElementById("full")!.remove();
-}
-document.getElementById("settings")!.addEventListener("click", (event) => {
-  event.preventDefault();
-  if (isFullView) {
-    // Already in a tab, so use it. `openOptionsPage` would spawn a second one
-    // and leave two Illini Dash tabs open, with the one you were reading behind
-    // the one you are now in. Settings has a way back to here.
-    location.href = chrome.runtime.getURL("options.html");
-    return;
-  }
-  // From the popup there is no tab to stay in. This focuses an options tab if
-  // one is already open rather than piling up new ones.
-  chrome.runtime.openOptionsPage();
-});
-
+renderActions();
 void refresh();
 // §6: opening the popup triggers a sync, debounced to 5 minutes worker-side.
 void send({ type: "sync", trigger: "popup" }).then(refresh).catch(() => undefined);

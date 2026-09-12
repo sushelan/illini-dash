@@ -11,6 +11,8 @@ import {
   badgeFor,
   displayState,
   emptyStateFor,
+  healthPill,
+  sourceRows,
   staleNotice,
   statusAfterEnable,
   statusLine,
@@ -365,5 +367,200 @@ describe("statusAfterEnable", () => {
 
   it("reports disabled when switched off", () => {
     expect(statusAfterEnable(status(), false).state).toBe("disabled");
+  });
+});
+
+describe("healthPill (what replaces the six dots)", () => {
+  const SYNCED = new Date(NOW.getTime() - 60_000).toISOString();
+
+  it("says how many, and when, when everything worked", () => {
+    const pill = healthPill(
+      sources({
+        canvas: status({ source: "canvas" }),
+        gradescope: status(),
+        prairielearn: status({ source: "prairielearn" }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.tone).toBe("ok");
+    expect(pill.text).toMatch(/^All 3 OK · /);
+  });
+
+  it("never says OK about a source it did not fetch", () => {
+    /*
+     * Worker rule 2, which this module exists for. A cold install has four
+     * sources switched on and no attempt behind any of them; `defaultStatus`
+     * used to seed `state: "ok"`, so the popup showed four green dots under the
+     * words "Not synced yet".
+     */
+    const pill = healthPill(
+      sources({
+        canvas: status({ source: "canvas", state: "ok", lastAttemptAt: undefined, lastSuccessAt: undefined }),
+        gradescope: status({ state: "ok", lastAttemptAt: undefined, lastSuccessAt: undefined }),
+      }),
+      undefined,
+      NOW,
+    );
+    expect(pill.tone).toBe("pending");
+    expect(pill.text).toBe("Checking…");
+    expect(pill.text).not.toContain("OK");
+  });
+
+  it("reports the sources it has not read yet rather than rounding up", () => {
+    const pill = healthPill(
+      sources({
+        canvas: status({ source: "canvas" }),
+        gradescope: status({ state: "pending", lastAttemptAt: undefined, lastSuccessAt: undefined }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.tone).toBe("pending");
+    expect(pill.text).toBe("Checking… 1 of 2 read");
+  });
+
+  it("leads with signing in, because that is the half a student can finish", () => {
+    /*
+     * Both are failures and red is the more severe colour. `staleNotice`
+     * already sorts this way and for the same reason: one is ten seconds of
+     * work, the other can only be fixed by a new build. Leading with the red
+     * one buries the actionable half.
+     */
+    const pill = healthPill(
+      sources({
+        gradescope: status({ state: "needs_login" }),
+        canvas: status({ source: "canvas", state: "parse_error" }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.tone).toBe("warn");
+    expect(pill.text).toBe("Sign in to Gradescope");
+    expect(pill.action).toEqual({ kind: "login", source: "gradescope" });
+  });
+
+  it("names the site rather than its storage key", () => {
+    const pill = healthPill(
+      sources({ prairietest: status({ source: "prairietest", state: "parse_error" }) }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.tone).toBe("err");
+    expect(pill.text).toBe("PrairieTest couldn't be read");
+  });
+
+  it("counts rather than listing when several are wrong", () => {
+    // 400px. Three names and two conjunctions do not fit in a 24px pill, and a
+    // pill that ellipses mid-name says less than a number.
+    const logins = healthPill(
+      sources({
+        gradescope: status({ state: "needs_login" }),
+        canvas: status({ source: "canvas", state: "needs_login" }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(logins.text).toBe("Sign in to 2 sites");
+
+    const broken = healthPill(
+      sources({
+        gradescope: status({ state: "parse_error" }),
+        canvas: status({ source: "canvas", state: "network_error" }),
+      }),
+      SYNCED,
+      NOW,
+    );
+    expect(broken.text).toBe("2 sites couldn't be read");
+  });
+
+  it("says so when nothing is switched on, instead of claiming health", () => {
+    // `syncSites` returning [] with no adapters enabled, recorded as ok, is the
+    // defect that cost a real user two rounds of "why don't I see any rows".
+    const pill = healthPill(
+      sources({ gradescope: status({ enabled: false, state: "disabled" }) }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.tone).toBe("warn");
+    expect(pill.text).toBe("No sites are switched on");
+  });
+
+  it("offers no login for a source that has no login page", () => {
+    // A course website is whatever host its adapter points at.
+    const pill = healthPill(
+      sources({ site: status({ source: "site", state: "needs_login" }) }),
+      SYNCED,
+      NOW,
+    );
+    expect(pill.action).toBeUndefined();
+  });
+
+  it("drops the clock rather than printing Invalid Date", () => {
+    const pill = healthPill(sources({ gradescope: status() }), "not a date", NOW);
+    expect(pill.text).toBe("Gradescope OK");
+  });
+});
+
+describe("sourceRows (the pill's popover, and Settings)", () => {
+  it("puts whatever is wrong first and whatever is off last", () => {
+    // The reason to open the list is almost always one broken row, and scanning
+    // six of them to find it is the cost the pill was supposed to remove.
+    const rows = sourceRows(
+      sources({
+        canvas: status({ source: "canvas", state: "ok" }),
+        gradescope: status({ state: "needs_login" }),
+        prairielearn: status({ source: "prairielearn", enabled: false, state: "disabled" }),
+        prairietest: status({ source: "prairietest", state: "parse_error" }),
+      }),
+      NOW,
+    );
+    expect(rows.map((r) => r.source)).toEqual([
+      "gradescope",
+      "prairietest",
+      "canvas",
+      "prairielearn",
+    ]);
+  });
+
+  it("says the state in words a student has seen before", () => {
+    const [row] = sourceRows(sources({ gradescope: status({ state: "needs_login" }) }), NOW);
+    expect(row!.word).toBe("Sign in needed");
+    expect(row!.word).not.toContain("_");
+    expect(row!.loginUrl).toContain("gradescope.com");
+  });
+
+  it("reports a never-attempted source as pending, not as its seeded state", () => {
+    const [row] = sourceRows(
+      sources({ canvas: status({ source: "canvas", state: "ok", lastAttemptAt: undefined }) }),
+      NOW,
+    );
+    expect(row!.state).toBe("pending");
+    expect(row!.word).toBe("Checking…");
+  });
+
+  it("keeps the exact stamp behind the relative one", () => {
+    const [row] = sourceRows(sources({ gradescope: status() }), NOW);
+    // The helper's status() is stamped a minute back.
+    expect(row!.lastRead).toBe("1 min ago");
+    expect(row!.lastReadExact).toBeTruthy();
+  });
+
+  it("says nothing about a read that never happened", () => {
+    const [row] = sourceRows(
+      sources({ gradescope: status({ state: "needs_login", lastSuccessAt: undefined }) }),
+      NOW,
+    );
+    expect(row!.lastRead).toBeUndefined();
+  });
+
+  it("offers no login link for a source that is merely off", () => {
+    // Offering "log in" beside a switch the student deliberately turned off is
+    // an invitation to undo a choice they just made.
+    const [row] = sourceRows(
+      sources({ gradescope: status({ enabled: false, state: "disabled" }) }),
+      NOW,
+    );
+    expect(row!.loginUrl).toBeUndefined();
   });
 });

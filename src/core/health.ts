@@ -17,7 +17,7 @@
  */
 
 import { groupItems } from "./grouping.js";
-import { nameList } from "./names.js";
+import { LOGIN_URL, SOURCE_NAME, STATE_WORD, fullStamp, nameList, timeAgo } from "./names.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 /**
@@ -157,6 +157,161 @@ export function statusLine(
     return `Checked ${clock} · all ${total} source${total === 1 ? "" : "s"} OK`;
   }
   return `Checked ${clock} · ${summary.ok.length} of ${total} sources OK`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The health pill                                                             */
+/* -------------------------------------------------------------------------- */
+
+export type HealthTone = "ok" | "warn" | "err" | "pending";
+
+export interface HealthPill {
+  tone: HealthTone;
+  /** The whole sentence, already named and already plain. */
+  text: string;
+  /**
+   * The one thing clicking it should do *besides* opening the source list.
+   *
+   * `undefined` on a healthy pill: there is nothing to fix, and the list is
+   * still worth opening.
+   */
+  action?: { kind: "login"; source: Source };
+}
+
+/**
+ * What the popup's header says about every source, in one line.
+ *
+ * It replaces six 9px dots. Three things were wrong with those, and only the
+ * last is about size. A dot in five colours is a colour-only signal, which is
+ * the exact thing the High-contrast theme exists to avoid — and that theme was
+ * the only one that gave them shapes. The one dot you could *click* (needs
+ * login) looked identical to the five you could not. And the fact they encoded
+ * was then written out again in words at the bottom of an 883px document, where
+ * nobody scrolled to read it.
+ *
+ * Every branch is derived from `summarize()`, so the pill inherits worker rule
+ * 2 for free: it cannot say "OK" about a source that was never fetched, because
+ * `displayState` calls that one `pending` and `pending` is not `ok`.
+ *
+ * **Signing in outranks a parse error.** Both are failures and red is the more
+ * severe colour, but `staleNotice` already sorts this way and for the same
+ * reason: one of them is a thing the student can finish in ten seconds, and the
+ * other is a thing only a new build can fix. Leading with the red one buries
+ * the actionable half.
+ */
+export function healthPill(
+  sources: Partial<Record<Source, SourceStatus>>,
+  lastSyncAt: string | undefined,
+  now: Date,
+): HealthPill {
+  const summary = summarize(sources);
+  const when = lastSyncAt === undefined ? undefined : new Date(lastSyncAt);
+  const clock =
+    when && !Number.isNaN(when.getTime())
+      ? when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      : undefined;
+
+  if (summary.needsLogin.length > 0) {
+    const [first] = summary.needsLogin;
+    return {
+      tone: "warn",
+      text:
+        summary.needsLogin.length === 1
+          ? `Sign in to ${SOURCE_NAME[first!]}`
+          : `Sign in to ${summary.needsLogin.length} sites`,
+      ...(LOGIN_URL[first!] ? { action: { kind: "login" as const, source: first! } } : {}),
+    };
+  }
+
+  if (summary.failing.length > 0) {
+    return {
+      tone: "err",
+      text:
+        summary.failing.length === 1
+          ? `${SOURCE_NAME[summary.failing[0]!]} couldn't be read`
+          : `${summary.failing.length} sites couldn't be read`,
+    };
+  }
+
+  // Not "all OK": nothing was checked, so there is nothing to be OK about. The
+  // green dot over four sources that had never been fetched is the defect this
+  // whole module was written around.
+  if (summary.checkable.length === 0) {
+    return { tone: "warn", text: "No sites are switched on" };
+  }
+
+  if (summary.ok.length === 0) return { tone: "pending", text: "Checking…" };
+
+  if (summary.pending.length > 0) {
+    return {
+      tone: "pending",
+      text: `Checking… ${summary.ok.length} of ${summary.checkable.length} read`,
+    };
+  }
+
+  const total = summary.ok.length;
+  const named = total === 1 ? `${SOURCE_NAME[summary.ok[0]!]} OK` : `All ${total} OK`;
+  return { tone: "ok", text: clock ? `${named} · ${clock}` : named };
+}
+
+/**
+ * One source, as the popover and Settings both need it.
+ *
+ * Both surfaces were assembling this from `displayState`, a word table and a
+ * date format, separately — which is how the popup came to say "read
+ * successfully" where the options page said "ok", about the same source, in the
+ * same second.
+ */
+export interface SourceRow {
+  source: Source;
+  state: SourceState;
+  /** Plain wording for `state`: "Connected", "Sign in needed", "Couldn't read". */
+  word: string;
+  /** "5 min ago", or undefined when it has never once succeeded. */
+  lastRead?: string;
+  /** The exact stamp, for the tooltip behind `lastRead`. */
+  lastReadExact?: string;
+  lastError?: string;
+  /** Whether there is a login page to offer. */
+  loginUrl?: string;
+}
+
+export function sourceRows(
+  sources: Partial<Record<Source, SourceStatus>>,
+  now: Date,
+): SourceRow[] {
+  const rows: SourceRow[] = [];
+  for (const [key, status] of Object.entries(sources)) {
+    if (!status) continue;
+    const source = key as Source;
+    const state = displayState(status);
+    const login = state === "needs_login" ? LOGIN_URL[source] : undefined;
+    rows.push({
+      source,
+      state,
+      word: STATE_WORD[state] ?? state,
+      ...(timeAgo(status.lastSuccessAt, now) !== undefined
+        ? { lastRead: timeAgo(status.lastSuccessAt, now)! }
+        : {}),
+      ...(fullStamp(status.lastSuccessAt) !== undefined
+        ? { lastReadExact: fullStamp(status.lastSuccessAt)! }
+        : {}),
+      ...(status.lastError ? { lastError: status.lastError } : {}),
+      ...(login ? { loginUrl: login } : {}),
+    });
+  }
+  // Whatever is wrong first, then whatever is off last: the reason to open this
+  // list is almost always one broken row, and scanning six to find it is the
+  // cost the pill was supposed to remove.
+  const rank: Record<SourceState, number> = {
+    needs_login: 0,
+    parse_error: 1,
+    network_error: 2,
+    pending: 3,
+    ok: 4,
+    disabled: 5,
+  };
+  return rows.sort((a, b) => rank[a.state] - rank[b.state] || a.source.localeCompare(b.source));
 }
 
 export interface StaleNotice {

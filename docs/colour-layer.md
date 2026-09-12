@@ -48,7 +48,8 @@ which will be from a different palette and will look like a bug rather than read
 |---|---|
 | `--warn-wash` / `--warn-wash-strong` | Behind a booking strip, a banner, an exam pill |
 | `--err-wash` | Behind an error banner |
-| `--accent-ink` | Text sitting *on* the accent, e.g. today's date in its circle |
+| `--accent-ink` | Text sitting *on* the accent, e.g. today's date in its circle. **Never white** — 3.05:1 on the light accent, 2.87:1 on the dark one |
+| `--accent-wash` | A tint of the accent: the selected tab, a pressed chip |
 | `--shadow` | The row menu's drop shadow |
 
 **Surfaces**
@@ -57,6 +58,7 @@ which will be from a different palette and will look like a bug rather than read
 |---|---|
 | `--bg` | The page and the selected tab |
 | `--surface` | Raised panels |
+| `--surface-raised` | A menu or popover floating over the page |
 | `--line` | Every border and grid line |
 | `--fg` / `--muted` | Primary and secondary text |
 | `--tint` | Header block, gutters, out-of-month cells |
@@ -68,8 +70,10 @@ which will be from a different palette and will look like a bug rather than read
 
 | Token | Use |
 |---|---|
-| `--brand` / `--brand-ink` | The top bar and its text |
-| `--accent` | The selected tab outline, the focus ring, today |
+| `--brand` / `--brand-ink` | Section headings and identity surfaces |
+| `--accent` | The selected tab's wash, the focus ring, today |
+| `--primary` / `--primary-ink` | The one filled button on a screen, and its label. **Not `--brand`**: in dark the brand *is* the page, and the button rendered as plain text at 1.00:1 |
+| `--focus` | The focus ring. `var(--accent)`, named so it is one decision |
 | `--now` | Today's date and the current-time line. Usually `var(--accent)` |
 
 **Meaning — these are spoken for**
@@ -79,6 +83,14 @@ which will be from a different palette and will look like a bug rather than read
 | `--err` | Overdue, and a date that could not be read |
 | `--warn` | A window still open: a late deadline, an unbooked exam, a sign-in needed |
 | `--ok` | A source that was read successfully |
+
+**One value that is not a token by accident**
+
+`--pill-fill` exists only in dark Illini, and it is what a month pill and a calendar row
+use instead of their own `--course-N-bg`. Eight washes chosen to sit behind an 11px pill
+read as a patchwork behind a full-width row, and that is rule 2 again: the same wash does
+different work at a different size. The course still carries its 3px edge and its
+saturated code, which are the two signals that identify it.
 
 **Courses — eight pairs**
 
@@ -124,16 +136,33 @@ that reads clearly in light mode has already shipped twice looking like nothing 
 measuring the document's intrinsic box, so anything wider opens the popup at up to 800px
 with the content stranded in the left half. This has happened twice — once from
 `max-height` + `overflow-y` on `body`, which leaves no intrinsic height to measure, and
-once from five labelled tabs measuring 454px.
+once from five labelled tabs measuring 454px — at 12.5px type, 11px of padding either
+side and a 14px icon on every tab. Naming all five is back, and it fits: the popup drops
+the icons and takes the type to 12px. **Both halves of that sentence matter.** The
+constraint was real and the answer "show one label" was the wrong place to pay it;
+`tests/tokens.test.ts` cannot catch this one, so the check below is the check.
 
 Check after any change that affects width:
 
 ```js
 document.body.getBoundingClientRect().width   // 400
 document.body.scrollWidth                     // 400
-[...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > 401)  // []
 getComputedStyle(document.body).overflowY     // visible, never auto or scroll
+// Nothing past the edge — except inside a container that scrolls on purpose.
+[...document.querySelectorAll('*')]
+  .filter(e => e.getBoundingClientRect().right > 401)
+  .filter(e => !e.closest('#filters'))        // []
 ```
+
+**The last line's exemption is new, and it is the rule rather than a hole in
+it.** The course strip is `overflow-x: auto`, so the eighth chip legitimately
+sits past 401 — it is scrolled, not overflowing, and `scrollWidth` stays 400
+because a scroll container does not contribute its content's width to its
+ancestors. The thing the check is actually asking is "does anything make the
+*document* wider than 400", and `scrollWidth` is the authoritative answer;
+the element sweep is the diagnostic that says *which* element did it. Any
+future scrolling strip goes in the same exemption list — and `overflow-x`
+still never goes on `body` or `html`, for the reason above.
 
 The full view is the same page with `?view=full`, which adds `.view-full` to the root and
 lifts the width cap. Anything that only fits in a tab belongs behind that class.
@@ -146,9 +175,27 @@ lifts the width cap. Anything that only fits in a tab belongs behind that class.
 npm run build && npm run preview
 ```
 
-`dist/preview-popup.html` is the real popup with the browser APIs stubbed — use it for
-anything about width. `dist/preview.html` frames the list for looking at layout. Add
-`?view=full` for the tab, `?setup=1` for the first-run screen.
+| File | What it is |
+|---|---|
+| `dist/preview-popup.html` | The real popup, 400px, with only `chrome.*` stubbed. Use it for anything about size. `?view=full` for the tab, `?setup=1` for the first-run screen. |
+| `dist/preview-options.html` | The real Settings page. `?stale=1` answers as a worker on an older build. |
+| `dist/components.html` | Every primitive in every state, all three themes. |
+| `dist/shot.html` | Seeds the tab and theme from its query string, then redirects. What `npm run shots` drives. |
+
+The framed harness that used to sit here is gone. It wrapped the list in a fixed-width
+`<div>`, so it could not reproduce a `body`-level sizing bug by construction — and two
+answers about the popup opening at 800px were reasoned from it before that was noticed.
+**When the symptom is about the window, the harness has to be the real document.**
+
+```bash
+npm run shots        # every surface, dark then light, into docs/ux/after/
+npm run shots -- popup
+```
+
+`--force-dark-mode` does **not** set `prefers-color-scheme` — headless Chrome follows the
+system theme, so on a dark machine it is a no-op and the "light" set comes out dark.
+`--blink-settings=preferredColorScheme=0|1` is the one that works (0 dark, 1 light,
+measured), and `shots.mjs` states it for both halves rather than leaving dark implicit.
 
 `docs/colour-schemes.html` is a standalone mockup of the month view in several palettes,
 useful for trying a direction without building the extension.

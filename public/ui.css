@@ -392,7 +392,18 @@
   background: var(--tint);
 }
 .banner-line .icon { width: 14px; height: 14px; flex: none; }
-.banner-line--text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/*
+ * One line, and it stays one line.
+ *
+ * Without `nowrap` the text wraps and a 32px banner becomes 41px — which is
+ * only nine pixels until three of them are on screen at once, in a window that
+ * is 600px tall. The sentences are written to fit; a pathological course title
+ * ellipses and keeps the whole thing in its `title`.
+ */
+.banner-line--text {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .banner-warn { background: var(--warn-wash); color: var(--fg); }
 .banner-warn .icon { color: var(--warn); }
 .banner-err { background: var(--err-wash); color: var(--fg); }

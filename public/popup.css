@@ -64,31 +64,44 @@ html.view-full,
 .view-full body { padding: 0 0 24px; margin: 0; --full-max: 1100px; }
 .view-full body[data-view="month"] { --full-max: 1400px; }
 .view-full .bar { border-radius: 0; }
+/*
+ * 40px, and everything in it is a control.
+ *
+ * The budget is the point. Header, stale banner, booking strip, tabs, two rows
+ * of course chips and a date navigator used to cost 322px of a 600px window
+ * before the first deadline, and 215 with nothing wrong. The target is 144
+ * healthy, and this block is the first 40 of it.
+ */
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 8px 12px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--bg); z-index: 1;
+  box-sizing: border-box; min-height: 40px;
+  padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--tint); color: var(--fg); z-index: 2;
 }
-.bar--right { display: flex; align-items: center; gap: 10px; }
-.link { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; text-decoration: none; }
-.link:hover { color: var(--fg); }
-.dots { display: flex; gap: 6px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; cursor: default; }
-.dot-ok { background: var(--ok); }
-.dot-needs_login { background: var(--warn); cursor: pointer; }
-.dot-parse_error, .dot-network_error { background: var(--err); }
-.dot-disabled { background: var(--line); }
-/* Never-fetched is hollow, not filled: at a glance it must not read as either
-   healthy or broken, because neither is known yet (worker house rule 2). */
-.dot-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
-#status { padding: 6px 12px 0; margin: 0; }
-.banner {
-  margin: 8px 12px 0; padding: 7px 9px;
-  border: 1px solid var(--warn); border-radius: 5px;
-  background: var(--warn-wash); font-size: 12px; line-height: 1.35;
+.bar--right { display: flex; align-items: center; gap: 2px; flex: none; }
+#health { min-width: 0; display: flex; }
+
+/* The per-source list behind the pill. Same facts as Settings › Sources, from
+   the same `sourceRows`. */
+.popover { min-width: 268px; max-width: 320px; padding: 4px; }
+.srow {
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  align-items: center; gap: 8px; padding: 5px 6px; font-size: 11px;
 }
-.banner button { margin-left: 6px; }
-.banner-err { border-color: var(--err); background: var(--err-wash); }
+.srow--dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.srow--dot.is-ok { background: var(--ok); }
+.srow--dot.is-warn { background: var(--warn); }
+.srow--dot.is-err { background: var(--err); }
+.srow--dot.is-off { background: var(--line); }
+.srow--dot.is-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.srow--name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow--state { color: var(--muted); white-space: nowrap; }
+.srow--state.is-warn { color: var(--warn); }
+.srow--state.is-err { color: var(--err); }
+
+/* Errors only, and hidden the rest of the time — see popup.html. */
+#status { margin: 0; }
+#status[hidden] { display: none; }
 .row--moved { color: var(--warn); font-size: 10px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
@@ -128,11 +141,23 @@ h2.section {
   /* The label track is `auto`: empty on a single-source row, so the title gets
      those 44px back, and only ~40px wide on the merged rows that need it. It
      sits between two fixed tracks, so the dates still align. */
-  grid-template-columns: 60px minmax(0, 1fr) auto 92px 16px;
+  grid-template-columns: 60px minmax(0, 1fr) auto 92px 24px;
   align-items: baseline;
   gap: 2px 6px;
-  padding: 7px 12px; cursor: pointer; border-top: 1px solid transparent;
+  padding: 7px 8px 7px 12px; cursor: pointer; border-top: 1px solid transparent;
+  /* An `<a>` now, so the link defaults have to be undone explicitly. */
+  color: inherit; text-decoration: none;
 }
+/* No URL to open: it is still a row, but it is not a link and must not pretend. */
+.row--flat { cursor: default; }
+/*
+ * In the agenda the "when" column carries a clock and nothing else — the date
+ * navigator above already says which day — so it gets 62px rather than the 92
+ * a list needs for "Sep 24 11:59 PM · in 14d". The 30px goes to the title,
+ * which is the thing that says which assignment the row is.
+ */
+[data-shape="agenda"] .row { grid-template-columns: 60px minmax(0, 1fr) auto 62px 24px; }
+
 .row--detail {
   grid-column: 2 / -1;
   font-size: 11px; color: var(--muted); line-height: 1.3;
@@ -164,22 +189,21 @@ h2.section {
 .row-event .row--title, .row-event .row--due { color: var(--muted); font-weight: 400; }
 .empty { padding: 24px 12px; text-align: center; }
 
-.row--menu { background: none; border: 0; color: var(--muted);
-  font: inherit; cursor: pointer; padding: 0 2px; line-height: 1; opacity: 0;
-}
-.row:hover .row--menu, .row--menu:focus { opacity: 1; }
-.menu {
-  position: absolute; z-index: 10; min-width: 190px; max-width: 340px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-  box-shadow: 0 6px 20px var(--shadow); padding: 4px 0;
-}
-.menu--item {
-  display: block; width: 100%; text-align: left; background: none; border: 0;
-  font: inherit; color: inherit; padding: 6px 12px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.menu--item:hover { background: var(--hover); }
-.menu--heading {
+/*
+ * Always visible, at 35%.
+ *
+ * It was `opacity: 0` until hover, so nobody learned it existed — and it
+ * carries Mark done, Hide, Split and Merge, which is the whole of §5.3's
+ * correction story. G3 budgets two corrections a semester, which only works if
+ * making one is discoverable.
+ */
+.row--menu { opacity: .35; align-self: center; }
+.row:hover .row--menu,
+.row--menu:hover,
+.row--menu:focus-visible,
+.row--menu[aria-expanded="true"] { opacity: 1; }
+
+.menu-heading {
   padding: 6px 12px; font-size: 11px; color: var(--muted);
   border-bottom: 1px solid var(--line); margin-bottom: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -213,47 +237,67 @@ h2.section {
 .course-6 { --course: var(--course-6); --course-bg: var(--course-6-bg); }
 .course-7 { --course: var(--course-7); --course-bg: var(--course-7-bg); }
 
-/* ---- tabs ---- */
-/*
- * An outlined pill, not a filing-cabinet tab.
+/* ---- tabs: 36px, five names, one rule per selector ----
  *
- * The old shape needed a border-bottom trick to merge with the strip below it,
- * so the selected tab was defined by what it was *touching*. A pill is defined
- * by itself and survives the strip being any colour.
+ * This selector used to be defined three times and `[aria-selected]` four —
+ * an outlined pill near the top, a `box-shadow` inset in the "Brand" section, a
+ * `--today-tint` fill in the reference refresh — with the cascade deciding.
+ * Nothing was wrong with any one of them; what was wrong is that reading the
+ * file could not tell you what a selected tab looked like.
+ *
+ * A wash rather than an outline or a lifted surface. The strip sits directly
+ * under the header, and a filled block under a filled block reads as one
+ * confusing shape; a wash of the accent says "this one" at a weight that does
+ * not compete with --err, --warn and --ok.
  */
 .tabs {
-  display: flex; gap: 4px; align-items: center;
-  padding: 7px 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 2px;
+  box-sizing: border-box; height: 36px; padding: 0 8px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+  position: sticky; z-index: 1;
 }
 .tab {
-  display: flex; align-items: center; gap: 6px;
-  font: inherit; font-size: 12.5px; padding: 6px 11px; cursor: pointer;
-  border: 1px solid transparent; border-radius: 10px;
-  background: none; color: var(--muted); white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+  box-sizing: border-box; height: 28px; padding: 0 8px;
+  font: inherit; font-size: 12px; font-weight: 600; line-height: 1;
+  border: 0; border-radius: 6px;
+  background: none; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
-.tab:hover { color: var(--fg); }
-.tab[aria-selected="true"] {
-  color: var(--accent); font-weight: 600;
-  border-color: var(--accent); background: transparent;
-}
-.tab svg { width: 14px; height: 14px; flex: none; }
-.tab-err[aria-selected="true"] { color: var(--err); }
-.tab--count { font-size: 10px; color: var(--muted); }
+.tab:hover { color: var(--fg); background: var(--hover); }
+.tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); }
+.tab .icon { width: 14px; height: 14px; flex: none; }
+.tab[aria-selected="true"] .icon { color: var(--accent); }
 
-/* ---- the course chips ---- */
+/* ---- the course chips: one 36px row that scrolls ----
+ *
+ * Seven courses wrapped to two rows and cost 81px. `overflow-x` goes on this
+ * strip and nowhere near `body` or `html`: Chrome sizes a popup by measuring
+ * the document's intrinsic box, and making either of those a scroll container
+ * is what opened the popup at 800x600 once already.
+ *
+ * The fade is a mask rather than a gradient overlay so it works on any
+ * background — the strip is `--bg` here and `--tint` in the full view.
+ */
 .filters {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
-  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 6px;
+  box-sizing: border-box; height: 36px; padding: 0 10px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 }
+.filters::-webkit-scrollbar { display: none; }
 .filters:empty { display: none; }
 .fchip {
-  display: flex; align-items: center; gap: 6px; flex: none;
-  font: inherit; font-size: 11.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 5px; flex: none;
+  box-sizing: border-box; height: 24px; padding: 0 8px 0 6px;
+  font: inherit; font-size: 11px; font-weight: 600; line-height: 1;
   color: var(--fg); background: var(--bg); cursor: pointer;
-  border: 1px solid var(--line); border-radius: 20px; padding: 4px 11px 4px 8px;
+  border: 1px solid var(--line); border-radius: 999px;
 }
 .fchip:hover { border-color: var(--course); }
-.fchip i { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--course); }
+.fchip i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--course); }
 /* Switched off stays on screen. A filter that removes a control along with the
    work it hides gives the student no way back (§11, one level up). */
 .fchip[aria-pressed="false"] { opacity: .45; }
@@ -261,21 +305,41 @@ h2.section {
 .fchip[aria-pressed="false"] span { text-decoration: line-through; }
 .fhidden { flex: none; font-size: 10px; color: var(--warn); padding-left: 2px; cursor: help; }
 
-/* ---- date navigator ---- */
+/* ---- date navigator: 32px, arrows either side of the label ----
+ *
+ * They used to sit at the two ends of a 400px bar, 340px apart, where they read
+ * as two unrelated buttons rather than as one pair.
+ */
 .datenav {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 2px;
+  box-sizing: border-box; height: 32px; padding: 0 8px;
+  border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .datenav[hidden] { display: none; }
-.datenav--arrow {
-  font: inherit; background: none; border: 0; color: var(--muted);
-  cursor: pointer; padding: 0 2px; line-height: 1;
+.datenav--label {
+  font-weight: 600; font-size: 12px;
+  padding: 0 2px; white-space: nowrap;
 }
-.datenav--arrow:hover { color: var(--fg); }
-.datenav--label { font-weight: 600; font-size: 12.5px; flex: 1; }
-.datenav--today {
-  font: inherit; font-size: 11px; color: var(--muted); cursor: pointer;
-  background: none; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+.datenav--today { margin-left: auto; }
+
+/* ---- the agenda's "now" line ----
+ *
+ * A rule with the clock on it, drawn only where it separates something from
+ * something else. `agendaRows` decides where; this only draws it.
+ */
+.nowrule {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 12px 3px 0; margin: 2px 0;
+}
+.nowrule::after {
+  content: ""; flex: 1; height: 0; border-top: 1.5px solid var(--now);
+}
+.nowrule span {
+  order: -1; flex: none;
+  padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--now); color: var(--accent-ink);
+  margin-left: 12px;
 }
 
 /* ---- the untimed band ---- */
@@ -418,8 +482,6 @@ h2.section {
 .row[class*="course-"] { border-left: 3px solid var(--course); padding-left: 9px; }
 .na .row[class*="course-"] { background: var(--course-bg); border-radius: 0 4px 4px 0; margin-right: 12px; }
 
-/* Sticky under the bar; `top` is set from the bar's measured height. */
-.tabs { position: sticky; z-index: 1; background: var(--bg); }
 
 /*
  * "By end of day", above the grid.
@@ -441,7 +503,17 @@ h2.section {
  * full calendar shell over an empty grid with one sentence of explanation, and
  * that reads as a broken app rather than a first step.
  * ====================================================================== */
-.setup .bar .link[id="full"], .setup .bar #sync { visibility: hidden; }
+/* Nothing to sync to and nowhere to open yet. */
+.setup .bar--right { visibility: hidden; }
+/*
+ * And no calendar chrome above a screen that is not a calendar.
+ *
+ * `renderSetup` empties these, but an empty tab strip is still 36px and an
+ * empty filter strip another 36 — so the first-run screen opened with 72px of
+ * ruled nothing between its title and the header, which reads as a page that
+ * failed to load the top half.
+ */
+.setup #banners, .setup #tabs, .setup #filters, .setup #nav { display: none; }
 .setup--page { padding: 14px 14px 16px; }
 .setup--title { font-size: 15px; margin: 0 0 6px; }
 .setup--blurb { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
@@ -459,26 +531,13 @@ h2.section {
 .setup--state-login { color: var(--warn); }
 .setup--state-err { color: var(--err); cursor: help; }
 .setup--state-off { opacity: .6; }
-.setup--signin {
-  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
-  color: var(--warn); background: none;
-  border: 1px solid var(--warn); border-radius: 5px; padding: 2px 8px;
-}
+
 .setup--summary {
   font-size: 12px; margin: 12px 0 2px; padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 .setup--note { font-size: 11px; color: var(--muted); margin: 0 0 14px; }
 .setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.setup--primary {
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  color: var(--bg); background: var(--fg); border: 1px solid var(--fg);
-  border-radius: 6px; padding: 6px 14px;
-}
-.setup--secondary {
-  font: inherit; font-size: 12px; cursor: pointer; color: inherit;
-  background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px;
-}
 .setup--brand { font-size: 12px; font-weight: 600; }
 
 /*
@@ -490,12 +549,13 @@ h2.section {
  */
 .fold { border-top: 1px solid var(--line); margin-top: 10px; }
 .fold--summary {
+  display: flex; align-items: center; gap: 6px;
   font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); padding: 10px 12px; cursor: pointer; list-style: none;
 }
 .fold--summary::-webkit-details-marker { display: none; }
-.fold--summary::before { content: "▸ "; }
-.fold[open] .fold--summary::before { content: "▾ "; }
+.fold--summary .icon { width: 12px; height: 12px; transition: transform 120ms ease-out; }
+.fold[open] .fold--summary .icon { transform: rotate(90deg); }
 .fold--summary:hover { color: var(--fg); }
 /* Where the exam is. Not warn-coloured: it is information, not a problem. */
 .row--detail-exam { color: var(--muted); }
@@ -513,142 +573,87 @@ h2.section {
 
 
 /* ==========================================================================
- * Brand
+ * Identity, and the surfaces under it
  *
- * The bar and the selected tab, and nothing else. Colour that means something
- * is spoken for — red is overdue, amber is a window still open, green is a
- * source that answered — so the identity colours stay structural.
- * ====================================================================== */
-.bar { background: var(--brand); color: var(--brand-ink); }
-.bar .link { color: var(--brand-ink); opacity: .78; }
-.bar .link:hover { color: var(--brand-ink); opacity: 1; }
-.theme-neutral .bar { background: var(--bg); color: var(--fg); }
-.theme-neutral .bar .link { color: var(--muted); opacity: 1; }
-
-/* A 2px rule rather than a fill: the tab strip sits under a coloured bar, and
-   two filled blocks stacked read as one confusing shape. */
-.tab[aria-selected="true"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent); }
-.theme-neutral .tab[aria-selected="true"] { box-shadow: none; }
-
-/*
- * Course colours that survive red-green colour blindness.
+ * This section used to be three. A "Brand" block, a "Structure" block, and a
+ * "Reference refresh" block appended after both — so `.bar` was set three
+ * times, `.tabs` three, and `.tab[aria-selected]` four, with the cascade
+ * deciding which one won. Nothing was wrong with any single rule; what was
+ * wrong is that reading the file could not tell you what anything looked like.
  *
- * The default eight are chosen to look distinct; these are chosen to *stay*
- * distinct under deuteranopia and protanopia, which the default set does not —
- * its green and its orange collapse toward each other. Adapted from Okabe and
- * Ito's qualitative set, which exists for exactly this.
- */
-/* The values are in ui.css, under `.theme-contrast`. */
-
-/*
- * And a shape per state, because a 9px dot in five colours is a colour-only
- * signal — the exact thing the rest of this theme exists to avoid. Noted as a
- * problem days ago and left alone; this is where it belongs.
- */
-.theme-contrast .dot { width: 10px; height: 10px; }
-.theme-contrast .dot-ok { border-radius: 50%; }
-.theme-contrast .dot-needs_login { border-radius: 1px; transform: rotate(45deg); }
-.theme-contrast .dot-parse_error, .theme-contrast .dot-network_error { border-radius: 1px; }
-.theme-contrast .dot-disabled { border-radius: 1px; height: 3px; align-self: center; }
-
-/* ==========================================================================
- * Structure
- *
- * Everything below is a surface that was neutral grey. Painting only the bar
- * changed almost nothing, because the bar was the only coloured thing in an
- * otherwise entirely grey interface — the gutters, the headings, the strip
- * behind the tabs and every hover were all `rgba(127,127,127,…)`.
+ * One rule per selector now, grouped by what it paints. Colour that *means*
+ * something is spoken for — red is overdue, amber is a window still open, green
+ * is a source that answered — so identity stays structural: tints, gutters and
+ * one accent wash.
  * ====================================================================== */
 
-/* The tab strip sits on the tinted surface; the selected tab lifts out of it
-   onto the page's own background, which is what makes it read as selected. */
-.tabs { background: var(--tint); }
-.tab[aria-selected="true"] { background: var(--bg); }
-
-/* Section headings are structure, not state — so they take the brand. The one
-   that is a state keeps its own colour. */
+/* Section headings are structure, not state. The one that is a state keeps its
+   own colour. */
 h2.section { color: var(--brand); opacity: .85; }
-@media (prefers-color-scheme: dark) { h2.section { color: var(--accent); opacity: .8; } }
 h2.section.section--err { color: var(--err); opacity: 1; }
-.theme-neutral h2.section { color: var(--muted); opacity: 1; }
+.band--head { color: var(--brand); opacity: .85; }
+@media (prefers-color-scheme: dark) {
+  h2.section { color: var(--accent); opacity: .8; }
+  .band--head { color: var(--accent); opacity: .8; }
+}
+.theme-neutral h2.section,
+.theme-neutral .band--head { color: var(--muted); opacity: 1; }
 
 /* Gutters: the hour axis and the week's day column are chrome around a canvas,
    and reading as chrome is the difference between a calendar and a table. */
-.grid--hours, .wday { background: var(--tint); }
-.mhead { background: var(--tint); }
-.band--head { color: var(--brand); opacity: .85; }
-@media (prefers-color-scheme: dark) { .band--head { color: var(--accent); opacity: .8; } }
-.theme-neutral .band--head { color: var(--muted); opacity: 1; }
+.grid--hours, .wday, .mhead { background: var(--tint); }
 
 /* Today, in the week's gutter and on the month grid. */
 .wrow--today .wday { background: var(--today-tint); }
 .mcell--today { background: var(--today-tint); }
 
-/* The whole header carries one tint, so it reads as a single block rather than
-   as four stacked bars with a white stripe through the middle. */
-.datenav, .filters { background: var(--tint); }
-/* The booking strip keeps its own amber: it is a state, not chrome. */
+/* A day with nothing on it is worth a line saying so and nothing more. Seven
+   full-height empty rows is the whole popup. */
+.wrow--quiet .wday { padding-top: 3px; padding-bottom: 3px; }
+.wrow--quiet .witems--empty { padding: 4px 0 5px 10px; }
 
-/* Keyboard focus, which had no style at all and therefore Chrome's default. */
-:where(button, a, input, summary):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-  border-radius: 3px;
+/* A real button under the sentence, on the one screen with nothing else to
+   click. These were `.link` — text that looked like the sentence above it. */
+.empty--actions { display: flex; justify-content: center; gap: 8px; padding: 0 12px 20px; }
+
+/* High contrast gives the health dot a shape as well as a colour, because a
+   coloured dot alone is the exact signal the rest of that theme exists to
+   avoid. It is one dot now rather than six, so this is one rule rather than five. */
+.theme-contrast .pill.is-warn .pill--dot { border-radius: 1px; transform: rotate(45deg); }
+.theme-contrast .pill.is-err .pill--dot { border-radius: 1px; }
+.theme-contrast .srow--dot.is-warn { border-radius: 1px; transform: rotate(45deg); }
+.theme-contrast .srow--dot.is-err { border-radius: 1px; }
+.theme-contrast .srow--dot.is-off { border-radius: 1px; height: 3px; }
+
+/* ==========================================================================
+ * The full view
+ *
+ * The same document in a tab: more width, more height, and an hour axis that is
+ * finally worth its pixels. Everything here is scoped to the `.view-full` class
+ * the page sets from its own URL — never to a width media query, because Chrome
+ * lays the document out to decide the popup's width and a width rule can feed
+ * itself (see the top of this file).
+ * ====================================================================== */
+.view-full .bar { min-height: 48px; padding: 8px 28px; border-radius: 0; }
+.view-full .tabs { height: auto; padding: 14px 24px 10px; gap: 8px; flex-wrap: wrap; }
+.view-full .tab { height: 38px; font-size: 15px; gap: 8px; padding: 0 16px; border-radius: 10px; }
+.view-full .tab .icon { width: 19px; height: 19px; }
+.view-full .filters {
+  height: auto; min-height: 48px; padding: 10px 24px 14px; gap: 8px;
+  flex-wrap: wrap; overflow: visible;
+  -webkit-mask-image: none; mask-image: none;
 }
-
-/*
- * The one primary action in the app.
- *
- * `--brand` was wrong here and invisibly so: in dark the brand is #0d1626 on a
- * #0b1726 page, 1.00:1, so "Show my calendar" rendered as plain text on the one
- * screen a new student has to get past. `--primary` exists to be the fill that
- * is guaranteed to differ from the page it sits on, in every theme, and
- * tests/tokens.test.ts computes that rather than trusting it.
- */
-.setup--primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
-
-/*
- * In the popup, only the selected tab is named.
- *
- * Five labelled tabs measure 454px against a 400px document, and a document
- * wider than the popup is exactly what opened it at 800px once before. The
- * icons carry the unselected ones, each with a `title`, and the full view —
- * which has the room — names them all.
- */
-.tab--label { display: none; }
-.tab[aria-selected="true"] .tab--label { display: inline; }
-.view-full .tab--label { display: inline; }
-.tab { padding: 6px 9px; }
-.tab[aria-selected="true"], .view-full .tab { padding: 6px 11px; }
-
-/* Reference refresh: a quiet toolbar and a single framed calendar. Full-view
-   sizing is URL-scoped so it cannot affect Chrome's intrinsic popup measure. */
-.bar { background: var(--tint); color: var(--fg); min-height: 30px; }
-.bar .link, .bar .link:hover { color: var(--fg); opacity: 1; }
-#sync { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-#sync svg { width: 17px; height: 17px; }
-#settings { font-size: 21px; padding-left: 12px; border-left: 1px solid var(--line); }
-.tabs { background: var(--bg); }
-.tab[aria-selected="true"] { color: var(--fg); background: var(--today-tint); }
-.tab[aria-selected="true"] svg { color: var(--accent); }
-.filters { background: var(--bg); border-bottom: 0; gap: 8px; padding: 10px 12px; }
-.fchip { box-shadow: 0 1px 3px color-mix(in srgb, var(--line) 60%, transparent); }
-.datenav { background: var(--surface); }
-.datenav--arrow { font-size: 24px; color: var(--fg); padding: 0 5px; }
-.view-full .bar { padding: 10px 28px; min-height: 32px; }
-.view-full .tabs { padding: 16px 24px 12px; gap: 12px; flex-wrap: wrap; }
-.view-full .tab { font-size: 16px; gap: 10px; padding: 10px 18px; border-radius: 10px; }
-.view-full .tab svg { width: 21px; height: 21px; }
-.view-full .filters { padding: 12px 24px 16px; gap: 10px; }
-.view-full .fchip { font-size: 14px; padding: 7px 17px 7px 13px; gap: 10px; }
-.view-full .fchip i { width: 13px; height: 13px; }
-.view-full .datenav { margin: 0 20px; padding: 14px 16px; gap: 16px;
-  border: 1px solid var(--line); border-radius: 12px 12px 0 0; }
-.view-full .datenav--label { font-size: 24px; font-weight: 650; letter-spacing: -.5px; }
-.view-full .datenav--today { font-size: 12px; padding: 4px 10px; }
-.view-full #view { margin: 0 20px; border: 1px solid var(--line);
-  border-top: 0; border-radius: 0 0 12px 12px; }
+.view-full .fchip { height: 30px; font-size: 13px; padding: 0 14px 0 11px; gap: 8px; }
+.view-full .fchip i { width: 10px; height: 10px; }
+.view-full .datenav {
+  height: auto; margin: 0 20px; padding: 12px 16px; gap: 8px;
+  border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0;
+}
+.view-full .datenav--label { font-size: 22px; font-weight: 650; letter-spacing: -.4px; }
+.view-full #view {
+  margin: 0 20px; border: 1px solid var(--line);
+  border-top: 0; border-radius: 0 0 12px 12px;
+}
 .view-full .datenav[hidden] + #view { border-top: 1px solid var(--line); border-radius: 12px; }
 .view-full .mhead { border-bottom: 0; }
 .view-full .mhead div { font-size: 12px; padding: 9px 0; letter-spacing: .07em; }
@@ -657,32 +662,26 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full .mcell:nth-last-child(7) { border-bottom-left-radius: 12px; }
 .view-full .mcell:last-child { border-bottom-right-radius: 12px; }
 .view-full .mnum { font-size: 14px; font-weight: 500; min-height: 22px; }
-.view-full .mcell--today .mnum { width: 30px; height: 30px; padding: 0; margin: -3px 0 -2px;
-  font-weight: 650; }
+.view-full .mcell--today .mnum {
+  width: 30px; height: 30px; padding: 0; margin: -3px 0 -2px; font-weight: 650;
+}
 .view-full .mpill { font-size: 12px; padding: 4px 7px; border-left-width: 4px; border-radius: 5px; }
 .view-full .mpill--code { font-size: 11px; }
 .view-full .mpill:hover { filter: brightness(1.12); }
-.view-full #status { padding: 10px 24px 0; font-size: 11px; }
+.view-full #status { padding: 10px 24px 0; }
 .view-full .wday { padding: 12px; }
 .view-full .wrow { grid-template-columns: 76px 1fr; }
 .view-full .wday--num { font-size: 23px; }
 .view-full .witems { padding: 8px 0; }
 .view-full .setup--page { max-width: 700px; margin: 24px auto; }
-/* The value is `--pill-fill`, in ui.css. A hex here is the "two copies of one
-   decision" failure the header of this file already records once. */
-@media (prefers-color-scheme: dark) {
-  .theme-illini .mpill:not(.mpill--exam):not(.mpill--opening):not(.mpill--event) {
-    background: var(--pill-fill);
-  }
-}
 
 /*
- * The cap itself. `max(gutter, half the slack)` centres the column once the
+ * The width cap. `max(gutter, half the slack)` centres the column once the
  * window is wider than the cap and keeps a real gutter before that, with no
  * extra element and no media query.
  *
- * These come last on purpose: `.datenav` and `#view` set `margin` as a
- * shorthand above, so a `margin-inline` has to follow it to win.
+ * Last on purpose: `.datenav` and `#view` set `margin` as a shorthand above, so
+ * a `margin-inline` has to follow it to win.
  */
 .view-full .bar { padding-inline: max(28px, calc((100% - var(--full-max)) / 2)); }
 .view-full .tabs,
@@ -690,3 +689,31 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full #status { padding-inline: max(24px, calc((100% - var(--full-max)) / 2)); }
 .view-full .datenav,
 .view-full #view { margin-inline: max(20px, calc((100% - var(--full-max)) / 2)); }
+
+/* Month pills in dark Illini: one navy fill under every course rather than
+   eight washes, which at 11px on a dense grid read as noise. The course still
+   carries its ink on the edge and on the code. The value is `--pill-fill`, in
+   ui.css — a hex here is the "two copies of one decision" failure this file's
+   header already records once. */
+@media (prefers-color-scheme: dark) {
+  .theme-illini .mpill:not(.mpill--exam):not(.mpill--opening):not(.mpill--event) {
+    background: var(--pill-fill);
+  }
+  /*
+   * And the same for a calendar row, which is the same decision at ten times
+   * the area.
+   *
+   * The month pill got this treatment and the week row did not, so the dark
+   * week read as a patchwork of eight saturated fills while the month beside it
+   * read as one calendar. colour-layer.md rule 2, exactly: a wash chosen to sit
+   * behind 11px of pill does different work behind a full-width row, and the
+   * eye is far less sensitive to lightening near-black than to darkening white.
+   *
+   * The course still carries its 3px edge and its saturated code — the two
+   * signals that identify it — so nothing is lost but the noise.
+   */
+  .theme-illini .witems .row,
+  .theme-illini .grid--stack .row,
+  .theme-illini .band .row,
+  .theme-illini .na .row[class*="course-"] { background: var(--pill-fill); }
+}
