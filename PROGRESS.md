@@ -68,6 +68,35 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## "Hiding an event doesn't work on the calendar" — audited, not found — 2026-09-12
+
+**I did not find this one, and I am recording that rather than a fix.**
+
+Traced the whole path: the menu sends `{kind: "hide", itemId}`, `applyOverride` resolves the
+id and stores **memberKeys** (not the id — §3's amendment, because an id is a hash of the
+member set and a hide keyed by it is spent the moment the row merges with anything), and
+`mutate` re-runs `dedupe` in the same step so `hidden` is live immediately rather than at
+the next sync. Every live consumer filters it: `visibleItems` for all four views,
+`groupItems` for the toolbar badge, §7 for reminders, `examBoard` for the exam tab.
+
+What the audit *did* find is a latent hazard. `dayContents`, `weekContents`, `monthCells`
+and `attentionGroups` were correct **by convention rather than by construction** — each
+returns a hidden row happily when handed an unfiltered list, and the popup is correct only
+because it pipes everything through `visibleItems` first. That fails silently, in one view,
+to a student looking at a thing they have already asked to remove. Closed: the flag is now
+filtered by each of them, and a test asserts it for every view.
+
+**And one real mechanism worth naming, which may be the report.** A course-site row's
+`sourceId` is `${adapterId}:${hash(title + date)}` — content-derived, because §3.1 says
+course sites have no ids. So **any change to a site row's title or date mints a new key and
+the hide stops applying**. Today's 23:59 → 18:00 fix changes the date of every ECE 391 row,
+which will un-hide anything hidden there. Documented in §3.1 and accepted, but it is
+indistinguishable from "hiding doesn't work" and nothing on screen says so.
+
+To settle it: which view, and does the row vanish and come back, or never vanish at all?
+
+1023 tests.
+
 ## First beta report: three things, one of them a bug — 2026-09-12
 
 *"The course website thing is slightly buggy, for example it's not reading the ece 391 page

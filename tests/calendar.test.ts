@@ -1079,3 +1079,56 @@ describe("itemTone (one answer for the list and the month)", () => {
     expect(itemTone(item({ title: "undated" }), NOW)).toBe("open");
   });
 });
+
+/**
+ * A hidden row is hidden, whoever is asking.
+ *
+ * Audited 2026-09-12 after a beta report that hiding "doesn't work on the
+ * calendar". It was not the cause — the popup pipes everything through
+ * `visibleItems`, `groupItems` filters for the badge and §7 filters for
+ * reminders, so every live path was already correct. But `dayContents`,
+ * `weekContents`, `monthCells` and `attentionGroups` were correct *by
+ * convention rather than by construction*: each returned the hidden row
+ * happily when handed an unfiltered list, with no error, in one view, to a
+ * student looking at a thing they had already asked to remove.
+ */
+describe("no view returns a hidden item, even given unfiltered input", () => {
+  const NOW_HIDE = new Date(2026, 8, 14, 12, 0, 0);
+  const hiddenRow = (title: string, dueAt: string): Item =>
+    ({
+      id: title, title, courseLabel: "CS357", kind: "assignment", dueAt,
+      members: [], sources: ["gradescope"], url: "https://www.gradescope.com/x",
+      status: "not_submitted", hidden: true, extra: {},
+    }) as unknown as Item;
+  const openRow = (title: string, dueAt: string): Item =>
+    ({ ...hiddenRow(title, dueAt), hidden: false }) as Item;
+
+  const items = [
+    hiddenRow("Hidden timed", "2026-09-14T17:00:00-05:00"),
+    hiddenRow("Hidden overdue", "2026-09-10T17:00:00-05:00"),
+    openRow("Kept", "2026-09-14T23:59:00-05:00"),
+  ];
+  const titles = (list: readonly { title: string }[]) => list.map((i) => i.title);
+
+  it("dayContents", () => {
+    const contents = dayContents(items, NOW_HIDE, NOW_HIDE);
+    const seen = [...allTimed(contents).map((p) => p.item.title), ...titles(contents.untimed)];
+    expect(seen.filter((t) => t.startsWith("Hidden"))).toEqual([]);
+  });
+
+  it("weekContents and monthCells, which delegate to it", () => {
+    const week = weekContents(items, NOW_HIDE, NOW_HIDE, "sunday").flatMap((d) =>
+      allTimed(d.contents).map((p) => p.item.title),
+    );
+    expect(week.filter((t) => t.startsWith("Hidden"))).toEqual([]);
+    const month = monthCells(items, NOW_HIDE, NOW_HIDE).flatMap((c) =>
+      c.items.map((p) => p.item.title),
+    );
+    expect(month.filter((t) => t.startsWith("Hidden"))).toEqual([]);
+  });
+
+  it("attentionGroups, where an overdue hidden row would otherwise shout", () => {
+    const seen = attentionGroups(items, NOW_HIDE).flatMap((g) => titles(g.items));
+    expect(seen.filter((t) => t.startsWith("Hidden"))).toEqual([]);
+  });
+});

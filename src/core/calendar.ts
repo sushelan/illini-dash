@@ -183,7 +183,30 @@ export function allTimed(contents: DayContents): PlacedItem[] {
  */
 const STACK_WINDOW_MINUTES = 20;
 
-export function dayContents(items: Item[], day: Date, now: Date): DayContents {
+/**
+ * A hidden row is hidden, whoever is asking.
+ *
+ * `visibleItems` filters `hidden` and the popup pipes everything through it, so
+ * every view is correct today — by convention, not by construction. Audited
+ * 2026-09-12 after a report that hiding "doesn't work on the calendar":
+ * `dayContents`, `weekContents`, `monthCells` and `attentionGroups` all leave
+ * the flag to their caller, and each one returns the hidden row happily if
+ * handed an unfiltered list.
+ *
+ * That did not turn out to be the reported bug. It is still worth closing,
+ * because of *how* it fails: silently, in one view, with the student looking at
+ * a thing they have already told the extension to remove. A caller that forgets
+ * gets no error — and §5.3's grouping, §7's reminders and the toolbar badge
+ * each filter it for themselves for exactly this reason.
+ *
+ * The cost is one extra predicate on a list that is usually already filtered.
+ */
+function notHidden(items: Item[]): Item[] {
+  return items.filter((item) => !item.hidden);
+}
+
+export function dayContents(rawItems: Item[], day: Date, now: Date): DayContents {
+  const items = notHidden(rawItems);
   const key = dayKey(day);
   const timed: PlacedItem[] = [];
   const untimed: Item[] = [];
@@ -486,10 +509,10 @@ const OVERDUE_WINDOW_DAYS = 7;
  * "Couldn't read" in particular is a deadline this extension is hiding, which
  * is not the same as one the student is late for.
  */
-export function attentionGroups(items: Item[], now: Date): AttentionGroup[] {
+export function attentionGroups(rawItems: Item[], now: Date): AttentionGroup[] {
   const buckets = new Map<AttentionName, Item[]>(ATTENTION_ORDER.map((name) => [name, []]));
 
-  for (const item of items) {
+  for (const item of notHidden(rawItems)) {
     if (unreadableDeadline(item).length > 0) {
       buckets.get("Couldn't read")!.push(item);
       continue;
