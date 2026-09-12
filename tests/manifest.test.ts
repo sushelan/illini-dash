@@ -75,10 +75,21 @@ describe("every origin the extension fetches is granted", () => {
   });
 
   it("course websites stay optional, because they are not known in advance", () => {
-    // §4.5: an adapter's host is whatever a registry entry says, so it cannot
-    // be in the install prompt — it is requested from a click when the student
-    // enables that course.
-    expect(manifest.optional_host_permissions).toContain("https://*.illinois.edu/*");
+    /*
+     * §4.5: an adapter's host is whatever a registry entry says, so it cannot
+     * be in the install prompt — it is requested from a click when the student
+     * enables that course.
+     *
+     * AMENDED 2026-09-12 from `https://*.illinois.edu/` + wildcard. §2.3 assumed
+     * course sites were illinois.edu subdomains; the CS department's are their
+     * own domains (cs124.org, cs128.org, cs225.org), so that entry excluded the
+     * highest-enrolment courses at the university. Nothing is granted at
+     * install either way — `validateAdapter` requires an adapter's hostPattern
+     * to name its own host exactly, so the widened entry cannot be used to ask
+     * for more than one site at a time.
+     */
+    expect(manifest.optional_host_permissions).toEqual(["https://*/*"]);
+    expect(manifest.host_permissions).not.toContain("https://*/*");
   });
 });
 

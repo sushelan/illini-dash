@@ -11,8 +11,24 @@
  * be half-applied.
  */
 
+import { CANVAS_ORIGIN } from "../sources/canvas.js";
+import { GRADESCOPE_ORIGIN } from "../sources/gradescope.js";
+import { PRAIRIELEARN_ORIGIN } from "../sources/prairielearn.js";
+import { PRAIRIETEST_ORIGIN } from "../sources/prairietest.js";
+import { SMARTPHYSICS_ORIGIN } from "../sources/smartphysics.js";
 import { supportedDateFormats } from "../sources/site.js";
 import type { Adapter } from "../sources/types.js";
+
+/**
+ * Hosts the manifest grants permanently, and which an adapter must therefore
+ * never name. Derived from the source modules rather than typed again, so a
+ * sixth source cannot be added without this list learning about it.
+ */
+const GRANTED_HOSTS = new Set(
+  [CANVAS_ORIGIN, GRADESCOPE_ORIGIN, PRAIRIELEARN_ORIGIN, PRAIRIETEST_ORIGIN, SMARTPHYSICS_ORIGIN].map(
+    (origin) => new URL(origin).hostname,
+  ),
+);
 
 export const REGISTRY_URL =
   "https://raw.githubusercontent.com/sushelan/illini-dash/main/adapters/registry.json";
@@ -67,17 +83,44 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
   } catch {
     return fail("url is not a URL");
   }
-  // §2.3 requests optional permission for *.illinois.edu only, so an adapter
-  // pointing anywhere else could never be granted and must not be offered.
   if (parsed.protocol !== "https:") return fail("url is not https");
-  if (!parsed.hostname.endsWith(".illinois.edu")) return fail("url is not on illinois.edu");
+
+  /*
+   * **AMENDED (2026-09-12).** This used to require `.illinois.edu`, because
+   * §2.3 said course sites "live on many subdomains
+   * (courses.grainger.illinois.edu, courses.engr.illinois.edu, cs.illinois.edu,
+   * …)". That was not stale, it was incomplete when written: the CS
+   * department's course sites are their own domains — cs124.org, cs128.org,
+   * cs225.org — and those are among the highest-enrolment courses there are.
+   * The rule excluded exactly the students most likely to want this feature.
+   *
+   * `optional_host_permissions` now covers every https host. That is only safe
+   * because of the rule directly below: `hostPattern` must name this adapter's
+   * own host exactly, so a registry entry can never ask for more than the one
+   * site it describes, and the student sees that host in Chrome's own prompt.
+   */
+
+  /*
+   * An adapter may not point at a host this extension *already* holds.
+   *
+   * Those need no `permissions.request`, so enabling one would prompt for
+   * nothing and grant nothing — and the adapter would then read arbitrary pages
+   * on Canvas or Gradescope under a permission the student granted at install
+   * for a different purpose. Every other host at least puts the name in front of
+   * them before anything is read. This is the one case the exact-`hostPattern`
+   * rule below cannot cover, because there the pattern is exact *and* already
+   * granted.
+   */
+  if (GRANTED_HOSTS.has(parsed.hostname)) {
+    return fail(`url is on ${parsed.hostname}, which is already granted and needs no prompt`);
+  }
 
   const hostPattern = a["hostPattern"];
   if (!isPlainString(hostPattern, 200)) return fail("missing hostPattern");
   // Exactly this adapter's host, not merely a pattern that covers it. The
-  // pattern is what `chrome.permissions.request` asks for, so a wildcard like
-  // `https://*.illinois.edu/*` — which is the manifest's own optional entry, and
-  // so grantable — would prompt once for every illinois.edu site. Worse, only
+  // pattern is what `chrome.permissions.request` asks for, so a wildcard that
+  // the manifest's optional entry would grant — now any https host — must never
+  // be accepted here: it would prompt once for the whole web. Worse, only
   // the adapter *id* is stored: a later daily registry refresh could then
   // repoint that adapter's `url` anywhere under the wildcard with no second
   // prompt and no user action at all.

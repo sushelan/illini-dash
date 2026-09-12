@@ -243,8 +243,22 @@ h2.section {
 .row--detail-moved { color: var(--warn); }
 .row--detail-error { color: var(--err); }
 .row:hover { background: var(--hover); }
+/*
+ * `max-width: 100%` is load-bearing, not tidiness.
+ *
+ * The course chip sits in a fixed 60px grid track, and a grid item does not
+ * clip to its track — so a course whose label is longer than 60px painted
+ * straight over the title next to it. Seen with a Gradescope course named
+ * `stat_425_120248_268442`, which rendered on top of "homework 2 (UG)" and made
+ * both unreadable.
+ *
+ * Ellipsis rather than a wider track: the track is 60px because the title needs
+ * the rest, and one course with an unusual name must not re-columnise every row
+ * on the calendar. The full label is in the `title` attribute either way.
+ */
 .chip {
   justify-self: start;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 10px; font-weight: 600; color: var(--muted);
   border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none;
 }

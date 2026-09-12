@@ -42,7 +42,7 @@
     "https://raw.githubusercontent.com/*"
   ],
   "optional_host_permissions": [
-    "https://*.illinois.edu/*"
+    "https://*/*"
   ],
   "icons": {
     "16": "icon16.png",

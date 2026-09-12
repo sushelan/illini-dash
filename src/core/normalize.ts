@@ -9,13 +9,30 @@
 /**
  * §5.1. Two to four letters, optional separator, three digits, optional letter.
  *
- * Deliberately does not match an underscore separator: Canvas's `course_code`
- * on this instance is an opaque slug like `cs_357_120268_263847`, and matching
- * it would produce `CS357` from a string that also contains `120268` and
- * `266229` — see docs/canvas-findings.md. Run this against a human-readable
- * course *name*, not against Canvas's `course_code`.
+ * **AMENDED 2026-09-12: an underscore is a separator too.**
+ *
+ * It was excluded because Canvas's `course_code` is an opaque slug
+ * (`cs_357_120268_263847`), and canvas-findings.md recorded declining it as
+ * correct — which it was, *for Canvas*, where a human-readable `name` carries
+ * the code and the amendment was to read that instead.
+ *
+ * Gradescope has the identical shape and no such fallback. A course whose
+ * instructor never set a display name comes through as
+ * `stat_425_120248_268442`, and with the underscore excluded that reached the
+ * calendar as the course label — the exact outcome §5.3's amendment 2 forbids,
+ * one source over. Read as a separator it yields `STAT425`, which is right.
+ *
+ * `\b` cannot express this: an underscore **is** a word character, so there is
+ * no boundary between `425` and the `_` after it, and a `\b`-anchored pattern
+ * declines `stat_425_120248` no matter what separators it allows in the middle.
+ * Both ends are explicit lookarounds instead.
+ *
+ * The trailing ids stay safe because the tail lookahead refuses a digit:
+ * `120248` offers no `\d{3}` that is not followed by another digit, and
+ * `bus_ilbc_open_249233` — the admin course that exercises §5.1's no-match
+ * path — still matches nothing.
  */
-const COURSE_CODE = /\b([A-Z]{2,4})\s*-?\s*(\d{3}[A-Z]?)\b/g;
+const COURSE_CODE = /(?<![A-Z0-9])([A-Z]{2,4})[\s_-]*(\d{3}[A-Z]?)(?![0-9A-Z])/g;
 
 /**
  * Every course code in a raw course string, in order of appearance.

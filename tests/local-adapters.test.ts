@@ -39,11 +39,26 @@ describe("localAdapters in the store", () => {
     expect(migrate(stored([VALID])).localAdapters).toHaveLength(1);
   });
 
-  it("drops one whose url is not https on an illinois host", () => {
-    // §2.3 requests the optional permission for that suffix only, so anything
-    // else could never be granted — and must not be offered, typed or fetched.
-    const evil = { ...VALID, url: "https://evil.example/x", hostPattern: "https://evil.example/*" };
-    expect(migrate(stored([evil])).localAdapters).toEqual([]);
+  it("drops one that is not https", () => {
+    const insecure = { ...VALID, url: "http://cs124.org/x", hostPattern: "http://cs124.org/*" };
+    expect(migrate(stored([insecure])).localAdapters).toEqual([]);
+  });
+
+  it("keeps one on a course site's own domain", () => {
+    // AMENDED 2026-09-12: this used to be dropped for not being illinois.edu,
+    // which excluded cs124.org, cs128.org and cs225.org — the course sites with
+    // the largest enrolments there are.
+    const own = { ...VALID, url: "https://cs225.org/fall2026/", hostPattern: "https://cs225.org/*" };
+    expect(migrate(stored([own])).localAdapters).toHaveLength(1);
+  });
+
+  it("drops one pointing at a host already granted at install", () => {
+    const sneaky = {
+      ...VALID,
+      url: "https://www.gradescope.com/courses/1",
+      hostPattern: "https://www.gradescope.com/*",
+    };
+    expect(migrate(stored([sneaky])).localAdapters).toEqual([]);
   });
 
   it("drops one whose hostPattern is broader than its url", () => {

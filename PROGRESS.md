@@ -68,6 +68,60 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## A course site on its own domain, and a slug where a course name should be — 2026-09-12
+
+**cs124.org could not be added at all.** §2.3 declared `https://*.illinois.edu/*` as the
+only optional host permission, reasoning that *"course sites live on many subdomains
+(courses.grainger.illinois.edu, courses.engr.illinois.edu, cs.illinois.edu, …)"*. That was
+not stale — it was **incomplete when written**. The CS department's course sites are their
+own domains: cs124.org, cs128.org, cs225.org. The rule excluded precisely the students most
+likely to want the feature.
+
+Widened to every https host, **optional only**, Sushi's decision. It is safe because of a
+rule that already existed: `validateAdapter` requires an adapter's `hostPattern` to name
+its own host *exactly*, so a registry entry can never request more than the one site it
+describes and the student sees that host in Chrome's own prompt. Widening the declaration
+does not widen what any single adapter can ask for.
+
+Widening it did expose one hole the exact-pattern rule cannot cover: **an adapter naming a
+host the extension already holds**. Those need no permission prompt, so enabling one would
+prompt for nothing, grant nothing, and then read arbitrary Canvas or Gradescope pages under
+a permission granted at install for something else. Refused now, derived from the source
+modules so a sixth source cannot be added without this list learning about it.
+
+**And a Gradescope course was labelled `stat_425_120248_268442`**, overflowing its 60px
+chip and painting on top of "homework 2 (UG)". Two defects in one screenshot:
+
+1. **The chip did not clip.** A grid item does not clip to its track, and `.chip` had no
+   `max-width`. Ellipsis rather than a wider track: the track is 60px because the title
+   needs the rest, and one oddly-named course must not re-columnise every row.
+2. **§5.1 declined the slug**, so the raw string became the label. `canvas-findings.md`
+   recorded declining it as correct, **and it was — for Canvas**, which carries a
+   human-readable `name` beside the slug and was amended to read that. Gradescope has no
+   such field. The amendment was applied to one source and the finding it came from applied
+   to two.
+
+`\b` could not express the fix: an underscore **is** a word character, so there is no
+boundary between `425` and the `_` after it. Both ends are explicit lookarounds now.
+
+**The test was pinning the defect** (worker rule 6): `tests/gradescope.test.ts` asserted
+that course 1273605 yields *no* code — and that course is `ece_408_120261_257494`, which
+is ECE 408, a real course a real student is enrolled in. And `extractCourseCodes` had no
+direct test at all until now, which is how one assertion inside a parser suite came to
+define what every row on the calendar is called.
+
+One mutation survived: `\b` at the *head* of the pattern, because every slug in every
+fixture starts the string. A term-prefixed one (`fa26_stat_425_…`) reaches it, and no
+capture in this repo has one — so the test says in as many words that the value is
+invented (parser rule 10, house rule 12's form).
+
+**Still open, and Sushi's call:** a course whose name contains no code at all still shows
+its raw name. A manual rename would fix that, and is the right shape for names no rule can
+derive — but it should stay the fallback, not the first answer: a student should not have
+to type `STAT 425` for a label the slug already contains.
+
+1000 tests.
+
 ## The debounce asked the wrong question — 2026-09-12
 
 Sushi, diagnosing it exactly: *"When I go to the popup it checks. Then when I sign in and

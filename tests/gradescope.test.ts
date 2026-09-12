@@ -92,8 +92,20 @@ describe("parseDashboard (real capture)", () => {
     const all = groups.flatMap((g) => g.courses);
     expect(all.find((c) => c.id === "1353501")!.altCodes).toEqual(["CS425", "ECE428"]);
     expect(all.find((c) => c.id === "1231561")!.altCodes).toEqual(["CS446", "ECE449"]);
-    // An opaque slug shortname, same pattern Canvas uses; §5.1 must decline it.
-    expect(all.find((c) => c.id === "1273605")!.courseCode).toBeUndefined();
+    /*
+     * `ece_408_120261_257494` — an opaque slug, the same shape Canvas uses.
+     *
+     * This test used to assert `undefined` here, and it was pinning the defect
+     * rather than a requirement (worker rule 6). canvas-findings.md recorded
+     * declining the slug as correct, and it was — *for Canvas*, which carries a
+     * human-readable `name` beside it and was amended to read that instead.
+     * Gradescope has no such field, so declining meant this course appeared on
+     * the calendar labelled `ece_408_120261_257494`, overflowing a 60px chip and
+     * painting over the assignment title next to it.
+     *
+     * The course is ECE 408. A student looking at this row is owed that.
+     */
+    expect(all.find((c) => c.id === "1273605")!.courseCode).toBe("ECE408");
   });
 
   it("throws when the term headings are missing (§0 rule 3)", () => {

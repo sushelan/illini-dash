@@ -151,15 +151,36 @@ describe("registry validation (§4.5) — a trust boundary", () => {
     expect(validateAdapter(ADAPTER).adapter).toBeDefined();
   });
 
-  it("refuses anything not https on illinois.edu", () => {
-    // §2.3 requests optional permission for *.illinois.edu only, so an adapter
-    // pointing elsewhere could never be granted and must not be offered.
+  it("refuses anything that is not https", () => {
     expect(validateAdapter({ ...ADAPTER, url: "http://courses.grainger.illinois.edu/x" }).reason).toMatch(
       /https/,
     );
-    expect(validateAdapter({ ...ADAPTER, url: "https://evil.example/x" }).reason).toMatch(
-      /illinois\.edu/,
-    );
+  });
+
+  /**
+   * AMENDED 2026-09-12. This test used to require `.illinois.edu` and was
+   * therefore pinning the defect: §2.3 assumed course sites were subdomains of
+   * illinois.edu, and the CS department's are their own domains — cs124.org,
+   * cs128.org, cs225.org — so the rule excluded the students most likely to
+   * want the feature. `optional_host_permissions` covers every https host now,
+   * and the exact-`hostPattern` rule below is what keeps that safe.
+   */
+  it("accepts a course site on its own domain, not just illinois.edu", () => {
+    const own = { ...ADAPTER, url: "https://cs124.org/fall2026/", hostPattern: "https://cs124.org/*" };
+    expect(validateAdapter(own).adapter).toBeDefined();
+  });
+
+  it("refuses a host the extension has already been granted", () => {
+    // Those need no `permissions.request`, so enabling one would prompt for
+    // nothing and read Canvas under a permission granted at install for
+    // something else. The exact-hostPattern rule cannot catch this: the pattern
+    // is exact *and* already held.
+    const sneaky = {
+      ...ADAPTER,
+      url: "https://canvas.illinois.edu/courses/1/anything",
+      hostPattern: "https://canvas.illinois.edu/*",
+    };
+    expect(validateAdapter(sneaky).reason).toMatch(/already granted/);
   });
 
   it("refuses a hostPattern broader than the adapter's own host", () => {
