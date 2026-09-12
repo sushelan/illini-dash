@@ -25,6 +25,28 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: tab icons, and a month that stops moving the page — 2026-09-12
+
+- **Icons on the popup tabs.** Dropped in phase C on the grounds that five labelled tabs
+  once measured 454px — but that was 12.5px type, 11px of padding either side and a 14px
+  icon. At 12px, 5px and 12px the strip measures **365px**, so both fit and the reasoning
+  for dropping them does not survive being measured.
+
+  The first attempt fit with *three pixels* to spare, which is a coincidence rather than a
+  margin, and the thing on the other side of it is the worst failure in this project. So
+  the strip also carries a structural guard: `min-width: 0` on the tab and the label means
+  that if it ever does overflow, the labels ellipse and the document stays 400px wide. A
+  clipped word is a bug you can see; a popup that opens at 800px looks like a different
+  product. Verified at two- and three-digit count badges.
+
+- **Switching to Month no longer slides the whole page.** The header, tabs and chips were
+  on the same `--full-max` as the calendar, so Month's wider cap moved the entire
+  interface 200px sideways and switching back moved it home — the whole page answering a
+  question only the calendar had asked. The chrome sits at a fixed gutter now
+  (`--chrome-max`) and only the calendar frame changes width (`--frame-max`): measured at
+  a 1000px window, the pill, tabs and chips are at x=24 in **both** views and the frame
+  moves 50 → 24.
+
 ## Live run: finished work with a late window open — 2026-09-12
 
 Two reports, one defect, and the largest one found so far by volume of missing rows.

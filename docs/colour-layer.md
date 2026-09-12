@@ -137,10 +137,23 @@ measuring the document's intrinsic box, so anything wider opens the popup at up 
 with the content stranded in the left half. This has happened twice — once from
 `max-height` + `overflow-y` on `body`, which leaves no intrinsic height to measure, and
 once from five labelled tabs measuring 454px — at 12.5px type, 11px of padding either
-side and a 14px icon on every tab. Naming all five is back, and it fits: the popup drops
-the icons and takes the type to 12px. **Both halves of that sentence matter.** The
-constraint was real and the answer "show one label" was the wrong place to pay it;
-`tests/tokens.test.ts` cannot catch this one, so the check below is the check.
+side and a 14px icon on every tab.
+
+All five now carry an icon **and** a label and measure 365px, at 12px type, 5px of
+padding and a 12px icon. **Both halves of that history matter.** The constraint was real;
+the answers "show one label" and "drop the icons" were both the wrong place to pay it.
+
+The tab strip is the part that has broken this twice, so it also carries a structural
+guard: `.tab` and `.tab--label` have `min-width: 0`, so if the content ever does exceed
+400px the labels ellipse instead of the document growing. **A clipped word is a bug you
+can see; a popup that opens at 800px looks like a different product.** Verify both — that
+it fits *and* that it still fits with two-digit count badges:
+
+```js
+document.getElementById('tabs').scrollWidth            // <= 400
+[...document.querySelectorAll('.tab--label')]
+  .filter(l => l.scrollWidth > l.clientWidth + 1)      // [] — nothing truncated
+```
 
 Check after any change that affects width:
 

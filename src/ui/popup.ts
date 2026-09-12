@@ -1304,9 +1304,7 @@ function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     // which claims to be selected — the attribute means nothing without it.
     tab.tabIndex = name === view ? 0 : -1;
 
-    // Icons only where there is room for both. In the popup the label is the
-    // thing that has to survive.
-    if (isFullView) tab.append(icon(`tab-${name}` as IconName));
+    tab.append(icon(`tab-${name}` as IconName));
     const label = document.createElement("span");
     label.className = "tab--label";
     label.textContent = VIEW_LABEL[name];

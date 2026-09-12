@@ -62,18 +62,30 @@ html.view-full,
  * the renderer from the tab it just drew.
  */
 /*
- * 900, not 1100.
+ * Two widths, and only one thing is allowed to use the second.
  *
  * A list-shaped view's content is 874px wide by construction — 60 for the
  * course chip, 420 of title, the source codes, 92 of clock and a menu button —
- * so a 1100px frame is 226px of ruled nothing inside a visible border. 900 is
- * what the rows actually occupy, and it has the useful property of engaging at
- * a 1000px window, which is the width a laptop opens a tab at: `(1000-900)/2`
- * is 50, comfortably past the 20px minimum gutter, so the cap does something
- * on the machine it most needs to.
+ * so a wider frame is ruled nothing inside a visible border. 900 is what the
+ * rows actually occupy, and it engages at a 1000px window, which is the width a
+ * laptop opens a tab at.
+ *
+ * A month is the opposite: seven columns, and every extra pixel is title that
+ * stops being truncated. So it gets 1400.
+ *
+ * **The chrome uses neither.** Header, tabs and chips were on `--full-max` too,
+ * so switching to Month slid the entire interface 200px sideways and switching
+ * back slid it home — the whole page moving to answer a question only the
+ * calendar had asked. They sit at the wide gutter permanently now, so the tabs
+ * never move and the calendar frame is the only thing that changes width.
  */
-.view-full body { padding: 0 0 24px; margin: 0; --full-max: 900px; }
-.view-full body[data-view="month"] { --full-max: 1400px; }
+.view-full body {
+  padding: 0 0 24px; margin: 0;
+  --full-max: 900px;
+  --frame-max: var(--full-max);
+  --chrome-max: 1400px;
+}
+.view-full body[data-view="month"] { --frame-max: var(--chrome-max); }
 .view-full .bar { border-radius: 0; }
 /*
  * 40px, and everything in it is a control.
@@ -271,21 +283,42 @@ h2.section {
  * not compete with --err, --warn and --ok.
  */
 .tabs {
-  display: flex; align-items: center; gap: 2px;
-  box-sizing: border-box; height: 36px; padding: 0 8px;
+  display: flex; align-items: center; gap: 0;
+  box-sizing: border-box; height: 36px; padding: 0 4px;
   border-bottom: 1px solid var(--line); background: var(--bg);
   position: sticky; z-index: 1;
 }
+/*
+ * Five icons *and* five labels, in 400px.
+ *
+ * The icons were dropped from the popup because five labelled tabs once
+ * measured 454px — but that was 12.5px type with 11px of padding either side.
+ * At 12px, 6px of padding and a 13px icon they fit, with about three pixels to
+ * spare.
+ *
+ * **Three pixels is not a margin, it is a coincidence**, and the thing on the
+ * other side of it is the worst failure in this project: a document wider than
+ * 400px makes Chrome open the popup at up to 800. A two-digit count badge is
+ * enough to cross it.
+ *
+ * So the strip is allowed to *shrink* rather than push. The labels carry
+ * `min-width: 0` and ellipse, the icons are `flex: none` and survive, and the
+ * document width is never a function of what the badges say. Fitting is still
+ * checked — but if it ever stops fitting, the failure is a clipped word rather
+ * than a popup twice the size it should be.
+ */
 .tab {
-  display: flex; align-items: center; gap: 5px;
-  box-sizing: border-box; height: 28px; padding: 0 8px;
+  display: flex; align-items: center; gap: 3px;
+  box-sizing: border-box; height: 28px; padding: 0 5px; min-width: 0;
   font: inherit; font-size: 12px; font-weight: 600; line-height: 1;
   border: 0; border-radius: 6px;
   background: none; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
+.tab--label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tab .chip-count { flex: none; min-width: 14px; padding: 0 3px; }
 .tab:hover { color: var(--fg); background: var(--hover); }
 .tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); }
-.tab .icon { width: 14px; height: 14px; flex: none; }
+.tab .icon { width: 12px; height: 12px; flex: none; }
 .tab[aria-selected="true"] .icon { color: var(--accent); }
 
 /* ---- the course chips: one 36px row that scrolls ----
@@ -767,12 +800,12 @@ h2.section.section--err { color: var(--err); opacity: 1; }
  * Last on purpose: `.datenav` and `#view` set `margin` as a shorthand above, so
  * a `margin-inline` has to follow it to win.
  */
-.view-full .bar { padding-inline: max(28px, calc((100% - var(--full-max)) / 2)); }
+.view-full .bar,
 .view-full .tabs,
 .view-full .filters,
-.view-full #status { padding-inline: max(24px, calc((100% - var(--full-max)) / 2)); }
+.view-full #status { padding-inline: max(24px, calc((100% - var(--chrome-max)) / 2)); }
 .view-full .datenav,
-.view-full #view { margin-inline: max(20px, calc((100% - var(--full-max)) / 2)); }
+.view-full #view { margin-inline: max(24px, calc((100% - var(--frame-max)) / 2)); }
 
 /* Month pills in dark Illini: one navy fill under every course rather than
    eight washes, which at 11px on a dense grid read as noise. The course still
