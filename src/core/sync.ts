@@ -459,6 +459,55 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
   }
 }
 
+/**
+ * The key prefix for everything one source contributed.
+ *
+ * One function, because the prefix rule is a decision and it now has three
+ * callers. The colon is **unreachable defence today and stays anyway**: no
+ * current source name is a prefix of another (`prairielearn` and `prairietest`
+ * share only "prairie"), so removing it changes nothing and no test can catch
+ * that — a mutation confirmed it. It stays because the next source added is one
+ * `site` / `site2` away from silently taking another source's rows with it, and
+ * because house rule 6 is exactly this: match markers exactly, never by
+ * substring.
+ */
+export function sourcePrefix(source: Source): string {
+  return `${source}:`;
+}
+
+/** And for one course-site adapter: `site:cs424-fa26:`. */
+export function adapterPrefix(adapterId: string): string {
+  return `site:${adapterId}:`;
+}
+
+/**
+ * The store with every row under `prefix` removed, and the list rebuilt.
+ *
+ * Called the moment a switch is flipped, not on the next sync. The loop applies
+ * the same rule, but the next loop is up to a poll interval away — so without
+ * this, Settings says "Off" and the calendar keeps showing that source's work
+ * for half an hour, which is the contradiction this whole change is about.
+ *
+ * Returns the store unchanged when there was nothing to drop, so a caller can
+ * skip a write.
+ */
+export function withoutRows(store: StoreV1Plus, prefix: string): StoreV1Plus {
+  const raw = { ...store.raw };
+  let dropped = 0;
+  for (const key of Object.keys(raw)) {
+    if (key.startsWith(prefix)) {
+      delete raw[key];
+      dropped += 1;
+    }
+  }
+  if (dropped === 0) return store;
+  return {
+    ...store,
+    raw,
+    items: dedupe(Object.values(raw), store.overrides, { previous: store.items }),
+  };
+}
+
 export interface SyncResult {
   store: StoreV1Plus;
   outcomes: SourceOutcome[];
@@ -496,14 +545,32 @@ export async function runSync(
   const raw = { ...store.raw };
   const seenThisSync = new Set<string>();
 
+  const keysOf = (source: Source) =>
+    Object.keys(raw).filter((key) => key.startsWith(sourcePrefix(source)));
+
+  /**
+   * A source nobody is reading contributes no rows.
+   *
+   * This is the third branch the disabled cases needed and never had. Keeping
+   * them looked like caution — "do not delete history the user may re-enable" —
+   * and it is the opposite: a row on the calendar is a claim that some source
+   * *currently* reports this deadline, and a source that is switched off
+   * reports nothing. The rows could never update, never go stale (`staleNotice`
+   * skips `disabled`), and never be corrected. Settings said "Off" while the
+   * list still showed its work.
+   *
+   * Nothing is lost that was not already going to be refetched: switching a
+   * source back on triggers a sync, which is where those rows come from.
+   */
+  const dropItemsOf = (source: Source) => {
+    for (const key of keysOf(source)) delete raw[key];
+  };
+
   for (const source of Object.keys(PLANS) as Source[]) {
     const status = next.sources[source];
     if (!status.enabled) {
-      // Its items stay in `raw` deliberately: disabling a source in the options
-      // page should not delete history the user may re-enable — which means its
-      // keys must count as seen, or §5.4's miss counter runs on a source nobody
-      // is fetching and purges its undated items after three syncs.
-      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
+      // Switched off in Settings. Its rows go with it — see `dropItemsOf`.
+      dropItemsOf(source);
       continue;
     }
     // §6's backoff exists to stop a *scheduled* loop hammering a site that is
@@ -513,9 +580,9 @@ export async function runSync(
     // leave a stale error on screen with no way to refresh it.
     if (trigger !== "manual" && inBackoff(next, source, now)) {
       outcomes.push({ source, state: status.state, items: [], requests: 0 });
-      // Its previous keys count as seen, or §5.4 would purge undated items
-      // belonging to a source that is merely resting.
-      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
+      // Resting, not off. Its previous keys count as seen, or §5.4 would purge
+      // undated items belonging to a source that is about to be read again.
+      for (const key of keysOf(source)) seenThisSync.add(key);
       continue;
     }
 
@@ -540,10 +607,12 @@ export async function runSync(
     }
     outcomes.push(outcome);
 
-    // Neither branch below fits: the success branch would delete this source's
-    // items and claim `ok`, and the failure branch would count a failure and
-    // arm a backoff against a source that is merely switched off.
+    // Neither branch below fits: the success branch would claim `ok`, and the
+    // failure branch would count a failure and arm a backoff against a source
+    // that is merely unconfigured. The rows go, though — nothing is reading
+    // them, which is the whole meaning of this state.
     if (outcome.state === "disabled") {
+      dropItemsOf(source);
       next.sources[source] = {
         ...status,
         state: "disabled",
@@ -552,13 +621,12 @@ export async function runSync(
         consecutiveFailures: 0,
       };
       delete next.backoffUntil[source];
-      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
       continue;
     }
 
     if (outcome.state === "ok") {
       // Atomic per source (§6): drop this source's old keys, then add the new.
-      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) delete raw[key];
+      dropItemsOf(source);
       for (const item of outcome.items) {
         const key = memberKey(item.source, item.sourceId);
         raw[key] = item;
@@ -584,8 +652,10 @@ export async function runSync(
       };
       next.backoffUntil[source] = nextAttemptAt(failures, now);
       // A failing source keeps its previous items rather than going blank, and
-      // they count as seen so §5.4 does not purge them out from under it.
-      for (const key of Object.keys(raw)) if (key.startsWith(`${source}:`)) seenThisSync.add(key);
+      // they count as seen so §5.4 does not purge them out from under it. This
+      // is the case the "keep the rows" argument is actually for: a transient
+      // failure, where the source is still being read and will answer again.
+      for (const key of keysOf(source)) seenThisSync.add(key);
     }
   }
 

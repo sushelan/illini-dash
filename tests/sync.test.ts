@@ -23,7 +23,10 @@ import { ParseError } from "../src/sources/types.js";
 import {
   POPUP_DEBOUNCE_MS,
   adapterFailureKind,
+  adapterPrefix,
   runSync,
+  sourcePrefix,
+  withoutRows,
   syncOneSource,
   type SyncDeps,
 } from "../src/core/sync.js";
@@ -315,7 +318,21 @@ describe("runSync (§6)", () => {
     expect((await runSync(first.store, "alarm", deps({ now: () => soon }))).skipped).toBe(false);
   });
 
-  it("does not fetch a disabled source, but keeps what it already had", async () => {
+  it("does not fetch a disabled source, and takes its rows with it", async () => {
+    /*
+     * Reported from a live run: Settings said "Course websites — Off" and the
+     * CS 424 rows were still on the calendar.
+     *
+     * This test used to assert the opposite — "disabling a source must not
+     * delete its history" — and it was pinning the defect rather than a
+     * requirement (worker rule 6). A row on the calendar is a claim that some
+     * source *currently* reports this deadline; a source that is switched off
+     * reports nothing, and its rows could never update, never go stale
+     * (`staleNotice` skips `disabled`) and never be corrected.
+     *
+     * Nothing is lost that was not going to be refetched anyway: switching a
+     * source back on runs a sync, which is where the rows come from.
+     */
     const first = await runSync(emptyStore(), "alarm", deps());
     const before = Object.keys(first.store.raw).filter((k) => k.startsWith("prairietest:"));
     expect(before.length).toBeGreaterThan(0);
@@ -329,8 +346,55 @@ describe("runSync (§6)", () => {
     };
     const second = await runSync(store, "alarm", deps());
     expect(second.outcomes.map((o) => o.source)).not.toContain("prairietest");
-    // Disabling a source in the options page must not delete its history.
-    for (const key of before) expect(Object.keys(second.store.raw)).toContain(key);
+    for (const key of before) expect(Object.keys(second.store.raw)).not.toContain(key);
+    expect(second.store.items.some((i) => i.members.some((m) => m.source === "prairietest"))).toBe(
+      false,
+    );
+  });
+
+  it("leaves every other source alone when one is switched off", async () => {
+    // That the drop is scoped at all. It does *not* exercise the colon in the
+    // prefix: no current source name is a prefix of another, so removing the
+    // colon passes this and everything else — confirmed by mutation, and noted
+    // where the colon is written.
+    const first = await runSync(emptyStore(), "alarm", deps());
+    const others = Object.keys(first.store.raw).filter((k) => !k.startsWith("prairielearn:"));
+    expect(others.some((k) => k.startsWith("prairietest:"))).toBe(true);
+
+    const store: StoreV1Plus = {
+      ...first.store,
+      sources: {
+        ...first.store.sources,
+        prairielearn: { ...first.store.sources.prairielearn, enabled: false },
+      },
+    };
+    const second = await runSync(store, "alarm", deps());
+    for (const key of others) expect(Object.keys(second.store.raw), key).toContain(key);
+  });
+
+  it("brings the rows back when the source is switched on again", async () => {
+    // The other half of the argument: dropping them is only reasonable because
+    // re-enabling refetches them.
+    const first = await runSync(emptyStore(), "alarm", deps());
+    const before = Object.keys(first.store.raw).filter((k) => k.startsWith("prairietest:"));
+
+    const off: StoreV1Plus = {
+      ...first.store,
+      sources: {
+        ...first.store.sources,
+        prairietest: { ...first.store.sources.prairietest, enabled: false },
+      },
+    };
+    const cleared = await runSync(off, "alarm", deps());
+    const on: StoreV1Plus = {
+      ...cleared.store,
+      sources: {
+        ...cleared.store.sources,
+        prairietest: { ...cleared.store.sources.prairietest, enabled: true },
+      },
+    };
+    const back = await runSync(on, "manual", deps());
+    for (const key of before) expect(Object.keys(back.store.raw), key).toContain(key);
   });
 
   it("treats a source that had items and now returns none as a parse error", async () => {
@@ -374,10 +438,17 @@ describe("runSync (§6)", () => {
     expect(store.store.sources.canvas.state).toBe("ok");
   });
 
-  it("does not purge a disabled source's undated items", async () => {
-    // §5.4's miss counter was running on a source nobody was fetching, so three
-    // syncs deleted history the user might re-enable — the opposite of what the
-    // branch's own comment promised, and unlike the failing-source branch.
+  it("does not purge a resting source's undated items", async () => {
+    /*
+     * §5.4's miss counter must not run on a source that is merely in backoff —
+     * three syncs would delete undated rows belonging to a source that is about
+     * to be read again.
+     *
+     * This used to test the same thing for a *disabled* source, which is the
+     * case that turned out to be wrong: those rows go immediately now, so there
+     * is nothing left for the miss counter to purge. Backoff is the state the
+     * protection is actually for.
+     */
     const first = await runSync(emptyStore(), "alarm", deps());
     const undated = Object.entries(first.store.raw)
       .filter(([key, item]) => key.startsWith("prairielearn:") && item.dueAt === undefined)
@@ -386,10 +457,7 @@ describe("runSync (§6)", () => {
 
     let store: StoreV1Plus = {
       ...first.store,
-      sources: {
-        ...first.store.sources,
-        prairielearn: { ...first.store.sources.prairielearn, enabled: false },
-      },
+      backoffUntil: { ...first.store.backoffUntil, prairielearn: "2026-09-11T00:00:00.000Z" },
     };
     for (let sync = 0; sync < 4; sync += 1) {
       store = (await runSync(store, "alarm", deps())).store;
@@ -538,18 +606,38 @@ describe("course-site adapters in the loop (§4.5)", () => {
     expect(store.backoffUntil.site).toBeUndefined();
   });
 
-  it("keeps items from a previous run while the source is switched off", async () => {
-    // §5.4's miss counter must not purge them: they belong to a source that is
-    // resting, not one that stopped reporting them.
+  it("takes its rows with it when the last adapter is switched off", async () => {
+    /*
+     * Sushi's report, in one assertion: Settings said "Course websites — Off"
+     * and the CS 424 rows were still on the calendar. They had been fetched
+     * once, the adapter was then switched off, and nothing ever removed them —
+     * so the list asserted a deadline no source was standing behind, on a row
+     * that could never update and could never even be flagged stale, because
+     * `staleNotice` skips `disabled`.
+     *
+     * This test asserted the opposite until that happened. It was pinning the
+     * defect, which is worker rule 6's warning about exactly this shape.
+     */
     const first = await runSync(enableSite(emptyStore()), "alarm", withAdapters([ADAPTER]));
-    const before = Object.keys(first.store.raw).filter((k) => k.startsWith("site:"));
-    expect(before.length).toBeGreaterThan(0);
+    expect(Object.keys(first.store.raw).some((k) => k.startsWith("site:"))).toBe(true);
 
-    let store = first.store;
-    for (let i = 0; i < 4; i += 1) {
-      store = (await runSync(store, "alarm", withAdapters([]))).store;
+    const { store } = await runSync(first.store, "alarm", withAdapters([]));
+    expect(store.sources.site.state).toBe("disabled");
+    expect(Object.keys(store.raw).filter((k) => k.startsWith("site:"))).toEqual([]);
+    // And the dedupe output, which is what the calendar actually draws.
+    expect(store.items.some((i) => i.members.some((m) => m.source === "site"))).toBe(false);
+  });
+
+  it("never says a source is off while still showing its rows", async () => {
+    // The invariant behind the report, stated once: whatever the reason a
+    // source is not being read, the list must not keep claiming its deadlines.
+    for (const adapters of [[], [ADAPTER]]) {
+      const first = await runSync(enableSite(emptyStore()), "alarm", withAdapters([ADAPTER]));
+      const { store } = await runSync(first.store, "alarm", withAdapters(adapters));
+      const off = store.sources.site.state === "disabled";
+      const hasRows = Object.keys(store.raw).some((k) => k.startsWith("site:"));
+      expect(off && hasRows, `adapters=${adapters.length}`).toBe(false);
     }
-    expect(Object.keys(store.raw).filter((k) => k.startsWith("site:"))).toEqual(before);
   });
 
   it("isolates one failing adapter from the others (§4.5)", async () => {
@@ -726,5 +814,58 @@ describe("the term filter inside the loop (§4.1)", () => {
     expect(Object.keys(store.raw).filter((k) => k.startsWith("canvas:"))).toEqual([
       "canvas:quiz:438909",
     ]);
+  });
+});
+
+describe("withoutRows (the switch takes effect when you flip it)", () => {
+  /*
+   * The loop drops a disabled source's rows, but the next loop is up to a poll
+   * interval away — so between flipping the switch and the next sync, Settings
+   * said "Off" over rows the calendar was still showing. That gap is what
+   * Sushi saw; this is what the message handlers call to close it.
+   */
+  it("removes exactly one source's rows and rebuilds the list", async () => {
+    const { store } = await runSync(emptyStore(), "alarm", deps());
+    expect(store.items.some((i) => i.members.some((m) => m.source === "prairietest"))).toBe(true);
+
+    const after = withoutRows(store, sourcePrefix("prairietest"));
+    expect(Object.keys(after.raw).some((k) => k.startsWith("prairietest:"))).toBe(false);
+    expect(Object.keys(after.raw).some((k) => k.startsWith("canvas:"))).toBe(true);
+    // The list, not just the raw store: the calendar draws `items`.
+    expect(after.items.some((i) => i.members.some((m) => m.source === "prairietest"))).toBe(false);
+    expect(after.items.length).toBeLessThan(store.items.length);
+  });
+
+  it("keeps the user's own corrections", async () => {
+    // Dropping rows must not drop the hide/merge/tick decisions attached to
+    // them — those are the two-a-semester corrections G3 budgets for, and a
+    // source switched off and on again would otherwise forget them.
+    const { store } = await runSync(emptyStore(), "alarm", deps());
+    const withOverride: StoreV1Plus = {
+      ...store,
+      overrides: { ...store.overrides, hiddenKeys: ["prairietest:whatever"] },
+    };
+    const after = withoutRows(withOverride, sourcePrefix("prairietest"));
+    expect(after.overrides.hiddenKeys).toEqual(["prairietest:whatever"]);
+  });
+
+  it("returns the same store when there is nothing to drop", async () => {
+    // So a caller can skip a write, and so flipping a switch on a source that
+    // never produced anything does not churn the store.
+    const { store } = await runSync(emptyStore(), "alarm", deps());
+    expect(withoutRows(store, sourcePrefix("site"))).toBe(store);
+  });
+
+  it("names one adapter's rows without naming the source's", () => {
+    // `site:` is the source; `site:<adapterId>:` is one adapter. Switching one
+    // course site off must not empty the others, which share the source — and
+    // the source prefix must not be mistaken for an adapter's.
+    expect(adapterPrefix("cs424-fa26")).toBe("site:cs424-fa26:");
+    expect(adapterPrefix("cs424-fa26").startsWith(sourcePrefix("site"))).toBe(true);
+    expect("site:phys214-fa26:ccc".startsWith(adapterPrefix("cs424-fa26"))).toBe(false);
+    expect("site:cs424-fa26:aaa".startsWith(adapterPrefix("cs424-fa26"))).toBe(true);
+    // The trailing colon is load-bearing here, unlike on the source prefix:
+    // adapter ids really can prefix each other (`cs424-fa26` / `cs424-fa26b`).
+    expect("site:cs424-fa26b:x".startsWith(adapterPrefix("cs424-fa26"))).toBe(false);
   });
 });

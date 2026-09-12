@@ -57,7 +57,16 @@ import {
   shouldFireNow,
   type Lead,
 } from "./core/schedule.js";
-import { REQUEST_TIMEOUT_MS, runSync, type FetchedPage, type SyncDeps, type SyncTrigger } from "./core/sync.js";
+import {
+  REQUEST_TIMEOUT_MS,
+  adapterPrefix,
+  runSync,
+  sourcePrefix,
+  withoutRows,
+  type FetchedPage,
+  type SyncDeps,
+  type SyncTrigger,
+} from "./core/sync.js";
 import { runGate0 } from "./gate0.js";
 import type { Request, Response } from "./messages.js";
 import type { ParserId } from "./sources/registry.js";
@@ -757,6 +766,17 @@ chrome.runtime.onMessage.addListener(
           store.sources[source] = statusAfterEnable(store.sources[source], enabled);
           // A source switched back on should not sit out a stale backoff.
           if (enabled) delete store.backoffUntil[source];
+          if (!enabled) {
+            // Now, not on the next sync. The loop applies the same rule, but
+            // the next loop is up to a poll interval away — and Settings
+            // saying "Off" over rows the calendar still shows is the whole
+            // complaint. `withoutRows` returns the store untouched when there
+            // is nothing to drop.
+            const trimmed = withoutRows(store, sourcePrefix(source));
+            store.raw = trimmed.raw;
+            store.items = trimmed.items;
+            console.log(`[sources] ${source} off — dropped its rows`);
+          }
         }).then(() => ({ type: "ok" }) as const),
       );
     }
@@ -852,6 +872,15 @@ chrome.runtime.onMessage.addListener(
             if (enabled) set.add(adapterId);
             else set.delete(adapterId);
             fresh.enabledAdapters = [...set];
+            if (!enabled) {
+              // This adapter's rows go with it, immediately. A later sync would
+              // replace the whole source's rows anyway, but "later" is up to a
+              // poll interval and the switch has already moved.
+              const trimmed = withoutRows(fresh, adapterPrefix(adapterId));
+              fresh.raw = trimmed.raw;
+              fresh.items = trimmed.items;
+              console.log(`[sites] ${adapterId} off — dropped its rows`);
+            }
             // Enabling the first adapter is what switches the source on at all.
             fresh.sources.site = {
               ...fresh.sources.site,

@@ -25,6 +25,40 @@ from here.**
   store assets. Five decisions for Sushi are listed in its §7.
 - Nothing in the extension changed. G4/G5 unchanged.
 
+## Live run: "course websites off, but CS424 is still loaded" — 2026-09-12
+
+The report is the whole bug: Settings said **Off** and the calendar still showed that
+source's rows. Two branches of `runSync` kept them, and both said so in their comments —
+"disabling a source in the options page should not delete history the user may re-enable",
+and the `disabled` outcome explicitly marking its keys as *seen* so §5.4's miss counter
+could not purge them either.
+
+That reasoning is wrong, and the argument it borrowed is the giveaway. Keeping rows is for
+a source that **failed** — a transient, where the source is still being read and will
+answer again, and §11's silent-shrink is the risk. A source that is switched off is not
+being read at all: its rows can never update, can never be flagged stale (`staleNotice`
+skips `disabled`), and can never be corrected. **A row on the calendar is a claim that some
+source currently reports this deadline**, and nothing was standing behind these. Nothing is
+lost either — switching a source back on runs a sync, which is where the rows come from.
+
+- `runSync` drops a source's rows in both disabled branches; the backoff and failure
+  branches keep theirs, which is the case the argument was always for.
+- `withoutRows(store, prefix)` applies the same rule **the moment the switch is flipped**,
+  in `set-source-enabled` and `set-adapter-enabled`. The loop alone would leave up to a
+  poll interval — half an hour — of "Off" over visible rows, which is the gap that was
+  seen. Overrides survive: dropping rows must not drop the user's own corrections.
+- `sourcePrefix` / `adapterPrefix` are one copy of the prefix rule for three callers.
+  Switching off one course site no longer has to wait for the whole source to be re-read.
+- **Three tests were pinning the defect** and are rewritten to pin the requirement
+  (worker rule 6). One of them — "keeps items from a previous run while the source is
+  switched off" — was Sushi's exact scenario, asserted backwards.
+- Six mutations. One survived: dropping the colon from `sourcePrefix` changes nothing,
+  because no current source name is a prefix of another. That is the *unreachable* case
+  from CLAUDE.md's mutation rules, so the colon stays and the comment says why rather than
+  a test pretending to cover it.
+
+925 tests.
+
 ## Live run: the full view — 2026-09-12
 
 Two more from Sushi, both in the tab, both from screenshots at ~1000 CSS px (2× retina).
