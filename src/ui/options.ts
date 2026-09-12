@@ -21,6 +21,7 @@ import {
 } from "../capture.js";
 import { actionFor, displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
 import {
+  displayCourseLabel,
   SOURCE_HINT,
   SOURCE_TITLE,
   STATE_WORD,
@@ -740,7 +741,7 @@ async function renderOptions(): Promise<void> {
   for (const course of state.courses) {
     courses.append(
       switchRow({
-        name: course.label,
+        name: displayCourseLabel(course.label),
         // Names, not source keys: `prairielearn, canvas` under a course code is
         // the storage layer leaking onto the one screen a student comes to in
         // order to recognise their own courses.

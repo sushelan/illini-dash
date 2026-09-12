@@ -68,6 +68,28 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Two paths to a course label, disagreeing about one space — 2026-09-12
+
+*"There's a space between CS 498DK2 but not between CS421."* Both in the same row of
+filter chips.
+
+They are not the same path. §5.1 joins its two captures directly, so every code it
+**recognises** arrives as `CS421`. A name it **cannot** read falls through untouched, so
+`CS 498DK2` keeps whatever spacing its source gave it — and the regex declines that one,
+because `\d{3}[A-Z]?` has no room for a `DK2` suffix. Recognition decided the typography,
+which is not a thing recognition should decide.
+
+`displayCourseLabel` puts the space back, and it is **display only**. The stored
+`courseLabel` is a grouping key — it decides colour, filtering, and which rows are one
+course — so reformatting it would split every course in the store from its own history
+until the next sync. Four surfaces render a label (row chip, filter chip, month pill,
+Settings) and all four go through it, rather than four places each deciding.
+
+Anything that is not a bare code is returned exactly as found. There is no rule that
+improves arbitrary text and several that damage it.
+
+1003 tests.
+
 ## A course site on its own domain, and a slug where a course name should be — 2026-09-12
 
 **cs124.org could not be added at all.** §2.3 declared `https://*.illinois.edu/*` as the

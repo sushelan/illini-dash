@@ -71,6 +71,7 @@ import {
 import { downloadIcs } from "./download.js";
 import { type IconName, icon, iconButton } from "./icons.js";
 import {
+  displayCourseLabel,
   LOGIN_URL,
   SOURCE_CODE,
   SOURCE_NAME,
@@ -590,7 +591,7 @@ function renderRow(
 
   const chip = document.createElement("span");
   chip.className = "chip";
-  chip.textContent = item.courseLabel || "—";
+  chip.textContent = displayCourseLabel(item.courseLabel) || "—";
 
   const title = document.createElement("span");
   title.className = "row--title";
@@ -1581,10 +1582,10 @@ function renderFilters(items: Item[], colours: Map<string, number>): void {
     chip.type = "button";
     chip.className = `fchip course-${colours.get(course) ?? 0}`;
     chip.setAttribute("aria-pressed", String(on));
-    chip.title = on ? `Hide ${course}` : `Show ${course} again`;
+    chip.title = on ? `Hide ${displayCourseLabel(course)}` : `Show ${displayCourseLabel(course)} again`;
     const dot = document.createElement("i");
     const label = document.createElement("span");
-    label.textContent = course;
+    label.textContent = displayCourseLabel(course);
     chip.append(dot, label);
     chip.addEventListener("click", () => {
       if (hidden.has(course)) hidden.delete(course);
@@ -2076,7 +2077,7 @@ function renderMonthPill(
 
   const code = document.createElement("span");
   code.className = "mpill--code";
-  code.textContent = item.courseLabel;
+  code.textContent = displayCourseLabel(item.courseLabel);
   const name = document.createElement("span");
   name.className = "mpill--name";
   name.textContent = item.title;

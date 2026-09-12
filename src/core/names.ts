@@ -22,6 +22,30 @@
 import type { Source } from "../sources/types.js";
 
 /**
+ * A course label as a human writes it: `CS 421`, not `CS421`.
+ *
+ * Two paths produce a label and they disagreed about the space. §5.1 joins its
+ * captures directly, so a recognised code came out `CS421`; a name the regex
+ * cannot read falls through untouched, so `CS 498DK2` kept the space its source
+ * gave it. Both appeared in the same row of filter chips, which is where Sushi
+ * noticed: "there's a space between CS 498DK2 but not between CS421".
+ *
+ * **Display only.** The stored `courseLabel` is a grouping key — it decides
+ * colour, filtering, and which rows are one course — so reformatting it would
+ * split every existing course in the store from its own history until the next
+ * sync. The space is added on the way to the screen and nowhere else.
+ *
+ * Anything that is not a bare code is returned untouched, because there is no
+ * rule that improves arbitrary text and several that would damage it.
+ */
+const BARE_CODE = /^([A-Z]{2,4})(\d{3}[A-Z]?)$/;
+
+export function displayCourseLabel(label: string): string {
+  const match = BARE_CODE.exec(label);
+  return match ? `${match[1]} ${match[2]}` : label;
+}
+
+/**
  * The name to use in a sentence: "Sign in to Gradescope".
  *
  * `site` is lower case and takes an article because it is a category rather

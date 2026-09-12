@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import { extractCourseCodes } from "../src/core/normalize.js";
+import { displayCourseLabel } from "../src/core/names.js";
 
 describe("extractCourseCodes", () => {
   it("reads a human-readable name", () => {
@@ -69,5 +70,32 @@ describe("extractCourseCodes", () => {
 
   it("returns each code once", () => {
     expect(extractCourseCodes("CS 357 — CS357 — cs_357_1")).toEqual(["CS357"]);
+  });
+});
+
+describe("displayCourseLabel (the space §5.1 drops)", () => {
+  it("puts the space back into a bare code", () => {
+    // §5.1 joins its two captures directly, so every recognised code arrived on
+    // screen as `CS421` while an unrecognised name kept whatever spacing its
+    // source used. Both sat in the same row of filter chips.
+    expect(displayCourseLabel("CS421")).toBe("CS 421");
+    expect(displayCourseLabel("STAT425")).toBe("STAT 425");
+    expect(displayCourseLabel("CS357A")).toBe("CS 357A");
+  });
+
+  it("leaves a name it cannot read exactly as it found it", () => {
+    // `CS 498DK2` is the case that started this: the regex declines the `DK2`
+    // suffix, so the raw name falls through — and it already has its space.
+    // There is no rule that improves arbitrary text and several that damage it.
+    for (const raw of ["CS 498DK2", "Physics 435 Spring 2026", "stat_425_1", ""]) {
+      expect(displayCourseLabel(raw), raw).toBe(raw);
+    }
+  });
+
+  it("is display only, so it never becomes a key", () => {
+    // The stored label groups rows, colours them and drives the filters.
+    // Reformatting it would split every course in the store from its own
+    // history until the next sync, so this runs on the way to the screen.
+    expect(displayCourseLabel("CS 421")).toBe("CS 421");
   });
 });
