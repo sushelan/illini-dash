@@ -68,6 +68,33 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Four rounds with no evidence, so the control says it itself — 2026-09-13
+
+Still not found. What is fixed so far is real and none of it is confirmed to be *the* one:
+four correction handlers with no `.catch` at all, a worker that swallowed every error
+without logging, three redraw guards that matched nothing, and a menu that opened below the
+fold in week.
+
+**The reason four rounds produced no evidence is that every channel that could have carried
+it was somewhere nobody was looking.** The popup's console — not the worker's, which is the
+one people open, and the only one that has been pasted. A status line that rendered below
+the fold of a 1100px document. An unhandled rejection that reached neither. Each fix
+uncovered the next silent layer rather than the cause.
+
+An attempted reproduction with real mouse events was **invalid and nearly reported as a
+finding**: the preview pane renders that page offset from its own coordinate frame, so the
+click landed in dead space and "the menu never opened" was an artifact of clicking nothing.
+The earlier harness checks have the opposite flaw — a synthetic `.click()` fires no
+mousedown and moves no focus, so neither kind of probe here reproduces a real press.
+
+So the pressed control reports for itself: **"Hide" becomes "Applying…"** and the rest of
+the menu greys out, before anything can go wrong. It is feedback and a diagnostic at once —
+a correction is a round trip to the service worker and it was always wrong for that to look
+instantaneous — and if that word never appears, the click handler never ran, which is a
+different bug from any investigated so far and says so with no console at all.
+
+1023 tests.
+
 ## Three dead guards, and an error nobody could see — 2026-09-12
 
 *"Hide still doesn't work, none of the options for week work at all."*

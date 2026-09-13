@@ -1009,7 +1009,29 @@ function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
  * One function rather than four call sites, because four copies of an error
  * path is four chances for the next one to be written without it.
  */
-function applyOverrideAction(action: OverrideAction): void {
+function applyOverrideAction(action: OverrideAction, entry?: HTMLElement): void {
+  /*
+   * Say so on the control that was pressed, before anything can go wrong.
+   *
+   * Four rounds of "I click Hide and nothing happens" produced no evidence,
+   * because every channel that could have carried it was somewhere nobody was
+   * looking: the popup's console (not the worker's, which is the one people
+   * open), a status line that rendered below the fold, and an unhandled
+   * rejection that reached neither. The one place a student is definitely
+   * looking is the thing they just clicked.
+   *
+   * So it is feedback and a diagnostic at once. A correction is a round trip to
+   * the service worker and back — it was always wrong for that to look
+   * instantaneous — and if this word never appears, the click handler never
+   * ran, which is a different bug from every one investigated so far and says
+   * so without a console.
+   */
+  if (entry) {
+    entry.replaceChildren(icon("sync"), document.createTextNode("Applying…"));
+    for (const other of entry.parentElement?.querySelectorAll("button") ?? []) {
+      (other as HTMLButtonElement).disabled = true;
+    }
+  }
   // Logged on this side too, because the two consoles are different windows: a
   // popup's output never appears in the service worker's, and the worker's
   // never appears in the popup's. Chasing this across three rounds, both were
@@ -1037,14 +1059,14 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   menu.setAttribute("role", "menu");
   menu.addEventListener("click", (event) => event.stopPropagation());
 
-  const add = (label: string, glyph: IconName, onClick: () => void) => {
+  const add = (label: string, glyph: IconName, onClick: (entry: HTMLElement) => void) => {
     const entry = document.createElement("button");
     entry.type = "button";
     entry.className = "menu-item";
     entry.setAttribute("role", "menuitem");
     entry.tabIndex = -1;
     entry.append(icon(glyph), document.createTextNode(label));
-    entry.addEventListener("click", onClick);
+    entry.addEventListener("click", () => onClick(entry));
     menu.append(entry);
   };
 
@@ -1068,17 +1090,17 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   // Then the one a student reaches for most: two of the five sources can never
   // report completion, so without it a finished course-site row sits in Needs
   // attention for a week with only Hide as an escape.
-  add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", () => {
-    applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id });
+  add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", (entry) => {
+    applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id }, entry);
   });
 
-  add(item.hidden ? "Unhide" : "Hide", item.hidden ? "plus" : "close", () => {
-    applyOverrideAction({ kind: item.hidden ? "unhide" : "hide", itemId: item.id });
+  add(item.hidden ? "Unhide" : "Hide", item.hidden ? "plus" : "close", (entry) => {
+    applyOverrideAction({ kind: item.hidden ? "unhide" : "hide", itemId: item.id }, entry);
   });
 
   if (item.members.length > 1) {
-    add(`Split (${item.members.length} sources)`, "more", () => {
-      applyOverrideAction({ kind: "split", itemId: item.id });
+    add(`Split (${item.members.length} sources)`, "more", (entry) => {
+      applyOverrideAction({ kind: "split", itemId: item.id }, entry);
     });
   }
 
@@ -1102,8 +1124,8 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
       heading.textContent = `Merge "${item.title}" with:`;
       menu.append(heading);
       for (const other of candidates.slice(0, 12)) {
-        add(other.title, "plus", () => {
-          applyOverrideAction({ kind: "merge", itemId: item.id, otherItemId: other.id });
+        add(other.title, "plus", (entry) => {
+          applyOverrideAction({ kind: "merge", itemId: item.id, otherItemId: other.id }, entry);
         });
       }
     });
