@@ -9,7 +9,7 @@
  */
 
 import { applyStoredTheme } from "./theme-panel.js";
-import { send } from "../messages.js";
+import { send, type OverrideAction } from "../messages.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
 import {
   type SetupRow,
@@ -989,6 +989,47 @@ function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
  * labels, and the fix is meant to be one click. G3 budgets two corrections a
  * semester, which only works if making one is trivial.
  */
+/**
+ * Send one correction, and never lose the answer.
+ *
+ * All four of these — done, hide, split, merge — were written as
+ * `void send(…).then(…).then(…)` with **no `.catch`**, so a rejection became an
+ * unhandled promise rejection: nothing in the UI, and nothing in the service
+ * worker's console either, because a popup's errors go to the popup's own
+ * console and nobody opens that. Sushi, on the third round of this: "I'm
+ * clicking on hide but nothing's hiding, doesn't show up in the backend
+ * either." Both halves of that were literally true and neither was the bug —
+ * they were two silent channels stacked on one.
+ *
+ * `send` rejects for a reason worth reading, too: it is the call that turns a
+ * worker running older code than this page into a sentence telling you to
+ * reload the extension. Swallowing it hid exactly the message that explains the
+ * commonest cause.
+ *
+ * One function rather than four call sites, because four copies of an error
+ * path is four chances for the next one to be written without it.
+ */
+function applyOverrideAction(action: OverrideAction): void {
+  // Logged on this side too, because the two consoles are different windows: a
+  // popup's output never appears in the service worker's, and the worker's
+  // never appears in the popup's. Chasing this across three rounds, both were
+  // silent for different reasons and each looked like proof the other was at
+  // fault. This line says the click was heard, before anything can go wrong.
+  console.log(`[illini-dash] ${action.kind} requested for ${action.itemId}`);
+  void send({ type: "override", action })
+    .then(reportOverride)
+    .then(() => {
+      closeMenus();
+      void refresh();
+    })
+    .catch((err: unknown) => {
+      closeMenus();
+      showStatus(
+        `Could not ${action.kind} that row: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+}
+
 function openRowMenu(item: Item, anchor: HTMLElement): void {
   closeMenus();
   const menu = document.createElement("div");
@@ -1028,37 +1069,16 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   // report completion, so without it a finished course-site row sits in Needs
   // attention for a week with only Hide as an escape.
   add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", () => {
-    void send({
-      type: "override",
-      action: { kind: item.done ? "undone" : "done", itemId: item.id },
-    })
-      .then(reportOverride)
-      .then(() => {
-        closeMenus();
-        void refresh();
-      });
+    applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id });
   });
 
   add(item.hidden ? "Unhide" : "Hide", item.hidden ? "plus" : "close", () => {
-    void send({
-      type: "override",
-      action: { kind: item.hidden ? "unhide" : "hide", itemId: item.id },
-    })
-      .then(reportOverride)
-      .then(() => {
-        closeMenus();
-        void refresh();
-      });
+    applyOverrideAction({ kind: item.hidden ? "unhide" : "hide", itemId: item.id });
   });
 
   if (item.members.length > 1) {
     add(`Split (${item.members.length} sources)`, "more", () => {
-      void send({ type: "override", action: { kind: "split", itemId: item.id } })
-        .then(reportOverride)
-        .then(() => {
-          closeMenus();
-          void refresh();
-        });
+      applyOverrideAction({ kind: "split", itemId: item.id });
     });
   }
 
@@ -1083,15 +1103,7 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
       menu.append(heading);
       for (const other of candidates.slice(0, 12)) {
         add(other.title, "plus", () => {
-          void send({
-            type: "override",
-            action: { kind: "merge", itemId: item.id, otherItemId: other.id },
-          })
-            .then(reportOverride)
-            .then(() => {
-              closeMenus();
-              void refresh();
-            });
+          applyOverrideAction({ kind: "merge", itemId: item.id, otherItemId: other.id });
         });
       }
     });
