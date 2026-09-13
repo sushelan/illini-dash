@@ -68,6 +68,30 @@ iteration into thirty seconds.
 
 973 tests, 38 shots.
 
+## Handed off with the menu bug unsolved — 2026-09-13
+
+The probe answered, and the answer eliminates almost everything: pressing Hide leaves it
+reading "waiting for a press…", so **not even `pointerdown` in capture on the menu
+element** arrives. The press is not landing on the menu. Every fix made today was
+downstream of that.
+
+Those fixes are real and none of them was the cause: four correction handlers with no
+`.catch`, a worker that swallowed every error unlogged, three redraw guards that matched
+nothing, a menu that opened below the fold in week, month pills with no menu at all, and a
+status line that reported failures below the fold of a 1100px document. Six silent channels,
+uncovered one at a time, none of them the bug — which is its own finding about how this
+popup was built.
+
+The full handoff is in CLAUDE.md: the ruled-out table with the evidence for each, so the
+next session does not repeat five rounds of it, and the three things worth trying first —
+whether two `.menu-surface` elements exist at once (the health popover shares the class),
+whether the visible menu is still connected when pressed, and what
+`document.elementFromPoint()` returns under the pointer. The last is one line.
+
+The temporary probe in `openRowMenu` is marked TEMPORARY and should come out with the fix.
+
+1023 tests, and the build in `dist/` carries the probe.
+
 ## Four rounds with no evidence, so the control says it itself — 2026-09-13
 
 Still not found. What is fixed so far is real and none of it is confirmed to be *the* one:

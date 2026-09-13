@@ -256,6 +256,128 @@ composited luminance rather than trusting the alpha**, which is one line in the 
 getComputedStyle(el).backgroundColor  // then composite it against the body yourself
 ```
 
+## House rules for the UI, and for diagnosing it
+
+From a day of live beta reports. Every one of these cost several round trips of
+Sushi's time, which is the resource this project has least of.
+
+1. **A popup and the service worker have different consoles, and neither shows the
+   other's output.** Five rounds of "nothing shows up in the console" were spent on the
+   `background.js` inspector, which structurally cannot contain a page's errors. Say
+   *which* console when asking, and prefer the full view: it is an ordinary tab with
+   ordinary devtools, where a popup needs right-click → Inspect popup.
+
+2. **Every `send()` from a page needs a `.catch`.** Four correction handlers were written
+   as `void send(…).then(…)` with none, so a rejection became an unhandled promise
+   rejection — invisible in the UI *and* in the worker's console. `send` rejects with the
+   one message that explains the commonest cause ("the worker is running older code than
+   this page"), so swallowing it hides exactly the sentence that would have ended the
+   investigation.
+
+3. **A status line at the bottom of the document is not a channel.** `#status` sits below
+   ~1100px of week view in a 600px window. Every failure it reported for a month landed
+   below the fold. If a surface reports errors, the report has to be reachable from where
+   the error happened.
+
+4. **When a control does something asynchronous, say so on the control.** "Hide" becoming
+   "Applying…" is feedback *and* a diagnostic: it distinguishes "the click never ran" from
+   "the click ran and the round trip failed" with no console at all. That one change
+   produced more information than four builds of logging.
+
+5. **A synthetic `.click()` is not a press.** It fires no `pointerdown`, no `mousedown`, no
+   focus change, and no default action. Every harness check of the row menu passed while
+   the real menu was unusable. Where a defect is about *pressing* something, a JS-driven
+   click proves nothing.
+
+6. **And the preview pane's coordinates are not the page's.** Driving real mouse events at
+   it produced "the menu never opens" — because the click landed in dead space. That was
+   nearly reported as a finding. If a click-driven result is surprising, verify the click
+   landed before believing the result.
+
+7. **A class selector matches whole tokens.** Three redraw guards asked for `.menu` while
+   the element's class was `menu-surface`; all three were dead from the day they were
+   written, so any store write or minute tick deleted an open menu. Route a selector and
+   the class it matches through **one constant** — a test has to know the right answer, a
+   shared constant makes the wrong answer unspellable.
+
+8. **Height is the popup's recurring bug, in different costumes.** A menu opening below the
+   fold, a floating panel contributing no height for Chrome to measure, a status line out
+   of sight, the sources panel clipped — all the same 600px ceiling. When something in the
+   popup "does not work", measure where it is before reading what it does.
+
+---
+
+## HANDOFF — 2026-09-13
+
+### The open bug: the row menu receives no mouse events
+
+**Symptom.** The menu opens. Clicking any item — Hide, Mark done, Split, Merge — does
+nothing at all. The item label never changes to "Applying…", nothing reaches the service
+worker, and the store is unchanged. Reported for week view first, then everywhere.
+
+**The decisive measurement.** A temporary probe (in `openRowMenu`, marked TEMPORARY) adds
+capture-phase listeners for `pointerdown`, `mousedown`, `mouseup` and `click` on the menu
+element and writes what arrives into the menu itself. Pressing Hide leaves it reading
+**"waiting for a press…"** — so **not even `pointerdown` in capture reaches the menu**.
+The press is not landing on that element.
+
+**Ruled out, with evidence — do not re-check these:**
+
+| Hypothesis | How it was eliminated |
+|---|---|
+| Handler not wired | `entry.addEventListener("click", …)` is present; a synthetic `.click()` fires it and sends `override:hide` |
+| Message not routed | `override` is handled in `background.ts`; the worker now logs every override and every caught error, and logs nothing — consistent with nothing arriving |
+| Errors swallowed | Was true and is fixed (`applyOverrideAction` has the only `.catch`); did not change the symptom |
+| Redraw destroys the menu | Three `.menu` guards were dead; fixed and proven both ways — the menu now survives a store write |
+| `focusout` closes it | Menu provably survives a real `blur()` to `<body>` |
+| Menu below the fold | Was true in week; `placeFloating` flips above the anchor now, verified across all 17 rows |
+| Stacking order | `.menu-surface` is `z-index: 20`; the only others in the project are 1 and 2 |
+| `pointer-events` | No such rule exists anywhere in `public/*.css` |
+
+**Where a fresh session should start.** Something is receiving the press instead of the
+menu. Worth checking, in this order: whether more than one `.menu-surface` exists at once
+(the health popover shares the class — `.menu-surface popover`); whether the visible menu
+is still connected to the document when pressed; and what `document.elementFromPoint()`
+returns at the pointer while a menu is open. The last of those is one line and settles it.
+
+**Remove the probe** once the cause is known (`openRowMenu`, the block marked TEMPORARY).
+
+### Also open
+
+- **Course sites split across pages.** An adapter is one fixed URL, and a course keeps
+  assignments on one page and exams on another (ECE 391: `schedule.html` and `exams.html`).
+  Half of such a course can never be read. Needs a decision — several adapters per course,
+  or an adapter with several URLs — not a patch.
+- **Coursera**, for the online CS courses. Blocked on one observation only Sushi can make:
+  whether a Coursera deadline URL carries an account or enrolment id. Per-student means a
+  source (a day's work, fixtures, a manifest change, a new review); a fixed per-course URL
+  means a registry entry and no build at all. House rule 13.
+- **A course with no derivable code** still shows its raw name. The rename tool covers it;
+  nothing else is needed unless it turns out to be common.
+
+### The store submission
+
+Draft `mimgaiaicopabbiabakmknkcbfekplei`, **not submitted**. Everything needed is written
+down: listing copy in `docs/store/listing.md`, the description in
+`docs/store/description.txt` (plain text — the field renders no Markdown), and every
+privacy-form answer measured against its 1000-character limit in
+`docs/store/privacy-practices.txt`. The privacy policy is live and generated from
+`docs/store/privacy-policy.md` by `npm run site`.
+
+Outstanding, all in the developer console: re-upload the current zip (the manifest has
+changed since the first upload), replace the host-permission justification, tick **Website
+content** and nothing else under Data usage, fill in Test instructions (500 chars, in
+`privacy-practices.txt`), set Visibility to **Unlisted**, submit.
+
+§9 still gates G5 behind G4. The beta has one tester and found six real defects in a day,
+which is the argument for the gate rather than against it.
+
+### Development loop
+
+`dist/` is a loadable unpacked extension. Load it once from `chrome://extensions`, then
+`npm run build` (or `npm run watch`) and click reload on the card — no zip, no unzip. Zips
+are only for sending to testers.
+
 ## Review policy
 
 Full adversarial review is expensive (~20 min, ~1.5M tokens) and its yield is falling now
