@@ -36,6 +36,7 @@ import { createStoreQueue } from "./core/queue.js";
 import {
   courseSummaries,
   hideItem,
+  memberKeysOf,
   markDone,
   markNotDone,
   mergeItems,
@@ -502,12 +503,19 @@ async function mutate(change: (store: Awaited<ReturnType<typeof loadStore>>) => 
 
 async function applyOverride(action: import("./messages.js").OverrideAction): Promise<void> {
   let missing = false;
+  let report = "";
   await mutate((store) => {
     const item = store.items.find((candidate) => candidate.id === action.itemId);
     // §0 rule 3 applied to the UI: a menu opened before a re-render closes over
     // an id that no longer exists, and reporting `ok` for a no-op leaves the
     // student thinking their correction stuck.
     if (!item) {
+      // Named, with what *was* there, because "no such item" on its own cannot
+      // distinguish a stale menu from an id the popup and worker disagree about
+      // — and those want opposite fixes.
+      console.warn(
+        `[illini-dash] ${action.kind}: no item ${action.itemId}; store holds ${store.items.length}`,
+      );
       missing = true;
       return;
     }
@@ -519,8 +527,17 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
     else if (action.kind === "merge" && item) {
       const other = store.items.find((candidate) => candidate.id === action.otherItemId);
       if (other) store.overrides = mergeItems(store.overrides, item, other);
+      else console.warn(`[illini-dash] merge: no other item ${String(action.otherItemId)}`);
     }
+    // What the override actually did, in one line: the members it was keyed to
+    // and the size of the list it went into. A hide that stores nothing and a
+    // hide that stores a key nothing matches look identical from the UI.
+    report =
+      `${action.kind} ${JSON.stringify(item.title.slice(0, 40))} ` +
+      `keys=[${memberKeysOf(item).join(", ")}] ` +
+      `hidden=${store.overrides.hiddenKeys.length} done=${store.overrides.doneKeys.length}`;
   });
+  if (report) console.log(`[illini-dash] ${report}`);
   if (missing) {
     throw new Error(`no such item ${action.itemId} — the list changed, try again`);
   }
@@ -779,12 +796,19 @@ chrome.runtime.onMessage.addListener(
     const answer = (work: Promise<Response>): true => {
       work
         .then(sendResponse)
-        .catch((err: unknown) =>
+        .catch((err: unknown) => {
+          // Logged, not only returned. Every rejection here became an `error`
+          // response and nothing else — so a request that failed in the worker
+          // left the worker's own console completely silent, and the only trace
+          // was a sentence in the page's status line. That is worker rule 5's
+          // exact case: both branches of a decision the student will have to
+          // debug, and this one had no branch logged at all.
+          console.warn(`[illini-dash] ${String(request?.type)} failed:`, err);
           sendResponse({
             type: "error",
             message: err instanceof Error ? err.message : String(err),
-          }),
-        );
+          });
+        });
       return true;
     };
 
