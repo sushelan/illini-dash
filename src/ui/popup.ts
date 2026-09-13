@@ -1136,6 +1136,39 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
     add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
   }
 
+  /*
+   * TEMPORARY (2026-09-13): which event the menu actually receives.
+   *
+   * Five rounds of "I click Hide and nothing happens" have ruled out everything
+   * reading can rule out — the handler is wired, the button is a plain
+   * `<button>`, nothing sets `pointer-events`, the panel is the top of the
+   * stacking order at `z-index: 20`, and the menu provably survives both a
+   * store write and a real blur to `<body>`. The label still never changes to
+   * "Applying…", so the click never reaches the listener.
+   *
+   * A `click` needs mousedown **and** mouseup on the same element, so this says
+   * which of the three is missing. It is on the menu in capture, so it sees the
+   * event before any handler can stop it, and it writes into the menu itself
+   * because both consoles have already proved to be the wrong place to look.
+   *
+   * Remove once the cause is known.
+   */
+  const probe = document.createElement("div");
+  probe.className = "menu-heading";
+  probe.textContent = "waiting for a press…";
+  const seen: string[] = [];
+  for (const kind of ["pointerdown", "mousedown", "mouseup", "click"]) {
+    menu.addEventListener(
+      kind,
+      () => {
+        if (!seen.includes(kind)) seen.push(kind);
+        probe.textContent = seen.join(" → ");
+      },
+      true,
+    );
+  }
+  menu.prepend(probe);
+
   document.body.append(menu);
   placeFloating(menu, anchor, "right");
   trapMenuKeys(menu, anchor);
