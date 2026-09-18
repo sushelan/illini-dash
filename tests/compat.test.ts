@@ -31,6 +31,15 @@ function current(): Record<string, unknown> {
     setAsideCourses: [{ id: "1", name: "Old course", reason: "not in the current term" }],
     courseNames: { CS424: "Distributed Systems" },
     observers: { campuswire: { enabled: true, postsSeen: 3 } },
+    /*
+     * Added when Google Calendar landed, in the same change as the field.
+     *
+     * This test's list is what "a current worker" means, so leaving the new
+     * field out of it would have made the same-build case report `gcal` as
+     * missing forever — the banner crying wolf on the happy path, which is the
+     * defect the preview harness already had to be fixed for.
+     */
+    gcal: { enabled: false, byItemId: {}, state: "never" },
     lastSyncAt: "2026-09-10T18:00:00.000Z",
   };
 }
@@ -72,6 +81,10 @@ describe("normalizeOptionsState", () => {
       "courseNames",
       "courses",
       "doneItems",
+      // The Google Calendar section reads `.enabled` and `.state` off this and
+      // is drawn before Courses, so an older worker would have taken the page
+      // down with two of eight sections painted.
+      "gcal",
       "hiddenItems",
       "observers",
       "setAsideCourses",
@@ -128,7 +141,11 @@ describe("normalizeOptionsState", () => {
   it("survives a response that is not an object at all", () => {
     for (const junk of [undefined, null, "options-state", 42, []]) {
       const { missing } = normalizeOptionsState<Record<string, unknown>>(junk);
-      expect(missing.length, String(junk)).toBe(8);
+      // Every field the page dereferences, named. The count moves whenever a
+      // field is added — it was 8 before `gcal` — and that is the point: a new
+      // field the page reads and `compat.ts` does not know about is the next
+      // half-drawn options page.
+      expect(missing.length, String(junk)).toBe(9);
     }
   });
 

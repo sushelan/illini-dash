@@ -27,6 +27,7 @@ import {
   timeAgo,
 } from "./names.js";
 import { isFetchedSource } from "./store.js";
+import { describeGcal, type GcalAction, type GcalFacts } from "./gcal-auth.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 /**
@@ -506,6 +507,43 @@ export function sourceRows(
     disabled: 5,
   };
   return rows.sort((a, b) => rank[a.state] - rank[b.state] || a.source.localeCompare(b.source));
+}
+
+/**
+ * Google Calendar's row, for the health popover and for Settings.
+ *
+ * A row rather than a `SourceRow`, and deliberately *not* a `Source`: nothing
+ * is fetched for it, so it has no `lastSuccessAt`, no backoff ladder, and no
+ * business in "n of m sources OK" or in the toolbar badge. `summarize` walks
+ * `store.sources` and this lives in `store.gcal`, so the exclusion is
+ * structural rather than a `!== "gcal"` somebody has to remember — the same
+ * shape `isFetchedSource` gave the `manual` source.
+ *
+ * Absent entirely when it is switched off. A permanently grey line about a
+ * feature the student never turned on is the dot that can only be one colour,
+ * which worker rule 2 says is not information.
+ */
+export interface GcalRow {
+  /** The chip, from `describeGcal` — never green without a push behind it. */
+  word: string;
+  sentence: string;
+  tone: HealthTone;
+  action: GcalAction;
+}
+
+export function gcalRow(
+  facts: GcalFacts | undefined,
+  now: Date,
+  configured = true,
+): GcalRow | undefined {
+  if (!facts?.enabled) return undefined;
+  const described = describeGcal(facts, now, configured);
+  return {
+    word: described.chip,
+    sentence: described.sentence,
+    tone: described.tone,
+    action: described.action,
+  };
 }
 
 export interface StaleNotice {

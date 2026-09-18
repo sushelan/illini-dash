@@ -17,8 +17,16 @@ fixtures before code is written against them.
 
 These are load-bearing. Changing any of them changes the whole project.
 
-1. **No backend.** All data lives in `chrome.storage.local`. Nothing leaves the browser.
-   This is what makes the project legal, private, free to run, and buildable in weeks.
+1. **No backend.** All data lives in `chrome.storage.local`. Nothing is sent to the
+   developer or any third party. This is what makes the project legal, private, free to
+   run, and buildable in weeks.
+
+   The one exception is user-initiated (Sushi, 2026-09-18): if the student connects Google
+   Calendar, deadline titles, courses and times are written to a calendar the extension
+   creates **in their own Google account**, under a scope that cannot read or touch any of
+   their other calendars. It is off by default, one switch turns it off, and turning it off
+   deletes that calendar's events. There is still no backend and still nothing the
+   developer can see.
 2. **No credential handling.** The extension never sees a password. It fetches pages
    using the session cookies already in the browser. If a session is expired, the
    extension says so and links to the login page; it never tries to log in.
@@ -53,7 +61,7 @@ These are load-bearing. Changing any of them changes the whole project.
 |---|---|
 | Campuswire | Q&A site; deadlines appear only inside unstructured announcements. Needs LLM extraction, which needs a backend and costs money. v2 Pro feature. |
 | LLM announcement parsing ("MP3 extended to Friday") | Same as above. |
-| Google Calendar OAuth sync | Calendar scopes are "sensitive"; unverified OAuth apps are capped at 100 users and show a scary warning. Submit for verification during v1, ship sync in v1.1. |
+| ~~Google Calendar OAuth sync~~ | **In scope since 2026-09-18.** The premise was wrong: it assumed every Calendar scope is "sensitive". `calendar.app.created` is classified **non-sensitive** in the Google Cloud console — it grants creating a secondary calendar and access to calendars the app itself created, and nothing else — so there is no verification review and no 100-user cap. Shipped opt-in, off by default, one scope only. See §8.3 and `docs/gcal.md`. |
 | Subscribable `.ics` feed | Needs a URL, which needs a server. |
 | SMS / email reminders | Needs a server and money. |
 | Moodle (`learn.illinois.edu`) | Some UIUC courses still use it. Only add if beta testers hit it; it's a separate adapter. |
@@ -864,12 +872,36 @@ known hosts or the adapter's host.
 
 ### 8.3 Calendar export
 
+Three routes, in increasing order of commitment. The first two are one-way copies and
+the UI must say so; the third is the only one that stays in step.
+
 - Per item: a Google Calendar template link
   `https://calendar.google.com/calendar/render?action=TEMPLATE&text=…&dates=…&details=…`
   with the due instant as a 15-minute event ending at `dueAt`. No OAuth required.
 - Bulk: generate an `.ics` (RFC 5545) of all visible items and trigger a download.
   Importing an `.ics` into Google Calendar is a one-time copy, not a subscription;
-  say so in the UI. Real sync is v1.1 after OAuth verification.
+  say so in the UI.
+- **Google Calendar sync** (Sushi, 2026-09-18). Opt-in, off by default, and the one
+  exception §0 rule 1 names.
+  - **One scope, `https://www.googleapis.com/auth/calendar.app.created`**, obtained with
+    `chrome.identity.getAuthToken` and a manifest `oauth2` block. It is non-sensitive, so
+    there is no verification review. `calendar.events` and `calendar.events.owned` are
+    sensitive and must never be requested: either would both trigger a months-long review
+    and hand the extension every calendar the student has.
+  - **One secondary calendar**, created by the extension and named "Illini Dash". Only
+    events on it are ever written, which the scope enforces rather than the code.
+  - Every unfinished, unhidden, non-booking deadline becomes one event: a 15-minute event
+    ending at `dueAt` in `America/Chicago`, or an **all-day** event when the time was
+    invented (`timeAssumed`) — an invented 23:59 must never be written as a timed event.
+    A distinct `lateDueAt` is a second event. Reminders come from the student's own lead
+    times, not Google's defaults.
+  - **A finished or hidden deadline is deleted from the calendar**, not dimmed: a calendar
+    app has no strikethrough, and a done deadline still occupying a slot is the complaint
+    this exists to answer.
+  - Each event carries `extendedProperties.private.illiniDashId`, which is how it is found
+    again; a content hash beside it in the store is what makes an unchanged deadline cost
+    no request.
+  - Disconnect deletes the events and then the calendar, and clears the token.
 
 ---
 

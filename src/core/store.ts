@@ -20,6 +20,7 @@ import type {
 } from "../sources/types.js";
 import { isOlderThan } from "./dates.js";
 import { isInstant } from "./parsing.js";
+import { isGcalState, type GcalState } from "./gcal-auth.js";
 import { validateAdapter } from "./registry.js";
 
 /**
@@ -188,6 +189,88 @@ export interface StoreV1Plus extends StoreV1 {
    * reading it never made.
    */
   observers: Record<ObserverId, ObserverState>;
+  /**
+   * Google Calendar (§8.3, Sushi 2026-09-18).
+   *
+   * The one thing in this store that corresponds to data outside the browser,
+   * which is why it holds an *index* rather than a copy: `byItemId` maps this
+   * extension's own key for a deadline to the Google event id it was written to
+   * and the hash of the body it was written with. That is what makes an
+   * unchanged deadline cost no request, and it is also the only way to find an
+   * event again in order to delete it when the student ticks the row off.
+   *
+   * `state` and the two `lastPush*` fields are kept apart on purpose (worker
+   * rule 2): `state: "connected"` says a token was obtained, and only
+   * `lastPushAt` / `lastPushCount` — which nothing but a push that returned ever
+   * writes — can make the row say a number.
+   */
+  gcal: GcalStore;
+}
+
+export interface GcalStore {
+  /** The student's switch. Off by default; §0 rule 1's one exception is opt-in. */
+  enabled: boolean;
+  /** The secondary calendar this extension created. Absent until it has. */
+  calendarId?: string;
+  /** `illiniDashId` → the Google event it lives in, and our last body's hash. */
+  byItemId: Record<string, { eventId: string; hash: string }>;
+  lastPushAt?: string;
+  lastPushCount?: number;
+  state: GcalState;
+  lastError?: string;
+}
+
+/**
+ * A stored `gcal` block that is actually usable.
+ *
+ * Validated positively like `manualItems` and for a sharper reason than either:
+ * a half-written `byItemId` entry is an event id that will be sent to Google in
+ * a URL. `""` passing a `typeof` check would build
+ * `/calendars/<id>/events/` — a request against the *collection*, not the
+ * event — so house rule 5 is load-bearing here rather than tidy.
+ *
+ * A `state` this build does not know about falls back to `never` rather than
+ * being kept: an unknown state has no sentence, and a row with no sentence is
+ * the one thing the Settings section must never be.
+ */
+function migrateGcal(stored: unknown): GcalStore {
+  const value = isRecord(stored) ? stored : {};
+  const text = (key: string) => typeof value[key] === "string" && (value[key] as string) !== "";
+  const entries = isRecord(value["byItemId"]) ? Object.entries(value["byItemId"]) : [];
+  return {
+    enabled: value["enabled"] === true,
+    ...(text("calendarId") ? { calendarId: value["calendarId"] as string } : {}),
+    byItemId: Object.fromEntries(
+      entries.filter((entry): entry is [string, { eventId: string; hash: string }] => {
+        const row = entry[1];
+        if (!isRecord(row)) return false;
+        return (
+          entry[0] !== "" &&
+          typeof row["eventId"] === "string" &&
+          row["eventId"] !== "" &&
+          typeof row["hash"] === "string"
+        );
+      }),
+    ),
+    // An instant, not any string: this is what the Settings chip prints, and a
+    // half-written value would render "Pushed 14 events · Invalid Date".
+    ...(isInstant(value["lastPushAt"]) ? { lastPushAt: value["lastPushAt"] } : {}),
+    ...(typeof value["lastPushCount"] === "number" &&
+    Number.isInteger(value["lastPushCount"]) &&
+    (value["lastPushCount"] as number) >= 0
+      ? { lastPushCount: value["lastPushCount"] as number }
+      : {}),
+    // `pushing` is transient: a worker torn down mid-push leaves it on disk, and
+    // restoring it would draw "Working…" forever over nothing happening.
+    state: isGcalState(value["state"]) && value["state"] !== "pushing"
+      ? value["state"]
+      : "never",
+    ...(text("lastError") ? { lastError: value["lastError"] as string } : {}),
+  };
+}
+
+export function emptyGcal(): GcalStore {
+  return { enabled: false, byItemId: {}, state: "never" };
 }
 
 /** Every page observer this build knows about. */
@@ -341,6 +424,7 @@ export function emptyStore(): StoreV1Plus {
     observers: Object.fromEntries(
       ALL_OBSERVERS.map((id) => [id, { enabled: false }]),
     ) as Record<ObserverId, ObserverState>,
+    gcal: emptyGcal(),
   };
 }
 
@@ -532,6 +616,7 @@ export function migrate(stored: unknown, now: string = new Date().toISOString())
       now,
     ),
     observers: migrateObservers(value.observers),
+    gcal: migrateGcal((value as Record<string, unknown>)["gcal"]),
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>

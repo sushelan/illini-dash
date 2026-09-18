@@ -408,3 +408,82 @@ describe("page observers", () => {
     expect(Object.keys(store.observers)).toEqual(["campuswire"]);
   });
 });
+
+/**
+ * The `gcal` block.
+ *
+ * Every field here is validated positively on the way back in, for a sharper
+ * reason than the rest of the store: a half-written `byItemId` entry is an
+ * event id that goes into a URL, and `""` passing a `typeof` check would build
+ * a request against the events *collection* rather than one event.
+ */
+describe("Google Calendar's stored block", () => {
+  it("is off, empty and 'never' in a store that has never heard of it", () => {
+    // §0 rule 1's amended wording: the one exception to "nothing leaves the
+    // browser" is opt-in, so an upgrade must not switch anything on.
+    const store = migrate({ schemaVersion: 2 });
+    expect(store.gcal).toEqual({ enabled: false, byItemId: {}, state: "never" });
+  });
+
+  it("keeps a real connection across a reload", () => {
+    const store = migrate({
+      schemaVersion: 2,
+      gcal: {
+        enabled: true,
+        calendarId: "cal-1",
+        byItemId: { abc: { eventId: "ev-1", hash: "deadbeef" } },
+        lastPushAt: "2026-09-18T15:00:00.000Z",
+        lastPushCount: 14,
+        state: "connected",
+      },
+    });
+    expect(store.gcal.calendarId).toBe("cal-1");
+    expect(store.gcal.byItemId["abc"]).toEqual({ eventId: "ev-1", hash: "deadbeef" });
+    expect(store.gcal.lastPushCount).toBe(14);
+    expect(store.gcal.state).toBe("connected");
+  });
+
+  it("drops an index entry with no usable event id", () => {
+    const store = migrate({
+      schemaVersion: 2,
+      gcal: {
+        enabled: true,
+        byItemId: {
+          good: { eventId: "ev-1", hash: "h" },
+          empty: { eventId: "", hash: "h" },
+          missing: { hash: "h" },
+          junk: "nope",
+        },
+        state: "connected",
+      },
+    });
+    expect(Object.keys(store.gcal.byItemId)).toEqual(["good"]);
+  });
+
+  it("refuses a lastPushAt that is not an instant", () => {
+    // The chip prints this. A half-written value would render
+    // "Pushed 14 events · Invalid Date".
+    const store = migrate({
+      schemaVersion: 2,
+      gcal: { enabled: true, byItemId: {}, state: "connected", lastPushAt: "yesterday" },
+    });
+    expect(store.gcal.lastPushAt).toBeUndefined();
+  });
+
+  it("does not restore 'pushing', which a torn-down worker leaves behind", () => {
+    // Restoring it would draw "Working…" forever over nothing happening.
+    const store = migrate({
+      schemaVersion: 2,
+      gcal: { enabled: true, byItemId: {}, state: "pushing" },
+    });
+    expect(store.gcal.state).toBe("never");
+  });
+
+  it("falls back to 'never' for a state this build has no sentence for", () => {
+    const store = migrate({
+      schemaVersion: 2,
+      gcal: { enabled: true, byItemId: {}, state: "quantum_entangled" },
+    });
+    expect(store.gcal.state).toBe("never");
+  });
+});

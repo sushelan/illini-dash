@@ -16,6 +16,7 @@ import {
   healthPill,
   sourceRows,
   sourcesToRecheck,
+  gcalRow,
   staleNotice,
   statusAfterEnable,
   statusLine,
@@ -905,5 +906,48 @@ describe("the manual source is excluded from every health surface", () => {
   it("never becomes a stale banner", () => {
     // Nothing is fetched for it, so "hasn't been read since…" has no meaning.
     expect(staleNotice(sources({ manual }), NOW)).toBeUndefined();
+  });
+});
+
+/**
+ * Google Calendar's row.
+ *
+ * It is not a `Source`, and the two assertions that matter are both about what
+ * it must *not* do: it must never earn a green state from a switch, and it must
+ * never appear in any count of sources that were fetched.
+ */
+describe("the Google Calendar row", () => {
+  it("is absent when the feature is off", () => {
+    // A permanently grey line about a feature nobody turned on is the dot that
+    // can only be one colour (worker rule 2).
+    expect(gcalRow({ enabled: false, state: "never" }, NOW)).toBeUndefined();
+    expect(gcalRow(undefined, NOW)).toBeUndefined();
+  });
+
+  it("is not green on a connection alone", () => {
+    const row = gcalRow({ enabled: true, state: "connected" }, NOW);
+    expect(row?.tone).not.toBe("ok");
+  });
+
+  it("is green once a push wrote what it wrote", () => {
+    const row = gcalRow(
+      { enabled: true, state: "connected", lastPushAt: NOW.toISOString(), lastPushCount: 14 },
+      NOW,
+    );
+    expect(row?.tone).toBe("ok");
+    expect(row?.word).toContain("14 events");
+  });
+
+  it("never counts as a source that was fetched", () => {
+    /*
+     * The toolbar pill, the badge and the sources panel all walk
+     * `store.sources`, and this lives in `store.gcal` - so the exclusion is
+     * structural. Asserted anyway, because the cheapest way to break it later
+     * is to add a `gcal` entry to `sources` and think it is tidier.
+     */
+    const only = sources({ canvas: status({ state: "ok", lastSuccessAt: iso(60_000) }) });
+    expect(summarize(only).checkable).toEqual(["canvas"]);
+    expect(sourceRows(only, NOW).map((row) => row.source)).toEqual(["canvas"]);
+    expect(healthPill(only, NOW.toISOString(), NOW).text).not.toContain("Calendar");
   });
 });

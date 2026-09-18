@@ -35,6 +35,23 @@ describe("send", () => {
     await expect(send({ type: "gate0" })).rejects.toThrow(/"gate0"/);
   });
 
+  it("tells a Google Calendar click that the worker is the older build", async () => {
+    /*
+     * The likeliest failure of this feature in development, and the one the
+     * switch would otherwise swallow: `dist/` is reloaded from disk when the
+     * Settings page opens, but the service worker is not, so a page that knows
+     * `gcal-connect` can be talking to a worker that has never heard of it.
+     * UI rule 2 says every `send` gets a `.catch`, and this is the sentence
+     * that catch has to be able to show.
+     */
+    stubChrome(async () => undefined);
+    for (const type of ["gcal-connect", "gcal-disconnect", "gcal-push-now"] as const) {
+      await expect(send({ type })).rejects.toThrow(
+        new RegExp(`"${type}".*chrome://extensions.*Reload`, "s"),
+      );
+    }
+  });
+
   it("carries a post to the worker whole, including a pasted one", async () => {
     // A paste box is not in scope (Sushi rejected paste as the primary path),
     // but the message that would feed one ships now, so a later fallback is a
