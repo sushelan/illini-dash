@@ -474,9 +474,9 @@
     "semantic_hash": ""
   },
   "tests/manifest.test.ts": {
-    "mtime": 1789755560.1024024,
-    "seen": 1789755585.4675379,
-    "ast_hash": "5fa29384e3386d6218d06df985edc8fa",
+    "mtime": 1789764631.5232968,
+    "seen": 1789764641.098912,
+    "ast_hash": "bf3deddf43b220d61cf79ec65a00eb61",
     "semantic_hash": ""
   },
   "tests/messages.test.ts": {
@@ -612,15 +612,15 @@
     "semantic_hash": "452cd8c98ca97078b899e204706ef12e"
   },
   "CLAUDE.md": {
-    "mtime": 1789757006.5300257,
-    "seen": 1789757009.182057,
-    "ast_hash": "bee008f9af200d5f83c3e058e722580c",
+    "mtime": 1789764637.3721879,
+    "seen": 1789764641.09894,
+    "ast_hash": "541587750a9d245006f603539e6e1c07",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1789757006.5304103,
-    "seen": 1789757009.182057,
-    "ast_hash": "25be965056db74d9fdecc2b6b3d5041c",
+    "mtime": 1789764637.3728921,
+    "seen": 1789764641.09894,
+    "ast_hash": "c44d4c71b188e5b91d10a783de5bfa97",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1635,6 +1635,12 @@
     "mtime": 1789756946.946888,
     "seen": 1789757009.182017,
     "ast_hash": "d1c336684e9e63479c56659b1e0e7eb0",
+    "semantic_hash": ""
+  },
+  "docs/store/test-instructions.txt": {
+    "mtime": 1789764321.6208124,
+    "seen": 1789764641.098956,
+    "ast_hash": "f5115f38f6aaff40b08a091e875eebac",
     "semantic_hash": ""
   }
 }

@@ -7,6 +7,40 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Google Calendar sync, opt-in, under the one scope that needs no review — 2026-09-18
+
+Sushi's Cloud console classified `calendar.app.created` as **non-sensitive**, which
+retires §1's out-of-scope row — a row whose premise was wrong when written, not stale:
+"Calendar scopes are sensitive" is not true of the scope that can only touch calendars
+the app itself creates. One worker; **1515 → 1611 tests.**
+
+Four pure modules because the worker gets no decisions: `core/gcal.ts` projects items to
+events (finished or hidden rows are *deleted* from the calendar — a Google calendar has no
+strikethrough, and a finished deadline still holding a slot was the complaint that started
+the day; timed rows as a 15-minute event ending at the deadline; `timeAssumed` rows as
+ALL-DAY, never a 23:59 event; a distinct late deadline as a second event; the diff runs on
+a content hash so an unchanged item costs no request), `core/gcal-auth.ts` is the state
+machine (never, connected, expired, declined, admin_blocked, rate_limited,
+calendar_missing, pushing) with one student sentence each — "Connected · nothing pushed
+yet" stays grey until a push has written `lastPushAt` (worker rule 2, pinned at both the
+auth and health levels), `core/gcal-client.ts` speaks the API (never `events.update`, which
+deletes unlisted properties; deletes before inserts; 401 → one cached-token removal and
+retry; purge deletes events, then the calendar), `core/gcal-config.ts` holds the one scope
+and the placeholders. `chrome.identity.getAuthToken` with a "Chrome Extension" OAuth
+client: no client secret, Chrome holds the grant. The push runs after each sync and each
+override, taking the queue itself rather than inside the sync's hold (a re-entrant first
+section with the rest unqueued is worker rule 4's exact defect, and the worker saw it
+coming). Switching the toggle off *is* disconnect — §0 rule 1's new wording promises one
+switch. SPEC §0.1, §1 and §8.3 rewritten, not annotated; `docs/gcal.md` has the setup.
+
+Two things are still Sushi's: the manifest `key` (a test asserts it is absent, as a
+tripwire) and the OAuth client id. Nothing can talk to Google until both are pasted.
+
+**Also found:** `privacy-practices.txt`'s single-purpose block still claimed the
+extension runs no content scripts — false since the Campuswire observer; rewritten.
+
+1611 tests.
+
 ## The store documents are measured, not trusted — 2026-09-18
 
 The wave-4 store-copy worker showed a 1455-character justification had sat in a

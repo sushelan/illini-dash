@@ -352,17 +352,30 @@ in the preview document (Hide and a Merge candidate both reach their handlers an
 
 Draft `mimgaiaicopabbiabakmknkcbfekplei`, **not submitted**. Everything needed is written
 down: listing copy in `docs/store/listing.md`, the description in
-`docs/store/description.txt` (plain text — the field renders no Markdown), and every
-privacy-form answer measured against its 1000-character limit in
-`docs/store/privacy-practices.txt`. The privacy policy is live and generated from
-`docs/store/privacy-policy.md` by `npm run site`.
+`docs/store/description.txt` (plain text — the field renders no Markdown), every
+privacy-form answer in `docs/store/privacy-practices.txt` — **ten blocks now, not nine**
+(`identity` joined on 2026-09-18), each measured against its 1000-character limit by
+`tests/manifest.test.ts` — and the reviewer's Test instructions drafted in
+`docs/store/test-instructions.txt` around the public ECE 411 page (a reviewer has no UIUC
+account; Sushi to approve the wording). The privacy policy is live and generated from
+`docs/store/privacy-policy.md` by `npm run site`; it was rewritten on 2026-09-18 for the
+Campuswire observer (a content script, opt-in), Piazza (own session, opt-in), and Google
+Calendar (an export to the student's own account, opt-in).
 
-Outstanding, all in the developer console: re-upload the current zip (the manifest has
-changed since the first upload), replace the host-permission justification, tick **Website
-content** and nothing else under Data usage, paste the Test instructions (500 chars;
-drafted in `docs/store/test-instructions.txt` around the public ECE 411 page, since a
-reviewer has no UIUC account — Sushi to approve the wording), set Visibility to
-**Unlisted**, submit.
+The permission set the draft was uploaded with is stale. Since then: `scripting` (the
+Campuswire observer), `identity` + an `oauth2` block with the single non-sensitive
+`calendar.app.created` scope, `www.googleapis.com` as a runtime host, `cookies` (Piazza,
+in flight), and `campuswire.com` / `piazza.com` as opt-in origins. The certification "no
+selling or transferring — there is no transfer at all" is no longer true as written: the
+one transfer is user-directed, to the student's own Google account, and the form answer
+says so.
+
+Outstanding, all in the developer console: re-upload the current zip, replace every
+justification from `privacy-practices.txt` (all ten), tick **Website content** and nothing
+else under Data usage, paste the Test instructions (500 chars), set Visibility to
+**Unlisted**, submit. Before that, `public/manifest.json` needs the real `key` (Package
+tab → View public key) and the OAuth `client_id` (`docs/gcal.md`); a test currently
+asserts `key` is absent as a tripwire and must flip to "is base64" when it is pasted.
 
 §9 still gates G5 behind G4. The beta has one tester and found six real defects in a day,
 which is the argument for the gate rather than against it.
