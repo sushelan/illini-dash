@@ -26,6 +26,7 @@ import {
   nameList,
   timeAgo,
 } from "./names.js";
+import { isFetchedSource } from "./store.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
 /**
@@ -214,6 +215,11 @@ export function summarize(sources: Partial<Record<Source, SourceStatus>>): Healt
   for (const [key, status] of Object.entries(sources)) {
     if (!status) continue;
     const source = key as Source;
+    // The student's own list is not a source that can be OK or not OK, so it
+    // belongs on neither side of the ratio — and not in `disabled` either, which
+    // is read as "switched off or unconfigured", something a student could act
+    // on. Worker rule 2 in the other direction: only report what was attempted.
+    if (!isFetchedSource(source)) continue;
     const state = displayState(status);
     if (state === "disabled") {
       summary.disabled.push(source);
@@ -468,6 +474,10 @@ export function sourceRows(
   for (const [key, status] of Object.entries(sources)) {
     if (!status) continue;
     const source = key as Source;
+    // No row for the student's own list: it has no last-read time, no error it
+    // could ever report, and no action — a permanently grey "Off" line beside
+    // five real ones, saying nothing and inviting a click that does nothing.
+    if (!isFetchedSource(source)) continue;
     const state = displayState(status);
     const action = actionFor(source, state, status.loginUrl);
     rows.push({

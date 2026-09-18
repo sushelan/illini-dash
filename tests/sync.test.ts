@@ -183,9 +183,13 @@ describe("migrate (§3)", () => {
       const store = migrate(junk);
       expect(store.schemaVersion).toBe(2);
       expect(store.settings.pollMinutes).toBe(30);
+      // `manual` is a Source and so has a `SourceStatus` like the rest, even
+      // though nothing is ever fetched for it — `isFetchedSource` is what keeps
+      // it out of the health surfaces, not its absence from this map.
       expect(Object.keys(store.sources).sort()).toEqual([
         "canvas",
         "gradescope",
+        "manual",
         "prairielearn",
         "prairietest",
         "site",
@@ -997,5 +1001,89 @@ describe("withoutRows (the switch takes effect when you flip it)", () => {
     // The trailing colon is load-bearing here, unlike on the source prefix:
     // adapter ids really can prefix each other (`cs424-fa26` / `cs424-fa26b`).
     expect("site:cs424-fa26b:x".startsWith(adapterPrefix("cs424-fa26"))).toBe(false);
+  });
+});
+
+/**
+ * The `manual` source through the loop (§5.4, §6).
+ *
+ * The trap is §5.4's retention. `applyRetention` purges an undated raw item
+ * after UNDATED_MISSES=3 syncs in which it was not seen, and `seenThisSync` is
+ * only ever filled inside the `PLANS` loops — so a row nobody fetches is absent
+ * from every sync *by construction* and would be deleted on the third, taking
+ * its hide and its tick with it. Keeping manual rows out of `store.raw` is the
+ * decision that sidesteps it; these tests are what say so.
+ */
+describe("a deadline the student typed in", () => {
+  const typed: RawItem = {
+    source: "manual",
+    sourceId: "b3f1c0de-0000-4000-8000-000000000001",
+    courseRaw: "RHET 105",
+    courseCode: "RHET105",
+    title: "Essay draft",
+    kind: "assignment",
+    // Deliberately undated: this is the exact shape §5.4 purges after three
+    // misses, and a dated row would pass this test against a broken loop.
+    status: "unknown",
+    fetchedAt: NOW,
+  };
+
+  function storeWith(items: RawItem[]): StoreV1Plus {
+    const store = emptyStore();
+    store.manualItems = items;
+    // Nothing enabled: this is about what the loop does to rows it never
+    // fetches, and every source being off is the harshest version of that —
+    // `dropItemsOf` runs for all six.
+    for (const source of Object.keys(store.sources) as Source[]) {
+      store.sources[source] = { ...store.sources[source]!, enabled: false };
+    }
+    return store;
+  }
+
+  it("survives three syncs, which is where §5.4 would have purged it", async () => {
+    let store = storeWith([typed]);
+    for (let i = 0; i < 3; i += 1) {
+      store = (await runSync(store, "manual", deps())).store;
+    }
+    expect(store.manualItems).toHaveLength(1);
+    expect(store.items.map((item) => item.title)).toEqual(["Essay draft"]);
+    // And it never entered `raw`, which is what keeps retention away from it.
+    expect(Object.keys(store.raw)).toEqual([]);
+    expect(store.misses["manual:b3f1c0de-0000-4000-8000-000000000001"]).toBeUndefined();
+  });
+
+  it("is on the list after a sync in which nothing was fetched at all", async () => {
+    // The splice, stated on its own: without it the list is rebuilt from `raw`
+    // and every hand-typed deadline disappears the moment a sync runs.
+    const { store } = await runSync(storeWith([typed]), "manual", deps());
+    expect(store.items).toHaveLength(1);
+    expect(store.items[0]!.members[0]!.source).toBe("manual");
+  });
+
+  it("is not dropped when a source is switched off", () => {
+    // `withoutRows` rebuilds the list from `raw` when an adapter is turned off.
+    // The student's rows are not under any prefix and must come through.
+    const store = storeWith([typed]);
+    store.raw["site:cs424-fa26:hw1"] = {
+      source: "site",
+      sourceId: "cs424-fa26:hw1",
+      courseRaw: "CS424",
+      title: "HW1 Due",
+      kind: "assignment",
+      dueAt: "2026-09-20T23:59:00-05:00",
+      url: "https://courses.grainger.illinois.edu/cs424/fa2026/schedule.html",
+      status: "unknown",
+      fetchedAt: NOW,
+    };
+    const after = withoutRows(store, adapterPrefix("cs424-fa26"));
+    expect(Object.keys(after.raw)).toEqual([]);
+    expect(after.items.map((item) => item.title)).toEqual(["Essay draft"]);
+  });
+
+  it("is never attempted, so it cannot report a failure", async () => {
+    const { outcomes } = await runSync(storeWith([typed]), "manual", deps());
+    // `PLANS` has no `manual` entry: there is nothing to fetch, and an outcome
+    // for it would be a state the health surfaces then have to explain away.
+    expect(outcomes.map((outcome) => outcome.source)).not.toContain("manual");
   });
 });

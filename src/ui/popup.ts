@@ -100,8 +100,14 @@ import type { Item, Settings, Source, SourceState, SourceStatus } from "../sourc
  * The check that remains is the one that matters: `RawItem.url` is already
  * pinned to its source's origin by `sameOriginHttpsUrl`, so this refuses
  * `javascript:` and `http:` and nothing else needs refusing here.
+ *
+ * `string | undefined`, because `Item.url` is optional since the `manual`
+ * source: a deadline the student typed need not have anywhere to go. Every
+ * caller already treats `undefined` as "not a link", so widening the parameter
+ * is what keeps that one decision in one place.
  */
-function safeUrl(raw: string): string | undefined {
+function safeUrl(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
   try {
     const url = new URL(raw);
     if (url.protocol === "https:") return url.toString();
@@ -653,7 +659,12 @@ function renderRow(
       ? `One deadline, seen by ${distinct.length} sources: ` +
         `${distinct.map((source) => SOURCE_NAME[source]).join(" and ")}. ` +
         `If they are not really the same thing, use ⋯ → Split.`
-      : `On ${SOURCE_NAME[distinct[0]!]}${item.url ? " — click the row to open it" : ""}`;
+      : distinct[0] === "manual"
+        ? // Not "On your own list — click the row to open it": the student wrote
+          // this row, so naming a site to visit would be a lie, and a link is
+          // there only if they gave one.
+          `You added this${item.url ? " — click the row to open the link you gave" : ""}`
+        : `On ${SOURCE_NAME[distinct[0]!]}${item.url ? " — click the row to open it" : ""}`;
 
   // The row is a two-line grid: title and "when" compete for line one, and
   // everything that qualifies the deadline goes on line two, which nothing else

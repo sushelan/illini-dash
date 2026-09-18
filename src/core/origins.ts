@@ -22,8 +22,14 @@ import { PRAIRIETEST_ORIGIN } from "../sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../sources/smartphysics.js";
 import type { Source } from "../sources/types.js";
 
-/** The five hosted sources, by the origin each is read from. */
-export const SOURCE_ORIGIN: Record<Exclude<Source, "site">, string> = {
+/**
+ * The five hosted sources, by the origin each is read from.
+ *
+ * `site` is excluded because an adapter names whatever host its course uses;
+ * `manual` because nothing is fetched for it at all, so no navigation in any
+ * tab can ever be evidence about it.
+ */
+export const SOURCE_ORIGIN: Record<Exclude<Source, "site" | "manual">, string> = {
   canvas: CANVAS_ORIGIN,
   gradescope: GRADESCOPE_ORIGIN,
   prairielearn: PRAIRIELEARN_ORIGIN,

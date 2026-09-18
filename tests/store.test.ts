@@ -170,3 +170,55 @@ describe("setupDoneAt — the upgrade, exactly once", () => {
     expect(store.setupDoneAt).toBe(OK);
   });
 });
+
+/**
+ * `manualItems` — the one list in the store that exists in exactly one place.
+ *
+ * A fetched row that is dropped on load comes back on the next sync. A
+ * hand-typed one does not come back at all, so both directions matter: nothing
+ * valid may be discarded, and nothing half-written may be kept.
+ */
+describe("the student's own deadlines, across a reload", () => {
+  const typed = {
+    source: "manual",
+    sourceId: "uuid-1",
+    courseRaw: "RHET 105",
+    title: "Essay draft",
+    kind: "assignment",
+    dueAt: "2026-09-30T23:59:00-05:00",
+    status: "unknown",
+    extra: { timeAssumed: "true" },
+    fetchedAt: "2026-09-18T13:00:00.000Z",
+  };
+
+  it("keeps a row that has no link, which is the whole point of the field", () => {
+    // `isUsableRaw` required a non-empty `url` until `RawItem.url` became
+    // optional. Left alone, every hand-typed deadline without a link would have
+    // been dropped on the next load — silently, and with nothing to restore it.
+    const store = migrate({ manualItems: [typed] });
+    expect(store.manualItems).toHaveLength(1);
+    expect(store.manualItems[0]!.title).toBe("Essay draft");
+    expect(store.manualItems[0]!.extra?.["timeAssumed"]).toBe("true");
+  });
+
+  it("still refuses a half-written one", () => {
+    // Same bar the fetched rows clear: a missing sourceId would produce the
+    // memberKey `manual:`, shared by every such row (house rule 4), and an empty
+    // string passes `typeof x === "string"` (house rule 5).
+    const store = migrate({
+      manualItems: [
+        typed,
+        { source: "manual", title: "no id, no stamp" },
+        { ...typed, sourceId: "" },
+        { ...typed, url: "" },
+        "not an object",
+      ],
+    });
+    expect(store.manualItems.map((item) => item.sourceId)).toEqual(["uuid-1"]);
+  });
+
+  it("is an empty list in a store written before the field existed", () => {
+    expect(migrate(structuredClone(V1)).manualItems).toEqual([]);
+    expect(migrate({ manualItems: "nope" }).manualItems).toEqual([]);
+  });
+});

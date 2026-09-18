@@ -22,6 +22,7 @@ import {
   shouldMerge,
   sortItems,
   titlesCompatible,
+  withoutKeys,
 } from "../src/core/dedupe.js";
 import type { Item, Overrides, RawItem } from "../src/sources/types.js";
 
@@ -714,5 +715,149 @@ describe("ordering rows that have not opened yet", () => {
       row("due", undefined, "2026-09-11T23:59:00-05:00"),
     ]).map((i) => i.title);
     expect(order).toEqual(["due", "GPS4", "undated"]);
+  });
+});
+
+/**
+ * The `manual` source in §5.3.
+ *
+ * Two questions: does a typed row merge with the fetched row for the same work
+ * (it must, or the student sees their reminder twice), and can two typed rows
+ * merge with each other (they must not, or adding the same title twice silently
+ * loses one of the two dates).
+ */
+describe("a deadline the student typed in", () => {
+  const typed = raw({
+    source: "manual",
+    sourceId: "uuid-1",
+    title: "Homework 1",
+    dueAt: "2026-09-09T17:00:00-05:00",
+    status: "unknown",
+    url: undefined,
+  });
+
+  it("merges with the submission system's row for the same work", () => {
+    const gradescope = raw({
+      source: "gradescope",
+      sourceId: "8398957",
+      title: "Homework 1",
+      dueAt: "2026-09-09T17:00:00-05:00",
+      url: "https://www.gradescope.com/courses/1/assignments/8398957",
+    });
+    const items = dedupe([typed, gradescope], NO_OVERRIDES);
+    expect(items).toHaveLength(1);
+    expect(items[0]!.members.map((m) => m.source).sort()).toEqual(["gradescope", "manual"]);
+  });
+
+  it("never merges with another typed row, however alike", () => {
+    // §5.3's "never two rows from the same source", which is the whole defence
+    // here: the student is the one who knows these are two different things —
+    // two drafts of one essay, the same reading for two weeks — and nothing in
+    // the title or the date can tell them apart.
+    const second = raw({
+      source: "manual",
+      sourceId: "uuid-2",
+      title: "Homework 1",
+      dueAt: "2026-09-09T17:00:00-05:00",
+      status: "unknown",
+      url: undefined,
+    });
+    expect(dedupe([typed, second], NO_OVERRIDES)).toHaveLength(2);
+    expect(shouldMerge(typed, second, normalizeTitle(typed.title), normalizeTitle(second.title)))
+      .toBe(false);
+  });
+
+  it("owns the deadline against a course site and against Canvas", () => {
+    // SOURCE_RANK: a student stating a time outranks §4.5's invented 23:59 and a
+    // Canvas date that arrived as an LTI copy.
+    const site = raw({
+      source: "site",
+      sourceId: "cs424-fa26:hw1",
+      title: "Homework 1",
+      dueAt: "2026-09-09T23:59:00-05:00",
+      url: "https://courses.grainger.illinois.edu/cs424/fa2026/schedule.html",
+      extra: { timeAssumed: "true" },
+    });
+    const merged = dedupe([site, typed], NO_OVERRIDES);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.dueAt).toBe("2026-09-09T17:00:00-05:00");
+    // And it has no url of its own, so the site's link is what a click opens.
+    expect(merged[0]!.url).toBe(site.url);
+  });
+
+  it("outranks Canvas even when Canvas states a real time", () => {
+    /*
+     * This is the rank itself, with nothing else deciding it.
+     *
+     * The course-site case above is settled before the rank is consulted — an
+     * assumed 23:59 is the last resort however high its source sits — so it
+     * passes just as happily with `manual` ranked last. Canvas states a real
+     * instant here, and both rows carry a link, so the only thing that can pick
+     * between them is SOURCE_RANK.
+     *
+     * §5.3's rank is about whose deadline is authoritative: a Canvas date is an
+     * LTI copy, and the student typing one in is stating it first-hand.
+     */
+    const canvas = raw({
+      source: "canvas",
+      sourceId: "assignment:9002",
+      title: "Homework 1",
+      dueAt: "2026-09-09T09:00:00-05:00",
+      url: "https://canvas.illinois.edu/courses/1/assignments/9002",
+    });
+    const typedWithLink = raw({
+      source: "manual",
+      sourceId: "uuid-3",
+      title: "Homework 1",
+      dueAt: "2026-09-09T17:00:00-05:00",
+      status: "unknown",
+      url: "https://piazza.com/class/abc",
+    });
+    const merged = dedupe([canvas, typedWithLink], NO_OVERRIDES);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.dueAt).toBe("2026-09-09T17:00:00-05:00");
+    expect(merged[0]!.url).toBe("https://piazza.com/class/abc");
+  });
+
+  it("yields to the system the work is actually handed in to", () => {
+    // Gradescope ranks above `manual` deliberately: if the two disagree, the
+    // system that will refuse a late upload is the one that is right.
+    const gradescope = raw({
+      source: "gradescope",
+      sourceId: "8398957",
+      title: "Homework 1",
+      dueAt: "2026-09-09T22:00:00-05:00",
+      url: "https://www.gradescope.com/courses/1/assignments/8398957",
+    });
+    const merged = dedupe([typed, gradescope], NO_OVERRIDES);
+    expect(merged[0]!.dueAt).toBe("2026-09-09T22:00:00-05:00");
+    expect(merged[0]!.url).toBe(gradescope.url);
+  });
+
+  it("leaves an item with no link at all rather than inventing one", () => {
+    const alone = dedupe([typed], NO_OVERRIDES);
+    expect(alone[0]!.url).toBeUndefined();
+  });
+});
+
+describe("withoutKeys", () => {
+  it("drops every mention of a key, so a deleted row cannot re-apply later", () => {
+    const overrides: Overrides = {
+      ...NO_OVERRIDES,
+      hiddenKeys: ["manual:uuid-1", "gradescope:1"],
+      doneKeys: ["manual:uuid-1"],
+      splitKeys: ["manual:uuid-1"],
+      mergeGroups: [["manual:uuid-1", "gradescope:1"], ["gradescope:1", "canvas:2"]],
+    };
+    const after = withoutKeys(overrides, ["manual:uuid-1"]);
+    expect(after.hiddenKeys).toEqual(["gradescope:1"]);
+    expect(after.doneKeys).toEqual([]);
+    expect(after.splitKeys).toEqual([]);
+    // The group that is down to one member is not a merge any more.
+    expect(after.mergeGroups).toEqual([["gradescope:1", "canvas:2"]]);
+  });
+
+  it("hands back the same overrides when there is nothing to drop", () => {
+    expect(withoutKeys(NO_OVERRIDES, [])).toBe(NO_OVERRIDES);
   });
 });

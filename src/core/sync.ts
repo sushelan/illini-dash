@@ -9,6 +9,7 @@
  */
 
 import { applyRetention, dedupe } from "./dedupe.js";
+import { dedupeInput } from "./manual.js";
 import { looksLoggedOut } from "./parsing.js";
 import { inBackoff, nextAttemptAt, type StoreV1Plus } from "./store.js";
 import * as canvas from "../sources/canvas.js";
@@ -531,7 +532,13 @@ export function withoutRows(store: StoreV1Plus, prefix: string): StoreV1Plus {
   return {
     ...store,
     raw,
-    items: dedupe(Object.values(raw), store.overrides, { previous: store.items }),
+    // The student's own rows are not under any source's prefix and must survive
+    // a source being switched off — but they are not in `raw` either, so
+    // rebuilding the list from `raw` alone would drop every one of them until
+    // the next sync happened to put them back.
+    items: dedupe(dedupeInput(raw, store.manualItems), store.overrides, {
+      previous: store.items,
+    }),
   };
 }
 
@@ -724,7 +731,19 @@ export async function runSync(
   next.raw = retained.raw;
   next.misses = retained.misses;
   next.overrides = retained.overrides;
-  next.items = dedupe(Object.values(retained.raw), retained.overrides, { previous: store.items });
+  /*
+   * The student's typed rows join the fetched ones here, and nowhere earlier.
+   *
+   * Not in `raw`, because `raw` is what this loop replaces per source and what
+   * §5.4 prunes: `seenThisSync` is only filled from the `PLANS` loops above, so
+   * an undated manual row would be absent from three consecutive syncs — by
+   * construction, since nothing fetches it — and `applyRetention` would delete
+   * it on the third, along with its hide and its tick. `PLANS` has no `manual`
+   * entry for the same reason: there is nothing to fetch.
+   */
+  next.items = dedupe(dedupeInput(retained.raw, next.manualItems), retained.overrides, {
+    previous: store.items,
+  });
   next.lastSyncAt = now;
 
   return { store: next, outcomes, skipped: false };

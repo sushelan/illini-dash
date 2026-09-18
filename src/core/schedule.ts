@@ -314,6 +314,13 @@ export interface NotificationContent {
   message: string;
   /** Which site said so. Chrome renders it small, under the message. */
   contextMessage?: string;
+  /**
+   * Where the toast's click should land, or `""` when there is nowhere.
+   *
+   * `Item.url` is optional since the `manual` source — a deadline the student
+   * typed need not carry a link. The click handler already refuses a falsy
+   * target and leaves the toast up rather than opening a blank tab.
+   */
   url: string;
 }
 
@@ -402,7 +409,7 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
       title: `Book a seat: ${clampTitle(item.title.replace(/^Book a slot:\s*/i, ""))}`,
       message: `${item.courseLabel} · sessions ${window}`,
       ...sourceLine(item),
-      url: item.url,
+      url: item.url ?? "",
     };
   }
 
@@ -421,7 +428,7 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
       title: `${clampTitle(item.title)} — due ${urgency(due, now) === "now" ? "today" : day}`,
       message: `${item.courseLabel} · no time given — check the course page for the cutoff`,
       ...sourceLine(item),
-      url: item.url,
+      url: item.url ?? "",
     };
   }
 
@@ -448,7 +455,7 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
     title: `${clampTitle(item.title)} — ${kindWord} ${urgency(due, now)}`,
     message: [item.courseLabel, when, where].filter(Boolean).join(" · "),
     ...sourceLine(item),
-    url: item.url,
+    url: item.url ?? "",
   };
 }
 

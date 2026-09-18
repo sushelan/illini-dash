@@ -67,8 +67,18 @@ const SOURCE_RANK: Record<Source, number> = {
   // instant is authoritative. It sits under Gradescope and PrairieLearn only
   // because no course uses both for the same item.
   smartphysics: 3,
-  site: 4,
-  canvas: 5,
+  /*
+   * Below every submission system and above `site` and `canvas`.
+   *
+   * A student typing a deadline in is stating one, so it outranks a course page
+   * whose time §4.5 invented and a Canvas row whose date arrived by LTI copy.
+   * It stays under Gradescope and PrairieLearn because those are where the work
+   * is handed in: if the student's note and the submission system disagree about
+   * the instant, the system is the one that will refuse a late upload.
+   */
+  manual: 4,
+  site: 5,
+  canvas: 6,
 };
 
 /** §5.3: "most done" wins, so a Canvas row that has not synced cannot undo it. */
@@ -313,7 +323,18 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>, doneKeys: Set<st
     // grades really does count, and demoting it would bury real work.
     forCredit: members.every((item) => item.extra?.["forCredit"] === "false") ? false : undefined,
     lateDueAt: late?.lateDueAt,
-    url: ranked[0]!.url,
+    /*
+     * The highest-ranked member **that has a link**, not simply the highest
+     * ranked one.
+     *
+     * `RawItem.url` became optional with the `manual` source, and `ranked[0]!.url`
+     * then quietly produced an item with no link whenever the top-ranked member
+     * was one the student typed — throwing away the Gradescope or course-site URL
+     * sitting on the member right behind it, and turning a row that opened the
+     * assignment into one that does nothing when clicked. Same shape as `dated`
+     * above: rank decides *which* value wins, never whether there is one.
+     */
+    url: ranked.find((item) => item.url !== undefined)?.url,
     status: canonicalStatus(members),
     // Hidden when every member is: hiding a row and then having a second source
     // mirror it should keep it hidden, not resurrect it.
@@ -555,26 +576,38 @@ export function applyRetention(
     keptMisses[key] = missCount;
   }
 
-  const purgedSet = new Set(purged);
-  const survives = (key: string) => !purgedSet.has(key);
-
   return {
     raw: keptRaw,
     misses: keptMisses,
     purged,
-    overrides: {
-      ...overrides,
-      splitKeys: overrides.splitKeys.filter(survives),
-      // Pruned like the rest. Left unpruned, a key for purged work stays armed
-      // forever — which is what the docstring above already promised.
-      hiddenKeys: overrides.hiddenKeys.filter(survives),
-      // Same rule: an unpruned key for purged work stays armed forever and
-      // would silently re-tick any future row that reformed the same members.
-      doneKeys: overrides.doneKeys.filter(survives),
-      mergeGroups: overrides.mergeGroups
-        .map((group) => group.filter(survives))
-        .filter((group) => group.length >= 2),
-    },
+    overrides: withoutKeys(overrides, purged),
+  };
+}
+
+/**
+ * The overrides with every mention of these memberKeys removed.
+ *
+ * One function rather than four filters at each call site, because there are now
+ * two places a row stops existing — §5.4's purge and deleting a hand-typed
+ * deadline — and an override list that one of them forgets is a key that stays
+ * armed forever, silently re-hiding or re-ticking any future row that happens to
+ * reform the same member set. A second copy of this rule is a second place for
+ * that to be wrong (mutation house rule 3).
+ */
+export function withoutKeys(overrides: Overrides, keys: readonly string[]): Overrides {
+  if (keys.length === 0) return overrides;
+  const gone = new Set(keys);
+  const survives = (key: string) => !gone.has(key);
+  return {
+    ...overrides,
+    splitKeys: overrides.splitKeys.filter(survives),
+    hiddenKeys: overrides.hiddenKeys.filter(survives),
+    doneKeys: overrides.doneKeys.filter(survives),
+    // A group that loses a member down to one is not a merge any more, so it is
+    // dropped rather than left as a one-key group nothing can match.
+    mergeGroups: overrides.mergeGroups
+      .map((group) => group.filter(survives))
+      .filter((group) => group.length >= 2),
   };
 }
 

@@ -659,6 +659,10 @@ async function renderOptions(): Promise<void> {
     // enables the source, while every adapter stayed off. `set-adapter-enabled`
     // sets this flag anyway. Its health is rendered under Course websites.
     if (key === "site") continue;
+    // Nothing is fetched for the student's own list, so it has no health, no
+    // last-read time and no switch that would do anything — a permanently grey
+    // row saying "Off" beside five real ones (`isFetchedSource`).
+    if (key === "manual") continue;
     const source = key as keyof typeof SOURCE_TITLE;
     const row = switchRow({
       name: SOURCE_TITLE[source] ?? key,

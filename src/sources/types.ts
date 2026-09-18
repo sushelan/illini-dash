@@ -6,7 +6,23 @@ export type Source =
   | "prairielearn"
   | "prairietest"
   | "smartphysics"
-  | "site";
+  | "site"
+  /**
+   * Deadlines the student typed in themselves.
+   *
+   * Not a site: nothing is fetched for it, it can never be logged out of, and
+   * it can never fail — so it is excluded from every health count (worker rule
+   * 2's converse: a dot that can only ever be green is not information). It is
+   * a `Source` anyway because everything downstream — `memberKey`, `dedupe`,
+   * the overrides, the row's source column — is keyed by one, and a second,
+   * parallel identity for hand-typed work would need all of it again.
+   *
+   * Its rows live in `manualItems`, never in `store.raw`: `raw` is what the
+   * sync loop replaces per source and §5.4 purges, and a row nobody fetches is
+   * absent from every sync by construction, so retention would delete it after
+   * three of them.
+   */
+  | "manual";
 
 /**
  * `event` is a thing that happens at a time, not work that is owed.
@@ -58,9 +74,30 @@ export interface RawItem {
   dueAt?: string;
   /** Gradescope late due / PrairieLearn reduced-credit deadline. */
   lateDueAt?: string;
-  /** Absolute https URL on the source host. */
-  url: string;
+  /**
+   * Absolute https URL on the source host.
+   *
+   * Optional since `manual`: a deadline the student typed has somewhere to be
+   * done only if they said so, and a parser that cannot read a link still
+   * records the row (house rule 1). Every consumer must treat "no link" as a
+   * row that is not clickable, never as a reason to drop it.
+   */
+  url?: string;
   status: Status;
+  /**
+   * Source-specific facts, as strings because this crosses a message boundary.
+   *
+   * Two keys are read outside the source that wrote them and so are part of the
+   * schema rather than private to a parser:
+   *
+   * - `timeAssumed: "true"` — the instant in `dueAt` carries a time this code
+   *   invented rather than one the source stated (worker rule 3).
+   * - `endAt` — an optional ISO 8601 instant **with an offset** at which the
+   *   thing ends, for work that occupies a span rather than a moment: an exam
+   *   sitting, a lab session, a manual entry given an end time. `dueAt` stays
+   *   the instant everything sorts and reminds on; `endAt` is never a second
+   *   deadline, and code that finds one must not treat it as one.
+   */
   extra?: Record<string, string>;
   fetchedAt: string;
 }
@@ -87,8 +124,14 @@ export interface Item {
   kind: Kind;
   dueAt?: string;
   lateDueAt?: string;
-  /** Where you actually submit (§5.3 precedence). */
-  url: string;
+  /**
+   * Where you actually submit (§5.3 precedence).
+   *
+   * Absent when no member has one — a `manual` row the student gave no link.
+   * A row without a link is still a row: it is drawn as a `<div>` rather than
+   * an `<a>`, and nothing may drop it for want of somewhere to go.
+   */
+  url?: string;
   status: Status;
   hidden: boolean;
   /**

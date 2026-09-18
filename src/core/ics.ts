@@ -97,6 +97,8 @@ function event(item: Item, stamp: string): string[] {
     item.timeAssumed
       ? "The course site gives a date but no time. This is filed as an all-day event; check the course page for the real cutoff."
       : undefined,
+    // A row the student typed may have no link at all; a falsy entry is dropped
+    // by the filter below rather than exported as the string "undefined".
     item.url,
   ]
     .filter(Boolean)
@@ -119,7 +121,11 @@ function event(item: Item, stamp: string): string[] {
     `DESCRIPTION:${escapeIcsText(description)}`,
     // RFC 5545 §3.3.13: URL's value type is URI, not TEXT — escaping a comma
     // here would corrupt the link rather than protect the property.
-    `URL:${item.url.replace(/[\r\n]/g, "")}`,
+    //
+    // Omitted entirely when there is none: `URL:` with an empty value is not a
+    // valid property, and RFC 5545 consumers differ on whether they skip it or
+    // reject the whole calendar.
+    ...(item.url ? [`URL:${item.url.replace(/[\r\n]/g, "")}`] : []),
     "END:VEVENT",
   ];
 }
@@ -166,9 +172,11 @@ export function googleCalendarUrl(item: Item): string | undefined {
     action: "TEMPLATE",
     text: item.courseLabel ? `${item.courseLabel}: ${item.title}` : item.title,
     dates,
+    // `details` is required by URLSearchParams to be a string, and a row with no
+    // link has nothing to put there but the note.
     details: item.timeAssumed
-      ? `${item.url}\n\nThe course site gives no time; check the course page for the real cutoff.`
-      : item.url,
+      ? `${item.url ?? ""}\n\nThe course site gives no time; check the course page for the real cutoff.`.trimStart()
+      : (item.url ?? ""),
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
