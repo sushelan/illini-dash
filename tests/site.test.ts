@@ -29,6 +29,7 @@ import {
 } from "../src/core/registry.js";
 import { normalizeTitle } from "../src/core/normalize.js";
 import { dedupe } from "../src/core/dedupe.js";
+import { examBoard } from "../src/core/calendar.js";
 import { ParseError, type Adapter, type PageCtx } from "../src/sources/types.js";
 
 const doc = (html: string) => parseHTML(html).document as unknown as Document;
@@ -956,6 +957,46 @@ describe("ECE 411: a list-shaped page, and a course on two pages", () => {
       expect(items.map((i) => i.title)).toEqual(["Midterm 1", "Midterm 2"]);
     });
 
+    it("calls them exams, because that is what this page lists", () => {
+      /*
+       * `runAdapter` stamped `kind: "assignment"` on every row it ever produced,
+       * so this page — whose only rows are Midterm 1, Midterm 2 and the final —
+       * put two midterms into the homework list and left the Exams tab empty for
+       * a course that has them. The registry entry now says `"kind": "exam"`,
+       * and that is the only page-level fact that decides it.
+       */
+      for (const item of items) expect(item.kind).toBe("exam");
+    });
+
+    it("reaches the popup's Exams tab, which is the point of the field", () => {
+      /*
+       * `kind` is only worth having if it survives to the surface that reads it.
+       * `examBoard` keeps `kind === "exam"` and drops everything else, so before
+       * this field a course with two midterms on its syllabus had an empty Exams
+       * tab — the one place a student looks for exactly these two rows.
+       *
+       * The wrapping here is what `core/dedupe.ts` does to a RawItem; only
+       * `kind` and `dueAt` matter to the board.
+       */
+      const board = examBoard(
+        items.map((raw) => ({
+          id: raw.sourceId,
+          members: [raw],
+          courseLabel: raw.courseCode ?? raw.courseRaw,
+          title: raw.title,
+          kind: raw.kind,
+          dueAt: raw.dueAt,
+          url: raw.url,
+          status: raw.status,
+          hidden: false,
+          done: false,
+          notified: {},
+        })),
+        new Date("2026-09-11T05:00:00.000Z"),
+      );
+      expect(board.upcoming.map((p) => p.item.title)).toEqual(["Midterm 1", "Midterm 2"]);
+    });
+
     it("titles the exam from the label, not from the whole due line", () => {
       // Here the title cell *is* the due line — "Midterm 1: September 29" — so
       // the cell carries no name beyond the label.
@@ -973,6 +1014,53 @@ describe("ECE 411: a list-shaped page, and a course on two pages", () => {
       const ece411 = adapters.filter((a) => a.courseCode === "ECE411");
       expect(ece411.map((a) => a.id)).toEqual(["ece411-fa26-mp", "ece411-fa26-exams"]);
       expect(new Set(ece411.map((a) => a.url)).size).toBe(2);
+    });
+
+    it("carries the exam page's kind through validation", () => {
+      // `kind` is remote data that decides which surface an item lands on, so
+      // it clears the trust boundary like everything else — and a validator
+      // that dropped it would leave the page labelled assignments again.
+      const { adapters } = validateRegistry(registryText);
+      expect(adapters.find((a) => a.id === "ece411-fa26-exams")!.kind).toBe("exam");
+      expect(adapters.find((a) => a.id === "ece411-fa26-mp")!.kind).toBeUndefined();
+    });
+  });
+
+  describe("`kind` as a validated field", () => {
+    const base = JSON.parse(registryText).adapters.find(
+      (a: { id: string }) => a.id === "ece411-fa26-exams",
+    ) as Record<string, unknown>;
+
+    it("refuses a kind outside the union", () => {
+      // A typo would otherwise reach `Item.kind` as a value no UI switch has a
+      // branch for.
+      const { adapter, reason } = validateAdapter({ ...base, kind: "midterm" });
+      expect(adapter).toBeUndefined();
+      expect(reason).toContain("kind");
+    });
+
+    it("refuses a kind that is not a string at all", () => {
+      expect(validateAdapter({ ...base, kind: 3 }).adapter).toBeUndefined();
+    });
+
+    it("refuses a kind borrowed from Object.prototype", () => {
+      // `kind in ADAPTER_KINDS` is an `in` check, and `"constructor" in {}` is
+      // true. A deliberately unrealistic value, because a realistic one cannot
+      // tell a prototype-walking check from a correct one (parser rule 10).
+      expect(validateAdapter({ ...base, kind: "constructor" }).adapter).toBeUndefined();
+      expect(validateAdapter({ ...base, kind: "toString" }).adapter).toBeUndefined();
+    });
+
+    it("accepts every kind the union names", () => {
+      for (const kind of ["assignment", "quiz", "exam", "booking", "event", "other"]) {
+        expect(validateAdapter({ ...base, kind }).adapter, kind).toBeDefined();
+      }
+    });
+
+    it("accepts an entry that names no kind, like every entry written before it", () => {
+      const { kind, ...without } = base;
+      void kind;
+      expect(validateAdapter(without).adapter).toBeDefined();
     });
   });
 });

@@ -8,8 +8,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { emptyStore, migrate } from "../src/core/store.js";
+import { emptyStore, migrate, withLocalAdapter, withoutLocalAdapter } from "../src/core/store.js";
 import { guessCourseCode } from "../src/core/detect.js";
+import type { Adapter } from "../src/sources/types.js";
 
 const VALID = {
   id: "cs225-fa26-local",
@@ -87,6 +88,79 @@ describe("localAdapters in the store", () => {
 
   it("ignores a field that is not a list at all", () => {
     expect(migrate(stored([]) && { ...stored([]), localAdapters: "yes" }).localAdapters).toEqual([]);
+  });
+});
+
+describe("withLocalAdapter / withoutLocalAdapter (§4.5)", () => {
+  const adapter = VALID as unknown as Adapter;
+  const other = { ...VALID, id: "ece310-fa26-local" } as unknown as Adapter;
+
+  it("adds one to an empty store", () => {
+    expect(withLocalAdapter(emptyStore(), adapter).localAdapters).toEqual([adapter]);
+  });
+
+  it("does not disturb the store it was handed, because the caller saves the result", () => {
+    // The defect this pair exists for: `background.ts` mutated the object
+    // `loadStore()` returned and never wrote it back, so the add was lost at the
+    // next worker wake. A helper that mutates its argument would let that shape
+    // of call keep looking right.
+    const before = emptyStore();
+    withLocalAdapter(before, adapter);
+    expect(before.localAdapters).toEqual([]);
+  });
+
+  it("replaces an earlier entry with the same id rather than adding a second", () => {
+    const renamed = { ...VALID, label: "CS 225 (spring site)" } as unknown as Adapter;
+    const store = withLocalAdapter(withLocalAdapter(emptyStore(), adapter), renamed);
+    expect(store.localAdapters).toHaveLength(1);
+    expect(store.localAdapters[0]!.label).toBe("CS 225 (spring site)");
+  });
+
+  it("keeps the other adapters when one is removed", () => {
+    const both = withLocalAdapter(withLocalAdapter(emptyStore(), adapter), other);
+    const left = withoutLocalAdapter(both, adapter.id);
+    expect(left.localAdapters.map((a) => a.id)).toEqual([other.id]);
+  });
+
+  it("takes the removed adapter's id out of enabledAdapters", () => {
+    // An id enabled for an adapter that no longer exists is a fetch the runner
+    // can never satisfy.
+    const store = {
+      ...withLocalAdapter(withLocalAdapter(emptyStore(), adapter), other),
+      enabledAdapters: [adapter.id, other.id],
+    };
+    expect(withoutLocalAdapter(store, adapter.id).enabledAdapters).toEqual([other.id]);
+  });
+
+  it("switches the site source off when the last enabled adapter goes", () => {
+    // Worker rule 2: a source with nothing to fetch reports that, rather than
+    // wearing a green dot for a fetch that never happened.
+    const seeded = withLocalAdapter(emptyStore(), adapter);
+    const store = {
+      ...seeded,
+      enabledAdapters: [adapter.id],
+      sources: { ...seeded.sources, site: { ...seeded.sources.site, enabled: true, state: "ok" as const } },
+    };
+    const after = withoutLocalAdapter(store, adapter.id);
+    expect(after.sources.site.enabled).toBe(false);
+    expect(after.sources.site.state).toBe("disabled");
+  });
+
+  it("leaves the site source alone while another adapter is still enabled", () => {
+    const seeded = withLocalAdapter(withLocalAdapter(emptyStore(), adapter), other);
+    const store = {
+      ...seeded,
+      enabledAdapters: [adapter.id, other.id],
+      sources: { ...seeded.sources, site: { ...seeded.sources.site, enabled: true, state: "ok" as const } },
+    };
+    const after = withoutLocalAdapter(store, adapter.id);
+    expect(after.sources.site.enabled).toBe(true);
+    expect(after.sources.site.state).toBe("ok");
+  });
+
+  it("is a no-op for an id that is not there", () => {
+    const store = withLocalAdapter(emptyStore(), adapter);
+    expect(withoutLocalAdapter(store, "nobody").localAdapters).toEqual([adapter]);
   });
 });
 

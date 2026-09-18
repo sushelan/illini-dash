@@ -88,6 +88,7 @@
       "due": "p",
       "dueLabel": "Midterm 1|Midterm 2|Final",
       "time": "ul",
+      "kind": "exam",
       "dateFormat": "MMM d, h:mm a",
       "timezone": "America/Chicago",
       "filter": {

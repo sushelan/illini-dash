@@ -10,6 +10,8 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import { detectCandidates, noCandidateReason, selectorForTable } from "../src/core/detect.js";
+import { runAdapter } from "../src/sources/site.js";
+import type { Adapter } from "../src/sources/types.js";
 
 const REFERENCE = "2026-09-11T05:00:00.000Z";
 const ZONE = "America/Chicago";
@@ -272,6 +274,57 @@ describe("selectorForTable", () => {
     // throws or matches something else entirely.
     const doc = docFrom('<table id="a b"></table>');
     expect(selectorForTable(doc.querySelector("table")!, doc)).toBe("table");
+  });
+});
+
+describe("a detected candidate, run for real", () => {
+  /*
+   * The preview cannot show this defect, and that is the point.
+   *
+   * `detectCandidates` samples through `dataRows`, which drops any row with no
+   * `<td>` — so the header never appeared in what the student was shown. The
+   * `rows` *selector* it handed the adapter was `#homework table tr`,
+   * which `runAdapter` resolves without that filter: `<th>Exercises</th>` read
+   * through `columns.title: "exercises"` produced an item titled "Exercises"
+   * with no date, on a page where every real row has one. Only running the
+   * proposal through the runner reaches it.
+   */
+  const doc = fixture("ece310-fa2026-index.html");
+  const best = detect(doc)[0]!;
+  const adapter = {
+    id: "ece310-detected",
+    label: "ECE 310",
+    courseCode: "ECE310",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/ece310/fa2026/",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: best.rows,
+    title: "td:nth-child(1)",
+    due: "td:nth-child(2)",
+    columns: best.columns,
+    dateFormat: best.dateFormat,
+    timezone: ZONE,
+    minExtensionVersion: "0.1.0",
+  } as unknown as Adapter;
+  const items = runAdapter(adapter, doc, {
+    url: adapter.url,
+    fetchedAt: "2026-09-10T18:00:00.000Z",
+  });
+
+  it("scopes the rows to tbody, so the header row is not a row", () => {
+    expect(best.rows).toBe("#homework table tbody tr");
+  });
+
+  it("produces no item titled after the header cell", () => {
+    expect(items.map((item) => item.title)).not.toContain("Exercises");
+  });
+
+  it("produces no undated item at all, on a page where every row has a date", () => {
+    expect(items.filter((item) => item.dueAt === undefined)).toEqual([]);
+  });
+
+  it("produces exactly the 13 the hand-written adapter does", () => {
+    expect(items).toHaveLength(13);
   });
 });
 

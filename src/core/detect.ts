@@ -96,6 +96,27 @@ export function selectorForTable(table: Element, doc: Document): string {
   return index <= 0 ? "table" : `table:nth-of-type(${index + 1})`;
 }
 
+/**
+ * The selector this candidate would carry as its adapter's `rows`.
+ *
+ * `tbody tr` when the table has a tbody, because the header row is not a
+ * deadline. A bare `… tr` matches the `<thead>` row too, and `columns.title` of
+ * "Exercises" then reads `<th>Exercises</th>` — an undated item literally titled
+ * *Exercises*, with the words "Due Date" where its date should be, that no
+ * course ever set. `dataRows` below already excludes it from the preview, which
+ * is why nothing on screen said the proposal was wrong: the defect only appeared
+ * once the selector reached `runAdapter` for real.
+ *
+ * The same rule `core/skeleton.ts` prints for the on-device model, and what the
+ * hand-written `ece310-fa26` entry uses (`#homework table.timetable tbody tr`).
+ * Exported so `skeleton.ts`'s copy can be folded into this one — two spellings
+ * of one decision is the shape mutation-check rule 3 warns about.
+ */
+export function rowSelectorForTable(table: Element, doc: Document): string {
+  const selector = selectorForTable(table, doc);
+  return table.querySelector("tbody") ? `${selector} tbody tr` : `${selector} tr`;
+}
+
 /** The rows of a table that are not its header. */
 function dataRows(table: Element): Element[] {
   return [...table.querySelectorAll("tr")].filter(
@@ -119,7 +140,7 @@ export function detectCandidates(doc: Document, reference: string, timezone: str
     if (rows.length === 0) continue;
 
     const names = [...headers.keys()];
-    const rowSelector = `${selectorForTable(table, doc)} tr`;
+    const rowSelector = rowSelectorForTable(table, doc);
 
     for (const dueName of names) {
       const dueIndex = headers.get(dueName)!;

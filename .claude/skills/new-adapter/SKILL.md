@@ -68,7 +68,36 @@ is not a registry at all is rejected whole and **the stored copy is kept**.
 |---|---|---|
 | Table with a header row | `columns: { title, due, link }` | Header names, matched **exactly** after whitespace/case normalising, alternatives with `\|`. House rule 3 in declarative form: *"`td:nth-child(2)` is wrong the moment a course adds a column, and it fails silently."* A named column not on the page throws, naming the column. |
 | `rowspan` grid, no header | `title`/`due` selectors + `splitTitle` | CS 424: cell counts vary 7/6/5/4/1, so `nth-child` is *"wrong about half the time"*; the spacer cells share a class, hence `td:not(.auto-style6)`. One cell holds `HW5 Due; HW6 Out`, so `"splitTitle": ";"` splits, then `filter` rejects each part. `splitTitle` is a **literal** separator, never a regex — remote data applied to every row would be a ReDoS. |
-| `label: value` prose list | `dueLabel` / `titleFrom` | The list shape (a parallel worker is landing these fields). Check `src/sources/site.ts` and `docs/adapters.md` for the exact names and semantics before writing an entry against it. |
+| `label: value` prose list | `dueLabel` / `titleFrom` / `time` | ECE 411's Sphinx page: each MP is a `<section>` with an `<h3>` and a `<ul>` of `Release: 8/25`, `Due: 9/7`, `CP1 Due: TBD`. See the three rows below. |
+
+The list shape's three fields, all optional, all in `src/sources/site.ts`:
+
+- **`dueLabel`** — `|`-separated labels; the due text is read as `<label>:<rest>` and
+  `rest` goes to the date parser. `matchDueLabel`: *"The date formats are `^`-anchored
+  (deliberately: a format that matched mid-string would read a date out of any prose), so
+  `Due: 9/7` parses as nothing at all until the label is taken off the front."* Matched
+  **exactly** after normalising whitespace and case, never by substring — *"`Due Date: 9/7`
+  is a different line from `Due: 9/7`, and a substring match on `Due` would claim both"*.
+  A line whose label was not declared (`Release: 8/25`, `Location: ECEB 1002`) is skipped,
+  not emitted undated; a page where *no* row carries a declared label throws, naming the
+  labels. The **declared** spelling is returned, not the page's, *"so the title suffix …
+  is decided by the registry and cannot be reworded by the page"* — and it is appended to
+  the title minus a trailing `Due`, which is what makes `mp_pipeline CP1`/`CP2`/`CP3`
+  three items instead of one (§3.1 hashes the title).
+- **`titleFrom`** — a name for a row that has none. `"section >> h3"` climbs to
+  `row.closest("section")` and reads the `h3` inside; without the `>>` the spec is a
+  heading selector and the nearest match *preceding* the row in document order wins.
+  `nth-child` is wrong here for house rule 3's reason: *"the label's position in the list
+  varies by section — `mp_setup` puts `Due` second, `mp_ooo` has five labelled lines"*.
+- **`time`** — the clock when the due text states none, row-relative or scoped with `>>`.
+  The syllabus prints `Midterm 1: September 29` with `Time: 7-9PM` in a sibling `<li>`;
+  with `"time": "ul"` the exam lands at 19:00 rather than an invented 23:59 and carries no
+  `timeAssumed` (worker rule 3). A range gives its **start**. The search is anchored on the
+  word `Time` — a room number is a number too, and an unanchored search finds `ECEB 1002`
+  first.
+
+Add `"kind": "exam"` when the page lists exams rather than assignments: it is per
+adapter, and the popup's Exams tab filters on it.
 
 Never substring-match a header: ECE 310 has `Assessment Due` holding `HW1` *and*
 `Due Date` holding the dates — *"a substring match on `due` reads an assignment name as a

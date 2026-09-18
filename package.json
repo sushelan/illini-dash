@@ -8,6 +8,7 @@
     "site": "node scripts/site.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "pretest": "node build.mjs",
     "test": "vitest run",
     "scrub": "node scripts/scrub-file.mjs",
     "package": "node build.mjs && node scripts/package.mjs",

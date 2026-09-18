@@ -1,5 +1,18 @@
 # Dev loop gotchas
 
+## `npm test` builds first
+
+`tests/site.test.ts` reads `dist/adapters/registry.json` — the *shipped* copy, on
+purpose, because an entry that validates in the source tree and not in the bundle is
+exactly the failure a test over `adapters/registry.json` alone would miss. On a fresh
+checkout that file does not exist yet, so the suite failed one test until someone
+happened to run `npm run build`, with an error about a missing file rather than about
+the build.
+
+`"pretest": "node build.mjs"` now runs ahead of `npm test`. esbuild takes about 30ms,
+which is cheaper than the round trip of reading that failure. `npx vitest run` skips it,
+so use `npm test` after touching `adapters/registry.json`.
+
 ## Reload the extension after every build
 
 Chrome re-reads extension **pages** (popup.html, options.html and their bundles)

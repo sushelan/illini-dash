@@ -34,6 +34,14 @@ re-review that takes days (§0 decision 4).
 - `dateFormat` is chosen from a closed set, not supplied. An adapter cannot provide a
   pattern, so a bad registry entry can produce a wrong selector but never arbitrary
   matching behaviour. Currently: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d`.
+- `kind` says what the rows on this page *are*, when they are not assignments — one of
+  `assignment`, `quiz`, `exam`, `booking`, `event`, `other`, and validated against that
+  union like `dateFormat` is. Omitted means `assignment`, which is what `runAdapter`
+  hard-coded before the field existed. It is per *adapter*, not per row, because a course
+  site splits by page: `ece411-fa26-exams` points at a syllabus whose only rows are
+  Midterm 1, Midterm 2 and the final, and without `"kind": "exam"` those three landed in
+  the homework list while the popup's Exams tab — which filters on `kind === "exam"` —
+  stayed empty for a course that has two midterms in it.
 - `term` expires the adapter — the options page hides adapters from other terms, so a
   stale one disappears on its own rather than quietly fetching last year's page.
 
@@ -50,7 +58,11 @@ elsewhere, so it is a trust boundary:
   `optional_host_permissions` covers every https host now, which is safe only because of
   the `hostPattern` rule directly below. The popup's own `safeUrl` was a second copy of
   the old rule and outlived it by six days, rendering every cs225.org row as an
-  unclickable div; it is now the same check (mutation house rule 3);
+  unclickable div; `src/capture.ts` was a **third** copy and outlived it by six more,
+  so a student could add a cs225.org adapter and then not capture the page it points
+  at. All three are the same check now, and capture asks only for https — which host
+  it is on is decided by the permission prompt, not by a hostname list (mutation house
+  rule 3);
 - a `hostPattern` that is not **exactly** `https://<the url's host>/*` — the pattern is
   what `chrome.permissions.request` asks for, so a wildcard like
   `https://*.illinois.edu/*` (the manifest's own optional entry, and therefore
@@ -209,6 +221,13 @@ same format, 13 of 13 rows. It proposes nothing for CS 424, whose schedule has n
 row and packs two events into one cell, and says so rather than inventing something
 plausible.
 
+When the search finds nothing, and only then, Chrome's built-in on-device model is
+asked instead, and whatever it proposes is run through the real runner on the page
+that was just fetched before the student ever sees it. That path is its own decision
+and its own document: **[docs/adapter-author.md](adapter-author.md)**, which says why
+the search comes first, what the model is shown (`core/skeleton.ts`), and what it is
+checked against (`core/author.ts`).
+
 A saved adapter goes in `store.localAdapters`, apart from the fetched registry so a daily
 refresh cannot overwrite it, and through `validateAdapter` exactly like a published one.
 Typed by a student rather than fetched from GitHub changes nothing about what a bad `url`
@@ -231,7 +250,7 @@ installed copy picks it up on its next daily refresh — no new build, no reinst
 store review. That is the whole reason §0 decision 4 makes adapters data.
 
 **To seed one**, capture the page with the options-page capture tool (it accepts any
-`*.illinois.edu` URL), then send it over. From the saved HTML the selectors are usually
+https URL you hold the host permission for), then send it over. From the saved HTML the selectors are usually
 obvious in a couple of minutes. Good candidates are courses whose real schedule lives on
 the course site rather than in Canvas or Gradescope.
 
