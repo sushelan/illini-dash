@@ -401,14 +401,17 @@ describe("the Google Calendar OAuth block", () => {
     );
   });
 
-  it("ships no `key`, because an invalid one is a hard load error", () => {
+  it("ships either no `key` or a real one, because a placeholder is a hard load error", () => {
     /*
      * `dist/` is what Sushi loads unpacked every day (docs/dev-loop.md), and
      * Chrome refuses to load an extension whose `key` is not valid base64. A
-     * placeholder there would break the development loop to save one paste.
-     * docs/gcal.md says where it goes instead.
+     * placeholder there would break the development loop to save one paste, so
+     * the field is absent until the real key from the store's Package tab is
+     * pasted (docs/gcal.md) — and once it is, it has to be that key: a 2048-bit
+     * RSA SPKI in base64 begins with this fixed prefix and is 392 characters (checked against a freshly generated key).
      */
-    expect(manifest.key).toBeUndefined();
+    if (manifest.key === undefined) return;
+    expect(manifest.key).toMatch(/^MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA[A-Za-z0-9+/]{344}AQAB$/);
   });
 
   it("keeps the Calendar API host out of the install prompt", () => {

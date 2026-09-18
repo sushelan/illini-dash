@@ -2,10 +2,27 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (911 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1611 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Campuswire observer, live — 2026-09-18
+
+Sushi's three checkpoints on the real ECE 408 feed, read as evidence (worker rule 7):
+the row read **On · nothing read yet** before the page was opened; the worker logged
+`[observer] campuswire: registered`; and one open of the feed produced **58** `[posts]`
+lines, one per post, of which **14 yielded a suggestion** (one of them two) and one
+was skipped as *already suggested* — the seen-post and duplicate-suggestion guards
+both fired. **0 moved** on every line, correctly: the class is last spring's, and none
+of its assignments is in the list, so there was nothing to move. The Attention tab's
+"Found in a post" block is still to be looked at.
+
+Also from the day: the model author on ECE 411 ended on the deterministic "No table on
+this page" paragraph with no visible model verdict above it; the options page now logs
+`[author] on-device model: {state…}` so the branch can be read from its console. And
+the manifest test that pinned `key` absent now accepts the real key's shape instead, so
+pasting it (docs/gcal.md) no longer means editing a test.
 
 ## Google Calendar sync, opt-in, under the one scope that needs no review — 2026-09-18
 

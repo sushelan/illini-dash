@@ -1912,6 +1912,9 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
      * from an attempt that happened).
      */
     const outcome = await proposeWithModel(response.html, response.url, response.courseCodeGuess);
+    // This page's console, not the worker's (UI rule 1): the one line that says
+    // which branch ran, with the validator's reason when there was one.
+    console.info("[author] on-device model:", outcome);
     addSiteStatus.textContent = modelStatusLine(outcome);
     if (outcome.state !== "proposed") {
       // Why the search itself found nothing, under what the model did — both
