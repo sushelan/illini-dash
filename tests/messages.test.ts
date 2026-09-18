@@ -34,4 +34,26 @@ describe("send", () => {
     stubChrome(async () => undefined);
     await expect(send({ type: "gate0" })).rejects.toThrow(/"gate0"/);
   });
+
+  it("carries a post to the worker whole, including a pasted one", async () => {
+    // A paste box is not in scope (Sushi rejected paste as the primary path),
+    // but the message that would feed one ships now, so a later fallback is a
+    // textarea in front of this rather than a second path with its own rules.
+    let seen: unknown;
+    stubChrome(async (request) => {
+      seen = request;
+      return { type: "ok" };
+    });
+    await send({
+      type: "post-observed",
+      post: {
+        id: "cw-1",
+        source: "paste",
+        courseHint: "CS 357",
+        postedAt: "2026-09-18T15:00:00-05:00",
+        text: "MP3 is due Fri 10/2 at 11:59pm.",
+      },
+    });
+    expect(seen).toMatchObject({ type: "post-observed", post: { id: "cw-1", source: "paste" } });
+  });
 });

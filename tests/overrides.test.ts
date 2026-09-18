@@ -6,7 +6,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  acceptSuggestion,
+  applyDueOverride,
   courseSummaries,
+  dismissSuggestion,
   hideItem,
   markDone,
   markNotDone,
@@ -14,10 +17,11 @@ import {
   mergeItems,
   setCourseDisabled,
   splitItem,
+  undoDueOverride,
   unhideItem,
 } from "../src/core/overrides.js";
 import { applyRetention, dedupe } from "../src/core/dedupe.js";
-import type { Item, Overrides, RawItem } from "../src/sources/types.js";
+import type { DueOverride, Item, Overrides, RawItem, Suggestion } from "../src/sources/types.js";
 
 const NO_OVERRIDES: Overrides = {
   mergeGroups: [],
@@ -27,6 +31,7 @@ const NO_OVERRIDES: Overrides = {
   doneKeys: [],
   keptCourses: [],
   courseNames: {},
+  dueOverrides: {},
 };
 
 function raw(source: RawItem["source"], sourceId: string, title: string, dueAt?: string): RawItem {
@@ -260,5 +265,100 @@ describe("marking work done by hand", () => {
     } as unknown as Parameters<typeof markDone>[1];
     const done = markDone({ ...NO_OVERRIDES, doneKeys: ["gradescope:7"] }, item);
     expect(markNotDone(done, item).doneKeys).toEqual(["gradescope:7"]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Corrections from a post (Sushi, 2026-09-18)                                 */
+/* -------------------------------------------------------------------------- */
+
+describe("applyDueOverride / undoDueOverride", () => {
+  const entry: DueOverride = {
+    at: "2026-10-02T23:59:00-05:00",
+    from: "2026-09-30T23:59:00-05:00",
+    reason: "Campuswire post 2026-09-18",
+    postId: "cw-1",
+    appliedAt: "2026-09-18T15:30:00-05:00",
+  };
+
+  const twoSource = {
+    id: "x",
+    members: [
+      { source: "gradescope", sourceId: "mp3" },
+      { source: "canvas", sourceId: "c-mp3" },
+    ],
+  } as unknown as Item;
+
+  it("marks every member, like a hide", () => {
+    // `Item.id` is a hash of the sorted member keys, so a correction keyed by
+    // it is spent the moment Canvas mirrors the row — and the instructor's new
+    // date would revert to the source's old one with nothing to say why.
+    const after = applyDueOverride(NO_OVERRIDES, twoSource, entry);
+    expect(Object.keys(after.dueOverrides).sort()).toEqual(["canvas:c-mp3", "gradescope:mp3"]);
+    expect(after.dueOverrides["canvas:c-mp3"]).toEqual(entry);
+  });
+
+  it("takes every key of the row back off, and leaves other rows alone", () => {
+    const other = {
+      id: "y",
+      members: [{ source: "prairielearn", sourceId: "hw3" }],
+    } as unknown as Item;
+    const both = applyDueOverride(applyDueOverride(NO_OVERRIDES, twoSource, entry), other, entry);
+    const after = undoDueOverride(both, memberKeysOf(twoSource));
+    expect(Object.keys(after.dueOverrides)).toEqual(["prairielearn:hw3"]);
+  });
+});
+
+describe("accepting and dismissing a suggestion", () => {
+  const suggestion: Suggestion = {
+    id: "s1",
+    kind: "new",
+    title: "Quiz 1",
+    courseRaw: "CS 357",
+    courseCode: "CS357",
+    at: "2026-10-12T17:00:00-05:00",
+    timeAssumed: false,
+    span: "10/12 at 5 PM",
+    context: "Quiz 1 is due 10/12 at 5 PM.",
+    source: "campuswire",
+    postId: "cw-1",
+    postedAt: "2026-09-18T15:00:00-05:00",
+    createdAt: "2026-09-18T15:30:00-05:00",
+  };
+
+  it("hands core/manual.ts the wall clock in the student's zone, not UTC", () => {
+    // 5 PM central is 22:00 UTC the same day, but an 11:59 PM deadline is the
+    // *next* day in UTC — so a `toISOString().slice(0, 10)` would file half the
+    // suggestions on the wrong date. Checked at the hour that proves it.
+    const late = { ...suggestion, at: "2026-10-12T23:59:00-05:00" };
+    const accepted = acceptSuggestion([late], "s1", "America/Chicago")!;
+    expect(accepted.input.date).toBe("2026-10-12");
+    expect(accepted.input.time).toBe("23:59");
+    expect(accepted.input.courseRaw).toBe("CS 357");
+    expect(accepted.input.note).toContain("Quiz 1 is due");
+    expect(accepted.suggestions).toEqual([]);
+  });
+
+  it("passes on no time at all when the clock was this code's invention", () => {
+    // Worker rule 3: `newManualItem` fills in 23:59 and marks it assumed, and
+    // passing "23:59" here would launder the invention into a time the student
+    // appears to have typed — which §5.3 would then rank above Canvas.
+    const assumed = { ...suggestion, timeAssumed: true };
+    const accepted = acceptSuggestion([assumed], "s1", "America/Chicago")!;
+    expect(accepted.input.time).toBeUndefined();
+  });
+
+  it("gives a course-less suggestion a course, because a row cannot have none", () => {
+    const loose = { ...suggestion, courseRaw: "" };
+    expect(acceptSuggestion([loose], "s1", "America/Chicago")!.input.courseRaw).toBe("From a post");
+  });
+
+  it("answers undefined for an id that is no longer on the list", () => {
+    expect(acceptSuggestion([suggestion], "gone", "America/Chicago")).toBeUndefined();
+  });
+
+  it("dismisses by id and leaves the rest", () => {
+    const other = { ...suggestion, id: "s2" };
+    expect(dismissSuggestion([suggestion, other], "s1")).toEqual([other]);
   });
 });

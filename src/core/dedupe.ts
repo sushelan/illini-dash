@@ -11,7 +11,8 @@
 
 import { NUMBERED_PREFIX, isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
 import { shortHash } from "./dates.js";
-import type { Item, Overrides, RawItem, Source, Status } from "../sources/types.js";
+import type {
+  DueOverride, Item, Overrides, RawItem, Source, Status } from "../sources/types.js";
 import { memberKey } from "../sources/types.js";
 
 /** §5.3's title threshold. Raised only with G3 evidence. */
@@ -282,10 +283,46 @@ function carryNotified(before: Item, item: Item): Item["notified"] {
   return carried;
 }
 
-function buildItem(members: RawItem[], hiddenKeys: Set<string>, doneKeys: Set<string>): Item {
+/**
+ * The instructor's own correction for this group, when a post carried one.
+ *
+ * Written to every member key, so any one of them answers; the newest
+ * `appliedAt` wins when a split or a merge has left two corrections in one
+ * group, and the key breaks the tie so the same store always yields the same
+ * row. Returning the whole record rather than the instant, because the row has
+ * to say where the date came from as well as what it is.
+ */
+function dueOverrideFor(
+  keys: readonly string[],
+  dueOverrides: Record<string, DueOverride>,
+): DueOverride | undefined {
+  let best: DueOverride | undefined;
+  let bestKey = "";
+  for (const key of keys) {
+    const candidate = dueOverrides[key];
+    if (candidate === undefined) continue;
+    if (
+      best === undefined ||
+      candidate.appliedAt > best.appliedAt ||
+      (candidate.appliedAt === best.appliedAt && key < bestKey)
+    ) {
+      best = candidate;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+function buildItem(
+  members: RawItem[],
+  hiddenKeys: Set<string>,
+  doneKeys: Set<string>,
+  dueOverrides: Record<string, DueOverride> = {},
+): Item {
   const ranked = byPrecedence(members);
   const keys = members.map((item) => memberKey(item.source, item.sourceId));
   const id = itemId(keys);
+  const moved = dueOverrideFor(keys, dueOverrides);
 
   // §5.3: the submission system owns its own deadline, so dueAt and url follow
   // the same precedence rather than being picked independently.
@@ -313,11 +350,37 @@ function buildItem(members: RawItem[], hiddenKeys: Set<string>, doneKeys: Set<st
     // A booking pseudo-item must keep its kind even when merged, since §7 keys
     // the daily nag off it; otherwise the most specific kind wins.
     kind: members.find((item) => item.kind === "booking")?.kind ?? ranked[0]!.kind,
-    dueAt: dated?.dueAt,
+    /*
+     * An instructor's correction outranks every source.
+     *
+     * Not a second precedence rung: this *is* a stated instant — the instructor
+     * said it, in the same sentence the row quotes back. §5.3 ranks sources by
+     * whose deadline is authoritative, and the answer for "the course announced
+     * a new date" is not Gradescope's cached copy of the old one, however high
+     * Gradescope ranks. Worker rule 3 still applies underneath: a post that
+     * named a day and no clock carries `timeAssumed`, and the flag travels with
+     * the value so nothing downstream reads 23:59 as something anyone stated.
+     */
+    dueAt: moved?.at ?? dated?.dueAt,
     // Whether the *winning* member's time was invented, not whether any member's
     // was: a CS 424 row merged with a dated Canvas one has a real instant, and
     // `members.some(...)` would wrongly mark the merged row as assumed.
-    timeAssumed: dated?.extra?.["timeAssumed"] === "true" ? true : undefined,
+    timeAssumed: moved
+      ? (moved.timeAssumed ? true : undefined)
+      : dated?.extra?.["timeAssumed"] === "true"
+        ? true
+        : undefined,
+    // What the row says, and what the undo is keyed to. Kept even when `from`
+    // is absent — an undated item a post gave a date to also moved.
+    ...(moved
+      ? {
+          movedBy: {
+            reason: moved.reason,
+            ...(moved.from ? { from: moved.from } : {}),
+            postId: moved.postId,
+          },
+        }
+      : {}),
     // §4.3. Only when *every* member says so: one source failing to label a
     // practice quiz is not evidence that it counts, but a row that some source
     // grades really does count, and demoting it would bury real work.
@@ -430,7 +493,7 @@ export function dedupe(
   }
 
   const built = [...groups.values()].map((members) => {
-    const item = buildItem(members, hidden, done);
+    const item = buildItem(members, hidden, done, overrides.dueOverrides);
     // An unchanged group keeps its id, and with it what it has already fired —
     // otherwise every sync would re-notify every item (§5.3, §7).
     const before = previousById.get(item.id);
@@ -603,6 +666,13 @@ export function withoutKeys(overrides: Overrides, keys: readonly string[]): Over
     splitKeys: overrides.splitKeys.filter(survives),
     hiddenKeys: overrides.hiddenKeys.filter(survives),
     doneKeys: overrides.doneKeys.filter(survives),
+    // An instructor's correction goes with the row it corrected. Left behind it
+    // is an instant keyed to nothing, waiting to move whatever future row
+    // happens to reuse the key — and `buildItem` treats it as stated, so it
+    // would win over the source outright.
+    dueOverrides: Object.fromEntries(
+      Object.entries(overrides.dueOverrides).filter(([key]) => survives(key)),
+    ),
     // A group that loses a member down to one is not a merge any more, so it is
     // dropped rather than left as a one-key group nothing can match.
     mergeGroups: overrides.mergeGroups

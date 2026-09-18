@@ -8,6 +8,7 @@
 
 import type {
   Adapter,
+  DueOverride,
   Item,
   Overrides,
   RawItem,
@@ -15,7 +16,10 @@ import type {
   Source,
   SourceStatus,
   StoreV1,
+  Suggestion,
 } from "../sources/types.js";
+import { isOlderThan } from "./dates.js";
+import { isInstant } from "./parsing.js";
 import { validateAdapter } from "./registry.js";
 
 /**
@@ -154,6 +158,85 @@ export interface StoreV1Plus extends StoreV1 {
    * carries a memberKey like every other row.
    */
   manualItems: RawItem[];
+  /**
+   * Deadlines read out of an instructor's post that nothing else accounts for.
+   *
+   * A queue, not a list of rows: nothing here is on the calendar, nothing here
+   * reminds, and nothing here becomes real until the student presses Add. See
+   * `Suggestion` — prose is the one input where a confident misreading is
+   * indistinguishable from a fact, so this extension proposes rather than
+   * asserts.
+   */
+  suggestions: Suggestion[];
+  /**
+   * Post id → when it was read.
+   *
+   * The only thing that stops one post applying its correction twice. Kept as a
+   * map rather than a list so the check is O(1) at the one call site that has
+   * to be cheap (every post the observer sees, on every page load), and stamped
+   * with a time so `pruneSeenPosts` can forget a semester's worth.
+   */
+  seenPosts: Record<string, string>;
+}
+
+/** §5.4's shape, one level up: a post read this long ago cannot recur. */
+export const SEEN_POST_DAYS = 60;
+/** A suggestion nobody pressed Add on in a month is not going to be pressed. */
+export const SUGGESTION_AGE_DAYS = 30;
+/** …nor is one whose deadline is a week gone. */
+export const SUGGESTION_PAST_DAYS = 7;
+
+/**
+ * Forget posts read more than `SEEN_POST_DAYS` ago.
+ *
+ * Pure, and given `now` rather than reading a clock, because every other
+ * retention rule in this project is tested by handing it a date (§5.4) and a
+ * second style here would be a second thing to get wrong.
+ */
+export function pruneSeenPosts(
+  seenPosts: Record<string, string>,
+  now: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(seenPosts).filter(([, at]) => !isOlderThan(at, now, SEEN_POST_DAYS)),
+  );
+}
+
+/**
+ * Drop suggestions that have gone stale or whose deadline has passed.
+ *
+ * Two clocks, because they answer different questions: `createdAt` says nobody
+ * is going to act on this, and `at` says acting on it would put a week-old
+ * deadline on the calendar. Either one is enough.
+ */
+export function pruneSuggestions(suggestions: Suggestion[], now: string): Suggestion[] {
+  return suggestions.filter(
+    (suggestion) =>
+      !isOlderThan(suggestion.createdAt, now, SUGGESTION_AGE_DAYS) &&
+      !isOlderThan(suggestion.at, now, SUGGESTION_PAST_DAYS),
+  );
+}
+
+/**
+ * A stored `Suggestion` that is actually usable.
+ *
+ * Validated positively like `manualItems`, and for the sharper of the two
+ * reasons: a suggestion exists in exactly one place, and the fields it is shown
+ * by — the verbatim `span`, the instant — are the whole of the student's
+ * evidence. A half-written one would render a deadline with no words behind it,
+ * which is the one thing this feature promises never to do. House rule 5: a
+ * `typeof` check passes `""`, so every required string is checked non-empty and
+ * `at` has to be a real instant.
+ */
+function isUsableSuggestion(value: unknown): value is Suggestion {
+  if (!isRecord(value)) return false;
+  const text = (key: string) => typeof value[key] === "string" && (value[key] as string) !== "";
+  if (value["kind"] !== "new") return false;
+  if (!isInstant(value["at"] as string)) return false;
+  if (!["piazza", "campuswire", "paste"].includes(value["source"] as string)) return false;
+  return (
+    text("id") && text("title") && text("span") && text("postId") && text("createdAt")
+  );
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -192,7 +275,7 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [], courseNames: {} },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [], courseNames: {}, dueOverrides: {} },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
@@ -201,6 +284,8 @@ export function emptyStore(): StoreV1Plus {
     localAdapters: [],
     setAsideCourses: [],
     manualItems: [],
+    suggestions: [],
+    seenPosts: {},
   };
 }
 
@@ -296,7 +381,15 @@ function isUsableItem(value: unknown): value is Item {
 const MIGRATIONS: { to: number; apply: (blob: Record<string, unknown>) => Record<string, unknown> }[] =
   [];
 
-export function migrate(stored: unknown): StoreV1Plus {
+/**
+ * `now` is a parameter, not a clock read here.
+ *
+ * Two of this store's lists expire (`seenPosts`, `suggestions`), and the rule
+ * that decides has to be pinnable by a test that hands it a date — the same
+ * shape §5.4's retention already has. The default keeps every existing caller
+ * unchanged.
+ */
+export function migrate(stored: unknown, now: string = new Date().toISOString()): StoreV1Plus {
   const base = emptyStore();
   if (!stored || typeof stored !== "object") return base;
 
@@ -366,6 +459,23 @@ export function migrate(stored: unknown): StoreV1Plus {
     // reason: these rows exist in exactly one place. A fetched row that fails
     // validation comes back on the next sync; a hand-typed one is gone for good.
     manualItems: Array.isArray(value.manualItems) ? value.manualItems.filter(isUsableRaw) : [],
+    // Validated and pruned on the way back in. A suggestion whose deadline is a
+    // week past is worse than no suggestion: pressing Add would file a row that
+    // is already overdue, in a list whose entire job is what is still ahead.
+    suggestions: pruneSuggestions(
+      Array.isArray(value.suggestions) ? value.suggestions.filter(isUsableSuggestion) : [],
+      now,
+    ),
+    seenPosts: pruneSeenPosts(
+      isRecord(value.seenPosts)
+        ? Object.fromEntries(
+            Object.entries(value.seenPosts).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== "",
+            ),
+          )
+        : {},
+      now,
+    ),
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>
@@ -390,6 +500,7 @@ function migrateOverrides(stored: unknown): Overrides {
     doneKeys: [],
     keptCourses: [],
     courseNames: {},
+    dueOverrides: {},
   };
   if (!stored || typeof stored !== "object") return base;
   const value = stored as Record<string, unknown>;
@@ -428,7 +539,32 @@ function migrateOverrides(stored: unknown): Overrides {
           ),
         )
       : {},
+    /*
+     * Validated entry by entry like `courseNames`, and with a harder bar.
+     *
+     * This is the only override that carries an *instant*, and `buildItem`
+     * treats it as a stated one — the thing §5.3 ranks above everything else.
+     * A `""` that passed a `typeof` check would reach `Date.parse` as a
+     * deadline of some kind, so `at` is checked with the project's anchored
+     * `isInstant` (house rule 5) and an entry that fails is dropped rather than
+     * left to become a row with no date and no explanation.
+     */
+    dueOverrides: isRecord(value["dueOverrides"])
+      ? Object.fromEntries(
+          Object.entries(value["dueOverrides"]).filter(
+            (entry): entry is [string, DueOverride] => isUsableDueOverride(entry[1]),
+          ),
+        )
+      : {},
   };
+}
+
+function isUsableDueOverride(value: unknown): value is DueOverride {
+  if (!isRecord(value)) return false;
+  if (!isInstant(value["at"] as string)) return false;
+  if (value["from"] !== undefined && !isInstant(value["from"] as string)) return false;
+  const text = (key: string) => typeof value[key] === "string" && (value[key] as string) !== "";
+  return text("reason") && text("postId") && text("appliedAt");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

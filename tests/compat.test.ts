@@ -145,6 +145,7 @@ describe("normalizePopupState", () => {
       settings: { ...DEFAULT_SETTINGS },
       notificationsBlocked: false,
       courseNames: {},
+      suggestions: [],
       lastSyncAt: "2026-09-10T18:00:00.000Z",
     };
   }
@@ -162,9 +163,22 @@ describe("normalizePopupState", () => {
     // joined them when renaming landed: every row looks a course up in it, so
     // an older worker's message would throw once per row rather than once.
     const { state, missing } = normalizePopupState<Record<string, unknown>>({ type: "state" });
-    expect([...missing].sort()).toEqual(["courseNames", "items", "sources"]);
+    // `suggestions` joined them with the post observer: the Attention tab reads
+    // `.length` on it to draw its count, so a worker from before that field
+    // existed would throw after the tabs were drawn and before the list was.
+    expect([...missing].sort()).toEqual(["courseNames", "items", "sources", "suggestions"]);
     expect(state["items"]).toEqual([]);
     expect(state["sources"]).toEqual({});
+  });
+
+  it("empties suggestions an older worker never sent, rather than throwing on them", () => {
+    // Worker rule 8, on the field this change added. `[]` is the right absence:
+    // it is what the tab said before suggestions existed.
+    const without = currentState();
+    delete without["suggestions"];
+    const { state, missing } = normalizePopupState<Record<string, unknown>>(without);
+    expect(missing).toEqual(["suggestions"]);
+    expect(state["suggestions"]).toEqual([]);
   });
 
   it("backfills a settings object an older worker sent without every field", () => {

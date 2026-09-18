@@ -6,8 +6,9 @@
  * so each one has to stick, and applying one must never quietly undo another.
  */
 
-import type { Item, Overrides } from "../sources/types.js";
+import type { DueOverride, Item, Overrides, Suggestion } from "../sources/types.js";
 import { memberKey } from "../sources/types.js";
+import type { ManualInput } from "./manual.js";
 
 export function memberKeysOf(item: Item): string[] {
   return item.members.map((member) => memberKey(member.source, member.sourceId));
@@ -105,6 +106,115 @@ export function mergeItems(overrides: Overrides, a: Item, b: Item): Overrides {
     splitKeys: overrides.splitKeys.filter((key) => !involved.has(key)),
     mergeGroups: [...untouched, [...involved]],
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Deadlines an instructor's post moved                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Record a correction against every member of the item.
+ *
+ * Every member, exactly as `hideItem` and `markDone` do, and for the same
+ * reason: `Item.id` is a hash of the sorted member keys, so a correction keyed
+ * by it is spent the moment Canvas mirrors the row — and the instructor's new
+ * date would silently revert to the source's old one with nothing on screen to
+ * say why.
+ */
+export function applyDueOverride(overrides: Overrides, item: Item, entry: DueOverride): Overrides {
+  const next = { ...overrides.dueOverrides };
+  for (const key of memberKeysOf(item)) next[key] = entry;
+  return { ...overrides, dueOverrides: next };
+}
+
+/**
+ * Take the correction back off, by key.
+ *
+ * Keys rather than an `Item`, because undo is pressed on a row whose members
+ * may have changed since the post landed — a merge since then means the item in
+ * front of the student holds keys the override was never written to, and
+ * `memberKeysOf` on the *current* item is what has to decide, at the call site
+ * that has it.
+ */
+export function undoDueOverride(overrides: Overrides, memberKeys: readonly string[]): Overrides {
+  const gone = new Set(memberKeys);
+  return {
+    ...overrides,
+    dueOverrides: Object.fromEntries(
+      Object.entries(overrides.dueOverrides).filter(([key]) => !gone.has(key)),
+    ),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Suggestions                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The wall clock of an instant in a named zone.
+ *
+ * `Date#toISOString` would answer in UTC, which is the *next* day for every
+ * deadline after 7 PM here — so an 11:59 PM Friday would be filed as Saturday.
+ */
+function wallClockIn(at: string, zone: string): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(at));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
+}
+
+/**
+ * What to hand `newManualItem` when the student presses Add.
+ *
+ * Returns the *input*, not the row: `core/manual.ts` owns validation, and a
+ * second path that builds a `RawItem` directly is the shape this project's
+ * defects take — the later path is written from memory and forgets a check.
+ *
+ * A suggestion whose time this code invented is passed on with **no time at
+ * all**, so `newManualItem` fills in 23:59 and marks it assumed itself. Passing
+ * `"23:59"` would launder an invention into a time the student appears to have
+ * typed, and §5.3 would then rank it above a real Canvas deadline (worker rule
+ * 3).
+ */
+export function acceptSuggestion(
+  suggestions: readonly Suggestion[],
+  id: string,
+  zone: string,
+): { input: ManualInput; suggestions: Suggestion[] } | undefined {
+  const suggestion = suggestions.find((candidate) => candidate.id === id);
+  if (!suggestion) return undefined;
+  const { date, time } = wallClockIn(suggestion.at, zone);
+  return {
+    input: {
+      title: suggestion.title,
+      // Never "": `newManualItem` refuses a row with no course, and a
+      // suggestion from a post with no course hint would be un-addable — the
+      // one outcome a one-click control must not have.
+      courseRaw: suggestion.courseRaw || "From a post",
+      date,
+      ...(suggestion.timeAssumed ? {} : { time }),
+      // The words the post used, kept on the row. A month later "MP3" in the
+      // list and "MP3 is due Fri 10/2" in a note are the difference between
+      // trusting the row and re-reading the thread.
+      note: suggestion.context.replace(/\s+/g, " ").slice(0, 500),
+    },
+    suggestions: dismissSuggestion(suggestions, id),
+  };
+}
+
+/** Take a suggestion off the list. The student said no, or said yes. */
+export function dismissSuggestion(suggestions: readonly Suggestion[], id: string): Suggestion[] {
+  return suggestions.filter((suggestion) => suggestion.id !== id);
 }
 
 /** §8.2's per-course checkbox list. Matched on code or on the raw name. */

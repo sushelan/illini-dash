@@ -9,7 +9,8 @@
  */
 
 import { applyStoredTheme } from "./theme-panel.js";
-import { send, type OverrideAction } from "../messages.js";
+import { send, type OverrideAction, type Request } from "../messages.js";
+import { movedByText } from "../core/suggest.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
 import {
   type SetupRow,
@@ -83,7 +84,14 @@ import {
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../core/quality.js";
 import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
 import { SYNC_SPINNER_CAP_MS } from "../core/sync.js";
-import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
+import type {
+  Item,
+  Settings,
+  Source,
+  SourceState,
+  SourceStatus,
+  Suggestion,
+} from "../sources/types.js";
 
 /**
  * §8.1: only render a URL that is https.
@@ -672,7 +680,13 @@ function renderRow(
   // was left with five pixels of title.
   const due = document.createElement("span");
   due.className = "row--due";
-  const details: { text: string; className: string; title?: string }[] = [];
+  const details: {
+    text: string;
+    className: string;
+    title?: string;
+    /** An item id turns this line into one with an "undo" beside it. */
+    undo?: string;
+  }[] = [];
 
   const unreadable = unreadableDeadline(item);
   if (unreadable.length > 0) {
@@ -730,8 +744,22 @@ function renderRow(
   const exam = examDetail(item);
   if (exam) details.push({ text: exam, className: "row--detail row--detail-exam" });
 
-  const moved = movedText(item);
-  if (moved) details.push({ text: moved, className: "row--detail row--detail-moved" });
+  // A post's correction says so permanently and offers a way out; a deadline
+  // that simply differed from last sync's says so until the next one. Both are
+  // "moved", and only the first has anywhere to press: `movedFrom` is derived
+  // per sync and would have nothing to undo.
+  const movedByPost = movedByText(item);
+  if (movedByPost) {
+    details.push({
+      text: movedByPost,
+      className: "row--detail row--detail-moved",
+      title: item.movedBy?.reason,
+      undo: item.id,
+    });
+  } else {
+    const moved = movedText(item);
+    if (moved) details.push({ text: moved, className: "row--detail row--detail-moved" });
+  }
 
   // Visible at 35% rather than `opacity: 0` until hover. A control nobody can
   // see is a control nobody learns, and this one carries Mark done, Hide,
@@ -763,6 +791,25 @@ function renderRow(
     line.className = detail.className;
     line.textContent = detail.text;
     if (detail.title) line.title = detail.title;
+    if (detail.undo !== undefined) {
+      // A `<button>`, not a link: it is inside an `<a>` row on every row that
+      // has a URL, and a nested anchor is invalid — the browser closes the
+      // outer one and the press opens Gradescope instead of undoing anything.
+      const undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "link row--undo";
+      undo.textContent = "undo";
+      undo.title = "Put this deadline back to what the source says";
+      const itemId = detail.undo;
+      undo.addEventListener("click", (event) => {
+        // The row is a link and the menu trigger is a sibling; without both of
+        // these the press opens the assignment and the undo never runs.
+        event.preventDefault();
+        event.stopPropagation();
+        applySuggestionRequest({ type: "undo-move", itemId }, undo);
+      });
+      line.append(document.createTextNode(" "), undo);
+    }
     row.append(line);
   }
 
@@ -772,6 +819,39 @@ function renderRow(
 
 /** All items currently rendered, so "Merge with…" can offer same-course rows. */
 let currentItems: Item[] = [];
+
+/** Deadlines a post stated that nothing in the store accounts for (§4.6). */
+let currentSuggestions: Suggestion[] = [];
+
+/**
+ * Add, Ignore and undo, with the same guarantees `applyOverrideAction` gives.
+ *
+ * Three things, every time, because each one was missing once and cost rounds
+ * of Sushi's time: the pressed control says "Applying…" so "the click never
+ * ran" and "the round trip failed" are distinguishable with no console (UI rule
+ * 4); the `send` is `.catch`ed so a stale worker's explanation reaches the
+ * screen rather than an unhandled rejection nobody sees (UI rule 2); and the
+ * request is logged on this side, because the popup's console and the worker's
+ * are different windows.
+ */
+function applySuggestionRequest(request: Request, control?: HTMLElement): void {
+  if (control) {
+    control.textContent = "Applying…";
+    if (control instanceof HTMLButtonElement) control.disabled = true;
+    for (const other of control.parentElement?.querySelectorAll("button") ?? []) {
+      (other as HTMLButtonElement).disabled = true;
+    }
+  }
+  console.log(`[illini-dash] ${request.type} requested`);
+  void send(request)
+    .then(reportOverride)
+    .then(() => {
+      void refresh();
+    })
+    .catch((error: unknown) => {
+      showStatus(error instanceof Error ? error.message : String(error));
+    });
+}
 
 /**
  * What the last draw actually found.
@@ -2423,9 +2503,126 @@ const ATTENTION_NOTE: Record<AttentionName, string> = {
   "No date at all": "Listed by a source with no deadline on it anywhere.",
 };
 
-function renderAttentionView(items: Item[], now: Date, colours: Map<string, number>): void {
+/**
+ * Deadlines a post stated, at the top of the Attention tab.
+ *
+ * At the top because it is the only section here that is asking a question. The
+ * rest of this tab reports; these two buttons are the whole of Sushi's decision
+ * that a *new* deadline is suggested rather than applied, and a suggestion
+ * folded below three groups of undated rows is a suggestion nobody answers.
+ *
+ * The verbatim span is the tooltip rather than the label: the row has to be one
+ * line, and the sentence the instructor actually typed is the evidence a
+ * student wants only when they doubt the row.
+ */
+function renderSuggestions(suggestions: readonly Suggestion[]): void {
+  if (suggestions.length === 0) return;
+  const heading = document.createElement("h2");
+  heading.className = "section";
+  heading.textContent = `Found in a post (${suggestions.length})`;
+  heading.title =
+    "Deadlines read out of an instructor's post that no source lists. " +
+    "Nothing here is on your calendar until you add it.";
+  viewEl.append(heading);
+
+  for (const suggestion of suggestions) {
+    const row = document.createElement("div");
+    row.className = "row row--flat row--suggestion";
+
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = courseLabel(suggestion.courseCode ?? suggestion.courseRaw, courseNames) || "—";
+
+    const name = document.createElement("span");
+    name.className = "row--name";
+    const title = document.createElement("span");
+    title.className = "row--title";
+    title.textContent = suggestion.title;
+    title.title = suggestion.title;
+    name.append(title);
+
+    const when = new Date(suggestion.at);
+    const due = document.createElement("span");
+    due.className = "row--due";
+    due.textContent = Number.isNaN(when.getTime())
+      ? "—"
+      : when.toLocaleString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+    if (suggestion.timeAssumed) {
+      // Worker rule 3 at the surface: the post named a day, this code named the
+      // hour, and the row must not present the two as the same kind of fact.
+      due.classList.add("row--assumed");
+      due.title = "The post gives a day but no time. 11:59 PM is this extension's guess.";
+    }
+
+    const actions = document.createElement("span");
+    actions.className = "row--detail row--suggestion-actions";
+    // Laid out here rather than in `popup.css`, which another change owns this
+    // week. `.row--detail` is one clipped line of prose — the buttons landed on
+    // top of the sentence — and this is the whole of the difference.
+    actions.style.display = "flex";
+    actions.style.alignItems = "center";
+    actions.style.gap = "6px";
+    const provenance = document.createElement("span");
+    provenance.className = "muted";
+    provenance.textContent = `from a ${SUGGESTION_SOURCE[suggestion.source]}`;
+    // The instructor's own words, as text. §8.1's rendering rule: a post is
+    // remote content and never becomes markup here.
+    provenance.title = suggestion.span;
+    actions.append(provenance);
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "btn btn-primary btn-sm";
+    add.textContent = "Add";
+    add.title = "Add this to your own list";
+    add.addEventListener("click", () => {
+      applySuggestionRequest({ type: "accept-suggestion", id: suggestion.id }, add);
+    });
+
+    const ignore = document.createElement("button");
+    ignore.type = "button";
+    ignore.className = "btn btn-sm";
+    ignore.textContent = "Ignore";
+    ignore.title = "Take this suggestion off the list";
+    ignore.addEventListener("click", () => {
+      applySuggestionRequest({ type: "dismiss-suggestion", id: suggestion.id }, ignore);
+    });
+
+    actions.append(add, ignore);
+    row.append(chip, name, due, actions);
+    // The whole row is the tooltip's home as well, so a student who hovers
+    // anywhere on it sees the sentence rather than having to find the label.
+    row.title = suggestion.context;
+    viewEl.append(row);
+  }
+}
+
+/** What the row calls each observer. "from a Campuswire post". */
+const SUGGESTION_SOURCE: Record<Suggestion["source"], string> = {
+  piazza: "Piazza post",
+  campuswire: "Campuswire post",
+  paste: "pasted post",
+};
+
+function renderAttentionView(
+  items: Item[],
+  now: Date,
+  colours: Map<string, number>,
+  suggestions: readonly Suggestion[] = [],
+): void {
+  renderSuggestions(suggestions);
   const groups = attentionGroups(items, now);
   if (groups.length === 0) {
+    // Only when there is genuinely nothing to answer. A suggestion *is*
+    // something needing attention, and "Nothing needs attention." printed under
+    // one is the silent-empty failure with a sentence attached.
+    if (suggestions.length > 0) return;
     const empty = document.createElement("p");
     empty.className = "muted empty";
     empty.textContent = "Nothing needs attention.";
@@ -2543,7 +2740,9 @@ function render(
 
   renderTabs({
     exams: examCount(items, now),
-    attention: attentionCount(owed, now),
+    // Plus the suggestions: each one is a question waiting for an answer, and a
+    // tab that does not count them is a tab nobody opens to find them.
+    attention: attentionCount(owed, now) + currentSuggestions.length,
   });
   // The header bar is sticky, so without this the tabs slide under it and
   // switching views means scrolling back to the top of the list. Measured
@@ -2556,7 +2755,7 @@ function render(
   renderDateNav(nav.label, nav.step);
 
   if (view === "attention") {
-    renderAttentionView(owed, now, colours);
+    renderAttentionView(owed, now, colours, currentSuggestions);
     makeRowsNavigable();
     return;
   }
@@ -2653,6 +2852,9 @@ async function draw(): Promise<void> {
   const visible = state.items.filter((item) => !item.hidden);
   lastFound = { items: visible.length, courses: coursesIn(visible).length };
   courseNames = state.courseNames ?? {};
+  // Normalized above, so an older worker that has never heard of suggestions
+  // leaves this empty rather than making `render` throw on `.length`.
+  currentSuggestions = state.suggestions ?? [];
   lastHealth = { sources: state.sources, ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}) };
   renderHealth(state.sources, state.lastSyncAt, now);
   renderBanners(state);

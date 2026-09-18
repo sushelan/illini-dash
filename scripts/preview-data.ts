@@ -369,6 +369,7 @@ const sources = {
       }
       if (req.type === "get-state") {
         return { type: "state", items, sources, notificationsBlocked: false,
+                 suggestions: PREVIEW_SUGGESTIONS,
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
                              hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
                  lastSyncAt: new Date().toISOString() };
@@ -418,3 +419,38 @@ const sources = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/* Deadlines read out of a post (§4.6)                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Appended at the end of the file on purpose: two workers were editing the rows
+ * above, and this needs none of them.
+ *
+ * One suggestion whose clock the post stated and one whose 23:59 is this code's
+ * invention, because the row draws them differently and the difference is the
+ * whole of worker rule 3 at the surface.
+ */
+const PREVIEW_SUGGESTIONS = [
+  {
+    id: "s1", kind: "new", title: "MP3", courseRaw: "CS 425", courseCode: "CS425",
+    at: at(15, 23, 59), timeAssumed: false,
+    span: "Fri Oct 3 at 11:59pm", context: "MP3 is due Fri Oct 3 at 11:59pm.",
+    source: "campuswire", postId: "cw-1", postedAt: at(-1, 15, 0), createdAt: at(-1, 15, 1),
+  },
+  {
+    id: "s2", kind: "new", title: "Quiz 1", courseRaw: "CS 357", courseCode: "CS357",
+    at: at(9, 23, 59), timeAssumed: true,
+    span: "10/12", context: "Quiz 1 is due 10/12. It opens on PrairieLearn the morning of.",
+    source: "piazza", postId: "pz-2", postedAt: at(-2, 9, 0), createdAt: at(-2, 9, 1),
+  },
+];
+
+// One row a post moved, so the detail line and its undo are on screen.
+items.push(
+  item({
+    courseLabel: "CS425", title: "MP2: Distributed Logging", dueAt: at(5, 23, 59),
+    movedBy: { reason: "Campuswire post 2026-09-17", from: at(2, 23, 59), postId: "cw-0" },
+  }),
+);
