@@ -7,7 +7,7 @@
 
 import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
-import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
+import { adapterFromCandidate, SITE_TIMEZONE, type Candidate } from "../core/detect.js";
 import {
   authorAdapter,
   buildPrompt,
@@ -1901,10 +1901,10 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
 /**
  * The registry entry for a candidate the student approved.
  *
- * `hostPattern` is derived from the URL rather than asked for, because the
- * validator requires it to be exactly the URL's own host — a wildcard would be
- * a prompt that covers every illinois.edu site at once, and a later edit could
- * then repoint the adapter anywhere under it with no second prompt.
+ * The decision itself is `adapterFromCandidate` in `core/detect.ts`, where a
+ * test can reach it: it decides which of the validated fields survive into the
+ * saved entry, and this page is one of the two files the suite cannot see.
+ * This wrapper is the one thing that has to happen here — reading the clock.
  */
 function buildAdapter(
   candidate: Candidate,
@@ -1912,44 +1912,7 @@ function buildAdapter(
   courseCode: string,
   kind = "assignment",
 ): Record<string, unknown> & { id: string } {
-  const host = new URL(url).origin;
-  const term = currentTermCode(new Date());
-  return {
-    id: `${courseCode.toLowerCase()}-${term}-local`,
-    label: `${courseCode} course site`,
-    courseCode,
-    term,
-    url,
-    hostPattern: `${host}/*`,
-    rows: candidate.rows,
-    /*
-     * Every field the validation actually ran with, or the entry is not the one
-     * that was checked.
-     *
-     * The table shape is unchanged: `columns` plus the positional fallback for
-     * a header that has gone missing at parse time. The other two shapes carry
-     * their own `title` / `due` selectors, and a list carries `dueLabel`,
-     * `titleFrom`, `time` and `filter` — drop any one of those and the entry
-     * saved is a different adapter from the one whose rows the student just
-     * read. `core/author.ts` validates the whole set through `runAdapter`; this
-     * is the hop where it used to be thrown away.
-     */
-    ...(candidate.columns
-      ? { columns: candidate.columns, title: "td:nth-child(1)", due: "td:nth-child(2)" }
-      : { title: candidate.title ?? "", due: candidate.due ?? "" }),
-    ...(candidate.dueLabel ? { dueLabel: candidate.dueLabel } : {}),
-    ...(candidate.titleFrom ? { titleFrom: candidate.titleFrom } : {}),
-    ...(candidate.time ? { time: candidate.time } : {}),
-    ...(candidate.splitTitle ? { splitTitle: candidate.splitTitle } : {}),
-    ...(candidate.filter ? { filter: candidate.filter } : {}),
-    // Omitted when it is the default, which is what every entry written before
-    // `kind` existed means, so a saved entry reads the same as a hand-written
-    // one rather than carrying a field it did not need.
-    ...(kind && kind !== "assignment" ? { kind } : {}),
-    dateFormat: candidate.dateFormat,
-    timezone: SITE_TIMEZONE,
-    minExtensionVersion: "0.1.0",
-  };
+  return adapterFromCandidate(candidate, url, courseCode, currentTermCode(new Date()), kind);
 }
 
 

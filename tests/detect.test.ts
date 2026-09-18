@@ -10,11 +10,14 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
+  adapterFromCandidate,
   detectCandidates,
   noCandidateReason,
   rowSelectorForList,
   selectorForTable,
 } from "../src/core/detect.js";
+import { validateProposal } from "../src/core/author.js";
+import { validateAdapter } from "../src/core/registry.js";
 import { runAdapter } from "../src/sources/site.js";
 import type { Adapter } from "../src/sources/types.js";
 
@@ -401,5 +404,83 @@ describe("a selector for a list, for the pages that are not tables", () => {
     const selector = rowSelectorForList(doc.querySelector("ul")!, doc);
     expect(selector).toBe("#c ul > li");
     expect(() => doc.querySelectorAll(selector)).not.toThrow();
+  });
+});
+
+describe("the entry saved for a candidate the student approved", () => {
+  /*
+   * The round trip the defect broke: propose → validate through the real
+   * runner → build the entry → validate *that* → run it again, and get the
+   * same rows. `buildAdapter` lived in the options page and wrote out
+   * `columns` and nothing else, so a list-shaped proposal validated with a
+   * `dueLabel` was saved without one — and the entry installed read every line
+   * of the list instead of the deadline lines. The preview could not show it,
+   * because the preview came from the other object.
+   */
+  const URL_ECE411 = "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html";
+  const page = { url: URL_ECE411, fetchedAt: REFERENCE };
+  const ece411 = () => fixture("ece411-fa2026-assignments.html");
+  const proposal = {
+    shape: "list",
+    rows: "#mp-information ul.simple > li",
+    title: "p",
+    due: "p",
+    titleFrom: "section >> h3",
+    dueLabel: "Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due",
+    filter: { exclude: "\\bTB[DA]\\b|\\bN/?A\\b" },
+    dateFormat: "M/d",
+  };
+  const outcome = validateProposal(proposal, ece411(), URL_ECE411, ZONE, REFERENCE);
+  const built = outcome.ok
+    ? adapterFromCandidate(outcome.candidate, URL_ECE411, "ECE411", "fa26")
+    : undefined;
+
+  it("passes the registry's own validation", () => {
+    expect(built).toBeDefined();
+    const { adapter, reason } = validateAdapter(built);
+    expect(reason).toBeUndefined();
+    expect(adapter).toBeDefined();
+  });
+
+  it("reads the same rows the student was shown", () => {
+    const { adapter } = validateAdapter(built);
+    const items = runAdapter(adapter as Adapter, ece411(), page);
+    expect(items.map((item) => item.title).sort()).toEqual(["mp_setup", "mp_verif"]);
+    for (const item of items) expect(item.dueAt).toBe("2026-09-07T23:59:00-05:00");
+  });
+
+  it("keeps a table candidate exactly as it was saved before", () => {
+    // The shape that already worked must not move: `columns` plus the
+    // positional fallback for a header missing at parse time.
+    const table = adapterFromCandidate(
+      {
+        rows: "#homework table tbody tr",
+        columns: { title: "Exercises", due: "Due Date" },
+        dateFormat: "M/d",
+        total: 13,
+        dated: 13,
+        sample: [],
+      },
+      "https://courses.grainger.illinois.edu/ece310/fa2026/",
+      "ECE310",
+      "fa26",
+    );
+    expect(table["columns"]).toEqual({ title: "Exercises", due: "Due Date" });
+    expect(table["title"]).toBe("td:nth-child(1)");
+    expect(table["dueLabel"]).toBeUndefined();
+    expect(table.id).toBe("ece310-fa26-local");
+  });
+
+  it("writes the page-level kind, and omits it when it is the default", () => {
+    // `examBoard` filters on `kind === "exam"`, so a syllabus page added
+    // without it files two midterms as homework and leaves the Exams tab empty.
+    const base = { rows: "ul > li", title: "p", due: "p", dueLabel: "Midterm 1", dateFormat: "MMM d, h:mm a", total: 1, dated: 1, sample: [] };
+    const url = "https://courses.grainger.illinois.edu/ece411/fa2026/syllabus.html";
+    expect(adapterFromCandidate(base, url, "ECE411", "fa26", "exam")["kind"]).toBe("exam");
+    expect(adapterFromCandidate(base, url, "ECE411", "fa26", "assignment")["kind"]).toBeUndefined();
+  });
+
+  it("asks for exactly the host it is about", () => {
+    expect(built!["hostPattern"]).toBe("https://courses.grainger.illinois.edu/*");
   });
 });

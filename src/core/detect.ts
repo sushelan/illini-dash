@@ -368,6 +368,61 @@ export function noCandidateReason(doc: Document): string {
 export const SITE_TIMEZONE = "America/Chicago";
 
 /**
+ * The registry entry for a candidate the student approved.
+ *
+ * In `core/` rather than in the options page because it is a decision — *which
+ * fields of the thing that was validated survive into the thing that is saved*
+ * — and the page is one of the two files the suite cannot reach (worker rule
+ * 1). It was in the page, and it wrote out `columns` and nothing else: a
+ * list-shaped proposal that had been validated through the real runner with a
+ * `dueLabel` was saved without one, so the entry installed read every line of
+ * the list rather than the deadline lines. Nothing in the preview could show
+ * that, because the preview came from the other object.
+ *
+ * `hostPattern` is derived from the URL rather than asked for, because
+ * `validateAdapter` requires it to be exactly the URL's own host — a wildcard
+ * would be one prompt covering every illinois.edu site, and a later edit could
+ * repoint the adapter anywhere under it with no second prompt.
+ */
+export function adapterFromCandidate(
+  candidate: Candidate,
+  url: string,
+  courseCode: string,
+  term: string,
+  kind = "assignment",
+): Record<string, unknown> & { id: string } {
+  const host = new URL(url).origin;
+  return {
+    id: `${courseCode.toLowerCase()}-${term}-local`,
+    label: `${courseCode} course site`,
+    courseCode,
+    term,
+    url,
+    hostPattern: `${host}/*`,
+    rows: candidate.rows,
+    // The table shape is unchanged: `columns`, plus the positional fallback for
+    // a header that has gone missing at parse time. The other two shapes carry
+    // their own row-relative `title` / `due`, and a list carries `dueLabel`,
+    // `titleFrom`, `time` and `filter` with them.
+    ...(candidate.columns
+      ? { columns: candidate.columns, title: "td:nth-child(1)", due: "td:nth-child(2)" }
+      : { title: candidate.title ?? "", due: candidate.due ?? "" }),
+    ...(candidate.dueLabel ? { dueLabel: candidate.dueLabel } : {}),
+    ...(candidate.titleFrom ? { titleFrom: candidate.titleFrom } : {}),
+    ...(candidate.time ? { time: candidate.time } : {}),
+    ...(candidate.splitTitle ? { splitTitle: candidate.splitTitle } : {}),
+    ...(candidate.filter ? { filter: candidate.filter } : {}),
+    // Omitted when it is the default, which is what every entry written before
+    // `kind` existed means — a saved entry should read like a hand-written one
+    // rather than carry a field it did not need.
+    ...(kind && kind !== "assignment" ? { kind } : {}),
+    dateFormat: candidate.dateFormat,
+    timezone: SITE_TIMEZONE,
+    minExtensionVersion: "0.1.0",
+  };
+}
+
+/**
  * A course code read off the URL, as a starting point for the student to fix.
  *
  * UIUC course sites are overwhelmingly `/<dept><number>/<term>/`, so this is
