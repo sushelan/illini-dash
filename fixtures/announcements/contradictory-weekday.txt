@@ -1,0 +1,4 @@
+Typo in the schedule
+
+The schedule says MP5 is due Fri 10/3 at 11:59pm, which cannot be right --
+I will fix it after lecture.

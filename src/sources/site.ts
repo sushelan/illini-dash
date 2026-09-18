@@ -122,7 +122,12 @@ function headerExists(row: Element, wanted: string): boolean {
 /* Declarative date formats                                                    */
 /* -------------------------------------------------------------------------- */
 
-const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
+/**
+ * Exported so `core/announce.ts` reads instructor prose with the *same* month,
+ * weekday and time vocabulary a course page is read with. Two copies of this
+ * list would drift the first time one of them learned "Sept."
+ */
+export const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
 
 /**
  * The optional bits real course pages put around a date.
@@ -130,8 +135,10 @@ const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
  * `WEEKDAY` — "Tue Sep 08", "Friday, September 4". `SEP` — the separator before
  * a time, which pages write as a comma, "at", "@", or an ISO "T".
  */
-const WEEKDAY = "(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*\\.?,?\\s+";
-const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
+/** The bare name, without the trailing punctuation a date cell puts after it. */
+export const WEEKDAY_NAME = "(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*";
+const WEEKDAY = `${WEEKDAY_NAME}\\.?,?\\s+`;
+export const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
 
 /**
  * A stated time, in the two shapes that are not ambiguous.
@@ -141,7 +148,7 @@ const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
  * be either, and guessing would put a 5 PM deadline at 05:00 — worse than
  * admitting the time is unknown, because it looks stated.
  */
-const TIME =
+export const TIME =
   `(?:(?<hour>\\d{1,2}):(?<minute>\\d{2})\\s*(?<ampm>am|pm)?` +
   `|(?<hour12>\\d{1,2})\\s*(?<ampm12>am|pm))`;
 

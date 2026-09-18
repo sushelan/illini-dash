@@ -1,0 +1,4 @@
+MP3: autograder is live
+
+The MP3 autograder is up on the course server. MP3 is due Fri 10/2 at  11:59pm.
+Start early -- the last test case takes a while to pass.
