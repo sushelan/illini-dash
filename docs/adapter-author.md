@@ -114,6 +114,49 @@ The selector it prints for each table is scoped `tbody tr` where there is a
 `columns.title` of "Exercises", `<th>Exercises</th>` comes back as an *undated
 assignment called "Exercises"* that no course ever set.
 
+## One session per attempt, and what `kErrorUnknown` meant
+
+The budget above is sized for an **empty** window, so every attempt has to start
+from one. A `LanguageModel` session keeps its history: `authorAdapter` retries,
+and prompting the same session a second time sent attempt 1's prompt, attempt
+1's answer, *and* the whole of `base` — skeleton plus inventory — again. Attempt
+2 was therefore about twice the budget, and Chrome answered it by throwing.
+
+That is what Sushi saw on the ECE 411 assignments page on 2026-09-18:
+
+> Chrome's built-in model tried 2 attempts and its last proposal read no
+> deadlines: An unknown error occurred: kErrorUnknown
+
+Two separate defects in one line. `kErrorUnknown` is the on-device model's
+generic failure and it was, here, an overflowed context window — not a bad
+proposal. And the sentence around it was wrong about what had happened at all:
+`AuthorOutcome` had one failure branch, so `proposeWithModel` mapped every
+`!ok` to `{ state: "rejected", reason: reason ?? failed }`, and a *throw* was
+announced as a proposal that read no deadlines. There was no proposal. The
+first live run survived three attempts only because that page's summary was
+small enough to fit twice.
+
+Both are fixed in the same place. `proposeWithModel` creates one pristine
+session and hands `authorAdapter` a prompt function that `clone()`s it per
+attempt, prompts the clone and destroys it — `clone()` copies the initial
+prompts (the system half) and none of the conversation. Besides the budget, a
+retry that could read its own previous answer is a retry tempted to repeat it,
+when a different answer is the entire request. `AuthorOutcome` now carries a
+`kind` of `"threw"` or `"rejected"`, and `modelOutcomeFor` — in `core/`, where
+a test can reach it — maps the first to `ModelOutcome`'s `"failed"` state,
+which has had the right sentence since it was written and had never been
+reached from this path.
+
+Two smaller things came with it. The retry suffix quotes the validator's reason,
+and some reasons interpolate the page's whole inventory, so the quote is capped
+at `MAX_RETRY_REASON_CHARS` (300) and `RETRY_SUFFIX_CHARS` is subtracted from
+the skeleton budget up front — a long rejection can no longer push a retry over
+the window. And `authorAdapter` takes an `onAttempt` callback, which the options
+page logs as `[author] attempt N: rejected (prompt 8,421 chars, answer 96
+chars) — …`, with `inputUsage`/`inputQuota` after each attempt where the session
+exposes them. The live run left exactly one line behind, and "the answer was
+bad" and "the prompt did not fit" have opposite fixes.
+
 ## The three shapes it may propose
 
 The model states which shape it saw, and the shape decides which fields it may
@@ -242,7 +285,7 @@ replaces was three branches that said nothing.
 | `availability()` is not `available`, or the API is missing or throws | *Chrome's built-in model is not available on this computer.* |
 | The model is downloadable, or downloading | One line saying which, because "there is a thing that could have tried" is a different answer from "nothing found" |
 | The page was too large to summarise | *That page was too large to summarise for Chrome's built-in model.* |
-| The session or the prompt threw | *…could not be used on this page: `<the message>`* |
+| The session or the prompt threw | *…could not be used on this page: `<the message>`* — reached via `AuthorOutcome`'s `kind: "threw"`, never merged into the row above |
 
 The deterministic search's own reason — why *it* found nothing — is printed
 underneath, as a muted line, whenever no proposal survived. Both facts, in the

@@ -23,8 +23,13 @@ import {
   groundingSelector,
   htmlForAuthoring,
   MAX_AUTHOR_HTML,
+  MAX_RETRY_REASON_CHARS,
+  modelOutcomeFor,
   modelStatusLine,
   OUTPUT_RESERVE,
+  RETRY_SUFFIX_CHARS,
+  retrySuffix,
+  type AttemptInfo,
   proposalSchema,
   skeletonBudgetChars,
   validateProposal,
@@ -391,8 +396,12 @@ describe("the retry loop", () => {
     expect(seen).toHaveLength(3);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.failed).toContain("gave up after 3 attempts");
-    expect(outcome.failed).toContain('no element matches rows "#nope tr"');
+    // A rejection, not a throw: the model answered three times and the
+    // validator refused all three, so the reason is a fact about this page.
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind !== "rejected") return;
+    expect(outcome.attempts).toBe(3);
+    expect(outcome.reason).toContain('no element matches rows "#nope tr"');
   });
 
   it("honours a lower cap and refuses an absurd one", async () => {
@@ -420,7 +429,10 @@ describe("the retry loop", () => {
     expect(calls).toBe(1);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.failed).toContain("QuotaExceededError");
+    // And it says so. A throw reported as a rejection is what told Sushi that
+    // a proposal "read no deadlines: An unknown error occurred: kErrorUnknown".
+    if (outcome.kind !== "threw") throw new Error(`expected a throw, got ${outcome.kind}`);
+    expect(outcome.message).toContain("QuotaExceededError");
   });
 
   it("hands the model the schema alongside the text", async () => {
@@ -789,6 +801,60 @@ describe("what the student is told the model did", () => {
     expect(line).toContain('no rows matched "#schedule tr"');
   });
 
+  /*
+   * The table, both rows, against the thing the page actually calls.
+   *
+   * The live defect was not in `modelStatusLine` — every sentence it can say
+   * was already right. It was in the one expression that chose which one to
+   * say, which lived in `proposeWithModel` where no test could reach it:
+   * `{ state: "rejected", reason: outcome.reason ?? outcome.failed }` for every
+   * `!ok`, so Chrome's thrown `kErrorUnknown` was announced as a proposal that
+   * read no deadlines. `modelOutcomeFor` is that expression, moved.
+   */
+  it.each([
+    [
+      "a throw",
+      {
+        ok: false,
+        kind: "threw",
+        message: "An unknown error occurred: kErrorUnknown",
+        attempts: 2,
+      },
+      { state: "failed", message: "An unknown error occurred: kErrorUnknown" },
+      "could not be used on this page: An unknown error occurred: kErrorUnknown",
+    ],
+    [
+      "a rejection",
+      { ok: false, kind: "rejected", reason: 'no due column headed "Deadline"', attempts: 3 },
+      { state: "rejected", attempts: 3, reason: 'no due column headed "Deadline"' },
+      "read no deadlines",
+    ],
+    [
+      "a proposal",
+      { ok: true, candidate: {} as never, attempts: 1 },
+      { state: "proposed", attempts: 1 },
+      "proposed an entry (1 attempt)",
+    ],
+  ] as const)("maps %s to its own status line", (_what, outcome, state, sentence) => {
+    expect(modelOutcomeFor(outcome)).toEqual(state);
+    expect(modelStatusLine(modelOutcomeFor(outcome))).toContain(sentence);
+  });
+
+  it("never tells the student a throw was a proposal", () => {
+    // The exact sentence Sushi read off ECE 411, and the two halves of why it
+    // was wrong: there was no proposal, and nothing had been read.
+    const line = modelStatusLine(
+      modelOutcomeFor({
+        ok: false,
+        kind: "threw",
+        message: "An unknown error occurred: kErrorUnknown",
+        attempts: 2,
+      }),
+    );
+    expect(line).not.toContain("read no deadlines");
+    expect(line).not.toContain("proposal");
+  });
+
   it("does not claim a proposal read nothing when there was no proposal", () => {
     // A QuotaExceededError never produced an answer, so "its last proposal read
     // no deadlines" would be a sentence about something that does not exist.
@@ -837,11 +903,11 @@ describe("the retry loop over the list shape", () => {
       { maxAttempts: 2 },
     );
     expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
+    if (outcome.ok || outcome.kind !== "rejected") return;
     expect(outcome.reason).toContain('no element matches rows "#nope > li"');
-    expect(
-      modelStatusLine({ state: "rejected", attempts: outcome.attempts, reason: outcome.reason }),
-    ).toContain('named parts of the page that do not exist (last: "#nope > li")');
+    expect(modelStatusLine(modelOutcomeFor(outcome))).toContain(
+      'named parts of the page that do not exist (last: "#nope > li")',
+    );
   });
 });
 
@@ -924,7 +990,7 @@ describe("a proposal that names elements the page has not got", () => {
       skeletonise(doc, 30_000),
     );
     expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
+    if (outcome.ok || outcome.kind !== "rejected") return;
     expect(outcome.attempts).toBe(3);
     expect(outcome.reason).toContain('no element matches rows "#schedule .event"');
     expect(outcome.reason).toContain("#mp-information ul.simple > li (×16)");
@@ -1117,5 +1183,140 @@ describe("the prompt carries the page's groups and nobody else's selectors", () 
     expect(full.system.length + full.user.length).toBeLessThanOrEqual(
       Math.floor(window * (1 - OUTPUT_RESERVE) * CHARS_PER_TOKEN),
     );
+  });
+});
+
+describe("one session's worth of prompt per attempt", () => {
+  /*
+   * The budget, and what a retry is allowed to add to it.
+   *
+   * `skeletonBudgetChars` sizes the summary for an *empty* window, which is
+   * only true if every attempt starts from one — and a retry still appends a
+   * sentence, whose length is whatever the validator last said. Two reasons in
+   * `author.ts` interpolate the page's whole inventory, so the cap is what
+   * keeps the second prompt inside the window the first was measured for.
+   */
+  it("caps the reason it quotes back, however long the validator was", () => {
+    const suffix = retrySuffix("z".repeat(5_000));
+    expect(suffix.length).toBeLessThanOrEqual(RETRY_SUFFIX_CHARS);
+    expect(suffix).toContain("z".repeat(MAX_RETRY_REASON_CHARS - 1));
+    expect(suffix).not.toContain("z".repeat(MAX_RETRY_REASON_CHARS + 1));
+    // The constant is what `proposeWithModel` reserves, so it has to bound the
+    // worst case rather than describe the typical one.
+    expect(RETRY_SUFFIX_CHARS).toBeGreaterThan(MAX_RETRY_REASON_CHARS);
+  });
+
+  it("reserves a cap that costs the page almost nothing", () => {
+    /*
+     * The assertion above is written in terms of the constant, so it survives
+     * the constant being loosened to 5,000 — it pins "the cap is applied" and
+     * says nothing about the cap being *small*, which is the requirement.
+     *
+     * The reserve is subtracted from the page summary, so a generous cap is
+     * paid for in rows the model never sees, and the page is the thing it has
+     * to answer about. Measured against the smallest window Chrome has shipped
+     * for this API (4,096 tokens): the whole retry suffix must cost under a
+     * twentieth of what the summary gets.
+     */
+    expect(RETRY_SUFFIX_CHARS).toBeLessThan(skeletonBudgetChars(4096, 0) / 20);
+  });
+
+  it("keeps a short reason whole", () => {
+    expect(retrySuffix('no due column headed "Deadline"')).toContain(
+      'Your previous answer was rejected: no due column headed "Deadline"',
+    );
+  });
+
+  it("never sends a retry longer than the first prompt plus the reserve", async () => {
+    // The `kErrorUnknown` defect, as an assertion. Attempt 2 used to be attempt
+    // 1 plus attempt 1's answer plus the whole of `base` again, because one
+    // session was prompted twice; now each attempt is `base` plus a bounded
+    // suffix, and the caller reserves exactly that much.
+    const sent: string[] = [];
+    const doc = ece310();
+    const skeleton = skeletonise(doc, 20_000);
+    await authorAdapter(
+      async (text) => {
+        sent.push(text);
+        return JSON.stringify({ ...GOOD, rows: "#nope tr" });
+      },
+      doc,
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+      skeleton,
+      { maxAttempts: 3 },
+    );
+    expect(sent).toHaveLength(3);
+    for (const text of sent.slice(1)) {
+      expect(text.length).toBeLessThanOrEqual(sent[0]!.length + RETRY_SUFFIX_CHARS);
+    }
+    // And every attempt still carries the inventory, which is the one thing a
+    // model that has just invented a selector needs in front of it.
+    expect(sent[2]).toContain("REPEATED STRUCTURES");
+  });
+});
+
+describe("what the console says happened", () => {
+  // Worker rule 5. The live run left one line — the final status — and the two
+  // candidate causes of a thrown second attempt (a bad answer, an overflowing
+  // window) have opposite fixes and looked identical from it.
+  const attempts = async (answers: string[], maxAttempts = 3) => {
+    const seen: AttemptInfo[] = [];
+    let i = 0;
+    const outcome = await authorAdapter(
+      async () => {
+        const answer = answers[i];
+        i += 1;
+        if (answer === undefined) throw new Error("no more answers");
+        return answer;
+      },
+      ece310(),
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+      "PAGE TITLE: ECE 310",
+      { maxAttempts, onAttempt: (info) => seen.push(info) },
+    );
+    return { seen, outcome };
+  };
+
+  it("reports junk then a good proposal as two attempts, named apart", async () => {
+    const { seen, outcome } = await attempts(["Sure! It is #homework.", JSON.stringify(GOOD)]);
+    expect(outcome.ok).toBe(true);
+    expect(seen.map((info) => [info.attempt, info.outcome])).toEqual([
+      [1, "not-json"],
+      [2, "proposed"],
+    ]);
+    expect(seen[0]!.reason).toBe("that was not JSON");
+    expect(seen[0]!.answerChars).toBe("Sure! It is #homework.".length);
+    // The retry is the longer prompt, and by how much is the fact that would
+    // have identified the overflow from the console alone.
+    expect(seen[1]!.promptChars).toBeGreaterThan(seen[0]!.promptChars);
+    expect(seen[1]!.reason).toBeUndefined();
+  });
+
+  it("names a rejection and a throw as what they were", async () => {
+    const { seen, outcome } = await attempts([JSON.stringify({ ...GOOD, rows: "#nope tr" })]);
+    expect(outcome.ok).toBe(false);
+    expect(seen.map((info) => info.outcome)).toEqual(["rejected", "threw"]);
+    expect(seen[0]!.reason).toContain('no element matches rows "#nope tr"');
+    expect(seen[1]!.reason).toBe("no more answers");
+    // Nothing came back, so there is nothing to have counted.
+    expect(seen[1]!.answerChars).toBe(0);
+  });
+
+  it("runs without a callback at all", async () => {
+    // The options page passes one; the tests above mostly do not, and a loop
+    // that only works when someone is watching is a loop with two behaviours.
+    const outcome = await authorAdapter(
+      async () => JSON.stringify(GOOD),
+      ece310(),
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+      "PAGE TITLE: ECE 310",
+    );
+    expect(outcome.ok).toBe(true);
   });
 });
