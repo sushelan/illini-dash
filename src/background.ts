@@ -53,6 +53,25 @@ import {
 import { ingestPost } from "./core/suggest.js";
 import { CAMPUSWIRE_MATCH } from "./core/campuswire.js";
 import {
+  applyPiazzaResult,
+  classifyPiazzaResponse,
+  classPageUrl,
+  feedRequest,
+  highestNr,
+  parseClassPage,
+  parseFeed,
+  piazzaNeedsRecheck,
+  planPiazza,
+  postsToSend,
+  PIAZZA_CSRF_HEADER,
+  PIAZZA_MATCH,
+  PIAZZA_ORIGIN,
+  PIAZZA_SESSION_COOKIE,
+  type PiazzaClass,
+  type PiazzaPoll,
+  type PiazzaResult,
+} from "./core/piazza.js";
+import {
   loadStore,
   normalizeQuietHours,
   saveStore,
@@ -72,6 +91,7 @@ import {
   type Lead,
 } from "./core/schedule.js";
 import {
+  MAX_CONCURRENT_PER_HOST,
   REQUEST_TIMEOUT_MS,
   adapterPrefix,
   runSync,
@@ -347,6 +367,17 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
         );
       }
     }
+    /*
+     * Piazza, after the loop and inside the same queued section.
+     *
+     * Not part of `runSync`: it contributes no `RawItem`, so putting it in the
+     * loop would give it an outcome row and a health dot the loop does not know
+     * how to fill. It runs here because it is a *fetch on the sync schedule*,
+     * and it is awaited so its writes land before the queue is released.
+     */
+    await runPiazza(trigger).catch((err: unknown) => {
+      console.warn("[piazza] the run itself failed:", err);
+    });
   }).finally(() => {
     void setSyncing(false);
     running = null;
@@ -669,6 +700,21 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (!url) return;
   void (async () => {
     const store = await loadStore();
+    /*
+     * Piazza first, and by its own rule.
+     *
+     * `sourcesToRecheck` does this job for the five `Source`s and is keyed by
+     * `Source`, which Piazza deliberately is not — so `core/piazza.ts` carries
+     * the same decision rather than `health.ts` growing a second key space.
+     * The navigation *is* the evidence: nothing else tells this extension that
+     * a sign-in happened, because it happens in a tab it does not own.
+     */
+    if (url.startsWith(`${PIAZZA_ORIGIN}/`) && piazzaNeedsRecheck(store.observers.piazza, Date.now())) {
+      console.log("[piazza] a piazza.com page finished loading while we were waiting on a sign-in — re-reading");
+      await runPiazza("manual").catch((err: unknown) => {
+        console.warn("[piazza] the re-read after a page load failed:", err);
+      });
+    }
     const hosts = allAdapters(store)
       .filter((adapter) => store.enabledAdapters.includes(adapter.id))
       .map((adapter) => new URL(adapter.url).hostname);
@@ -763,7 +809,16 @@ async function openFullView(): Promise<void> {
  * reads and what it sends is `core/campuswire.ts`'s.
  */
 
-const OBSERVER_SCRIPT: Record<ObserverId, { id: string; js: string; match: string }> = {
+/**
+ * Partial, because not every observer is a content script.
+ *
+ * Piazza is fetched by this worker on the sync schedule (Sushi: "background
+ * source, no page needed"), so it registers nothing and injects nothing — its
+ * switch is the permission and the poll, and `runPiazza` below is its whole
+ * runtime. Written as a lookup that may miss rather than as a second id union,
+ * so adding a third observer of either kind stays one entry.
+ */
+const OBSERVER_SCRIPT: Partial<Record<ObserverId, { id: string; js: string; match: string }>> = {
   campuswire: {
     id: "campuswire-observer",
     js: "campuswire-observer.js",
@@ -780,6 +835,13 @@ const OBSERVER_SCRIPT: Record<ObserverId, { id: string; js: string; match: strin
  */
 async function applyObserver(observer: ObserverId, enabled: boolean): Promise<void> {
   const script = OBSERVER_SCRIPT[observer];
+  if (script === undefined) {
+    // Both branches (worker rule 5): "this observer has no script by design"
+    // and "the registration silently did nothing" are the same silence
+    // otherwise, and the second is a bug.
+    console.log(`[observer] ${observer}: ${enabled ? "on" : "off"}, no content script — it is fetched by the worker`);
+    return;
+  }
   const registered = await chrome.scripting
     .getRegisteredContentScripts({ ids: [script.id] })
     .catch(() => []);
@@ -820,6 +882,293 @@ async function applyObserver(observer: ObserverId, enabled: boolean): Promise<vo
     },
   ]);
   console.log(`[observer] ${observer}: registered ${script.id} for ${script.match}`);
+}
+
+
+/* ---- Piazza (§4.6, fetched) ------------------------------------------------
+ *
+ * The one observer this worker fetches for. Everything with a decision in it —
+ * which classes to poll, what a response means, what the row may claim — is in
+ * `core/piazza.ts`; what is here is the cookie, the two requests and the write,
+ * which is all worker house rule 1 leaves in this file.
+ */
+
+/** Read once per run and echoed as `CSRF-Token`; `HttpOnly`, so only this API sees it. */
+async function piazzaToken(): Promise<string | undefined> {
+  try {
+    const cookie = await chrome.cookies.get({ url: PIAZZA_ORIGIN, name: PIAZZA_SESSION_COOKIE });
+    const value = cookie?.value;
+    return value === undefined || value === "" ? undefined : value;
+  } catch (err) {
+    console.warn(`[piazza] the ${PIAZZA_SESSION_COOKIE} cookie could not be read:`, err);
+    return undefined;
+  }
+}
+
+interface PiazzaFetch {
+  status: number;
+  finalUrl: string;
+  body: string;
+}
+
+async function piazzaFetch(url: string, init: RequestInit = {}): Promise<PiazzaFetch> {
+  const response = await fetch(url, {
+    credentials: "include",
+    redirect: "follow",
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    ...init,
+  });
+  return { status: response.status, finalUrl: response.url || url, body: await response.text() };
+}
+
+/** JSON, or `undefined` when the body is not JSON at all (an error page, a shell). */
+function asJson(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
+/** At most `MAX_CONCURRENT_PER_HOST` feeds in flight, in the order they were planned. */
+async function pool<T, R>(items: readonly T[], run: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(MAX_CONCURRENT_PER_HOST, items.length) },
+    async () => {
+      for (;;) {
+        const index = next;
+        next += 1;
+        if (index >= items.length) return;
+        out[index] = await run(items[index]!);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
+}
+
+/** Thrown out of a stage to say "this whole run is a login problem, not a failure". */
+class PiazzaNeedsLogin extends Error {}
+
+/** The class list off the class page, cached in the observer state for a day. */
+async function piazzaClasses(nid: string | undefined): Promise<PiazzaClass[]> {
+  const page = await piazzaFetch(classPageUrl(nid));
+  const kind = classifyPiazzaResponse({ status: page.status, finalUrl: page.finalUrl });
+  if (kind === "needs_login") throw new PiazzaNeedsLogin("the Piazza class page asked for a sign-in");
+  if (kind === "http_error") {
+    throw new Error(`Piazza answered ${page.status} for ${classPageUrl(nid)}`);
+  }
+  try {
+    return parseClassPage(page.body, new Date()).networks;
+  } catch (err) {
+    /*
+     * A class page with no `const USER` is currently indistinguishable from a
+     * student who has never signed in (house rule 11), and until the signed-out
+     * capture exists that ambiguity is resolved towards `needs_login`: it
+     * offers a button, and the alternative offers "the page changed" to someone
+     * whose entire fix is signing in. Recorded as VERIFY in the findings doc.
+     */
+    if (err instanceof Error && err.message.includes("`const USER =`")) {
+      throw new PiazzaNeedsLogin(err.message);
+    }
+    throw err;
+  }
+}
+
+/**
+ * One Piazza run: the class list if it is stale, then one feed per active class.
+ *
+ * Called from `sync()` after the loop has saved, and from the navigation
+ * re-check. It never throws at its caller: a failure is a state on the row,
+ * which is the only place the student can act on it.
+ */
+async function runPiazza(trigger: SyncTrigger): Promise<void> {
+  const store = await loadStore();
+  const facts = store.observers.piazza;
+  const granted = await chrome.permissions.contains({ origins: [PIAZZA_MATCH] }).catch(() => false);
+  const plan = planPiazza(facts, {
+    granted,
+    now: new Date(),
+    trigger: trigger === "manual" ? "manual" : "scheduled",
+  });
+
+  if (!plan.fetch) {
+    console.log(`[piazza] ${plan.reason}`);
+    if (plan.record) {
+      const record = plan.record;
+      await mutate((fresh) => {
+        fresh.observers.piazza = {
+          ...fresh.observers.piazza,
+          state: record.state,
+          ...(record.lastError === undefined ? {} : { lastError: record.lastError }),
+        };
+      });
+    }
+    return;
+  }
+
+  let result: PiazzaResult;
+  let read = 0;
+  let moved = 0;
+  let suggested = 0;
+  let classCount = plan.poll.length;
+
+  try {
+    const token = await piazzaToken();
+    if (token === undefined) {
+      // Not an error: no cookie is no session, which is the state with a button.
+      console.log(`[piazza] cookie missing — nobody is signed in to ${PIAZZA_ORIGIN}`);
+      result = { kind: "needs_login" };
+    } else {
+      let classes: PiazzaClass[] | undefined;
+      let poll: PiazzaPoll[] = plan.poll;
+      if (plan.refreshClasses) {
+        classes = await piazzaClasses(facts?.classes?.[0]?.nid);
+        poll = classes
+          .filter((entry) => entry.active)
+          .map((entry) => {
+            const since = facts?.lastNr?.[entry.nid];
+            return {
+              nid: entry.nid,
+              courseHint: entry.courseRaw,
+              ...(typeof since === "number" ? { sinceNr: since } : {}),
+            };
+          });
+        console.log(
+          `[piazza] class list: ${classes.length} enrolment(s), ${poll.length} in this term ` +
+            `(${classes.map((entry) => `${entry.courseRaw}${entry.active ? "" : " — other term"}`).join("; ")})`,
+        );
+      }
+      classCount = poll.length;
+
+      const lastNr: Record<string, number> = {};
+      const payloads: { nid: string; payload: ReturnType<typeof postsToSend>["payloads"][number] }[] = [];
+
+      const failures: string[] = [];
+      let signedOut = false;
+      const outcomes = await pool(poll, async (entry) => {
+        try {
+          const request = feedRequest(entry.nid);
+          const response = await piazzaFetch(request.url, {
+            method: request.method,
+            body: request.body,
+            headers: { "Content-Type": "application/json", [PIAZZA_CSRF_HEADER]: token },
+          });
+          const json = asJson(response.body);
+          const kind = classifyPiazzaResponse({
+            status: response.status,
+            finalUrl: response.finalUrl,
+            body: json,
+          });
+          if (kind === "needs_login") throw new PiazzaNeedsLogin(`${entry.nid} asked for a sign-in`);
+          if (kind === "http_error") {
+            throw new Error(`Piazza answered ${response.status} for ${entry.courseHint}`);
+          }
+          const posts = parseFeed(json, {
+            nid: entry.nid,
+            courseHint: entry.courseHint,
+            fetchedAt: new Date().toISOString(),
+          });
+          const top = highestNr(posts);
+          if (top !== undefined) lastNr[entry.nid] = Math.max(top, entry.sinceNr ?? 0);
+          const send = postsToSend(posts, { sinceNr: entry.sinceNr });
+          for (const payload of send.payloads) payloads.push({ nid: entry.nid, payload });
+          return `${entry.courseHint}: ${posts.length} post(s) in the feed, ${send.payloads.length} new note(s)`;
+        } catch (err) {
+          /*
+           * Per class, so one class cannot cost the others their announcements
+           * — parser house rule 1 one level up, where the "row" is a class. A
+           * sign-out is the exception: it is the session, not the class, so it
+           * is raised for the whole run.
+           */
+          if (err instanceof PiazzaNeedsLogin) {
+            signedOut = true;
+            return `${entry.courseHint}: needs a sign-in`;
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          failures.push(`${entry.courseHint}: ${message}`);
+          return `${entry.courseHint}: could not be read — ${message}`;
+        }
+      });
+
+      for (const line of outcomes) console.log(`[piazza] ${line}`);
+      if (signedOut) throw new PiazzaNeedsLogin("a class feed asked for a sign-in");
+
+      /*
+       * One `mutate`, holding the queue across every post: this is the same
+       * core function `post-observed` calls, so a post read here and a post
+       * read by the Campuswire observer cannot disagree about what a post does
+       * (worker rules 1 and 4).
+       */
+      if (payloads.length > 0) {
+        await mutate((fresh) => {
+          for (const { payload } of payloads) {
+            const outcome = ingestPost(
+              {
+                items: fresh.items,
+                overrides: fresh.overrides,
+                suggestions: fresh.suggestions,
+                seenPosts: fresh.seenPosts,
+              },
+              payload,
+              new Date().toISOString(),
+              SITE_TIMEZONE,
+            );
+            fresh.overrides = {
+              ...fresh.overrides,
+              dueOverrides: { ...fresh.overrides.dueOverrides, ...outcome.dueOverrides },
+            };
+            fresh.suggestions = [...fresh.suggestions, ...outcome.suggestions];
+            fresh.seenPosts = { ...fresh.seenPosts, ...outcome.seenPosts };
+            moved += Object.keys(outcome.dueOverrides).length;
+            suggested += outcome.suggestions.length;
+            // `seenPosts` is empty exactly when the post had been read before,
+            // so this counts what was new rather than what was offered.
+            if (Object.keys(outcome.seenPosts).length > 0) read += 1;
+          }
+        });
+      }
+
+      if (failures.length > 0 && failures.length === poll.length) {
+        throw new Error(failures.join("; "));
+      }
+      if (failures.length > 0) {
+        console.warn(`[piazza] ${failures.length} of ${poll.length} classes failed: ${failures.join("; ")}`);
+      }
+      result = {
+        kind: "ok",
+        ...(classes === undefined ? {} : { classes }),
+        newPosts: read,
+        lastNr,
+      };
+    }
+  } catch (err) {
+    if (err instanceof PiazzaNeedsLogin) {
+      console.log(`[piazza] needs login — ${err.message}`);
+      result = { kind: "needs_login" };
+    } else {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[piazza] could not be read: ${message}`);
+      result = { kind: "error", message };
+    }
+  }
+
+  await mutate((fresh) => {
+    fresh.observers.piazza = {
+      ...fresh.observers.piazza,
+      ...applyPiazzaResult(fresh.observers.piazza, result, new Date().toISOString()),
+    };
+  });
+
+  if (result.kind === "ok") {
+    console.log(
+      `[piazza] ${classCount} class${classCount === 1 ? "" : "es"}, ${read} new note${read === 1 ? "" : "s"}, ` +
+        `${moved} moved, ${suggested} suggested`,
+    );
+  }
 }
 
 /** Re-apply every observer from the store. The worker is torn down constantly. */
@@ -1257,6 +1606,17 @@ chrome.runtime.onMessage.addListener(
             console.log(`[observer] ${observer}: switched ${enabled ? "on" : "off"}`);
           });
           await applyObserver(observer, enabled);
+          /*
+           * Read it now, not at the next poll — the same reason enabling a site
+           * adapter syncs immediately. Switching Piazza on and watching the row
+           * say "nothing read yet" for half an hour is indistinguishable from
+           * it not working.
+           */
+          if (observer === "piazza" && enabled) {
+            void runPiazza("manual").catch((err: unknown) => {
+              console.warn("[piazza] the run after switching it on failed:", err);
+            });
+          }
           return { type: "ok" } as const;
         })(),
       );

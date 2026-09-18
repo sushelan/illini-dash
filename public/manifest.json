@@ -32,7 +32,8 @@
     "notifications",
     "offscreen",
     "contextMenus",
-    "scripting"
+    "scripting",
+    "cookies"
   ],
   "host_permissions": [
     "https://canvas.illinois.edu/*",

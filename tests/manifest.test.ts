@@ -22,6 +22,7 @@ import { SMARTPHYSICS_ORIGIN } from "../src/sources/smartphysics.js";
 import { REGISTRY_URL } from "../src/core/registry.js";
 import { SOURCE_NAME } from "../src/core/names.js";
 import { CAMPUSWIRE_ORIGIN } from "../src/core/campuswire.js";
+import { PIAZZA_ORIGIN } from "../src/core/piazza.js";
 
 const build = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
 
@@ -147,6 +148,10 @@ describe("the permission list and its justifications", () => {
     // The Campuswire observer: a content script this extension registers at
     // runtime, because its host is optional and cannot be in the install prompt.
     "scripting",
+    // Piazza: its API rejects a request unless the `session_id` cookie's value
+    // comes back as a `CSRF-Token` header, and the cookie is HttpOnly — so this
+    // is the only API in the browser that can read it.
+    "cookies",
   ]) {
     it(`${permission} is justified for review`, () => {
       // Chrome's review asks for one per permission, and an unexplained
@@ -349,6 +354,34 @@ describe("the Campuswire observer", () => {
     expect(policy).toContain("sends nothing to Campuswire");
     // The claim a reviewer will check against `scripting`: it reads a page the
     // student already has open, and only when switched on.
+    expect(policy).toContain("off unless you switch it on");
+  });
+});
+
+describe("the Piazza feed", () => {
+  const policy = readFileSync(new URL("../docs/store/privacy-policy.md", import.meta.url), "utf8");
+
+  it("asks for no up-front permission on piazza.com", () => {
+    // Opt-in per site, like Campuswire: nothing about Piazza is in the install
+    // prompt, and the origin is requested from the click on its switch.
+    expect(manifest.host_permissions.some((p) => covers(p, PIAZZA_ORIGIN))).toBe(false);
+    expect(manifest.host_permissions).not.toContain(`${PIAZZA_ORIGIN}/*`);
+    expect(manifest.optional_host_permissions).toEqual(["https://*/*"]);
+  });
+
+  it("justifies the host it asks for at runtime", () => {
+    // `optional_host_permissions` is one wildcard, so the manifest names none
+    // of the hosts actually requested; this one is spelled out in the source.
+    const host = new URL(PIAZZA_ORIGIN).hostname;
+    expect(namedInTable(host), `${host} is requested at runtime but no row names it`).toBe(true);
+  });
+
+  it("is disclosed in the privacy policy, in what it reads and what it does not", () => {
+    expect(policy).toContain("piazza.com");
+    expect(policy).toContain("never reads other students' private posts");
+    // The claim a reviewer will check against `cookies`: one cookie, one site,
+    // never stored.
+    expect(policy).toContain("`session_id`");
     expect(policy).toContain("off unless you switch it on");
   });
 });
