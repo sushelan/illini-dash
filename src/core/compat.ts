@@ -38,6 +38,11 @@ const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
   setAsideCourses: "list",
   sources: "map",
   courseNames: "map",
+  // Added in the same change as the field itself (worker rule 8). The
+  // Campuswire row indexes into this to decide what its switch and its state
+  // chip say, so a page from after the change talking to a worker from before
+  // it would throw in the middle of the sources list.
+  observers: "map",
 };
 
 /** The `state` fields the popup dereferences. */

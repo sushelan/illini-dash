@@ -1,6 +1,6 @@
 # Illini Dash — Privacy Policy
 
-_Last updated: 2026-09-12_
+_Last updated: 2026-09-18_
 
 Illini Dash runs entirely in your browser. It reads assignment and exam information from
 Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics, and course websites you
@@ -22,6 +22,7 @@ While you are signed in, and only from sites you have enabled:
 | `us.prairietest.com` | Your exam reservations and exams open for reservation |
 | `smart.physics.illinois.edu` | Your PHYS 211–214 enrolments and each one's prelecture, checkpoint and homework list |
 | A course website you enable | Only the single page that course's adapter names |
+| `campuswire.com` (optional) | Only the posts already shown on a class feed you have open, and only if you switch Campuswire on |
 
 It requests the same pages your browser would if you clicked through the sites yourself,
 no more often than every 15 minutes, and only pages your own account can already see.
@@ -61,10 +62,31 @@ Deadlines more than 60 days past are deleted automatically.
 | `notifications` | To show the reminders |
 | `offscreen` | To read fetched pages with the browser's own HTML parser, which a service worker does not have |
 | `contextMenus` | To add one right-click item, "Report this page to Illini Dash", which opens this extension's own settings page with the address filled in. It uploads nothing. |
+| `scripting` | To run the Campuswire reader inside a Campuswire class feed you have open, and only after you switch it on. Nothing is registered until then, and switching it off removes it |
+| Access to `campuswire.com` (optional) | Requested only when you switch Campuswire on. Nothing is granted when you install |
 | Access to the five sites above | To read your deadlines from them |
 | Access to one course website (optional) | Requested only when you switch that course's site on, and only for that one site. Nothing is granted when you install. Many UIUC course sites are on their own domains rather than `illinois.edu`, so which host it is cannot be known in advance — Chrome names it in the prompt |
 
 It does not request access to all websites, to your browsing history, or to your tabs.
+
+## Campuswire
+
+Campuswire is off unless you switch it on, and switching it on is the only thing that
+asks Chrome for access to `campuswire.com`.
+
+If you switch Campuswire on, Illini Dash reads the posts shown on a class feed while you
+have it open, on your computer, to find deadlines; it sends nothing to Campuswire and
+stores only the deadlines it found and which posts it has already read.
+
+It reads only what that page has already drawn — the post titles, bodies, numbers and
+dates in the feed list. It does not read your Campuswire login, your token, your chat
+channels, your private messages, or any other page on the site, and it makes no request to
+Campuswire of its own. Nothing about a post leaves your browser, and the post text itself
+is not kept: what is stored is the deadline, and the post's number so the same post is not
+read twice.
+
+Switching it off unregisters the reader immediately. Revoking the site in
+`chrome://extensions` does the same.
 
 ## Reporting a broken page
 

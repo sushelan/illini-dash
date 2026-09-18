@@ -349,3 +349,62 @@ describe("suggestions and the posts they came from", () => {
     expect(store.seenPosts).toEqual({});
   });
 });
+
+describe("page observers", () => {
+  const NOW = "2026-09-18T15:30:00-05:00";
+
+  it("is off in a store written before the field existed", () => {
+    // Not absent: the worker reads `observers.campuswire.enabled` at startup to
+    // decide whether to register a content script, and `undefined.enabled`
+    // there is a throw in the one place nothing is watching.
+    const store = migrate(structuredClone(V1), NOW);
+    expect(store.observers).toEqual({ campuswire: { enabled: false } });
+  });
+
+  it("only `true` is on", () => {
+    // House rule 5: `typeof x === "boolean"` is not what is wanted either. A
+    // half-written `"yes"` must not register a content script on a host the
+    // student never granted.
+    for (const stored of ["yes", 1, null, undefined, {}]) {
+      expect(
+        migrate({ observers: { campuswire: { enabled: stored } } }, NOW).observers.campuswire
+          .enabled,
+        JSON.stringify(stored),
+      ).toBe(false);
+    }
+    expect(
+      migrate({ observers: { campuswire: { enabled: true } } }, NOW).observers.campuswire.enabled,
+    ).toBe(true);
+  });
+
+  it("keeps the evidence of what was actually read", () => {
+    const store = migrate(
+      {
+        observers: {
+          campuswire: { enabled: true, lastObservedAt: "2026-09-18T10:32:00-05:00", postsSeen: 3 },
+        },
+      },
+      NOW,
+    );
+    expect(store.observers.campuswire).toEqual({
+      enabled: true,
+      lastObservedAt: "2026-09-18T10:32:00-05:00",
+      postsSeen: 3,
+    });
+  });
+
+  it("drops a last-read stamp that is not an instant, rather than printing it", () => {
+    // It is rendered straight into the Settings row; `new Date("soon")` reads
+    // "Invalid Date" beside a switch that is working perfectly.
+    const store = migrate(
+      { observers: { campuswire: { enabled: true, lastObservedAt: "soon", postsSeen: -2 } } },
+      NOW,
+    );
+    expect(store.observers.campuswire).toEqual({ enabled: true });
+  });
+
+  it("ignores an observer this build has never heard of", () => {
+    const store = migrate({ observers: { piazza: { enabled: true } } }, NOW);
+    expect(Object.keys(store.observers)).toEqual(["campuswire"]);
+  });
+});

@@ -3,7 +3,7 @@ CHROME WEB STORE — PRIVACY PRACTICES FORM
 Paste each block into the matching field. All are plain text, all under 1000.
 ===============================================================================
 
-------------------------------------------------------------------- [1 of 8] --
+------------------------------------------------------------------- [1 of 9] --
 SINGLE PURPOSE DESCRIPTION
 -------------------------------------------------------------------------------
 Illini Dash shows a University of Illinois student their own assignment and exam
@@ -18,7 +18,7 @@ keep the result on the user's own device, and to remind them in time.
 It does not modify the sites it reads, inject anything into web pages, or run
 content scripts. It has no account, no server and no second feature.
 
-------------------------------------------------------------------- [2 of 8] --
+------------------------------------------------------------------- [2 of 9] --
 "storage" JUSTIFICATION
 -------------------------------------------------------------------------------
 Stores the deadlines that have been read, the course names they belong to, and
@@ -35,7 +35,7 @@ Everything is written to chrome.storage.local on the user's own device. Nothing
 is synced between devices and nothing is transmitted. Uninstalling the extension
 deletes all of it.
 
-------------------------------------------------------------------- [3 of 8] --
+------------------------------------------------------------------- [3 of 9] --
 "alarms" JUSTIFICATION
 -------------------------------------------------------------------------------
 Two things must happen on a schedule, and a Manifest V3 service worker is torn
@@ -51,7 +51,7 @@ yet reserved.
 chrome.alarms is the only supported way to wake a service worker at a set time,
 so it is required for both.
 
-------------------------------------------------------------------- [4 of 8] --
+------------------------------------------------------------------- [4 of 9] --
 "notifications" JUSTIFICATION
 -------------------------------------------------------------------------------
 Shows the deadline reminders, which are one of the main reasons a user installs
@@ -68,7 +68,7 @@ hours are configurable, and reminders can be switched off entirely in Settings.
 Notifications are only ever about the user's own deadlines. There is no
 promotional, marketing or other unsolicited notification of any kind.
 
-------------------------------------------------------------------- [5 of 8] --
+------------------------------------------------------------------- [5 of 9] --
 "offscreen" JUSTIFICATION
 -------------------------------------------------------------------------------
 The deadline data lives inside HTML pages and must be parsed, and a Manifest V3
@@ -83,7 +83,7 @@ The offscreen document is created for this and nothing else. It stores no data,
 holds nothing between calls, and is not used for audio, clipboard, scraping or
 any other purpose.
 
-------------------------------------------------------------------- [6 of 8] --
+------------------------------------------------------------------- [6 of 9] --
 "contextMenus" JUSTIFICATION
 -------------------------------------------------------------------------------
 Adds exactly one right-click menu item: "Report this page to Illini Dash".
@@ -99,7 +99,25 @@ removed, and the user is handed a file that they alone decide what to do with.
 This is the only context menu item the extension adds, and it appears only on
 the course sites the extension supports.
 
-------------------------------------------------------------------- [7 of 8] --
+------------------------------------------------------------------- [7 of 9] --
+"scripting" JUSTIFICATION
+-------------------------------------------------------------------------------
+Registers exactly one content script, on https://campuswire.com/* and nowhere
+else, and only after the user switches Campuswire on in the extension's
+settings and Chrome grants that host. Nothing is registered on install.
+
+Campuswire's class feed is drawn by JavaScript: the server returns an empty
+shell and the posts arrive over a token-authenticated API, so there is no page
+to fetch. Reading the posts the browser has already rendered for the user is
+the only way to find the deadlines instructors state in them.
+
+The script reads the feed's own markup - post titles, bodies, numbers, dates
+and the class name - and hands what it finds to the extension. It makes no
+request to Campuswire, reads no cookie, token, localStorage or other page, and
+modifies nothing. Switching Campuswire off, or revoking the host, unregisters
+it immediately.
+
+------------------------------------------------------------------- [8 of 9] --
 HOST PERMISSION JUSTIFICATION
 -------------------------------------------------------------------------------
 Reads the user's own assignment and exam pages from the five sites that hold
@@ -125,9 +143,11 @@ be known in advance. It is requested at runtime, per site, only when the user
 switches that course on, and Chrome's prompt names that one host. An entry may
 not name a host already granted above.
 
-No content scripts are registered.
+campuswire.com is optional in the same way and is requested from the click on
+the Campuswire switch; see the "scripting" justification above. It is the one
+host read from a page the user already has open rather than fetched.
 
-------------------------------------------------------------------- [8 of 8] --
+------------------------------------------------------------------- [9 of 9] --
 REMOTE CODE
 -------------------------------------------------------------------------------
 Answer: "No, I am not using Remote code."

@@ -12,6 +12,11 @@ import { authorAdapter, buildPrompt, proposalSchema, skeletonBudgetChars } from 
 import { skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
+import {
+  CAMPUSWIRE_MATCH,
+  describeObserver,
+  type ObserverFacts,
+} from "../core/campuswire.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { downloadFile, downloadIcs } from "./download.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY } from "../core/store.js";
@@ -1000,6 +1005,86 @@ async function renderOptions(): Promise<void> {
     }
     sources.append(row);
   }
+
+  /*
+   * Campuswire, under the same heading as the sources.
+   *
+   * It belongs here and not under Course websites because what it produces is
+   * deadlines, from a place the student thinks of as a place deadlines come
+   * from — and because a row about reading a page has nothing to do with the
+   * adapter machinery below, which is about fetching URLs. It is appended to
+   * this list rather than given a section of its own because `options.html` is
+   * not this change's to edit; if it grows a second observer it wants a heading.
+   *
+   * It is not a `Source`: nothing is fetched, there is no health to report, and
+   * the chip says what has actually been read rather than what the switch says
+   * (`describeObserver`, worker rule 2).
+   */
+  const observers = (state.observers ?? {}) as Record<string, ObserverFacts | undefined>;
+  const campuswire = observers["campuswire"];
+  /*
+   * Held as variables rather than looked up by class when the switch is used.
+   * Three redraw guards in the popup asked for `.menu` while the class was
+   * `menu-surface` and were dead from the day they were written (UI rule 7); a
+   * reference cannot be misspelled.
+   */
+  const cwChip = stateChip(
+    "disabled",
+    undefined,
+    "Illini Dash reads a Campuswire class feed only while you have it open.",
+  );
+  cwChip.textContent = describeObserver(campuswire);
+  const cwRow = switchRow({
+    name: "Campuswire",
+    hint:
+      "Reads deadlines out of the class feeds you open, on this computer. " +
+      "Nothing is sent to Campuswire and no posts are stored.",
+    checked: campuswire?.enabled === true,
+    onChange: (enabled) => {
+      const box = cwRow.querySelector("input");
+      // The control says it is doing something (UI rule 4): this round trip
+      // includes a permission prompt and a content-script registration, and
+      // without this a denied prompt and a click that never ran look identical.
+      if (box) box.disabled = true;
+      cwChip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
+      const restore = (text: string): void => {
+        if (box) {
+          box.disabled = false;
+          box.checked = campuswire?.enabled === true;
+        }
+        cwChip.textContent = describeObserver(campuswire);
+        // On the row, not in the page's status line: `#gate0-status` is in
+        // another section entirely, and a report that lands where the error did
+        // not happen is not a channel (UI rule 3).
+        cwHint.textContent = text;
+      };
+      // Requested here, synchronously inside the handler: a user gesture does
+      // not survive an await, so the worker cannot ask for this (see the
+      // adapter row above, where asking from the worker silently failed).
+      const asked = enabled
+        ? chrome.permissions.request({ origins: [CAMPUSWIRE_MATCH] })
+        : Promise.resolve(true);
+      void asked
+        .then((granted) => {
+          if (!granted) {
+            restore("Permission denied, so Campuswire stays off.");
+            return undefined;
+          }
+          return send({ type: "set-observer-enabled", observer: "campuswire", enabled }).then(
+            (response) => {
+              if (response.type === "error") restore(response.message);
+              else void refreshOptions();
+            },
+          );
+        })
+        // Every send from a page gets one (UI rule 2): without it a stale
+        // worker rejects into nothing at all and the switch just springs back.
+        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+    },
+  });
+  const cwHint = cwRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  cwRow.append(cwChip);
+  sources.append(cwRow);
 
   // The site source's state still has to be visible somewhere, or a failing
   // adapter loses its only signal (worker rule 2).

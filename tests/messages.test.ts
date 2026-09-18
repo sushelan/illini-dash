@@ -56,4 +56,39 @@ describe("send", () => {
     });
     expect(seen).toMatchObject({ type: "post-observed", post: { id: "cw-1", source: "paste" } });
   });
+
+  it("carries a post the Campuswire observer read, in the shape suggest.ts expects", () => {
+    // The observer is a content script: it shares no bundle with the extension
+    // pages, so the only thing keeping its payload and this union in step is
+    // that both name the same fields. A field it invented would be dropped
+    // silently at the boundary.
+    const payload = {
+      id: "campuswire:G794D32E4:682",
+      source: "campuswire" as const,
+      courseHint: "ECE 408: Applied Parallel Programming",
+      postedAt: "2026-05-17T12:00:00-05:00",
+      text: "CNN M3 Report Grade Released\nRegrade requests are due tomorrow.",
+    };
+    const request = { type: "post-observed" as const, post: payload };
+    expect(request.post.id).toBe("campuswire:G794D32E4:682");
+  });
+
+  it("names the observer a switch is for, not just that one was switched", () => {
+    // `{ enabled }` alone would have made the second observer a silent
+    // behaviour change in the worker rather than a compile error here.
+    let seen: unknown;
+    stubChrome(async (request) => {
+      seen = request;
+      return { type: "ok" };
+    });
+    return send({ type: "set-observer-enabled", observer: "campuswire", enabled: true }).then(
+      () => {
+        expect(seen).toEqual({
+          type: "set-observer-enabled",
+          observer: "campuswire",
+          enabled: true,
+        });
+      },
+    );
+  });
 });

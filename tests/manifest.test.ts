@@ -21,6 +21,9 @@ import { PRAIRIETEST_ORIGIN } from "../src/sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../src/sources/smartphysics.js";
 import { REGISTRY_URL } from "../src/core/registry.js";
 import { SOURCE_NAME } from "../src/core/names.js";
+import { CAMPUSWIRE_ORIGIN } from "../src/core/campuswire.js";
+
+const build = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
 
 const manifest = JSON.parse(
   readFileSync(new URL("../public/manifest.json", import.meta.url), "utf8"),
@@ -96,7 +99,16 @@ describe("every origin the extension fetches is granted", () => {
 describe("the permission list and its justifications", () => {
   const listing = readFileSync(new URL("../docs/store/listing.md", import.meta.url), "utf8");
 
-  for (const permission of ["storage", "alarms", "notifications", "offscreen", "contextMenus"]) {
+  for (const permission of [
+    "storage",
+    "alarms",
+    "notifications",
+    "offscreen",
+    "contextMenus",
+    // The Campuswire observer: a content script this extension registers at
+    // runtime, because its host is optional and cannot be in the install prompt.
+    "scripting",
+  ]) {
     it(`${permission} is justified for review`, () => {
       // Chrome's review asks for one per permission, and an unexplained
       // permission is a rejection. `contextMenus` was added for the
@@ -161,6 +173,36 @@ describe("the privacy policy describes the extension that ships", () => {
     // granted. Anchor it on the count instead of on the word.
     const words = ["zero", "one", "two", "three", "four", "five", "six", "seven"];
     expect(policy).toContain(`the ${words[SOURCES.length]} sites above`);
+  });
+});
+
+describe("the Campuswire observer", () => {
+  const policy = readFileSync(new URL("../docs/store/privacy-policy.md", import.meta.url), "utf8");
+
+  it("asks for no up-front permission on campuswire.com", () => {
+    // Opt-in per site: nothing about Campuswire is in the install prompt, and
+    // the origin is requested from the click on the Settings switch.
+    expect(manifest.host_permissions.some((p) => covers(p, CAMPUSWIRE_ORIGIN))).toBe(false);
+    expect(manifest.host_permissions).not.toContain(`${CAMPUSWIRE_ORIGIN}/*`);
+    // Covered by the same wildcard the course-site adapters use, which the
+    // block above pins to exactly `https://*/*`. `covers` does not model that
+    // pattern, so this asserts the entry rather than the match.
+    expect(manifest.optional_host_permissions).toEqual(["https://*/*"]);
+  });
+
+  it("ships the script the worker registers by name", () => {
+    // `registerContentScripts` names a file in the bundle. If `build.mjs` stops
+    // emitting it, the registration fails in the worker's console and the
+    // switch goes on looking healthy.
+    expect(build.includes('"campuswire-observer": "src/observers/campuswire.ts"')).toBe(true);
+  });
+
+  it("is disclosed in the privacy policy, in what it reads and what it does not", () => {
+    expect(policy).toContain("campuswire.com");
+    expect(policy).toContain("sends nothing to Campuswire");
+    // The claim a reviewer will check against `scripting`: it reads a page the
+    // student already has open, and only when switched on.
+    expect(policy).toContain("off unless you switch it on");
   });
 });
 

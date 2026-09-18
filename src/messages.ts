@@ -17,6 +17,7 @@ import type { SetupRow } from "./core/setup.js";
 import type { Candidate } from "./core/detect.js";
 import type { ManualInput } from "./core/manual.js";
 import type { ObservedPost } from "./core/suggest.js";
+import type { ObserverId, ObserverState } from "./core/store.js";
 import type {
   Adapter,
   Item,
@@ -81,6 +82,13 @@ export type Request =
   | { type: "dismiss-suggestion"; id: string }
   /** Take back a move a post applied. Keyed by item, resolved to member keys. */
   | { type: "undo-move"; itemId: string }
+  /*
+   * A page observer's switch (§4.6). The host permission is requested in the
+   * click that sends this — a user gesture does not survive an await, so the
+   * worker cannot ask — and the worker registers or unregisters the content
+   * script once the store is written.
+   */
+  | { type: "set-observer-enabled"; observer: ObserverId; enabled: boolean }
   | { type: "export" }
   | { type: "reset" }
   | { type: "get-adapters" }
@@ -149,6 +157,15 @@ export type Response =
       hiddenItems: { id: string; title: string; courseLabel: string }[];
       doneItems: { id: string; title: string; courseLabel: string }[];
       setAsideCourses: { id: string; name: string; courseCode?: string; reason: string }[];
+      /**
+       * Page observers and what they have actually read.
+       *
+       * Carried with the rest of the state for the same reason `courseNames`
+       * is: the row draws a switch and a state chip from it, and the chip must
+       * be derived from an attempt that happened rather than from the switch
+       * (worker rule 2).
+       */
+      observers: Record<ObserverId, ObserverState>;
       lastSyncAt?: string;
     }
   | { type: "ok" }

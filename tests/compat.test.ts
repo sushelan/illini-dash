@@ -30,11 +30,23 @@ function current(): Record<string, unknown> {
     doneItems: [],
     setAsideCourses: [{ id: "1", name: "Old course", reason: "not in the current term" }],
     courseNames: { CS424: "Distributed Systems" },
+    observers: { campuswire: { enabled: true, postsSeen: 3 } },
     lastSyncAt: "2026-09-10T18:00:00.000Z",
   };
 }
 
 describe("normalizeOptionsState", () => {
+  it("empties observers an older worker never sent, rather than throwing on them", () => {
+    // Worker rule 8, on the field this change added, in the same change. The
+    // Campuswire row indexes into this to decide what its switch says, so a
+    // worker from before it would throw in the middle of the sources list.
+    const old = current();
+    delete old["observers"];
+    const { state, missing } = normalizeOptionsState<Record<string, unknown>>(old);
+    expect(missing).toEqual(["observers"]);
+    expect(state["observers"]).toEqual({});
+  });
+
   it("reports nothing missing, and changes nothing, for a same-build message", () => {
     const message = current();
     const { state, missing } = normalizeOptionsState<Record<string, unknown>>(message);
@@ -61,6 +73,7 @@ describe("normalizeOptionsState", () => {
       "courses",
       "doneItems",
       "hiddenItems",
+      "observers",
       "setAsideCourses",
       "settings",
       "sources",
@@ -115,7 +128,7 @@ describe("normalizeOptionsState", () => {
   it("survives a response that is not an object at all", () => {
     for (const junk of [undefined, null, "options-state", 42, []]) {
       const { missing } = normalizeOptionsState<Record<string, unknown>>(junk);
-      expect(missing.length, String(junk)).toBe(7);
+      expect(missing.length, String(junk)).toBe(8);
     }
   });
 
