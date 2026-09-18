@@ -327,25 +327,123 @@ export function dayContents(rawItems: Item[], day: Date, now: Date): DayContents
  */
 export const DEFAULT_DAY_START = 8;
 /**
- * The axis runs to the evening, not to midnight.
+ * The axis runs to 10 PM, not to midnight and no longer to 6 PM.
  *
  * It ended at midnight when end-of-day deadlines were drawn on it. They are
- * hoisted above the grid now, so the last five hours were empty ruled lines
- * whose only effect was to push everything below them out of a 600px popup.
+ * hoisted above the grid now, so the last hours were empty ruled lines whose
+ * only effect was to "push everything below them out of a 600px popup" — and
+ * that was the whole argument for 6 PM.
+ *
+ * **It no longer holds, twice over.** The popup does not draw this grid at all
+ * since the agenda landed: `renderDayView` sends the popup to `agendaRows` and
+ * the axis to the full view, which is an ordinary tab with a window's height.
+ * And the axis is now where a deadline is *added* — a drag is clamped to the
+ * hours that are drawn, so an axis ending at 6 PM means an evening event can be
+ * typed but not dragged, which is the gesture this exists for.
+ *
+ * 10 PM rather than midnight because `END_OF_DAY_MINUTES` hoists everything from
+ * 11 PM off the axis anyway; hours nothing can ever be drawn in are the empty
+ * ruled lines this comment started out about.
  */
-export const DEFAULT_DAY_END = 18;
+export const DEFAULT_DAY_END = 22;
 
-export function hourRange(contents: DayContents): { start: number; end: number } {
+/**
+ * How long something occupies the axis, in minutes, or nothing.
+ *
+ * Two sources state a span and neither used to be drawn. A `manual` row whose
+ * student typed an end time carries `extra.endAt`, an instant; a PrairieTest
+ * exam carries `extra.duration`, which that parser records as `"50min"`. Both
+ * mean the same thing to a grid — this box is not a line, it is a sitting you
+ * cannot be anywhere else during — and an exam drawn as a one-line row at 7 PM
+ * says nothing about the two hours after it.
+ *
+ * Anchored, not `parseInt` (house rule 5): `Number("50min")` is `NaN` but
+ * `parseInt` would happily read `"50 minutes or until the room closes"` as 50,
+ * and `"1h"` as 1. A value that does not match is a value nobody stated, so the
+ * row stays a line — that is the field costing its own field and nothing else.
+ *
+ * `endAt` wins over `duration` when a row somehow carries both: it is an
+ * instant someone wrote down, and `duration` is a string that has to be read.
+ */
+const DURATION_MINUTES = /^(\d{1,4})\s*min$/;
+
+export function spanMinutes(item: Item, anchor: Anchor): number | undefined {
+  for (const m of item.members) {
+    const endAt = m.extra?.["endAt"];
+    if (endAt === undefined) continue;
+    const end = Date.parse(endAt);
+    if (Number.isNaN(end)) continue;
+    const minutes = (end - anchor.at) / 60_000;
+    // A span that ends before it starts is not a span. `manual.ts` refuses one
+    // on the way in, so this can only be a row whose anchor is its *opening*
+    // time or a member from another build; either way, drawing a negative box
+    // is the one outcome that must not happen.
+    if (minutes > 0) return minutes;
+  }
+  for (const m of item.members) {
+    const match = DURATION_MINUTES.exec(m.extra?.["duration"]?.trim() ?? "");
+    if (!match) continue;
+    const minutes = Number(match[1]);
+    if (minutes > 0) return minutes;
+  }
+  return undefined;
+}
+
+/**
+ * The hours to draw, given what is on the day and what the student is doing.
+ *
+ * `include` is the second half, and it is new with drag-to-place: the axis is
+ * now where a deadline is *added*, so a box dragged to 6:30 AM or an end time
+ * typed as 21:30 has to be inside the grid the moment it exists. Without it the
+ * ghost is drawn at a negative offset — above the grid, over the banners — which
+ * is the same failure `grid--now` had at half past midnight.
+ *
+ * Fractional hours, because a drag lands on a quarter hour and the caller
+ * should not have to know that the axis counts in whole ones.
+ */
+export function hourRange(
+  contents: DayContents,
+  include: readonly number[] = [],
+): { start: number; end: number } {
   let start = DEFAULT_DAY_START;
   let end = DEFAULT_DAY_END;
-  for (const stack of contents.timed) {
-    const hour = Math.floor(minutesInto(new Date(stack[0]!.anchor.at)) / 60);
-    if (hour < start) start = hour;
+  const cover = (from: number, to: number): void => {
+    const first = Math.floor(from);
     // The hour *after* the item, so it is drawn inside the grid rather than on
     // its bottom border.
-    if (hour + 1 > end) end = hour + 1;
+    const last = Math.max(first + 1, Math.ceil(to));
+    if (first < start) start = first;
+    if (last > end) end = last;
+  };
+
+  for (const stack of contents.timed) {
+    const minutes = minutesInto(new Date(stack[0]!.anchor.at));
+    let finishes = minutes + 1;
+    for (const placed of stack) {
+      const span = spanMinutes(placed.item, placed.anchor);
+      if (span === undefined) continue;
+      finishes = Math.max(finishes, minutesInto(new Date(placed.anchor.at)) + span);
+    }
+    cover(minutes / 60, finishes / 60);
   }
-  return { start, end };
+
+  /*
+   * No `Number.isFinite` guard, deliberately.
+   *
+   * One was written here and did nothing: every comparison against `NaN` is
+   * false, so `cover(NaN, NaN)` widens nothing, and dropping the guard did not
+   * fail a single test. Mutation house rule 2 calls that redundant rather than
+   * defensive — a second thing to read that rejects exactly what the code below
+   * already rejects. The *behaviour* is still pinned by a test, because it is
+   * the behaviour that matters: a half-typed clock must not produce a grid of
+   * `NaN` rules.
+   */
+  for (const hour of include) cover(hour, hour);
+
+  // A sitting that runs past midnight does not wrap onto the next day's axis;
+  // it stops at the bottom of this one. The grid is a day, and an hour 25 would
+  // be drawn as a label reading "1 AM" at the far end of the wrong day.
+  return { start: Math.max(0, start), end: Math.min(24, end) };
 }
 
 /* -------------------------------------------------------------------------- */

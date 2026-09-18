@@ -511,3 +511,47 @@ turned off the exams.
 - **A course whose last page was removed keeps its heading for those ten seconds**, with
   no rows under it, because otherwise the notice has nowhere to hang — and that is
   exactly the removal most likely to be a mistake.
+
+---
+
+## 10. Typing a deadline in (2026-09-18)
+
+Added with the editor, on top of wave 1's `manual` source. Sushi's ask: *"for the day
+when they click on the timeline, they can drag a box to the specific time and it should
+show up at that time, or they have the option to manually write the time and the box
+should appear at the time, maybe also just a + icon as well for a general event
+addition."*
+
+Four decisions are worth keeping, because each of them was the second option considered.
+
+1. **The form renders in flow, never floating — in the popup this is not a
+   preference.** Chrome sizes an extension popup by measuring the document's intrinsic
+   box, so a floating form contributes no height and gets clipped at 600px with its Save
+   button past the edge. The rows move down instead. The same component is used in the
+   full view, where it also renders in flow; `placeFloating` is for panels that must
+   point at an anchor, and a form does not.
+
+2. **The axis now runs 8 AM – 10 PM and is drawn even on an empty day.** Both reverse
+   earlier decisions, and both were made for the *popup*: the grid was hidden on an empty
+   day because ten empty ruled hours pushed everything out of a 600px window, and it
+   stopped at 6 PM for the same reason. The popup does not draw this grid at all any more
+   — it gets the agenda — and the axis is now the thing you add *on*, so an empty day is
+   exactly the day that needs one, and a drag clamped to 6 PM makes an evening event
+   untouchable by the gesture. `hourRange` takes the hours being dragged or typed so the
+   grid widens under the ghost rather than drawing it off the edge.
+
+3. **A dragged span opens as an Event; a press with no drag stays a Deadline.** The end
+   time field only exists for the kinds that have one, so opening a dragged box as a
+   deadline would throw away half of what the gesture stated. Four pixels of travel
+   separates the two, so a wobble does not silently create a five-minute event.
+
+4. **Edit and Delete are offered only on a row whose sole member is `manual`.** A typed
+   row merged with a Gradescope one shows the *merged* title and link, so editing it
+   would rewrite the student's row to say what Gradescope says, and deleting it would
+   remove half of a row that stays on screen. Split first. Delete leaves
+   "Deleted … · Undo" in the banner slot for ten seconds; the undo re-adds through
+   `add-manual-item` and gets a **new** id, because the delete pruned the old key's
+   overrides and re-arming a hide or a tick on a re-created row is not what Undo means.
+
+A redraw is deferred while the form is open, the way it already was for an open row
+menu — six things redraw this page and none of them is the student typing.

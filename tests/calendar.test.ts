@@ -25,6 +25,7 @@ import {
   examCount,
   dayKey,
   hourRange,
+  spanMinutes,
   isActionable,
   itemTone,
   minutesInto,
@@ -259,6 +260,22 @@ describe("end of day is not an hour anyone chose", () => {
 describe("hourRange", () => {
   const contentsFor = (...items: Item[]) => dayContents(items, SEP10, NOW);
 
+  it("runs 8 AM to 10 PM \u2014 the hours a box can be dragged onto", () => {
+    /*
+     * The numbers themselves, because every other test here asserts a
+     * *relationship* to the constants and so says nothing about their values
+     * (mutation house rule 3: a decision no test can reach).
+     *
+     * The end moved from 6 PM with drag-to-place. The 6 PM argument was that
+     * the last hours were "empty ruled lines whose only effect was to push
+     * everything below them out of a 600px popup" \u2014 and the popup does not
+     * draw this grid at all any more (it gets `agendaRows`), while a drag is
+     * clamped to the hours drawn, so a 6 PM axis makes an evening event
+     * untouchable by the gesture the axis now exists for.
+     */
+    expect([DEFAULT_DAY_START, DEFAULT_DAY_END]).toEqual([8, 22]);
+  });
+
   it("draws the academic day, not midnight to midnight", () => {
     // Eight empty hours at the top would push the 11:59 PM stack — where nearly
     // everything is — below the fold of a 600px popup.
@@ -298,6 +315,91 @@ describe("hourRange", () => {
       item({ dueAt: at(2026, 8, 10, 3, 0) }),
     );
     expect(hourRange(contents).start).toBe(3);
+  });
+
+  /*
+   * The axis is where a deadline is added now, so it has to cover a time that
+   * only exists because someone is in the middle of typing or dragging it.
+   */
+  it("covers an hour the student is dragging to, outside the day's own range", () => {
+    expect(hourRange(contentsFor(), [6.5])).toEqual({ start: 6, end: DEFAULT_DAY_END });
+    expect(hourRange(contentsFor(), [22.5])).toEqual({ start: DEFAULT_DAY_START, end: 23 });
+  });
+
+  it("leaves a whole hour below a typed time, so the ghost is inside the grid", () => {
+    // Exactly on the hour: `Math.ceil(22)` is 22, which would end the axis on
+    // the line the box is drawn at.
+    expect(hourRange(contentsFor(), [22]).end).toBe(23);
+  });
+
+  it("ignores an unreadable hour rather than producing a grid of NaN rules", () => {
+    expect(hourRange(contentsFor(), [Number.NaN])).toEqual({
+      start: DEFAULT_DAY_START,
+      end: DEFAULT_DAY_END,
+    });
+  });
+
+  it("stops at midnight when a sitting runs past it", () => {
+    // An hour 25 would be labelled "1 AM" at the bottom of the wrong day.
+    const contents = contentsFor(
+      item({
+        dueAt: at(2026, 8, 10, 22, 0),
+        members: [member({ endAt: at(2026, 8, 11, 2, 0) })],
+      }),
+    );
+    expect(hourRange(contents).end).toBe(24);
+  });
+
+  it("makes room for how long an exam lasts, not only when it starts", () => {
+    // A 9 PM exam with a 110-minute sitting ends at 10:50; an axis stopping at
+    // 10 PM would draw the box straight through the bottom of the grid.
+    const contents = contentsFor(
+      item({ dueAt: at(2026, 8, 10, 21, 0), members: [member({ duration: "110min" })] }),
+    );
+    expect(hourRange(contents).end).toBe(23);
+  });
+});
+
+describe("spanMinutes", () => {
+  const anchor = (h: number, min = 0) => ({
+    at: new Date(2026, 8, 10, h, min).getTime(),
+    assumed: false,
+    opening: false,
+  });
+
+  it("measures a typed end time from the anchor", () => {
+    const one = item({ members: [member({ endAt: at(2026, 8, 10, 15, 30) })] });
+    expect(spanMinutes(one, anchor(14, 0))).toBe(90);
+  });
+
+  it("reads PrairieTest's own duration string", () => {
+    expect(spanMinutes(item({ members: [member({ duration: "50min" })] }), anchor(9))).toBe(50);
+  });
+
+  it("prefers a stated instant over a string that has to be read", () => {
+    const both = item({
+      members: [member({ endAt: at(2026, 8, 10, 15, 0), duration: "50min" })],
+    });
+    expect(spanMinutes(both, anchor(14))).toBe(60);
+  });
+
+  it("refuses a duration it cannot read rather than guessing at the number in it", () => {
+    // House rule 5: `parseInt` would read both of these, and "1h" as one minute.
+    for (const duration of ["50 minutes or until the room closes", "1h", "", "-20min", "min"]) {
+      expect(spanMinutes(item({ members: [member({ duration })] }), anchor(9)), duration).toBe(
+        undefined,
+      );
+    }
+  });
+
+  it("never returns a negative span, however the members disagree", () => {
+    // A box with a negative height is drawn upward over the rows above it.
+    const backwards = item({ members: [member({ endAt: at(2026, 8, 10, 8, 0) })] });
+    expect(spanMinutes(backwards, anchor(14))).toBe(undefined);
+  });
+
+  it("is nothing at all for an ordinary deadline, which is a line and not a box", () => {
+    expect(spanMinutes(item({ members: [member()] }), anchor(14))).toBe(undefined);
   });
 });
 
