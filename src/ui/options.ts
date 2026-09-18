@@ -8,6 +8,8 @@
 import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
 import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
+import { authorAdapter, buildPrompt, proposalSchema, skeletonBudgetChars } from "../core/author.js";
+import { skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { coursesUrl } from "../sources/canvas.js";
@@ -1368,6 +1370,10 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
     addSiteStatus.textContent = "Nothing found on that page.";
     const why = el("p", response.reason ?? "", "muted");
     addSiteResult.append(why);
+    // The deterministic proposer is the answer whenever it has one. This is the
+    // second answer, for the pages it cannot read — and it runs only here, on a
+    // page the student pasted, never in the sync loop.
+    await proposeWithModel(response.html, response.url, response.courseCodeGuess);
     return;
   }
   addSiteStatus.textContent =
@@ -1376,6 +1382,106 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
       : `Found ${response.candidates.length} tables that could be the schedule.`;
   renderCandidates(response.candidates, response.url, response.courseCodeGuess);
 });
+
+/**
+ * The second answer: Chrome's on-device model, when there is no first answer.
+ *
+ * Every branch out of here is deliberate, because the common case on a student
+ * laptop is "no model at all" — the Prompt API needs 22GB of free disk and
+ * either a 4GB GPU or 16GB of RAM. When it is missing, or Chrome reports it
+ * unavailable, this returns having done nothing and the page reads exactly as
+ * it did before this existed: "Nothing found on that page", and the sentence
+ * saying which of the three dead ends it was.
+ *
+ * Nothing it produces is saved. The proposal is run through the real runner
+ * against the page that was just fetched, and what the student sees is the rows
+ * that came out — the same preview, the same "Use this one", the same registry
+ * entry. A model that invents a selector produces no rows and reaches nobody.
+ */
+async function proposeWithModel(
+  html: string | undefined,
+  url: string,
+  codeGuess?: string,
+): Promise<void> {
+  if (!("LanguageModel" in self)) return;
+
+  let availability: LanguageModelAvailability;
+  try {
+    availability = await LanguageModel.availability();
+  } catch {
+    // An API that is present and throws is an API that is not there.
+    return;
+  }
+  if (availability === "unavailable") return;
+
+  if (availability === "downloadable" || availability === "downloading") {
+    // Said out loud rather than silently skipped: "nothing found" and "there is
+    // a thing that could have tried and has not been downloaded" are different
+    // answers, and only one of them is worth coming back for.
+    addSiteResult.append(
+      el(
+        "p",
+        availability === "downloading"
+          ? "Chrome is still downloading its built-in model. Try this page again once it has finished."
+          : "Chrome can run a built-in model on this computer, but has not downloaded it yet. " +
+            "Open any page that uses it, or try again later, and this can have a second go at the page.",
+        "muted",
+      ),
+    );
+    return;
+  }
+
+  if (!html) {
+    addSiteResult.append(
+      el("p", "That page was too large to summarise for the built-in model.", "muted"),
+    );
+    return;
+  }
+
+  addSiteStatus.textContent = "Asking the on-device model…";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  // The system half is fixed, so its size comes out of the same window the page
+  // summary has to fit in; `buildPrompt` with an empty page measures it.
+  const empty = buildPrompt("", url);
+  const overhead = empty.system.length + empty.user.length;
+
+  let session: LanguageModelSession | undefined;
+  try {
+    session = await LanguageModel.create({
+      initialPrompts: [{ role: "system", content: empty.system }],
+      expectedInputs: [{ type: "text", languages: ["en"] }],
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
+    });
+    const skeleton = skeletonise(doc, skeletonBudgetChars(session.contextWindow, overhead));
+    const schema = proposalSchema();
+    const outcome = await authorAdapter(
+      (text) => session!.prompt(text, { responseConstraint: schema }),
+      doc,
+      url,
+      SITE_TIMEZONE,
+      new Date().toISOString(),
+      skeleton,
+    );
+    if (!outcome.ok) {
+      addSiteStatus.textContent = "The built-in model could not read that page either.";
+      addSiteResult.append(el("p", outcome.failed, "muted"));
+      return;
+    }
+    addSiteStatus.textContent =
+      `Chrome's built-in model proposed this after ${outcome.attempts} ` +
+      `attempt${outcome.attempts === 1 ? "" : "s"}. Check the rows before saving it — ` +
+      "you are the only one who knows what this course actually sets.";
+    renderCandidates([outcome.candidate], url, codeGuess);
+  } catch (err) {
+    // UI rule 2: a rejection with no catch is invisible in the page *and* in
+    // the worker's console, and this branch is the one nobody will have devtools
+    // open for.
+    addSiteStatus.textContent = "The built-in model could not be used on this page.";
+    addSiteResult.append(el("p", err instanceof Error ? err.message : String(err), "muted"));
+  } finally {
+    session?.destroy();
+  }
+}
 
 function renderCandidates(candidates: Candidate[], url: string, codeGuess?: string): void {
   addSiteResult.replaceChildren();
