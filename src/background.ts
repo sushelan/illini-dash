@@ -32,6 +32,7 @@ import { badgeFor, sourcesToRecheck, statusAfterEnable, type NavigatedAt } from 
 import { sourceForUrl } from "./core/origins.js";
 import { needsSetup, opensOnInstall, setupRows } from "./core/setup.js";
 import { detectInOffscreen } from "./core/offscreen-client.js";
+import { htmlForAuthoring } from "./core/author.js";
 import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
@@ -865,6 +866,11 @@ chrome.runtime.onMessage.addListener(
             reason,
             url: result.finalUrl,
             courseCodeGuess: guessCourseCode(result.finalUrl),
+            // Carried back only so the options page's on-device-model branch
+            // has the same bytes to summarise and to validate a proposal
+            // against. `htmlForAuthoring` owns the size decision; nothing here
+            // decides anything (worker rule 1).
+            html: htmlForAuthoring(result.body),
           } as const;
         })(),
       );

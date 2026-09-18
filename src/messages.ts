@@ -136,6 +136,21 @@ export type Response =
       /** Echoed back so the page can build an entry without re-parsing the URL. */
       url: string;
       courseCodeGuess?: string;
+      /**
+       * The page's own HTML, when it is small enough to carry.
+       *
+       * Only the options page's model branch reads it, and only when the
+       * deterministic proposer found nothing: it needs a DOM to summarise for
+       * the prompt and the same DOM to run the model's proposal against. Sent
+       * back with the candidates rather than re-fetched, because a second
+       * request is a second chance to land on a login page, a second row in the
+       * course's access log, and a page that may have changed in between — the
+       * proposal must be validated against the bytes the student was shown.
+       *
+       * Absent for a page over `MAX_AUTHOR_HTML`; `core/author.ts` owns that
+       * decision and the branch says so on screen rather than failing quietly.
+       */
+      html?: string;
     }
   | {
       type: "setup";
