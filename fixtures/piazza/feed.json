@@ -1,0 +1,2679 @@
+{
+ "result": {
+  "feed": [
+   {
+    "fol": "hw1|",
+    "m": 1789738648908,
+    "rq": 0,
+    "id": "mu6qla6fdbf4lk",
+    "unique_views": 36,
+    "score": 36.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 184,
+    "main_version": 3,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-18T09:09:00Z",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-18T13:36:49Z",
+      "u": "uid-8",
+      "n": "i_answer"
+     },
+     {
+      "t": "2026-09-18T13:37:28Z",
+      "u": "uid-8",
+      "n": "i_answer_update"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36MSTAFF-36aSTAFF-36pSTAFF-36rSTAFF-36eSTAFF-36dSTAFF-36uSTAFF-36cSTAFF-36eSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "content_snipet": "STAFF-36ISTAFF-36 STAFF-36nSTAFF-36oSTAFF-36tSTAFF-36iSTAFF-36cSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36HSTAFF-36aSTAFF-36dSTAFF-36oSTAFF-36oSTAFF-36pSTAFF-36 STAFF-36uSTAFF-36sSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36ISTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36bSTAFF-36lSTAFF-36eSTAFF-36&STAFF-36lSTAFF-36tSTAFF-36;STAFF-36ISTAFF-36nSTAFF-36tSTAFF-36WSTAFF-36rSTAFF-36iSTAFF-36tSTAFF-36aSTAFF-36bSTAFF-36lSTAFF-36eSTAFF-36&STAFF-36gSTAFF-36tSTAFF-36;STAFF-36 STAFF-36vSTAFF-36aSTAFF-36lSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36dSTAFF-36uSTAFF-36cSTAFF-36eSTAFF-36.STAFF-36 STAFF-36DSTAFF-36oSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36ySTAFF-36 STAFF-36iSTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36vSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36vSTAFF-36aSTAFF-36lSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36",
+    "modified": "2026-09-18T13:37:28Z",
+    "has_i": true,
+    "num_favorites": 0,
+    "tags": [
+     "hw1",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-18T09:09:00Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|",
+    "m": 1789738984418,
+    "rq": 0,
+    "id": "mu6lty7evm51w8",
+    "unique_views": 30,
+    "score": 30.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 183,
+    "main_version": 4,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-18T06:55:46Z",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-18T06:56:36Z",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T06:57:05Z",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T13:43:04Z",
+      "u": "uid-8",
+      "n": "i_answer"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-364STAFF-36 STAFF-36CSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36iSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "content_snipet": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-364STAFF-36 STAFF-36sSTAFF-36aSTAFF-36ySTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36\"STAFF-36TSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36tSTAFF-36aSTAFF-36lSTAFF-36 STAFF-36bSTAFF-36aSTAFF-36nSTAFF-36dSTAFF-36wSTAFF-36iSTAFF-36dSTAFF-36tSTAFF-36hSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36nSTAFF-36eSTAFF-36tSTAFF-36wSTAFF-36oSTAFF-36rSTAFF-36kSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-362STAFF-36.STAFF-365STAFF-36 STAFF-36GSTAFF-36bSTAFF-36pSTAFF-36sSTAFF-36.STAFF-36\"STAFF-36 STAFF-36DSTAFF-36oSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36bSTAFF-36aSTAFF-36nSTAFF-36dSTAFF-36wSTAFF-36iSTAFF-36dSTAFF-36tSTAFF-36hSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36lSTAFF-36iSTAFF-36nSTAFF-36kSTAFF-36",
+    "modified": "2026-09-18T13:43:04Z",
+    "has_i": true,
+    "num_favorites": 0,
+    "tags": [
+     "hw1",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-18T06:55:46Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_2|",
+    "m": 1789740207311,
+    "rq": 0,
+    "id": "mu6iblmtbpu3hq",
+    "unique_views": 27,
+    "score": 27.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "mp_oncampus_2"
+    ],
+    "nr": 182,
+    "main_version": 2,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-18T05:17:31Z",
+      "u": "uid-88",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-18T14:03:27Z",
+      "u": "uid-8",
+      "n": "i_answer"
+     }
+    ],
+    "subject": "STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36aSTAFF-36bSTAFF-36oSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36sSTAFF-36uSTAFF-36sSTAFF-36pSTAFF-36iSTAFF-36cSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "content_snipet": "STAFF-36ASTAFF-36rSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36oSTAFF-36wSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36pSTAFF-36iSTAFF-36nSTAFF-36kSTAFF-36-STAFF-36aSTAFF-36cSTAFF-36kSTAFF-36 STAFF-36aSTAFF-36 STAFF-36sSTAFF-36uSTAFF-36sSTAFF-36pSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36dSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36eSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36iSTAFF-36tSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36bSTAFF-36aSTAFF-36cSTAFF-36kSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36rSTAFF-36 STAFF-36dSTAFF-36oSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36jSTAFF-36uSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36iSTAFF-36tSTAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36uSTAFF-36nSTAFF-36tSTAFF-36iSTAFF-36lSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36cSTAFF-36eSTAFF-36iSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36gSTAFF-36",
+    "modified": "2026-09-18T14:03:27Z",
+    "gd": 1,
+    "has_i": true,
+    "num_favorites": 0,
+    "tags": [
+     "mp_oncampus_2",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-18T05:17:31Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|",
+    "m": 1789739646235,
+    "rq": 0,
+    "id": "mu6ia1uzdrb70t",
+    "unique_views": 32,
+    "score": 32.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 181,
+    "main_version": 3,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-18T05:16:19Z",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-18T13:52:46Z",
+      "u": "uid-8",
+      "n": "i_answer"
+     },
+     {
+      "t": "2026-09-18T13:54:06Z",
+      "u": "uid-8",
+      "n": "i_answer_update"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-365STAFF-36 STAFF-36PSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36 STAFF-36cSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "content_snipet": "STAFF-36\nSTAFF-36ISTAFF-36 STAFF-36aSTAFF-36sSTAFF-36sSTAFF-36uSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36aSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36\"STAFF-36TSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36JSTAFF-36aSTAFF-36mSTAFF-36aSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36lSTAFF-36aSTAFF-36ySTAFF-36 STAFF-36tSTAFF-36eSTAFF-36aSTAFF-36mSTAFF-36 STAFF-36cSTAFF-36lSTAFF-36aSTAFF-36iSTAFF-36mSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36,STAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36pSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-361STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36oSTAFF-36pSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-362STAFF-36,STAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36 STAFF-36sSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36lSTAFF-36eSTAFF-36 STAFF-36vSTAFF-36aSTAFF-36lSTAFF-36uSTAFF-36eSTAFF-36 STAFF-36SSTAFF-36",
+    "modified": "2026-09-18T13:54:06Z",
+    "has_i": true,
+    "num_favorites": 0,
+    "tags": [
+     "hw1",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-18T05:16:19Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|",
+    "pin": 1,
+    "m": 1789746830570,
+    "rq": 0,
+    "id": "mu6b814nxeb4ko",
+    "unique_views": 82,
+    "score": 82.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 14,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "mp_oncampus_1"
+    ],
+    "nr": 179,
+    "main_version": 14,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-18T01:58:47Z",
+      "u": "uid-3",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-18T02:00:01Z",
+      "u": "uid-3",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T03:11:03Z",
+      "u": "uid-9",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T03:11:46Z",
+      "u": "uid-9",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T03:12:18Z",
+      "u": "uid-9",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-18T03:53:46Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-18T05:22:57Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-18T08:58:53Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T13:50:14Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T13:50:33Z",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T13:52:56Z",
+      "u": "uid-3",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T14:13:34Z",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T15:49:24Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T15:53:50Z",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36&STAFF-36#STAFF-363STAFF-364STAFF-36;STAFF-36RSTAFF-36eSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36mSTAFF-36eSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36dSTAFF-36&STAFF-36#STAFF-363STAFF-364STAFF-36;STAFF-36 STAFF-36sSTAFF-36oSTAFF-36lSTAFF-36uSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36(STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36sSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36ySTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36\nSTAFF-36\nSTAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36+STAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\"STAFF-36RSTAFF-36eSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36mSTAFF-36eSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36sSTAFF-36oSTAFF-36lSTAFF-36uSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36\"STAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36(STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36)STAFF-36 STAFF-36hSTAFF-36aSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36bSTAFF-36eSTAFF-36eSTAFF-36nSTAFF-36 STAFF-36pSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36cSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-18T15:53:50Z",
+    "updated": "2026-09-18T01:58:47Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|",
+    "m": 1789693630045,
+    "rq": 0,
+    "id": "mu609mxl70a62v",
+    "unique_views": 54,
+    "score": 54.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 176,
+    "main_version": 4,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-17T20:52:06Z",
+      "u": "uid-89",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-17T23:44:07Z",
+      "u": "uid-7",
+      "n": "i_answer"
+     },
+     {
+      "t": "2026-09-18T00:38:03Z",
+      "n": "s_answer"
+     },
+     {
+      "t": "2026-09-18T01:07:10Z",
+      "u": "uid-14",
+      "n": "followup"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-361STAFF-36 STAFF-36PSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36 STAFF-36fSTAFF-36 STAFF-36QSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "content_snipet": "STAFF-36\nSTAFF-36WSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36eSTAFF-36xSTAFF-36aSTAFF-36cSTAFF-36tSTAFF-36lSTAFF-36ySTAFF-36 STAFF-36dSTAFF-36oSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36hSTAFF-36eSTAFF-36sSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36\"STAFF-36(STAFF-36cSTAFF-36lSTAFF-36aSTAFF-36sSTAFF-36sSTAFF-36)STAFF-36\"STAFF-36 STAFF-36mSTAFF-36eSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36?STAFF-36",
+    "modified": "2026-09-18T01:07:10Z",
+    "has_i": true,
+    "has_s": true,
+    "num_favorites": 0,
+    "tags": [
+     "hw1",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-17T20:52:06Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|",
+    "m": 1789665350948,
+    "rq": 0,
+    "id": "mu5s04p3bqp58m",
+    "unique_views": 73,
+    "score": 73.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "d-bucket": "Yesterday",
+    "bucket_name": "Yesterday",
+    "bucket_order": 4,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 174,
+    "main_version": 2,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-17T17:00:46Z",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-17T17:15:50Z",
+      "u": "uid-7",
+      "n": "i_answer"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36wSTAFF-36oSTAFF-36rSTAFF-36kSTAFF-36 STAFF-36NSTAFF-36aSTAFF-36mSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36CSTAFF-36oSTAFF-36nSTAFF-36vSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36",
+    "no_answer_followup": 0,
+    "type": "question",
+    "gd_a": 1,
+    "content_snipet": "STAFF-36NSTAFF-36oSTAFF-36tSTAFF-36 STAFF-36sSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36ySTAFF-36wSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36lSTAFF-36rSTAFF-36eSTAFF-36aSTAFF-36dSTAFF-36ySTAFF-36,STAFF-36 STAFF-36ISTAFF-36 STAFF-36aSTAFF-36pSTAFF-36oSTAFF-36lSTAFF-36oSTAFF-36gSTAFF-36iSTAFF-36zSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36iSTAFF-36tSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36sSTAFF-36,STAFF-36 STAFF-36bSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36ySTAFF-36 STAFF-36sSTAFF-36pSTAFF-36eSTAFF-36cSTAFF-36iSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36 STAFF-36nSTAFF-36aSTAFF-36mSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36cSTAFF-36oSTAFF-36nSTAFF-36vSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36sSTAFF-36",
+    "modified": "2026-09-17T17:15:50Z",
+    "has_i": true,
+    "num_favorites": 0,
+    "tags": [
+     "hw1",
+     "student"
+    ],
+    "gd_f": 0,
+    "view_adjust": 0,
+    "no_answer": 0,
+    "updated": "2026-09-17T17:00:46Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|mp_oncampus_1|oncampus_chicago_logistics|chicago_logistics|oncampus_logistics|logistics_all|",
+    "pin": 1,
+    "m": 1789702380526,
+    "rq": 0,
+    "id": "mu3k0dmtw613y4",
+    "unique_views": 165,
+    "score": 165.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "mp_oncampus_1",
+     "oncampus_chicago_logistics",
+     "chicago_logistics",
+     "oncampus_logistics",
+     "logistics_all"
+    ],
+    "nr": 168,
+    "main_version": 5,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-16T03:41:28Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-16T04:07:01Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-16T14:01:40Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-17T17:51:49Z",
+      "u": "uid-90",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-18T03:33:00Z",
+      "u": "uid-91",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36USTAFF-36rSTAFF-36gSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36:STAFF-36 STAFF-36FSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36nSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36cSTAFF-36uSTAFF-36rSTAFF-36rSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36nSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36dSTAFF-36rSTAFF-36oSTAFF-36pSTAFF-36pSTAFF-36eSTAFF-36dSTAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "chicago_logistics",
+     "instructor-note",
+     "logistics_all",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "no_history",
+     "oncampus_chicago_logistics",
+     "oncampus_logistics",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36 STAFF-36eSTAFF-36vSTAFF-36eSTAFF-36rSTAFF-36ySTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36TSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36pSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36wSTAFF-36hSTAFF-36oSTAFF-36 STAFF-36nSTAFF-36eSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36aSTAFF-36 STAFF-36nSTAFF-36eSTAFF-36wSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36nSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36sSTAFF-36 STAFF-362STAFF-36–STAFF-364STAFF-36.STAFF-36\nSTAFF-36\nSTAFF-36YSTAFF-36oSTAFF-36uSTAFF-36 STAFF-36mSTAFF-36aSTAFF-36ySTAFF-36 STAFF-36nSTAFF-36eSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36aSTAFF-36 STAFF-36nSTAFF-36eSTAFF-36wSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36nSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36:STAFF-36\nSTAFF-36\nSTAFF-36YSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36pSTAFF-36aSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-18T03:33:00Z",
+    "updated": "2026-09-16T03:41:28Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_2|",
+    "pin": 1,
+    "m": 1789763446118,
+    "rq": 0,
+    "id": "mu2umd3w2la1qk",
+    "unique_views": 176,
+    "score": 176.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "mp_oncampus_2"
+    ],
+    "nr": 164,
+    "main_version": 7,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-15T15:50:44Z",
+      "u": "uid-3",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-15T15:51:06Z",
+      "u": "uid-3",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-17T21:18:42Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-17T22:59:48Z",
+      "u": "uid-92",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-18T00:49:15Z",
+      "u": "uid-3",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T03:51:32Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-18T20:30:46Z",
+      "u": "uid-93",
+      "n": "followup"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-362STAFF-36 STAFF-36(STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36,STAFF-36 STAFF-36iSTAFF-36nSTAFF-36cSTAFF-36lSTAFF-36uSTAFF-36dSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36)STAFF-36 STAFF-36RSTAFF-36eSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36-STAFF-36 STAFF-36ASTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36iSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36(STAFF-36RSTAFF-36uSTAFF-36nSTAFF-36nSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36PSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36)STAFF-36",
+    "no_answer_followup": 1,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_2",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36OSTAFF-36nSTAFF-36-STAFF-36CSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36&STAFF-36aSTAFF-36mSTAFF-36pSTAFF-36;STAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36SSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36ySTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36MSTAFF-36PSTAFF-362STAFF-36 STAFF-36hSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36bSTAFF-36eSTAFF-36eSTAFF-36nSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36hSTAFF-36tSTAFF-36tSTAFF-36pSTAFF-36sSTAFF-36:STAFF-36/STAFF-36/STAFF-36cSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36sSTAFF-36.STAFF-36gSTAFF-36rSTAFF-36aSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36eSTAFF-36rSTAFF-36.STAFF-36iSTAFF-36lSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36oSTAFF-36iSTAFF-36sSTAFF-36.STAFF-36eSTAFF-36dSTAFF-36uSTAFF-36/STAFF-36cSTAFF-36sSTAFF-364STAFF-362STAFF-365STAFF-36/STAFF-36fSTAFF-36aSTAFF-362STAFF-360STAFF-362STAFF-366STAFF-36/STAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-18T20:30:46Z",
+    "updated": "2026-09-15T15:50:44Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_logistics|mp_oncampus_1|",
+    "m": 1789534222237,
+    "rq": 0,
+    "id": "mu0foyg5ycc4gs",
+    "unique_views": 81,
+    "score": 81.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "This week",
+    "bucket_order": 5,
+    "folders": [
+     "oncampus_logistics",
+     "mp_oncampus_1"
+    ],
+    "nr": 147,
+    "main_version": 6,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-13T23:17:18Z",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-14T00:33:44Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-14T00:34:14Z",
+      "u": "uid-8",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-15T00:37:20Z",
+      "u": "uid-91",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-15T23:35:52Z",
+      "u": "uid-94",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-16T04:49:20Z",
+      "u": "uid-8",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36DSTAFF-36rSTAFF-36oSTAFF-36pSTAFF-36pSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36fSTAFF-36rSTAFF-36oSTAFF-36mSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-363STAFF-36cSTAFF-36rSTAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "mp_oncampus_1",
+     "oncampus_logistics",
+     "student"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36eSTAFF-36lSTAFF-36lSTAFF-36oSTAFF-36!STAFF-36 STAFF-36ISTAFF-36 STAFF-36wSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36nSTAFF-36kSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36aSTAFF-36bSTAFF-36oSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36dSTAFF-36rSTAFF-36oSTAFF-36pSTAFF-36pSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36fSTAFF-36rSTAFF-36oSTAFF-36mSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-363STAFF-36cSTAFF-36rSTAFF-36 STAFF-36vSTAFF-36eSTAFF-36rSTAFF-36sSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36cSTAFF-36lSTAFF-36aSTAFF-36sSTAFF-36sSTAFF-36.STAFF-36 STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36tSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36 STAFF-36kSTAFF-36nSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36ySTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36 STAFF-36eSTAFF-36lSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-16T04:50:22Z",
+    "updated": "2026-09-13T23:17:18Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|",
+    "m": 1789328720123,
+    "rq": 0,
+    "id": "mu083fyqcub4g7",
+    "unique_views": 268,
+    "score": 268.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "This week",
+    "bucket_order": 5,
+    "folders": [
+     "mp_oncampus_1"
+    ],
+    "nr": 145,
+    "main_version": 2,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-13T19:44:37Z",
+      "u": "uid-9",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-13T19:45:20Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36DSTAFF-36eSTAFF-36mSTAFF-36oSTAFF-36 STAFF-36SSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36uSTAFF-36pSTAFF-36sSTAFF-36 STAFF-36MSTAFF-36aSTAFF-36ySTAFF-36 STAFF-36hSTAFF-36aSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36mSTAFF-36oSTAFF-36vSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36lSTAFF-36oSTAFF-36cSTAFF-36aSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36(STAFF-36&STAFF-36#STAFF-364STAFF-363STAFF-36;STAFF-36 STAFF-36RSTAFF-36eSTAFF-36mSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36TSTAFF-36ASTAFF-36GSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36rSTAFF-36eSTAFF-36pSTAFF-36oSTAFF-36rSTAFF-36tSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36GSTAFF-36rSTAFF-36aSTAFF-36dSTAFF-36eSTAFF-36sSTAFF-36cSTAFF-36oSTAFF-36pSTAFF-36eSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "no_history"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36TSTAFF-36hSTAFF-36aSTAFF-36nSTAFF-36kSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36fSTAFF-36iSTAFF-36lSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36oSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36DSTAFF-36eSTAFF-36mSTAFF-36oSTAFF-36 STAFF-36SSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36uSTAFF-36pSTAFF-36sSTAFF-36.STAFF-36 STAFF-36SSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36lSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36aSTAFF-36cSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36iSTAFF-36tSTAFF-36eSTAFF-36mSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36+STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36:STAFF-36\nSTAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36DSTAFF-36eSTAFF-36mSTAFF-36oSTAFF-36 STAFF-36SSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-13T19:45:20Z",
+    "updated": "2026-09-13T19:44:37Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|",
+    "m": 1789311824798,
+    "rq": 0,
+    "id": "mtyujmqutsq77v",
+    "unique_views": 281,
+    "score": 281.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 10,
+    "bucket_name": "Last week",
+    "bucket_order": 6,
+    "folders": [
+     "mp_oncampus_1"
+    ],
+    "nr": 125,
+    "main_version": 10,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-12T20:37:32Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-12T20:43:05Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T20:44:06Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T21:04:08Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T21:23:40Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T22:20:31Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T22:20:52Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T04:02:47Z",
+      "u": "uid-95",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T12:54:22Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T12:59:41Z",
+      "u": "uid-8",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36oSTAFF-36uSTAFF-36tSTAFF-36pSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36mSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36[STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36]STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1",
+     "no_history"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36,STAFF-36\nSTAFF-36ISTAFF-36tSTAFF-36 STAFF-36lSTAFF-36oSTAFF-36oSTAFF-36kSTAFF-36sSTAFF-36 STAFF-36lSTAFF-36iSTAFF-36kSTAFF-36eSTAFF-36 STAFF-36sSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36dSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36bSTAFF-36oSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36oSTAFF-36uSTAFF-36tSTAFF-36pSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36mSTAFF-36aSTAFF-36tSTAFF-36.STAFF-36\nSTAFF-36\nSTAFF-36HSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36sSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36eSTAFF-36xSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36lSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36eSTAFF-36tSTAFF-36 STAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36qSTAFF-36uSTAFF-36iSTAFF-36rSTAFF-36eSTAFF-36mSTAFF-36eSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-13T15:03:44Z",
+    "updated": "2026-09-12T20:37:32Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|mp_oncampus_1|logistics_all|",
+    "pc": 1,
+    "pin": 1,
+    "m": 1789078033392,
+    "rq": 0,
+    "id": "mtw0z8zd2xd6v4",
+    "unique_views": 347,
+    "score": 347.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "hw1",
+     "mp_oncampus_1",
+     "logistics_all"
+    ],
+    "nr": 105,
+    "main_version": 9,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-10T21:14:20Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-10T22:06:20Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-10T22:06:28Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-10T22:06:55Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-10T22:07:13Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36TSTAFF-36aSTAFF-36gSTAFF-36/STAFF-36ASTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36gSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36GSTAFF-36rSTAFF-36aSTAFF-36dSTAFF-36eSTAFF-36sSTAFF-36cSTAFF-36oSTAFF-36pSTAFF-36eSTAFF-36:STAFF-36 STAFF-36HSTAFF-36WSTAFF-36 STAFF-36(STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36)STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36-STAFF-36rSTAFF-36eSTAFF-36pSTAFF-36oSTAFF-36rSTAFF-36tSTAFF-36 STAFF-36(STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "hw1",
+     "instructor-note",
+     "logistics_all",
+     "mp_oncampus_1",
+     "past-class",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36JSTAFF-36uSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36aSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36mSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36rSTAFF-36:STAFF-36 STAFF-36pSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36TSTAFF-36ASTAFF-36GSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36gSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36 STAFF-36GSTAFF-36rSTAFF-36aSTAFF-36dSTAFF-36eSTAFF-36sSTAFF-36cSTAFF-36oSTAFF-36pSTAFF-36eSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36HSTAFF-36WSTAFF-36sSTAFF-36.STAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36\nSTAFF-36\nSTAFF-36SSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36dSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36bSTAFF-36oSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36aSTAFF-36gSTAFF-36gSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36.STAFF-36 STAFF-36SSTAFF-36oSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-10T22:07:13Z",
+    "gd": 2,
+    "updated": "2026-09-10T21:14:20Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_chicago_logistics|mp_oncampus_1|",
+    "m": 1789347678105,
+    "rq": 0,
+    "id": "mtub5wvwpthc9",
+    "unique_views": 336,
+    "score": 336.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 26,
+    "bucket_name": "Last week",
+    "bucket_order": 6,
+    "folders": [
+     "oncampus_chicago_logistics",
+     "mp_oncampus_1"
+    ],
+    "nr": 95,
+    "main_version": 28,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-09T16:23:54Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-09T16:28:20Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T16:29:25Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T16:34:22Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T16:35:14Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T22:05:33Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T22:06:09Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-10T15:58:13Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-10T21:54:16Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T15:32:09Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T15:55:04Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T18:37:48Z",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T18:40:02Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T19:59:52Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T20:55:08Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T20:57:39Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T21:13:41Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T21:31:51Z",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T21:34:33Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T21:35:41Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T22:05:07Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T23:56:25Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T23:58:37Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T00:02:11Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T00:22:54Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T00:26:41Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-14T00:56:03Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-14T01:01:18Z",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36DSTAFF-36eSTAFF-36mSTAFF-36oSTAFF-36,STAFF-36 STAFF-36SSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36uSTAFF-36pSTAFF-36,STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36SSTAFF-36uSTAFF-36bSTAFF-36mSTAFF-36iSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36sSTAFF-36tSTAFF-36rSTAFF-36uSTAFF-36cSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36[STAFF-36OSTAFF-36nSTAFF-36-STAFF-36CSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36]STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 4,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1",
+     "oncampus_chicago_logistics"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36*STAFF-36*STAFF-36(STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36ySTAFF-36,STAFF-36 STAFF-36ESTAFF-36XSTAFF-36CSTAFF-36ESTAFF-36PSTAFF-36TSTAFF-36 STAFF-36CSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36)STAFF-36*STAFF-36*STAFF-36\nSTAFF-36\nSTAFF-36*STAFF-36*STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36DSTAFF-36eSTAFF-36mSTAFF-36oSTAFF-36,STAFF-36 STAFF-36SSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36uSTAFF-36pSTAFF-36,STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36SSTAFF-36uSTAFF-36bSTAFF-36mSTAFF-36iSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36sSTAFF-36tSTAFF-36rSTAFF-36uSTAFF-36cSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36bSTAFF-36eSTAFF-36lSTAFF-36oSTAFF-36wSTAFF-36.STAFF-36*STAFF-36*STAFF-36\nSTAFF-36\nSTAFF-36*STAFF-36*STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36aSTAFF-36dSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-14T01:01:18Z",
+    "updated": "2026-09-09T16:23:54Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_logistics|",
+    "m": 1788804915118,
+    "rq": 0,
+    "id": "mtrk9e3y4e85ja",
+    "unique_views": 303,
+    "score": 303.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Last week",
+    "bucket_order": 6,
+    "folders": [
+     "oncampus_logistics"
+    ],
+    "nr": 86,
+    "main_version": 1,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-07T18:15:15Z",
+      "u": "uid-8",
+      "n": "create"
+     }
+    ],
+    "subject": "STAFF-36PSTAFF-36oSTAFF-36pSTAFF-36-STAFF-36uSTAFF-36pSTAFF-36 STAFF-36qSTAFF-36uSTAFF-36iSTAFF-36zSTAFF-36zSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36vSTAFF-36sSTAFF-36.STAFF-36 STAFF-36pSTAFF-36oSTAFF-36lSTAFF-36lSTAFF-36sSTAFF-36 STAFF-36(STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "oncampus_logistics"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36USTAFF-36rSTAFF-36bSTAFF-36aSTAFF-36nSTAFF-36aSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36/STAFF-36/STAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36:STAFF-36 STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36gSTAFF-36nSTAFF-36oSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36sSTAFF-36sSTAFF-36aSTAFF-36gSTAFF-36eSTAFF-36.STAFF-36\nSTAFF-36\nSTAFF-36ISTAFF-36nSTAFF-36-STAFF-36cSTAFF-36lSTAFF-36aSTAFF-36sSTAFF-36sSTAFF-36 STAFF-36pSTAFF-36oSTAFF-36lSTAFF-36lSTAFF-36sSTAFF-36:STAFF-36 STAFF-36TSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36pSTAFF-36oSTAFF-36lSTAFF-36lSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-07T18:15:15Z",
+    "updated": "2026-09-07T18:15:15Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_chicago_logistics|mp_oncampus_1|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|oncampus_logistics|chicago_logistics|",
+    "pin": 1,
+    "m": 1788805398457,
+    "rq": 0,
+    "id": "mtpwutwidh4537",
+    "unique_views": 368,
+    "score": 368.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 5,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "oncampus_chicago_logistics",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_logistics",
+     "chicago_logistics"
+    ],
+    "nr": 80,
+    "main_version": 5,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-06T14:32:18Z",
+      "u": "uid-4",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-06T14:34:36Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-06T14:48:16Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T18:22:46Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T18:23:18Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36[STAFF-36OSTAFF-36nSTAFF-36-STAFF-36CSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36]STAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36gSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36pSTAFF-36oSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36aSTAFF-36vSTAFF-36aSTAFF-36iSTAFF-36lSTAFF-36aSTAFF-36bSTAFF-36lSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36GSTAFF-36iSTAFF-36tSTAFF-36HSTAFF-36uSTAFF-36bSTAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 4,
+    "type": "note",
+    "tags": [
+     "chicago_logistics",
+     "instructor-note",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_chicago_logistics",
+     "oncampus_logistics",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36YSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36GSTAFF-36iSTAFF-36tSTAFF-36HSTAFF-36uSTAFF-36bSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36pSTAFF-36oSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36aSTAFF-36dSTAFF-36ySTAFF-36!STAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36 STAFF-36YSTAFF-36oSTAFF-36uSTAFF-36 STAFF-36wSTAFF-36iSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36uSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36pSTAFF-36oSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36sSTAFF-36uSTAFF-36bSTAFF-36mSTAFF-36iSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36 STAFF-36&STAFF-36aSTAFF-36mSTAFF-36pSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-07T18:23:18Z",
+    "updated": "2026-09-06T14:32:18Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_chicago_logistics|mp_oncampus_1|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|oncampus_logistics|chicago_logistics|",
+    "pin": 1,
+    "m": 1788970495398,
+    "rq": 0,
+    "id": "mtmze2p7sif1yo",
+    "unique_views": 385,
+    "score": 385.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 7,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "oncampus_chicago_logistics",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_logistics",
+     "chicago_logistics"
+    ],
+    "nr": 68,
+    "main_version": 8,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-04T13:19:56Z",
+      "u": "uid-4",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-04T20:19:29Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-04T22:20:34Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-04T22:22:23Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-05T15:51:20Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-06T05:23:11Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T18:23:02Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-09T16:14:55Z",
+      "u": "uid-4",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36[STAFF-36OSTAFF-36nSTAFF-36-STAFF-36CSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36]STAFF-36 STAFF-36VSTAFF-36MSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36aSTAFF-36vSTAFF-36aSTAFF-36iSTAFF-36lSTAFF-36aSTAFF-36bSTAFF-36lSTAFF-36eSTAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 3,
+    "type": "note",
+    "tags": [
+     "chicago_logistics",
+     "instructor-note",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_chicago_logistics",
+     "oncampus_logistics",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36/STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36GSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36/STAFF-36VSTAFF-36MSTAFF-36 STAFF-36mSTAFF-36aSTAFF-36pSTAFF-36pSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36(STAFF-36uSTAFF-36pSTAFF-36dSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-369STAFF-36/STAFF-369STAFF-36)STAFF-36:STAFF-36 STAFF-36fSTAFF-36aSTAFF-362STAFF-366STAFF-36_STAFF-36cSTAFF-36sSTAFF-364STAFF-362STAFF-365STAFF-36_STAFF-36gSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36_STAFF-36sSTAFF-36uSTAFF-36mSTAFF-36mSTAFF-36aSTAFF-36rSTAFF-36ySTAFF-36-STAFF-36sSTAFF-36eSTAFF-36pSTAFF-369STAFF-36.STAFF-36tSTAFF-36xSTAFF-36tSTAFF-36\nSTAFF-36\nSTAFF-36GSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36 STAFF-36aSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36mSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-09T16:14:55Z",
+    "updated": "2026-09-04T13:19:56Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_chicago_logistics|",
+    "m": 1788454111603,
+    "rq": 0,
+    "id": "mtlrc6p2vxcew",
+    "unique_views": 227,
+    "score": 227.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Week 8/30 - 9/5",
+    "bucket_order": 8,
+    "folders": [
+     "oncampus_chicago_logistics"
+    ],
+    "nr": 59,
+    "main_version": 2,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-09-03T16:46:45Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-09-03T16:48:31Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36TSTAFF-36oSTAFF-36dSTAFF-36aSTAFF-36ySTAFF-36&STAFF-36#STAFF-363STAFF-369STAFF-36;STAFF-36sSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36(STAFF-36oSTAFF-36nSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "oncampus_chicago_logistics"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36 STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36,STAFF-36\nSTAFF-36TSTAFF-36oSTAFF-36dSTAFF-36aSTAFF-36ySTAFF-36,STAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36iSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36 STAFF-36gSTAFF-36uSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36GSTAFF-36oSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36pSTAFF-36 STAFF-36bSTAFF-36ySTAFF-36 STAFF-36JSTAFF-36iSTAFF-36ySTAFF-36uSTAFF-36 STAFF-36HSTAFF-36uSTAFF-36 STAFF-36(STAFF-36aSTAFF-36 STAFF-364STAFF-36tSTAFF-36hSTAFF-36 STAFF-36ySTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36PSTAFF-36hSTAFF-36DSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36cSTAFF-36oSTAFF-36-STAFF-36aSTAFF-36dSTAFF-36vSTAFF-36iSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36bSTAFF-36ySTAFF-36 STAFF-36mSTAFF-36eSTAFF-36)STAFF-36.STAFF-36 STAFF-36JSTAFF-36iSTAFF-36ySTAFF-36uSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36oSTAFF-36kSTAFF-36 STAFF-36CSTAFF-36SSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-03T16:48:31Z",
+    "d-bucket": "Yesterday",
+    "gd": 1,
+    "updated": "2026-09-03T16:46:45Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|",
+    "m": 1788206649957,
+    "rq": 0,
+    "id": "mtheeebobkr18e",
+    "unique_views": 333,
+    "score": 333.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Week 8/30 - 9/5",
+    "bucket_order": 8,
+    "folders": [
+     "mp_oncampus_1"
+    ],
+    "nr": 42,
+    "main_version": 6,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-31T15:33:29Z",
+      "u": "uid-9",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-31T15:47:58Z",
+      "u": "uid-4",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-31T16:56:57Z",
+      "u": "uid-96",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-31T17:14:49Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-08-31T19:55:48Z",
+      "u": "uid-93",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-31T20:04:09Z",
+      "u": "uid-4",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36RSTAFF-36eSTAFF-36mSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36rSTAFF-36:STAFF-36 STAFF-36RSTAFF-36eSTAFF-36gSTAFF-36iSTAFF-36sSTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36YSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36GSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36 STAFF-36bSTAFF-36ySTAFF-36 STAFF-36ESTAFF-36OSTAFF-36DSTAFF-36 STAFF-36TSTAFF-36oSTAFF-36dSTAFF-36aSTAFF-36ySTAFF-36 STAFF-368STAFF-36/STAFF-363STAFF-361STAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36DSTAFF-36oSTAFF-36nSTAFF-36’STAFF-36tSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36gSTAFF-36eSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36gSTAFF-36iSTAFF-36sSTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36gSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36 STAFF-36@STAFF-361STAFF-366STAFF-36 STAFF-36bSTAFF-36ySTAFF-36 STAFF-36ESTAFF-36OSTAFF-36DSTAFF-36 STAFF-36TSTAFF-36oSTAFF-36dSTAFF-36aSTAFF-36ySTAFF-36 STAFF-368STAFF-36/STAFF-363STAFF-361STAFF-36!STAFF-36\nSTAFF-36ASTAFF-36fSTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36dSTAFF-36eSTAFF-36aSTAFF-36dSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36eSTAFF-36,STAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36wSTAFF-36iSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36nSTAFF-36oSTAFF-36tSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36cSTAFF-36eSTAFF-36iSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36 STAFF-36VSTAFF-36MSTAFF-36,STAFF-36 STAFF-36wSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36hSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36aSTAFF-36nSTAFF-36sSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-31T20:04:09Z",
+    "d-bucket": "Yesterday",
+    "updated": "2026-08-31T15:33:29Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|",
+    "pc": 1,
+    "pin": 1,
+    "m": 1789615242457,
+    "rq": 0,
+    "id": "mtca1sh8pfk6ze",
+    "unique_views": 505,
+    "score": 505.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 31,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "hw1"
+    ],
+    "nr": 28,
+    "main_version": 91,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-28T01:32:51Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-28T01:41:29Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-28T01:41:58Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-28T01:42:51Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-31T17:33:14Z",
+      "u": "uid-96",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-31T17:38:00Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-01T03:41:01Z",
+      "u": "uid-97",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-01T06:36:19Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-01T14:00:20Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-02T03:10:20Z",
+      "u": "uid-98",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-02T03:12:46Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-03T04:25:18Z",
+      "u": "uid-99",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-03T04:53:08Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-03T19:11:02Z",
+      "u": "uid-100",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-03T20:22:45Z",
+      "u": "uid-14",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-03T20:26:34Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-04T23:12:21Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-05T16:42:47Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-05T17:10:39Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-05T17:15:51Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-05T17:16:04Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-05T18:58:05Z",
+      "u": "uid-101",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-05T21:26:34Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-06T01:17:09Z",
+      "u": "uid-102",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-06T01:49:04Z",
+      "u": "uid-101",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-06T16:29:37Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-07T23:13:16Z",
+      "u": "uid-103",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-08T02:11:38Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-09T05:14:33Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-09T05:18:27Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-10T11:59:25Z",
+      "u": "uid-103",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-11T23:23:21Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-11T23:23:49Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-11T23:24:20Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-12T16:42:38Z",
+      "u": "uid-104",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-12T16:47:12Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-12T23:35:07Z",
+      "u": "uid-105",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T02:20:15Z",
+      "u": "uid-106",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T13:35:25Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T13:40:10Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T13:42:49Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T13:43:17Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T13:43:30Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T14:38:57Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T15:41:07Z",
+      "u": "uid-105",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T19:14:42Z",
+      "u": "uid-107",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-13T19:17:57Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T20:13:59Z",
+      "u": "uid-14",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T22:12:04Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-13T22:13:32Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:14:04Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:14:14Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:15:09Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:16:31Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:18:07Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:21:48Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:22:39Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-13T22:22:48Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-14T23:06:47Z",
+      "u": "uid-108",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-15T00:24:34Z",
+      "u": "uid-109",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-15T02:02:12Z",
+      "u": "uid-108",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-15T02:05:14Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-15T02:13:45Z",
+      "u": "uid-108",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-15T02:22:27Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-15T02:25:03Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-15T03:31:14Z",
+      "u": "uid-108",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-15T03:56:49Z",
+      "u": "uid-4",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-15T22:50:57Z",
+      "n": "followup",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T02:40:02Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T03:46:38Z",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T03:54:53Z",
+      "u": "uid-4",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T04:00:18Z",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T04:04:10Z",
+      "u": "uid-110",
+      "n": "followup",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T04:52:01Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T05:06:11Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T15:12:37Z",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T16:26:37Z",
+      "u": "uid-108",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T17:05:20Z",
+      "u": "uid-4",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T18:25:46Z",
+      "u": "uid-108",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T19:00:58Z",
+      "u": "uid-4",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T19:21:30Z",
+      "u": "uid-108",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T20:40:17Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T22:32:44Z",
+      "u": "uid-111",
+      "n": "followup",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-16T22:33:12Z",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-17T03:17:01Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-17T03:17:21Z",
+      "u": "uid-8",
+      "n": "feedback",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     },
+     {
+      "t": "2026-09-17T03:19:17Z",
+      "u": "uid-8",
+      "n": "followup",
+      "cid": "mtca1sh8pfk6ze",
+      "w": "note"
+     }
+    ],
+    "subject": "STAFF-36HSTAFF-36WSTAFF-361STAFF-36 STAFF-36(STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36)STAFF-36 STAFF-36RSTAFF-36eSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36-STAFF-36 STAFF-36ASTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36iSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36(STAFF-36RSTAFF-36uSTAFF-36nSTAFF-36nSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36PSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 3,
+    "type": "note",
+    "tags": [
+     "hw1",
+     "instructor-note",
+     "past-class",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36[STAFF-36LSTAFF-36aSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36USTAFF-36pSTAFF-36dSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36SSTAFF-36eSTAFF-36pSTAFF-36 STAFF-361STAFF-363STAFF-36.STAFF-36]STAFF-36 STAFF-36ASTAFF-36lSTAFF-36sSTAFF-36oSTAFF-36,STAFF-36 STAFF-36uSTAFF-36pSTAFF-36dSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36HSTAFF-36WSTAFF-361STAFF-36.STAFF-36pSTAFF-36dSTAFF-36fSTAFF-36.STAFF-36 STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36pSTAFF-36uSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36lSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36HSTAFF-36WSTAFF-361STAFF-36.STAFF-36pSTAFF-36dSTAFF-36fSTAFF-36 STAFF-36fSTAFF-36rSTAFF-36oSTAFF-36mSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36bSTAFF-36sSTAFF-36iSTAFF-36tSTAFF-36eSTAFF-36.STAFF-36\nSTAFF-36\nSTAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36,STAFF-36WSTAFF-36eSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36jSTAFF-36uSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-17T03:20:42Z",
+    "updated": "2026-08-28T01:32:51Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|",
+    "pc": 1,
+    "m": 1788824890306,
+    "rq": 0,
+    "id": "mtb2njqaaoh5d8",
+    "unique_views": 480,
+    "score": 480.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 17,
+    "bucket_name": "Week 8/23 - 8/29",
+    "bucket_order": 9,
+    "folders": [
+     "mp_oncampus_1"
+    ],
+    "nr": 26,
+    "main_version": 23,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-27T05:18:03Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-27T05:42:50Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T05:43:22Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-28T14:48:17Z",
+      "u": "uid-112",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-28T16:12:40Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-08-30T19:39:34Z",
+      "u": "uid-92",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-30T22:58:59Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-08-31T03:12:24Z",
+      "u": "uid-113",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-08-31T03:23:50Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-01T14:14:25Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-02T00:20:30Z",
+      "u": "uid-93",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-02T02:21:56Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-03T22:48:50Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-03T22:49:16Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-06T07:01:28Z",
+      "u": "uid-4",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-06T17:25:35Z",
+      "u": "uid-114",
+      "n": "followup"
+     },
+     {
+      "t": "2026-09-06T20:14:01Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T03:34:23Z",
+      "u": "uid-4",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T12:54:15Z",
+      "u": "uid-8",
+      "n": "feedback"
+     },
+     {
+      "t": "2026-09-07T23:48:10Z",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36(STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36,STAFF-36 STAFF-36iSTAFF-36nSTAFF-36cSTAFF-36lSTAFF-36uSTAFF-36dSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36)STAFF-36 STAFF-36RSTAFF-36eSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36-STAFF-36 STAFF-36ASTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36iSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36 STAFF-36(STAFF-36RSTAFF-36uSTAFF-36nSTAFF-36nSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36PSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 2,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1",
+     "past-class"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36,STAFF-36ASTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36nSTAFF-36oSTAFF-36uSTAFF-36nSTAFF-36cSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36lSTAFF-36aSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36,STAFF-36 STAFF-36wSTAFF-36eSTAFF-36 STAFF-36hSTAFF-36aSTAFF-36vSTAFF-36eSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36bSTAFF-36oSTAFF-36tSTAFF-36hSTAFF-36 STAFF-36MSTAFF-36PSTAFF-361STAFF-36 STAFF-36(STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36,STAFF-36 STAFF-36iSTAFF-36nSTAFF-36cSTAFF-36lSTAFF-36uSTAFF-36dSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36)STAFF-36.STAFF-36\nSTAFF-36\nSTAFF-36YSTAFF-36oSTAFF-36uSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36fSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36iSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-07T23:48:10Z",
+    "updated": "2026-08-27T05:18:03Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|hw2|coursera_exams|hw3|hw4|coursera_logistics|additional_study_material|final_written_exam_oncampus|mp_coursera_1|midterm_written_exam_coursera|coursera_quizzes|mp_oncampus_1|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|video_lectures|final_written_exam_coursera|midterm_written_exam_oncampus|mp_coursera_2|oncampus_chicago_logistics|logistics_all|chicago_logistics|",
+    "pc": 1,
+    "pin": 1,
+    "m": 1788809306723,
+    "rq": 0,
+    "id": "mtb1cs0nqco5f3",
+    "unique_views": 419,
+    "score": 419.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "hw1",
+     "hw2",
+     "coursera_exams",
+     "hw3",
+     "hw4",
+     "coursera_logistics",
+     "additional_study_material",
+     "final_written_exam_oncampus",
+     "mp_coursera_1",
+     "midterm_written_exam_coursera",
+     "coursera_quizzes",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "video_lectures",
+     "final_written_exam_coursera",
+     "midterm_written_exam_oncampus",
+     "mp_coursera_2",
+     "oncampus_chicago_logistics",
+     "logistics_all",
+     "chicago_logistics"
+    ],
+    "nr": 24,
+    "main_version": 11,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-27T04:41:41Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-27T05:02:33Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T05:08:43Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T05:12:05Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T05:12:51Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-01T13:48:39Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-01T13:58:01Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-01T21:42:28Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-04T16:48:16Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-04T16:48:35Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-07T19:28:26Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36OSTAFF-36fSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36eSTAFF-36 STAFF-36HSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36(STAFF-36ZSTAFF-36oSTAFF-36oSTAFF-36mSTAFF-36 STAFF-36lSTAFF-36iSTAFF-36nSTAFF-36kSTAFF-36sSTAFF-36,STAFF-36 STAFF-36ESTAFF-36xSTAFF-36cSTAFF-36eSTAFF-36pSTAFF-36tSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36sSTAFF-36)STAFF-36:STAFF-36 STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "additional_study_material",
+     "chicago_logistics",
+     "coursera_exams",
+     "coursera_logistics",
+     "coursera_quizzes",
+     "final_written_exam_coursera",
+     "final_written_exam_oncampus",
+     "hw1",
+     "hw2",
+     "hw3",
+     "hw4",
+     "instructor-note",
+     "logistics_all",
+     "midterm_written_exam_coursera",
+     "midterm_written_exam_oncampus",
+     "mp_coursera_1",
+     "mp_coursera_2",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_chicago_logistics",
+     "past-class",
+     "pin",
+     "video_lectures"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36fSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36fSTAFF-36iSTAFF-36cSTAFF-36eSTAFF-36 STAFF-36hSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36sSTAFF-36cSTAFF-36hSTAFF-36eSTAFF-36dSTAFF-36uSTAFF-36lSTAFF-36eSTAFF-36 STAFF-36hSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36:STAFF-36 STAFF-36hSTAFF-36tSTAFF-36tSTAFF-36pSTAFF-36sSTAFF-36:STAFF-36/STAFF-36/STAFF-36cSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36sSTAFF-36.STAFF-36gSTAFF-36rSTAFF-36aSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36eSTAFF-36rSTAFF-36.STAFF-36iSTAFF-36lSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36oSTAFF-36iSTAFF-36sSTAFF-36.STAFF-36eSTAFF-36dSTAFF-36uSTAFF-36/STAFF-36cSTAFF-36sSTAFF-364STAFF-362STAFF-365STAFF-36/STAFF-36fSTAFF-36aSTAFF-362STAFF-360STAFF-362STAFF-366STAFF-36/STAFF-36sSTAFF-36tSTAFF-36aSTAFF-36fSTAFF-36fSTAFF-36.STAFF-36hSTAFF-36tSTAFF-36mSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-07T19:28:26Z",
+    "updated": "2026-08-27T04:41:41Z",
+    "status": "active"
+   },
+   {
+    "fol": "video_lectures|",
+    "m": 1787762193611,
+    "rq": 0,
+    "id": "mta8zytm6ar718",
+    "unique_views": 306,
+    "score": 306.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Week 8/23 - 8/29",
+    "bucket_order": 9,
+    "folders": [
+     "video_lectures"
+    ],
+    "nr": 19,
+    "main_version": 3,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-26T15:27:54Z",
+      "u": "uid-115",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-26T15:35:13Z",
+      "u": "uid-115",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-26T16:36:33Z",
+      "u": "uid-115",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36nSTAFF-36oSTAFF-36tSTAFF-36eSTAFF-36:STAFF-36 STAFF-36WSTAFF-36hSTAFF-36eSTAFF-36nSTAFF-36 STAFF-36eSTAFF-36aSTAFF-36cSTAFF-36hSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36rSTAFF-36eSTAFF-36cSTAFF-36oSTAFF-36rSTAFF-36dSTAFF-36eSTAFF-36dSTAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "student",
+     "video_lectures"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36TSTAFF-36oSTAFF-36 STAFF-36fSTAFF-36iSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36wSTAFF-36hSTAFF-36eSTAFF-36nSTAFF-36 STAFF-36eSTAFF-36aSTAFF-36cSTAFF-36hSTAFF-36 STAFF-36lSTAFF-36eSTAFF-36cSTAFF-36tSTAFF-36uSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36sSTAFF-36 STAFF-36cSTAFF-36rSTAFF-36eSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36nSTAFF-36 STAFF-36dSTAFF-36oSTAFF-36wSTAFF-36nSTAFF-36lSTAFF-36oSTAFF-36aSTAFF-36dSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36PSTAFF-36DSTAFF-36FSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36lSTAFF-36oSTAFF-36oSTAFF-36kSTAFF-36 STAFF-36aSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36dSTAFF-36oSTAFF-36cSTAFF-36uSTAFF-36mSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36pSTAFF-36rSTAFF-36oSTAFF-36pSTAFF-36eSTAFF-36rSTAFF-36tSTAFF-36iSTAFF-36eSTAFF-36sSTAFF-36.STAFF-36 STAFF-36SSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36eSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36tSTAFF-36rSTAFF-36iSTAFF-36cSTAFF-36sSTAFF-36 STAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-26T16:36:33Z",
+    "updated": "2026-08-26T15:27:54Z",
+    "status": "active"
+   },
+   {
+    "fol": "mp_oncampus_1|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|",
+    "pc": 1,
+    "m": 1787805713171,
+    "rq": 0,
+    "id": "mt8x086cxascv",
+    "unique_views": 462,
+    "score": 462.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 9,
+    "bucket_name": "Week 8/23 - 8/29",
+    "bucket_order": 9,
+    "folders": [
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4"
+    ],
+    "nr": 16,
+    "main_version": 13,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-25T17:04:25Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-25T17:08:37Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-25T17:09:00Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-25T21:05:21Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-25T21:09:52Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-25T21:10:08Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T04:41:53Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36RSTAFF-36eSTAFF-36gSTAFF-36iSTAFF-36sSTAFF-36tSTAFF-36eSTAFF-36rSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36GSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36VSTAFF-36MSTAFF-36sSTAFF-36 STAFF-36(STAFF-36oSTAFF-36nSTAFF-36lSTAFF-36ySTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36&STAFF-36aSTAFF-36mSTAFF-36pSTAFF-36;STAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36CSTAFF-36SSTAFF-36-STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36&STAFF-36aSTAFF-36mSTAFF-36pSTAFF-36;STAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36CSTAFF-36iSTAFF-36tSTAFF-36ySTAFF-36 STAFF-36SSTAFF-36cSTAFF-36hSTAFF-36oSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36sSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "instructor-note",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "past-class"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36\nSTAFF-36ISTAFF-36fSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36aSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36 STAFF-364STAFF-36 STAFF-36cSTAFF-36rSTAFF-36eSTAFF-36dSTAFF-36iSTAFF-36tSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36oSTAFF-36rSTAFF-36 STAFF-36aSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36CSTAFF-36SSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36oSTAFF-36rSTAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36 STAFF-36CSTAFF-36iSTAFF-36tSTAFF-36ySTAFF-36 STAFF-36SSTAFF-36cSTAFF-36hSTAFF-36oSTAFF-36lSTAFF-36aSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36(STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-363STAFF-36cSTAFF-36rSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-27T04:41:53Z",
+    "updated": "2026-08-25T17:04:25Z",
+    "status": "active"
+   },
+   {
+    "fol": "chicago_logistics|",
+    "m": 1787711493729,
+    "rq": 0,
+    "id": "mt82fdpyj5o466",
+    "unique_views": 405,
+    "score": 405.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Week 8/23 - 8/29",
+    "bucket_order": 9,
+    "folders": [
+     "chicago_logistics"
+    ],
+    "nr": 15,
+    "main_version": 4,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-25T02:48:24Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-26T01:58:19Z",
+      "n": "followup"
+     },
+     {
+      "t": "2026-08-26T02:31:33Z",
+      "u": "uid-3",
+      "n": "feedback"
+     }
+    ],
+    "subject": "STAFF-36GSTAFF-36eSTAFF-36tSTAFF-36tSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36SSTAFF-36tSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36(STAFF-36OSTAFF-36tSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36ISTAFF-36gSTAFF-36nSTAFF-36oSTAFF-36rSTAFF-36eSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "chicago_logistics",
+     "instructor-note"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36CSTAFF-36SSTAFF-364STAFF-362STAFF-365STAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36WSTAFF-36eSTAFF-36lSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36CSTAFF-36SSTAFF-36 STAFF-364STAFF-362STAFF-365STAFF-36 STAFF-36FSTAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-362STAFF-360STAFF-362STAFF-366STAFF-36!STAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36\nSTAFF-36\nSTAFF-36TSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36FSTAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-362STAFF-360STAFF-362STAFF-366STAFF-36,STAFF-36 STAFF-36CSTAFF-36SSTAFF-364STAFF-362STAFF-365STAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36MSTAFF-36CSTAFF-36SSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36(STAFF-36MSTAFF-36CSTAFF-363STAFF-36/STAFF-36MSTAFF-36CSTAFF-364STAFF-36)STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36CSTAFF-36iSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-26T02:31:33Z",
+    "gd": 1,
+    "updated": "2026-08-25T02:48:24Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|hw2|hw3|hw4|oncampus_chicago_logistics|coursera_exams|additional_study_material|final_written_exam_oncampus|mp_coursera_1|mp_coursera_2|mp_oncampus_1|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|video_lectures|logistics_all|coursera_quizzes|coursera_logistics|midterm_written_exam_coursera|final_written_exam_coursera|midterm_written_exam_oncampus|chicago_logistics|",
+    "pc": 1,
+    "pin": 1,
+    "m": 1787837047111,
+    "rq": 0,
+    "id": "mt7u5xr2l4d3od",
+    "unique_views": 453,
+    "score": 453.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 3,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "hw1",
+     "hw2",
+     "hw3",
+     "hw4",
+     "oncampus_chicago_logistics",
+     "coursera_exams",
+     "additional_study_material",
+     "final_written_exam_oncampus",
+     "mp_coursera_1",
+     "mp_coursera_2",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "video_lectures",
+     "logistics_all",
+     "coursera_quizzes",
+     "coursera_logistics",
+     "midterm_written_exam_coursera",
+     "final_written_exam_coursera",
+     "midterm_written_exam_oncampus",
+     "chicago_logistics"
+    ],
+    "nr": 11,
+    "main_version": 3,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-24T22:57:06Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-25T19:39:19Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T13:24:07Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36RSTAFF-36uSTAFF-36nSTAFF-36nSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36FSTAFF-36ASTAFF-36QSTAFF-36 STAFF-36(STAFF-36WSTAFF-36aSTAFF-36iSTAFF-36tSTAFF-36lSTAFF-36iSTAFF-36sSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36 STAFF-36LSTAFF-36oSTAFF-36gSTAFF-36iSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36cSTAFF-36sSTAFF-36,STAFF-36 STAFF-36RSTAFF-36eSTAFF-36gSTAFF-36rSTAFF-36aSTAFF-36dSTAFF-36eSTAFF-36sSTAFF-36,STAFF-36 STAFF-36OSTAFF-36vSTAFF-36eSTAFF-36rSTAFF-36fSTAFF-36lSTAFF-36oSTAFF-36wSTAFF-36,STAFF-36 STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36-STAFF-36 STAFF-36OSTAFF-36nSTAFF-36lSTAFF-36iSTAFF-36nSTAFF-36eSTAFF-36 STAFF-36sSTAFF-36pSTAFF-36lSTAFF-36iSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36 STAFF-36MSTAFF-36PSTAFF-36sSTAFF-36,STAFF-36 STAFF-36eSTAFF-36tSTAFF-36cSTAFF-36.STAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "additional_study_material",
+     "chicago_logistics",
+     "coursera_exams",
+     "coursera_logistics",
+     "coursera_quizzes",
+     "final_written_exam_coursera",
+     "final_written_exam_oncampus",
+     "hw1",
+     "hw2",
+     "hw3",
+     "hw4",
+     "instructor-note",
+     "logistics_all",
+     "logistics_oncampus_and_coursera",
+     "midterm_written_exam_coursera",
+     "midterm_written_exam_oncampus",
+     "mp_coursera_1",
+     "mp_coursera_2",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_chicago_logistics",
+     "oncampus_logistics",
+     "past-class",
+     "pin",
+     "video_lectures"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36(STAFF-36PSTAFF-36lSTAFF-36eSTAFF-36aSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36cSTAFF-36hSTAFF-36eSTAFF-36cSTAFF-36kSTAFF-36 STAFF-36oSTAFF-36fSTAFF-36tSTAFF-36eSTAFF-36nSTAFF-36.STAFF-36 STAFF-36TSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36pSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36mSTAFF-36aSTAFF-36ySTAFF-36 STAFF-36bSTAFF-36eSTAFF-36 STAFF-36uSTAFF-36pSTAFF-36dSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36oSTAFF-36cSTAFF-36cSTAFF-36aSTAFF-36sSTAFF-36sSTAFF-36iSTAFF-36oSTAFF-36nSTAFF-36aSTAFF-36lSTAFF-36lSTAFF-36ySTAFF-36.STAFF-36)STAFF-36\nSTAFF-36\nSTAFF-36[STAFF-36LSTAFF-36aSTAFF-36sSTAFF-36tSTAFF-36 STAFF-36USTAFF-36pSTAFF-36dSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36dSTAFF-36:STAFF-36 STAFF-368STAFF-36/STAFF-362STAFF-365STAFF-36/STAFF-362STAFF-366STAFF-36]STAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36\nSTAFF-36(STAFF-36ASTAFF-36lSTAFF-36lSTAFF-36 STAFF-36SSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36)STAFF-36 STAFF-36WSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36eSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36tSTAFF-36hSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-27T13:24:07Z",
+    "updated": "2026-08-24T22:57:06Z",
+    "status": "active"
+   },
+   {
+    "fol": "hw1|hw2|hw3|hw4|mp_oncampus_1|coursera_exams|coursera_logistics|coursera_quizzes|oncampus_chicago_logistics|mp_oncampus_2|mp_oncampus_3|mp_oncampus_4|logistics_all|video_lectures|midterm_written_exam_oncampus|final_written_exam_coursera|midterm_written_exam_coursera|mp_coursera_2|mp_coursera_1|additional_study_material|final_written_exam_oncampus|chicago_logistics|",
+    "pc": 1,
+    "pin": 1,
+    "m": 1787679432123,
+    "rq": 0,
+    "id": "mt7u5ozxjg635c",
+    "unique_views": 427,
+    "score": 427.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 3,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [
+     "hw1",
+     "hw2",
+     "hw3",
+     "hw4",
+     "mp_oncampus_1",
+     "coursera_exams",
+     "coursera_logistics",
+     "coursera_quizzes",
+     "oncampus_chicago_logistics",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "logistics_all",
+     "video_lectures",
+     "midterm_written_exam_oncampus",
+     "final_written_exam_coursera",
+     "midterm_written_exam_coursera",
+     "mp_coursera_2",
+     "mp_coursera_1",
+     "additional_study_material",
+     "final_written_exam_oncampus",
+     "chicago_logistics"
+    ],
+    "nr": 10,
+    "main_version": 3,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-24T22:56:55Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-25T17:36:57Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-25T17:37:12Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36PSTAFF-36iSTAFF-36aSTAFF-36zSTAFF-36zSTAFF-36aSTAFF-36 STAFF-36PSTAFF-36oSTAFF-36sSTAFF-36tSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36ESTAFF-36tSTAFF-36iSTAFF-36qSTAFF-36uSTAFF-36eSTAFF-36tSTAFF-36tSTAFF-36eSTAFF-36 STAFF-36(STAFF-36HSTAFF-36oSTAFF-36wSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36uSTAFF-36sSTAFF-36eSTAFF-36 STAFF-36TSTAFF-36aSTAFF-36gSTAFF-36sSTAFF-36)STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "additional_study_material",
+     "chicago_logistics",
+     "coursera_exams",
+     "coursera_logistics",
+     "coursera_quizzes",
+     "final_written_exam_coursera",
+     "final_written_exam_oncampus",
+     "hw1",
+     "hw2",
+     "hw3",
+     "hw4",
+     "instructor-note",
+     "logistics_all",
+     "logistics_oncampus_and_coursera",
+     "midterm_written_exam_coursera",
+     "midterm_written_exam_oncampus",
+     "mp_coursera_1",
+     "mp_coursera_2",
+     "mp_oncampus_1",
+     "mp_oncampus_2",
+     "mp_oncampus_3",
+     "mp_oncampus_4",
+     "oncampus_chicago_logistics",
+     "oncampus_logistics",
+     "past-class",
+     "pin",
+     "video_lectures"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36WSTAFF-36eSTAFF-36lSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36cSTAFF-36eSTAFF-36 STAFF-36aSTAFF-36gSTAFF-36aSTAFF-36iSTAFF-36nSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36CSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36!STAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36\nSTAFF-36\nSTAFF-36&STAFF-36nSTAFF-36bSTAFF-36sSTAFF-36pSTAFF-36;STAFF-36\nSTAFF-36TSTAFF-36hSTAFF-36iSTAFF-36sSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36 STAFF-36sSTAFF-36hSTAFF-36aSTAFF-36rSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36PSTAFF-36iSTAFF-36aSTAFF-36zSTAFF-36zSTAFF-36aSTAFF-36 STAFF-36sSTAFF-36pSTAFF-36aSTAFF-36cSTAFF-36eSTAFF-36 STAFF-36bSTAFF-36eSTAFF-36tSTAFF-36wSTAFF-36eSTAFF-36eSTAFF-36nSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-25T17:37:12Z",
+    "updated": "2026-08-24T22:56:55Z",
+    "status": "active"
+   },
+   {
+    "fol": "oncampus_chicago_logistics|",
+    "m": 1787612114066,
+    "rq": 0,
+    "id": "mt7tnbwkdxm1eu",
+    "unique_views": 366,
+    "score": 366.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 2,
+    "bucket_name": "Week 8/23 - 8/29",
+    "bucket_order": 9,
+    "folders": [
+     "oncampus_chicago_logistics"
+    ],
+    "nr": 9,
+    "main_version": 2,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-24T22:42:38Z",
+      "u": "uid-116",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-24T22:55:14Z",
+      "u": "uid-8",
+      "n": "followup"
+     }
+    ],
+    "subject": "STAFF-36LSTAFF-36oSTAFF-36oSTAFF-36kSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36 STAFF-36pSTAFF-36aSTAFF-36rSTAFF-36tSTAFF-36nSTAFF-36eSTAFF-36rSTAFF-36 STAFF-36-STAFF-36 STAFF-36oSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36,STAFF-36 STAFF-364STAFF-36cSTAFF-36rSTAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "oncampus_logistics",
+     "student"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36HSTAFF-36iSTAFF-36 STAFF-36ESTAFF-36vSTAFF-36eSTAFF-36rSTAFF-36ySTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36,STAFF-36 STAFF-36ISTAFF-36'STAFF-36mSTAFF-36 STAFF-36wSTAFF-36oSTAFF-36nSTAFF-36dSTAFF-36eSTAFF-36rSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36iSTAFF-36fSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36ySTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36aSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36gSTAFF-36rSTAFF-36oSTAFF-36uSTAFF-36pSTAFF-36 STAFF-36uSTAFF-36pSTAFF-36 STAFF-36wSTAFF-36iSTAFF-36tSTAFF-36hSTAFF-36 STAFF-36mSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36wSTAFF-36oSTAFF-36rSTAFF-36kSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36MSTAFF-36PSTAFF-36sSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36gSTAFF-36eSTAFF-36tSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36.STAFF-36 STAFF-36ISTAFF-36'STAFF-36mSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36 STAFF-36oSTAFF-36nSTAFF-36 STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36aSTAFF-36kSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-24T22:55:14Z",
+    "gd": 1,
+    "updated": "2026-08-24T22:42:38Z",
+    "status": "active"
+   },
+   {
+    "fol": "coursera_logistics|logistics_all|chicago_logistics|oncampus_chicago_logistics|",
+    "pin": 1,
+    "mr": 2,
+    "m": 1788271019251,
+    "rq": 0,
+    "id": "mt3spqepb301fl",
+    "unique_views": 490,
+    "score": 490.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 2,
+    "bucket_name": "must-reads",
+    "bucket_order": 1,
+    "folders": [
+     "coursera_logistics",
+     "logistics_all",
+     "chicago_logistics",
+     "oncampus_chicago_logistics"
+    ],
+    "nr": 6,
+    "main_version": 5,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-22T03:05:26Z",
+      "u": "uid-8",
+      "n": "create"
+     },
+     {
+      "t": "2026-08-24T13:21:56Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-08-27T05:06:53Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-01T13:55:34Z",
+      "u": "uid-8",
+      "n": "update"
+     },
+     {
+      "t": "2026-09-01T13:56:59Z",
+      "u": "uid-8",
+      "n": "update"
+     }
+    ],
+    "subject": "STAFF-36WSTAFF-36eSTAFF-36lSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36CSTAFF-36SSTAFF-364STAFF-362STAFF-365STAFF-36/STAFF-36ESTAFF-36CSTAFF-36ESTAFF-36 STAFF-364STAFF-362STAFF-368STAFF-36 STAFF-36FSTAFF-36aSTAFF-36lSTAFF-36lSTAFF-36 STAFF-362STAFF-360STAFF-362STAFF-366STAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "chicago_logistics",
+     "coursera_logistics",
+     "instructor-note",
+     "logistics_all",
+     "logistics_oncampus_and_coursera",
+     "oncampus_chicago_logistics",
+     "pin"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36\nSTAFF-36DSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36 STAFF-36OSTAFF-36nSTAFF-36-STAFF-36cSTAFF-36aSTAFF-36mSTAFF-36pSTAFF-36uSTAFF-36sSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36 STAFF-36(STAFF-36iSTAFF-36nSTAFF-36cSTAFF-36lSTAFF-36uSTAFF-36dSTAFF-36iSTAFF-36nSTAFF-36gSTAFF-36 STAFF-36CSTAFF-36hSTAFF-36iSTAFF-36cSTAFF-36aSTAFF-36gSTAFF-36oSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36)STAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36MSTAFF-36CSTAFF-36SSTAFF-36 STAFF-36CSTAFF-36oSTAFF-36uSTAFF-36rSTAFF-36sSTAFF-36eSTAFF-36rSTAFF-36aSTAFF-36 STAFF-36sSTAFF-36tSTAFF-36uSTAFF-36dSTAFF-36eSTAFF-36nSTAFF-36tSTAFF-36sSTAFF-36,STAFF-36\nSTAFF-36\nSTAFF-36HSTAFF-36iSTAFF-36 STAFF-36ESTAFF-36vSTAFF-36eSTAFF-36rSTAFF-36ySTAFF-36oSTAFF-36nSTAFF-36eSTAFF-36!STAFF-36\nSTAFF-36\nSTAFF-36WSTAFF-36eSTAFF-36 STAFF-36wSTAFF-36oSTAFF-36uSTAFF-36lSTAFF-36dSTAFF-36 STAFF-36lSTAFF-36iSTAFF-36kSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36wSTAFF-36eSTAFF-36lSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-09-01T13:56:59Z",
+    "updated": "2026-08-22T03:05:26Z",
+    "status": "active"
+   },
+   {
+    "fol": "",
+    "pin": 1,
+    "m": 1786917919209,
+    "rq": 0,
+    "id": "mswcsiqxc7b5ka",
+    "unique_views": 408,
+    "score": 408.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": false,
+    "version": 1,
+    "bucket_name": "Pinned",
+    "bucket_order": 0,
+    "folders": [],
+    "nr": 5,
+    "main_version": 1,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-16T22:05:19Z",
+      "u": "uid-117",
+      "n": "create"
+     }
+    ],
+    "subject": "STAFF-36SSTAFF-36eSTAFF-36aSTAFF-36rSTAFF-36cSTAFF-36hSTAFF-36 STAFF-36fSTAFF-36oSTAFF-36rSTAFF-36 STAFF-36TSTAFF-36eSTAFF-36aSTAFF-36mSTAFF-36mSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36sSTAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 0,
+    "type": "note",
+    "tags": [
+     "pin",
+     "student"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-16T22:05:19Z",
+    "updated": "2026-08-16T22:05:19Z",
+    "status": "active"
+   },
+   {
+    "fol": "",
+    "m": 1786917918786,
+    "rq": 0,
+    "id": "mswcsif67rw5jw",
+    "unique_views": 321,
+    "score": 321.0,
+    "nid": "mswcsieiaip5ju",
+    "is_new": true,
+    "bucket_name": "Week 8/16 - 8/22",
+    "bucket_order": 10,
+    "folders": [],
+    "nr": 1,
+    "main_version": 1,
+    "request_instructor": 0,
+    "log": [
+     {
+      "t": "2026-08-16T22:05:18Z",
+      "u": "uid-117",
+      "n": "create"
+     }
+    ],
+    "subject": "STAFF-36WSTAFF-36eSTAFF-36lSTAFF-36cSTAFF-36oSTAFF-36mSTAFF-36eSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36PSTAFF-36iSTAFF-36aSTAFF-36zSTAFF-36zSTAFF-36aSTAFF-36!STAFF-36",
+    "no_answer_followup": 0,
+    "num_favorites": 1,
+    "type": "note",
+    "tags": [
+     "student"
+    ],
+    "gd_f": 0,
+    "content_snipet": "STAFF-36\nSTAFF-36PSTAFF-36iSTAFF-36aSTAFF-36zSTAFF-36zSTAFF-36aSTAFF-36 STAFF-36iSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36 STAFF-36QSTAFF-36&STAFF-36aSTAFF-36mSTAFF-36pSTAFF-36;STAFF-36ASTAFF-36 STAFF-36pSTAFF-36lSTAFF-36aSTAFF-36tSTAFF-36fSTAFF-36oSTAFF-36rSTAFF-36mSTAFF-36 STAFF-36dSTAFF-36eSTAFF-36sSTAFF-36iSTAFF-36gSTAFF-36nSTAFF-36eSTAFF-36dSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36 STAFF-36gSTAFF-36eSTAFF-36tSTAFF-36 STAFF-36ySTAFF-36oSTAFF-36uSTAFF-36 STAFF-36gSTAFF-36rSTAFF-36eSTAFF-36aSTAFF-36tSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36sSTAFF-36wSTAFF-36eSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36rSTAFF-36oSTAFF-36mSTAFF-36 STAFF-36cSTAFF-36lSTAFF-36aSTAFF-36sSTAFF-36sSTAFF-36mSTAFF-36aSTAFF-36tSTAFF-36eSTAFF-36sSTAFF-36 STAFF-36aSTAFF-36nSTAFF-36dSTAFF-36 STAFF-36iSTAFF-36nSTAFF-36sSTAFF-36tSTAFF-36rSTAFF-36uSTAFF-36cSTAFF-36tSTAFF-36oSTAFF-36rSTAFF-36sSTAFF-36 STAFF-36fSTAFF-36aSTAFF-36sSTAFF-36tSTAFF-36.STAFF-36 STAFF-36WSTAFF-36eSTAFF-36'STAFF-36vSTAFF-36eSTAFF-36 STAFF-36pSTAFF-36uSTAFF-36tSTAFF-36 STAFF-36tSTAFF-36oSTAFF-36gSTAFF-36eSTAFF-36tSTAFF-36hSTAFF-36eSTAFF-36rSTAFF-36",
+    "view_adjust": 0,
+    "modified": "2026-08-16T22:05:18Z",
+    "updated": "2026-08-16T22:05:18Z",
+    "status": "active"
+   }
+  ],
+  "more": false,
+  "sort": "date_desc",
+  "tags": {
+   "instructor": [
+    "logistics_all",
+    "oncampus_chicago_logistics",
+    "chicago_logistics",
+    "oncampus_logistics",
+    "coursera_logistics",
+    "hw1",
+    "mp_oncampus_1",
+    "hw2",
+    "mp_oncampus_2",
+    "hw3",
+    "mp_oncampus_3",
+    "hw4",
+    "mp_oncampus_4",
+    "coursera_quizzes",
+    "video_lectures",
+    "midterm_written_exam_coursera",
+    "midterm_written_exam_oncampus",
+    "final_written_exam_coursera",
+    "final_written_exam_oncampus",
+    "coursera_exams",
+    "mp_coursera_1",
+    "mp_coursera_2",
+    "additional_study_material"
+   ]
+  }
+ },
+ "error": null
+}
