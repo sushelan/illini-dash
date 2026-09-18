@@ -517,3 +517,227 @@ describe("the subject vocabulary and §5.2 cannot drift apart", () => {
     }
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* What the real feed taught it (wave 4)                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The nine real announcements live in `tests/announce-real.test.ts`, over the
+ * Campuswire capture. These are the constructed cases that go *with* them: the
+ * boundaries of each new rule, and — parser house rules 10 and 12 — the
+ * deliberately unrealistic inputs a real capture cannot supply, where a wrong
+ * implementation and a right one would otherwise produce the same answer.
+ */
+describe("markup, and the spans that survive it", () => {
+  it("reads a date an instructor bolded", () => {
+    // Every pattern is anchored, so before wave 4 the `**` in front of the
+    // month made the whole phrase unreadable. Three of the nine real posts.
+    expect(read("MP3 is due on **May 1**.").at).toBe("2026-05-01T23:59:00-05:00");
+  });
+
+  it("reads a date inside inline code", () => {
+    expect(read("MP3 is due on `Oct 2` at 11:59pm.").at).toBe("2026-10-02T23:59:00-05:00");
+  });
+
+  it("keeps the span a literal substring even when markup runs through it", () => {
+    /*
+     * The grounding rule under masking. The text is deliberately awkward — two
+     * spaces and a bold marker inside one date phrase, which no instructor
+     * types on purpose — because an implementation that stripped the asterisks
+     * and matched on the *shortened* text would produce a span offset by two
+     * characters, and against ordinary markup that span would still look like
+     * a plausible date.
+     */
+    const text = "HW4 is due **Fri 10/2  at 11:59pm**.";
+    const mention = read(text);
+    expect(mention.span).toBe("Fri 10/2  at 11:59pm");
+    expect(text).toContain(mention.span);
+    expect(mention.at).toBe("2026-10-02T23:59:00-05:00");
+  });
+
+  it("does not leave a masked asterisk on the end of a span", () => {
+    expect(read("HW4 is due **Oct 2**.").span).toBe("Oct 2");
+  });
+});
+
+describe("a clock stated beside a relative day", () => {
+  it("prefers the stated clock to the invented 23:59", () => {
+    // Worker rule 3 in reverse: 23:59 is this code's invention and the post
+    // says noon, so the invention would be twelve hours late and look settled.
+    const mention = read("HW5 is due tomorrow, 9/19 at 12:00 PM.");
+    expect(mention.at).toBe("2026-09-19T12:00:00-05:00");
+    expect(mention.timeAssumed).toBe(false);
+    expect(mention.confidence).toBe(0.95);
+    expect(mention.span).toBe("tomorrow, 9/19 at 12:00 PM");
+  });
+
+  it("leaves the relative reading alone when the restatement is a different day", () => {
+    /*
+     * Deliberately contradictory, and no real post writes it: "tomorrow" is the
+     * 19th and the restatement says the 22nd. Two different days in one clause
+     * is not something this grammar should pick a winner in, so it keeps the
+     * day it already resolved and the 23:59 that goes with it. A rule that
+     * simply took the later clock would pass every realistic case.
+     */
+    const mention = read("HW5 is due tomorrow, 9/22 at 12:00 PM.");
+    expect(mention.at).toBe("2026-09-19T23:59:00-05:00");
+    expect(mention.timeAssumed).toBe(true);
+    expect(mention.span).toBe("tomorrow");
+  });
+
+  it("leaves it alone when the restatement states no clock of its own", () => {
+    const mention = read("HW5 is due tomorrow, 9/19.");
+    expect(mention.at).toBe("2026-09-19T23:59:00-05:00");
+    expect(mention.timeAssumed).toBe(true);
+  });
+
+  it("reads a clock written before its day", () => {
+    // "extend … to 11:59pm today" — `CAL_REL` wants the day word first, so
+    // this shape read as nothing at all until it had its own pattern.
+    const mention = read("MP2 is extended to 11:59pm today.");
+    expect(mention.at).toBe("2026-09-18T23:59:00-05:00");
+    expect(mention.timeAssumed).toBe(false);
+    expect(mention.kind).toBe("extended");
+  });
+});
+
+describe("the triggers the real feed writes", () => {
+  it("reads 'extend the final deadline of X to <when>'", () => {
+    const mention = read("We'll extend the final deadline of the CNN project to Oct 9.");
+    expect(mention.kind).toBe("extended");
+    expect(mention.subject).toBe("CNN project");
+    expect(mention.at).toBe("2026-10-09T23:59:00-05:00");
+  });
+
+  it("reads 'available until <when>' as a closing time, not a release", () => {
+    const mention = read("Regrade requests are available until Monday at noon.");
+    expect(mention.kind).toBe("due");
+    expect(mention.at).toBe("2026-09-21T12:00:00-05:00");
+    expect(mention.subject).toBe("Regrade requests");
+  });
+
+  it("still reads 'available Monday' as a release", () => {
+    // The two start on the same word, so the order of the alternation is
+    // load-bearing; this is the half that must not have changed.
+    expect(read("Solutions are available Monday.").kind).toBe("released");
+  });
+
+  it("reads 'complete … by <when>'", () => {
+    const mention = read("Please complete the Course Evaluation Survey by Friday at 5 pm.");
+    expect(mention.kind).toBe("due");
+    expect(mention.subject).toBe("Course Evaluation Survey");
+    expect(mention.at).toBe("2026-09-25T17:00:00-05:00");
+  });
+
+  it("does not join a 'by' in the next clause to a verb in this one", () => {
+    // ":" and ";" end the object, so "submit … : … by Friday" is not one
+    // deadline. Without that the filler would reach across a whole list.
+    expect(
+      extractDeadlineMentions("Submit your work: grading closes by Friday.", POSTED),
+    ).toHaveLength(0);
+  });
+
+  it("reads a sitting as an event at its start", () => {
+    const mention = read("Your exam is on Tuesday, October 6th, from 7:00 PM to 10:00 PM.");
+    expect(mention.kind).toBe("event");
+    expect(mention.at).toBe("2026-10-06T19:00:00-05:00");
+    expect(mention.timeAssumed).toBe(false);
+    expect(mention.subject).toBe("exam");
+  });
+
+  it("does not read a sitting written the other way round", () => {
+    // "This Saturday … is the review session" is on the real page, describes an
+    // optional extra, and would put a third row on the calendar for one post.
+    expect(
+      extractDeadlineMentions(
+        "This Saturday, October 3rd, from 3:00 PM to 5:30 PM is the review session.",
+        POSTED,
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("phrase subjects", () => {
+  it("names the noun phrase in front of the verb", () => {
+    expect(read("CNN competition deadline has been extended to Oct 10.").subject).toBe(
+      "CNN competition",
+    );
+  });
+
+  it("stops before the head noun the sentence is making a claim about", () => {
+    // "CNN competition deadline" would be the subject if `deadline` counted;
+    // the deadline is what is being *said*, not what it is for.
+    expect(read("The Milestone 3 deadline is Oct 10.").subject).toBe("Milestone 3");
+  });
+
+  it("does not read 'final' in 'the final deadline' as an assignment", () => {
+    // `BADGE`'s bare arm fired on every real post that wrote this, naming the
+    // deadline "final" and hiding the subject the post actually had.
+    expect(read("With the extension, the final deadline is Oct 10.").subject).toBe("");
+  });
+
+  it("still reads a bare 'final' that is an assignment", () => {
+    // The guard is scoped to the one word directly in front of "deadline";
+    // everywhere else `BADGE`'s bare arm keeps working.
+    expect(read("The final is due Friday at 7 pm.").subject).toBe("final");
+  });
+
+  it("refuses a one-word phrase", () => {
+    // "Solutions" starts the sentence; a single capitalised word is the start
+    // of a sentence far more often than it is an assignment. A real subject of
+    // one word is a badge, and `BADGE` has already had its turn.
+    expect(read("Solutions are posted Monday.").subject).toBe("");
+  });
+
+  it("does not run a phrase through punctuation", () => {
+    expect(read("Milestone 3, Part B is due Oct 10.").subject).toBe("Milestone 3");
+  });
+});
+
+describe("the title, as a subject of last resort", () => {
+  it("names a deadline after the post's title when the sentence names nothing", () => {
+    const mention = read("Reading response 4\nThe deadline is Friday.");
+    expect(mention.subject).toBe("Reading response 4");
+  });
+
+  it("treats the title as its own sentence", () => {
+    // Otherwise the title's words are in front of the trigger and the phrase
+    // scan reads the subject out of them — "CNN Competition Deadline Extended"
+    // over a body that says something narrower.
+    expect(read("Quiz 3 posted\nMP1 is due Friday.").context).toBe("MP1 is due Friday.");
+  });
+
+  it("does not mistake a hard-wrapped first line for a title", () => {
+    /*
+     * The one rule that tells them apart is the capital letter after the
+     * newline: an editor's wrap continues in lower case. Deliberately
+     * adversarial (house rule 12): a title fallback that fired on any first
+     * line would name this deadline "Because of the outage, HW 2 is", which is
+     * a plausible-looking string no assertion over the real capture would ever
+     * reach, because every real post has a real title.
+     */
+    const mention = read("Because of the outage, HW 2 is\nextended to Oct 10.");
+    expect(mention.subject).toBe("HW 2");
+    expect(mention.context).toBe("Because of the outage, HW 2 is\nextended to Oct 10.");
+  });
+
+  it("prefers the sentence's own subject to the title", () => {
+    expect(read("Everything about MP1\nMP2 is due Friday.").subject).toBe("MP2");
+  });
+
+  it("carries a subject forward to a sentence that states none", () => {
+    // "Milestone 3 … is due on May 1. With the 3-day extension, the final
+    // deadline is May 4." The second sentence is about the first's assignment.
+    const mentions = extractDeadlineMentions(
+      "Milestone 3 is due on Oct 1. With the extension, the final deadline is Oct 4.",
+      POSTED,
+    ) as ReadMention[];
+    expect(mentions.map((m) => m.subject)).toEqual(["Milestone 3", "Milestone 3"]);
+  });
+
+  it("does not carry a subject over one the sentence states itself", () => {
+    const mentions = extractDeadlineMentions("MP2 is due tonight. PQ 4 is due tomorrow.", POSTED);
+    expect(mentions.map((m) => m.subject)).toEqual(["MP2", "PQ 4"]);
+  });
+});
