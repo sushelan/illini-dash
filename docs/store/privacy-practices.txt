@@ -3,7 +3,7 @@ CHROME WEB STORE — PRIVACY PRACTICES FORM
 Paste each block into the matching field. All are plain text, all under 1000.
 ===============================================================================
 
-------------------------------------------------------------------- [1 of 10] --
+------------------------------------------------------------------- [1 of 11] --
 SINGLE PURPOSE DESCRIPTION
 -------------------------------------------------------------------------------
 Illini Dash shows a University of Illinois student their own assignment and exam
@@ -21,7 +21,7 @@ already on screen, and changes nothing. Optionally, and only if the user
 connects it, deadlines are copied to a calendar it creates in the user's own
 Google account. It has no account, no server and no second feature.
 
-------------------------------------------------------------------- [2 of 10] --
+------------------------------------------------------------------- [2 of 11] --
 "storage" JUSTIFICATION
 -------------------------------------------------------------------------------
 Stores the deadlines that have been read, the course names they belong to, and
@@ -38,7 +38,7 @@ Everything is written to chrome.storage.local on the user's own device. Nothing
 is synced between devices and nothing is transmitted. Uninstalling the extension
 deletes all of it.
 
-------------------------------------------------------------------- [3 of 10] --
+------------------------------------------------------------------- [3 of 11] --
 "alarms" JUSTIFICATION
 -------------------------------------------------------------------------------
 Two things must happen on a schedule, and a Manifest V3 service worker is torn
@@ -54,7 +54,7 @@ yet reserved.
 chrome.alarms is the only supported way to wake a service worker at a set time,
 so it is required for both.
 
-------------------------------------------------------------------- [4 of 10] --
+------------------------------------------------------------------- [4 of 11] --
 "notifications" JUSTIFICATION
 -------------------------------------------------------------------------------
 Shows the deadline reminders, which are one of the main reasons a user installs
@@ -71,7 +71,7 @@ hours are configurable, and reminders can be switched off entirely in Settings.
 Notifications are only ever about the user's own deadlines. There is no
 promotional, marketing or other unsolicited notification of any kind.
 
-------------------------------------------------------------------- [5 of 10] --
+------------------------------------------------------------------- [5 of 11] --
 "offscreen" JUSTIFICATION
 -------------------------------------------------------------------------------
 The deadline data lives inside HTML pages and must be parsed, and a Manifest V3
@@ -86,7 +86,7 @@ The offscreen document is created for this and nothing else. It stores no data,
 holds nothing between calls, and is not used for audio, clipboard, scraping or
 any other purpose.
 
-------------------------------------------------------------------- [6 of 10] --
+------------------------------------------------------------------- [6 of 11] --
 "contextMenus" JUSTIFICATION
 -------------------------------------------------------------------------------
 Adds exactly one right-click menu item: "Report this page to Illini Dash".
@@ -102,7 +102,7 @@ removed, and the user is handed a file that they alone decide what to do with.
 This is the only context menu item the extension adds, and it appears only on
 the course sites the extension supports.
 
-------------------------------------------------------------------- [7 of 10] --
+------------------------------------------------------------------- [7 of 11] --
 "scripting" JUSTIFICATION
 -------------------------------------------------------------------------------
 Registers exactly one content script, on https://campuswire.com/* and nowhere
@@ -120,7 +120,24 @@ request to Campuswire, reads no cookie, token, localStorage or other page, and
 modifies nothing. Switching Campuswire off, or revoking the host, unregisters
 it immediately.
 
-------------------------------------------------------------------- [8 of 10] --
+------------------------------------------------------------------- [8 of 11] --
+"cookies" JUSTIFICATION
+-------------------------------------------------------------------------------
+Reads exactly one cookie: "session_id" on piazza.com, and only after the user
+switches Piazza on in the extension's settings and Chrome grants that host.
+Nothing is read on install, and no cookie on any other site is read at any
+time.
+
+Piazza's own API rejects a request unless the value of that cookie is echoed
+back in a CSRF-Token header. The cookie is HttpOnly, so no other API in the
+browser can read it. Without this permission the user's own class feeds cannot
+be requested at all.
+
+The value is used only in the request it authenticates, sent only to
+piazza.com, and never stored, logged or transmitted anywhere else. Switching
+Piazza off stops every such request.
+
+------------------------------------------------------------------- [9 of 11] --
 HOST PERMISSION JUSTIFICATION
 -------------------------------------------------------------------------------
 Reads the user's own assignment and exam pages with the browser's session:
@@ -130,17 +147,17 @@ smart.physics.illinois.edu (PHYS 211-214). raw.githubusercontent.com: a daily
 public JSON list of supported course sites, no cookies, nothing about the user.
 
 These six are up front: a background schedule has no gesture to request a
-permission from. It reads only pages the account can already see, at most every
-15 minutes, parses them locally, and never signs in or writes to a site.
+permission from. It reads only pages the account can already see, at most
+every 15 minutes, parses them locally, never signs in, never writes to a site.
 
 Optional hosts: nothing at install. Many UIUC course sites are on their own
 domains (cs124.org), so the host is unknown in advance. One is requested at
 runtime, per site, read-only, when the user switches that course on; Chrome
-names it, and no entry may name a host granted above. Same for campuswire.com,
-from the Campuswire switch, and www.googleapis.com, from Connect under Google
-Calendar.
+names it, and no entry may name a host granted above. Likewise campuswire.com
+and piazza.com, each from its switch, and www.googleapis.com, from Connect
+under Google Calendar.
 
-------------------------------------------------------------------- [9 of 10] --
+------------------------------------------------------------------ [10 of 11] --
 "identity" JUSTIFICATION
 -------------------------------------------------------------------------------
 Used only by the optional Google Calendar sync, which is off on install and
@@ -163,7 +180,7 @@ Chrome holds the grant; the extension stores no token and never sees a Google
 password. No data reaches the developer: events go from the user's browser to
 the user's own Google account.
 
------------------------------------------------------------------- [10 of 10] --
+------------------------------------------------------------------ [11 of 11] --
 REMOTE CODE
 -------------------------------------------------------------------------------
 Answer: "No, I am not using Remote code."

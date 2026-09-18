@@ -358,7 +358,7 @@ describe("page observers", () => {
     // decide whether to register a content script, and `undefined.enabled`
     // there is a throw in the one place nothing is watching.
     const store = migrate(structuredClone(V1), NOW);
-    expect(store.observers).toEqual({ campuswire: { enabled: false } });
+    expect(store.observers).toEqual({ campuswire: { enabled: false }, piazza: { enabled: false } });
   });
 
   it("only `true` is on", () => {
@@ -404,8 +404,62 @@ describe("page observers", () => {
   });
 
   it("ignores an observer this build has never heard of", () => {
-    const store = migrate({ observers: { piazza: { enabled: true } } }, NOW);
-    expect(Object.keys(store.observers)).toEqual(["campuswire"]);
+    const store = migrate({ observers: { edstem: { enabled: true } } }, NOW);
+    expect(Object.keys(store.observers)).toEqual(["campuswire", "piazza"]);
+  });
+
+  /*
+   * Piazza's half: an observer the worker *fetches* for, so its entry carries
+   * the evidence of an attempt. Every field is validated rather than trusted,
+   * for the reason the rest of this file is — a store blob is data from another
+   * build, and `describePiazza` prints these at the student.
+   */
+  it("keeps a Piazza entry's attempt, and only the parts of it that are readable", () => {
+    const store = migrate(
+      {
+        observers: {
+          piazza: {
+            enabled: true,
+            state: "needs_login",
+            lastAttemptAt: "2026-09-18T10:32:00-05:00",
+            classesFetchedAt: "soon",
+            classes: [
+              { nid: "abc", courseRaw: "CS 425 / ECE 428", courseCodes: ["CS425"], active: true },
+              { nid: "", courseRaw: "no id", courseCodes: [], active: true },
+              { nid: "def", courseRaw: "no active flag", courseCodes: [] },
+            ],
+            lastNr: { abc: 184, notANumber: "184", negative: -3 },
+            failures: 2,
+          },
+        },
+      },
+      NOW,
+    );
+    expect(store.observers.piazza).toEqual({
+      enabled: true,
+      state: "needs_login",
+      lastAttemptAt: "2026-09-18T10:32:00-05:00",
+      classes: [
+        { nid: "abc", courseRaw: "CS 425 / ECE 428", courseCodes: ["CS425"], active: true },
+      ],
+      lastNr: { abc: 184 },
+      failures: 2,
+    });
+  });
+
+  it("refuses a stored state word this build does not know", () => {
+    // It is printed on the row. "green", "healthy" or a half-written value
+    // would reach `describePiazza`, which answers for the words it knows and
+    // would have to invent an answer for anything else.
+    for (const state of ["green", "healthy", "", 1, null]) {
+      expect(
+        migrate({ observers: { piazza: { enabled: true, state } } }, NOW).observers.piazza.state,
+        JSON.stringify(state),
+      ).toBeUndefined();
+    }
+    expect(
+      migrate({ observers: { piazza: { enabled: true, state: "ok" } } }, NOW).observers.piazza.state,
+    ).toBe("ok");
   });
 });
 

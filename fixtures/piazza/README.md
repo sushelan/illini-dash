@@ -50,7 +50,18 @@ What a feed entry carries, and what it does not:
 - Dates are real instants with a zone (`2026-09-18T09:09:00Z`), unlike Campuswire's
   date-only previews.
 
-Deliberately unrealistic: nothing. The trim and the scrub are the only edits.
+**The scrub was broken and has been repaired (2026-09-18).** It replaced the empty string
+as well as the names, so every `subject` and `content_snipet` came back with `STAFF-36`
+between every character while the real text survived underneath — 5033 copies of the
+marker, and a fixture against which no assertion about the grammar would have meant
+anything. The marker is removed and the one personal name left in a snippet is now
+`STAFF-9`. Nothing else in the file was touched.
+
+Deliberately unrealistic: nothing in the file itself. The cases that need an unrealistic
+value — a duplicate `nr`, an unreadable `log[0].t`, a term that does not read, a snippet
+that actually states a deadline — edit a copy inside `tests/piazza.test.ts` and say so
+there, because the capture is healthy in every one of those respects and a parser that got
+them wrong would pass against it unchanged.
 
 ## post.json — `POST https://piazza.com/logic/api?method=content.get`
 

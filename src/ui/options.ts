@@ -24,6 +24,12 @@ import {
   describeObserver,
   type ObserverFacts,
 } from "../core/campuswire.js";
+import {
+  describePiazza,
+  PIAZZA_LOGIN_URL,
+  PIAZZA_MATCH,
+  type PiazzaFacts,
+} from "../core/piazza.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { downloadFile, downloadIcs } from "./download.js";
 import { MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY } from "../core/store.js";
@@ -1094,6 +1100,78 @@ async function renderOptions(): Promise<void> {
   const cwHint = cwRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
   cwRow.append(cwChip);
   sources.append(cwRow);
+
+  /*
+   * Piazza, beside Campuswire and switched on the same way.
+   *
+   * It says more than Campuswire's row can, because it is *fetched*: there is a
+   * login state, a failure and an attempt behind every word, and all of them
+   * come from `describePiazza` rather than from the switch (worker rule 2). The
+   * Sign in button is the point of the `needs_login` state — the state that
+   * says "sign in" with nothing to press is the defect this project has hit
+   * more than once.
+   */
+  const piazza = observers["piazza"] as PiazzaFacts | undefined;
+  const pzChip = stateChip(
+    "disabled",
+    undefined,
+    "Illini Dash reads your Piazza class feeds in the background, on each sync.",
+  );
+  pzChip.textContent = describePiazza(piazza);
+  if (piazza?.lastError) pzChip.title = piazza.lastError;
+  const pzRow = switchRow({
+    name: "Piazza",
+    hint:
+      "Reads the announcements in your Piazza classes on each sync, using the session " +
+      "already in this browser. Nothing is posted and no post is stored.",
+    checked: piazza?.enabled === true,
+    onChange: (enabled) => {
+      const box = pzRow.querySelector("input");
+      // The control says it is working (UI rule 4): this round trip includes a
+      // permission prompt and a first poll, and without it a denied prompt and
+      // a click that never ran look identical.
+      if (box) box.disabled = true;
+      pzChip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
+      const restore = (text: string): void => {
+        if (box) {
+          box.disabled = false;
+          box.checked = piazza?.enabled === true;
+        }
+        pzChip.textContent = describePiazza(piazza);
+        // On the row, where the error happened (UI rule 3).
+        pzHint.textContent = text;
+      };
+      // Inside the click, synchronously: a user gesture does not survive an
+      // await, so the worker cannot ask for this.
+      const asked = enabled
+        ? chrome.permissions.request({ origins: [PIAZZA_MATCH] })
+        : Promise.resolve(true);
+      void asked
+        .then((granted) => {
+          if (!granted) {
+            restore("Permission denied, so Piazza stays off.");
+            return undefined;
+          }
+          return send({ type: "set-observer-enabled", observer: "piazza", enabled }).then(
+            (response) => {
+              if (response.type === "error") restore(response.message);
+              else void refreshOptions();
+            },
+          );
+        })
+        // UI rule 2: without this a stale worker rejects into nothing at all
+        // and the switch just springs back.
+        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+    },
+  });
+  const pzHint = pzRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  pzRow.append(pzChip);
+  if (piazza?.enabled === true && piazza.state === "needs_login") {
+    const login = el("button", "Sign in", "btn btn-secondary btn-sm");
+    login.addEventListener("click", () => chrome.tabs.create({ url: PIAZZA_LOGIN_URL }));
+    pzRow.append(login);
+  }
+  sources.append(pzRow);
 
   // The site source's state still has to be visible somewhere, or a failing
   // adapter loses its only signal (worker rule 2).

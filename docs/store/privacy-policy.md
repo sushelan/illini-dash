@@ -31,6 +31,7 @@ While you are signed in, and only from sites you have enabled:
 | `smart.physics.illinois.edu` | Your PHYS 211–214 enrolments and each one's prelecture, checkpoint and homework list |
 | A course website you enable | Only the single page that course's adapter names |
 | `campuswire.com` (optional) | Only the posts already shown on a class feed you have open, and only if you switch Campuswire on |
+| `piazza.com` (optional) | Your class list and the announcements in those classes' feeds, and only if you switch Piazza on |
 
 It requests the same pages your browser would if you clicked through the sites yourself,
 no more often than every 15 minutes, and only pages your own account can already see.
@@ -74,6 +75,8 @@ Deadlines more than 60 days past are deleted automatically.
 | `notifications` | To show the reminders |
 | `offscreen` | To read fetched pages with the browser's own HTML parser, which a service worker does not have |
 | `contextMenus` | To add one right-click item, "Report this page to Illini Dash", which opens this extension's own settings page with the address filled in. It uploads nothing. |
+| `cookies` | To read one cookie — `session_id` on `piazza.com` — because Piazza's API requires its value back as a header and the cookie is `HttpOnly`. Only when you switch Piazza on, only for piazza.com, and it is never stored |
+| Access to `piazza.com` (optional) | Requested only when you switch Piazza on. Nothing is granted when you install |
 | `identity` | To ask Google for permission to write to a calendar it creates for you, and only if you connect Google Calendar. The permission it asks for (`calendar.app.created`) covers calendars this extension created and nothing else |
 | Access to `www.googleapis.com` (optional) | Requested only when you press Connect under Google Calendar. It is where the calendar events are written |
 | `scripting` | To run the Campuswire reader inside a Campuswire class feed you have open, and only after you switch it on. Nothing is registered until then, and switching it off removes it |
@@ -102,6 +105,23 @@ read twice.
 Switching it off unregisters the reader immediately. Revoking the site in
 `chrome://extensions` does the same.
 
+## Piazza
+
+Piazza is off unless you switch it on, and switching it on is the only thing that asks
+Chrome for access to `piazza.com`.
+
+If you switch Piazza on, Illini Dash reads your class list and the announcements in your
+classes' feeds using your own Piazza session, every sync, on your computer; it never
+posts, never reads other students' private posts beyond what the feed shows you, and
+stores only the deadlines it found and which posts it has read.
+
+It reads the same two things your browser would if you opened Piazza yourself: the class
+page, for the list of classes you are in, and each current class's feed. It reads the
+`session_id` cookie for one reason — Piazza's API requires that value back as a header —
+and sends it only to piazza.com, in the request it authenticates. It is never stored.
+
+Switching it off stops every request immediately. Revoking the site in
+`chrome://extensions` does the same.
 ## Google Calendar
 
 This is off when you install Illini Dash, and the only thing that turns it on is pressing

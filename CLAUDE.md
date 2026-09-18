@@ -353,8 +353,8 @@ in the preview document (Hide and a Merge candidate both reach their handlers an
 Draft `mimgaiaicopabbiabakmknkcbfekplei`, **not submitted**. Everything needed is written
 down: listing copy in `docs/store/listing.md`, the description in
 `docs/store/description.txt` (plain text — the field renders no Markdown), every
-privacy-form answer in `docs/store/privacy-practices.txt` — **ten blocks now, not nine**
-(`identity` joined on 2026-09-18), each measured against its 1000-character limit by
+privacy-form answer in `docs/store/privacy-practices.txt` — **eleven blocks now, not nine**
+(`identity` and `cookies` joined on 2026-09-18), each measured against its 1000-character limit by
 `tests/manifest.test.ts` — and the reviewer's Test instructions drafted in
 `docs/store/test-instructions.txt` around the public ECE 411 page (a reviewer has no UIUC
 account; Sushi to approve the wording). The privacy policy is live and generated from
@@ -364,14 +364,13 @@ Calendar (an export to the student's own account, opt-in).
 
 The permission set the draft was uploaded with is stale. Since then: `scripting` (the
 Campuswire observer), `identity` + an `oauth2` block with the single non-sensitive
-`calendar.app.created` scope, `www.googleapis.com` as a runtime host, `cookies` (Piazza,
-in flight), and `campuswire.com` / `piazza.com` as opt-in origins. The certification "no
+`calendar.app.created` scope, `www.googleapis.com` as a runtime host, `cookies` (Piazza), and `campuswire.com` / `piazza.com` as opt-in origins. The certification "no
 selling or transferring — there is no transfer at all" is no longer true as written: the
 one transfer is user-directed, to the student's own Google account, and the form answer
 says so.
 
 Outstanding, all in the developer console: re-upload the current zip, replace every
-justification from `privacy-practices.txt` (all ten), tick **Website content** and nothing
+justification from `privacy-practices.txt` (all eleven), tick **Website content** and nothing
 else under Data usage, paste the Test instructions (500 chars), set Visibility to
 **Unlisted**, submit. Before that, `public/manifest.json` needs the real `key` (Package
 tab → View public key) and the OAuth `client_id` (`docs/gcal.md`); a test currently

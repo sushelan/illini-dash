@@ -502,6 +502,14 @@ const sources = {
               lastObservedAt: new Date().toISOString(),
               postsSeen: 3,
             },
+            // Piazza in the state that has a button: `needs_login` is the only
+            // observer state with a control beside it, so it is the one the
+            // harness has to be able to show.
+            piazza: {
+              enabled: true,
+              state: "needs_login",
+              lastAttemptAt: new Date().toISOString(),
+            },
           },
           gcal: previewGcal(),
           notificationsBlocked: false,
