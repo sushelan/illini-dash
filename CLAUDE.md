@@ -161,6 +161,11 @@ here is a parsing mistake, and no fixture could have caught any of it.
    dereferences (`core/compat.ts`), name the missing ones on screen, and never let a
    render function reject into a console the user does not have open.
 
+9. **A bounded pool inside a bounded pool multiplies.** Four classes polled four-wide,
+   each fetching bodies four-wide, is sixteen requests in flight at piazza.com while
+   `MAX_CONCURRENT_PER_HOST` says four. Per-host concurrency is one flat pool across
+   everything that sync fetches from that host, or the constant is a lie.
+
 ## House rules for mutation checks
 
 Parser rule 10 says to mutate before calling a behaviour covered. Doing that across ~60
@@ -195,6 +200,26 @@ mutations in one day taught three things about the *procedure* itself.
    the other staying strict, and no test could reach it. The fix was not a cleverer test —
    it was one `resolveColumn` used by both. When a mutation cannot be reached because
    another copy of the same decision compensates, that is the finding.
+
+4. **A survivor can mean the adversarial input never reached the line.** The grounding
+   marker's "survived" was a test string whose quotes had been escaped, so the loosened
+   regex could not have matched it whatever the code did. Before reading a survivor as
+   untested, unreachable or redundant, confirm the input actually exercises the mutated
+   line — a fixture that defeats itself looks exactly like a gap in the suite.
+
+## House rules for the on-device model
+
+One so far, from the first live run of the adapter author (2026-09-18).
+
+1. **An example value in a prompt is a value the model may return.** `buildPrompt` showed
+   `"#schedule .event"` as its example row selector, for another course; on ECE 411 the
+   model returned it three times, the runner rejected it three times, and the retry told
+   it only that nothing matched. If a field has a closed set of right answers derivable
+   from the input, derive it (`repeatedStructures`), put it in the prompt, and enumerate
+   it in the response schema; make every remaining example a placeholder. And before a
+   model's answer costs a round trip, check it against the input with the cheapest thing
+   that can refuse it (`groundProposal`) — with a refusal that names what the input *does*
+   contain, or the retry has nowhere to go.
 
 ## When live data contradicts a document
 
@@ -401,7 +426,7 @@ that the house rules above are written down. So:
 - **Full review** — `core/dedupe.ts` and the sync loop (steps 7–8). That is where G2 and
   G3 risk lives and where a defect is hardest to see by hand.
 - **Light or no review** — behaviour-preserving refactors, UI, and anything the existing
-  628-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
+  1742-test suite already pins by mutation. Rely on the suite; it has been mutation-tested.
 - Any review prompt should include the house rules above and be told to hunt for
   *new* classes.
 - When a review's refuters fail (API errors), findings that could not be judged are

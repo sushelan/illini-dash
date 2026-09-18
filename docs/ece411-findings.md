@@ -122,3 +122,9 @@ wrong date — `TBD` produces no row — but a student should not read an empty 
 - **"An adapter is a course."** It is a *page*. A course with deadlines on two pages is
   two adapters sharing a `courseCode`, and nothing in §4.5 forbids that once you notice
   only `id` is checked for uniqueness.
+- **What the author flow now depends on (2026-09-18).** The on-device author proposes
+  from an inventory of the page's repeated groups (`repeatedStructures`), not from a
+  guess. Over `assignments.html` the inventory's fourth entry is `#mp-information
+  ul.simple > li` (×16) — character for character the selector `ece411-fa26-mp` uses — and
+  over `syllabus.html` `#schedule ul.simple > li` (×3) reaches the same elements as the
+  shipped exam entry's `#schedule > ul.simple > li`. A test pins both by element identity.

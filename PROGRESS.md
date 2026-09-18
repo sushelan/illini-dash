@@ -2,10 +2,53 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1659 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1742 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 6: Piazza reads whole posts; the author proposes from the page — 2026-09-18
+
+Two workers in parallel; **1659 → 1742 tests.** Pushed to GitHub the same evening (Sushi's
+call, so the registry's ECE 411 entries reach his install — confirmed in the popup).
+
+**Piazza, stage 2.** `parsePostBody` reads `result.history[0]` — the newest version; the
+new `post-running.json` fixture keeps the *oldest* version too, pasted from last year with
+different deadlines, so reading any other version is a pinned wrong answer. `htmlToText`
+is in core with no DOM (the worker has none): block tags become line breaks, script and
+style go with their contents, entities decode last. Bodies are fetched in one flat pool
+across classes (worker rule 9), at most 25 per class per sync, oldest first, with
+`lastNr` capped at the batch so a deferred post is never marked read at its snippet. The
+signed-out marker is now **positive** — the splash's `form#login-form` with a literal
+`action="https://piazza.com/class"` — so "no `const USER`" alone is now `parse_error`,
+not `needs_login` (amendment). The grammar's `byDo` trigger gained register / sign up /
+respond, which turns the real feed's scorecard from **0 deadlines to 1** (note 42, "Register
+Your MP Group by EOD Today 8/31" → one suggestion, 23:59, `timeAssumed`); the other 24
+notes are asserted one by one with *which* kind of nothing each is. **Decision, mine:**
+"EOD" stays an assumed clock, as `eod-friday.txt` already had it — it is below the
+auto-move rung, so a registration deadline is offered rather than applied, which is the
+safer side for a phrase whose hour differs by instructor. The row reads "… 25 posts, 1
+deadline found" / "… none with a deadline" from an attempt that counted, and stays silent
+when none did.
+
+**Known consequence, not yet fixed:** Sushi's first live sync marked all 29 notes seen
+with only the snippet read, so the HW1 deadline in the body will not appear until the
+upgraded reader re-reads them once — a reader-version bump is the next worker's job,
+together with re-reading a post whose newest version is younger than the seen mark (the
+"Running Post" is edited weekly).
+
+**The author.** Live evidence: the model answered `#schedule .event` three times on ECE
+411, which is the *example* selector in `buildPrompt`'s system text. `skeleton.ts` now
+inventories the page's repeated groups (selectors verified against the DOM, with counts);
+the inventory goes in the first prompt and every retry, `rows` is an enum of it in the
+response schema, and `groundProposal` refuses a proposal naming anything the page lacks
+before the runner is paid for — naming what the page *does* have. On ECE 411 the inventory
+contains the shipped registry selector character for character. New house rule for the
+on-device model in CLAUDE.md; live confirmation from Sushi's machine still owed.
+
+**Also from the wave:** the two workers shared one scratchpad directory and one
+overwrote the other's mutation script mid-run (no source affected); prompts now name a
+per-branch scratch dir. The privacy policy's Piazza paragraph says full bodies are read.
 
 ## Piazza as a polled announcement feed — 2026-09-18
 
@@ -2137,6 +2180,9 @@ back with a "Put back" button for anyone legitimately enrolled across two terms.
 - **Piazza (docs/piazza-findings.md)** — class discovery reads the class page's
   `const USER` object, not the session JWT; and "current" is `term_key` against the
   clock, because `status` stays `active` after a term ends. (2026-09-18, from the capture.)
+- **Piazza (docs/piazza-findings.md)** — the signed-out marker is positive (the splash's
+  login form with its literal `/class` action); a page with neither it nor `const USER` is
+  a `parse_error`. (2026-09-18, from the signed-out capture.)
 
 ## §12 open questions
 - ~~1. PrairieLearn access-details in fetched HTML~~ — **yes**, resolved 2026-09-03.

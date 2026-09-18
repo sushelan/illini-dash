@@ -111,9 +111,11 @@ Piazza is off unless you switch it on, and switching it on is the only thing tha
 Chrome for access to `piazza.com`.
 
 If you switch Piazza on, Illini Dash reads your class list and the announcements in your
-classes' feeds using your own Piazza session, every sync, on your computer; it never
-posts, never reads other students' private posts beyond what the feed shows you, and
-stores only the deadlines it found and which posts it has read.
+classes' feeds using your own Piazza session, every sync, on your computer. It reads the
+full text of each instructor announcement (not only the preview the feed shows), because
+that is where the deadline sentence usually is. It never posts, it
+never reads other students' private posts beyond what the feed shows you, it keeps no
+copy of any post, and it stores only the deadlines it found and which posts it has read.
 
 It reads the same two things your browser would if you opened Piazza yourself: the class
 page, for the list of classes you are in, and each current class's feed. It reads the
