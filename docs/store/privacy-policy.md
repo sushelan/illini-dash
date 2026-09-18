@@ -5,10 +5,18 @@ _Last updated: 2026-09-18_
 Illini Dash runs entirely in your browser. It reads assignment and exam information from
 Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics, and course websites you
 explicitly enable, using the login sessions already in your browser. It never sees or stores your
-password. All data is stored locally in your browser's extension storage and is never
-transmitted to the developer or any third party. The extension makes one network request
-to GitHub once a day to update its list of supported course websites; that request
-contains no personal data. Uninstalling the extension deletes all stored data.
+password. All data is stored locally in your browser's extension storage, and nothing is
+sent to the developer or to any third party.
+
+There is one exception, and you start it: if you connect Google Calendar, your deadline
+titles, courses and times are written to a calendar Illini Dash creates **in your own
+Google account**, under a permission that cannot read or touch any of your other
+calendars. It is off unless you turn it on, one switch turns it off, and turning it off
+deletes that calendar's events.
+
+The extension also makes one network request to GitHub once a day to update its list of
+supported course websites; that request contains no personal data. Uninstalling the
+extension deletes all stored data.
 
 ## What it reads
 
@@ -37,12 +45,16 @@ history: the address is checked against the list above and discarded.
 
 Nothing about you.
 
-The only outbound request the extension makes that is not to one of the sites above is a
-daily fetch of one public file on `raw.githubusercontent.com`, listing which course
+Nothing, unless you connect Google Calendar (below), in which case your own deadlines go
+to your own Google account and nowhere else.
+
+The only other outbound request the extension makes that is not to one of the sites above
+is a daily fetch of one public file on `raw.githubusercontent.com`, listing which course
 websites are supported. That request is made without cookies and carries no information
 about you.
 
-There is no server, no account, no analytics, no telemetry, and no error reporting.
+There is no server, no account, no analytics, no telemetry, and no error reporting. The
+developer receives nothing, ever, including from the Google Calendar feature.
 
 ## What is stored, and where
 
@@ -62,6 +74,8 @@ Deadlines more than 60 days past are deleted automatically.
 | `notifications` | To show the reminders |
 | `offscreen` | To read fetched pages with the browser's own HTML parser, which a service worker does not have |
 | `contextMenus` | To add one right-click item, "Report this page to Illini Dash", which opens this extension's own settings page with the address filled in. It uploads nothing. |
+| `identity` | To ask Google for permission to write to a calendar it creates for you, and only if you connect Google Calendar. The permission it asks for (`calendar.app.created`) covers calendars this extension created and nothing else |
+| Access to `www.googleapis.com` (optional) | Requested only when you press Connect under Google Calendar. It is where the calendar events are written |
 | `scripting` | To run the Campuswire reader inside a Campuswire class feed you have open, and only after you switch it on. Nothing is registered until then, and switching it off removes it |
 | Access to `campuswire.com` (optional) | Requested only when you switch Campuswire on. Nothing is granted when you install |
 | Access to the five sites above | To read your deadlines from them |
@@ -87,6 +101,33 @@ read twice.
 
 Switching it off unregisters the reader immediately. Revoking the site in
 `chrome://extensions` does the same.
+
+## Google Calendar
+
+This is off when you install Illini Dash, and the only thing that turns it on is pressing
+Connect in Settings.
+
+If you connect it, Illini Dash creates one new calendar in your Google account, named
+**Illini Dash**, and writes your deadlines to it: the course and the title of each piece
+of work, when it is due, the link to where you submit it, and which site it came from.
+Finished and hidden deadlines are removed from it.
+
+The permission it asks Google for is a single scope,
+`https://www.googleapis.com/auth/calendar.app.created`. That scope allows an app to create
+a calendar and to read and write **only calendars it created itself**. Illini Dash cannot
+see your other calendars, cannot read your events, and cannot change or delete anything it
+did not put there. Google enforces this, not the extension.
+
+Chrome holds the permission. The extension never sees your Google password and stores no
+Google token of its own.
+
+Pressing Disconnect deletes the events and the Illini Dash calendar from your Google
+account, and forgets everything it knew about them. You can also remove the permission at
+any time at https://myaccount.google.com/permissions, and delete the calendar yourself in
+Google Calendar.
+
+Nothing goes to the developer. The events go from your browser to your Google account
+directly.
 
 ## Reporting a broken page
 

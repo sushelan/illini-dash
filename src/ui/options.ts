@@ -34,6 +34,8 @@ import {
   type CaptureResult,
 } from "../capture.js";
 import { actionFor, displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
+import { describeGcal, type GcalFacts } from "../core/gcal-auth.js";
+import { GCAL_MATCH } from "../core/gcal-config.js";
 import {
   courseLabel,
   displayCourseLabel,
@@ -1479,7 +1481,151 @@ async function renderOptions(): Promise<void> {
     done.append(row);
   }
 
+  /* Google Calendar (§8.3) — see `renderGcal`. */
+  renderGcal((state as { gcal?: GcalFacts }).gcal);
+
   renderPageNav();
+}
+
+
+/* ---- Google Calendar (§8.3) --------------------------------------------
+ *
+ * Its own section, built here rather than in `options.html`, because the
+ * markup is not this change's to edit and because a section that only exists
+ * when the build knows about it is the honest shape: an options page talking to
+ * an older worker gets `gcal: {}` from `core/compat.ts`, which reads as "Off".
+ *
+ * Inserted after Reminders and before Appearance: a student looking for it is
+ * looking near the other things that tell them about a deadline, not near the
+ * export buttons.
+ */
+
+/** Created once and reused, so a redraw cannot leave two of them. */
+function gcalSection(): HTMLElement {
+  const existing = document.getElementById("sec-gcal");
+  if (existing) return existing;
+  const section = el("section");
+  section.id = "sec-gcal";
+  // `renderPageNav` reads this attribute; it is the one place a section's name
+  // is written, and it runs at the end of every render, so a section added here
+  // reaches the nav on the same pass.
+  section.dataset["nav"] = "Google Calendar";
+  const heading = el("h2", "Google Calendar");
+  const lede = el(
+    "p",
+    "Optional, and off until you turn it on. Illini Dash can keep a calendar of " +
+      "your deadlines in your own Google account.",
+    "lede",
+  );
+  const rows = el("div", undefined, "rows");
+  rows.id = "gcal-rows";
+  section.append(heading, lede, rows);
+  const before = document.getElementById("sec-appearance");
+  (before?.parentElement ?? document.body).insertBefore(section, before ?? null);
+  return section;
+}
+
+function renderGcal(facts: GcalFacts | undefined): void {
+  const rows = gcalSection().querySelector("#gcal-rows")!;
+  rows.replaceChildren();
+  const described = describeGcal(facts, new Date());
+
+  /*
+   * Held as variables, never looked up by class later (UI rule 7): three redraw
+   * guards in the popup asked for `.menu` while the class was `menu-surface`
+   * and were dead from the day they were written.
+   */
+  const chip = stateChip("disabled", undefined, described.sentence);
+  chip.textContent = described.chip;
+  if (described.tone === "ok") chip.className = "chip-base chip-state is-ok";
+  else if (described.tone === "warn") chip.className = "chip-base chip-state is-warn";
+  else if (described.tone === "err") chip.className = "chip-base chip-state is-err";
+
+  const row = switchRow({
+    name: "Sync to Google Calendar",
+    hint: described.sentence,
+    checked: facts?.enabled === true,
+    onChange: (enabled) => {
+      const box = row.querySelector("input");
+      const restore = (text: string): void => {
+        if (box) {
+          box.disabled = false;
+          box.checked = facts?.enabled === true;
+        }
+        chip.textContent = describeGcal(facts, new Date()).chip;
+        // On the row, where the error happened — not in `#gate0-status`, which
+        // is in another section entirely (UI rule 3).
+        hint.textContent = text;
+      };
+      if (box) box.disabled = true;
+      // The control says it is doing something (UI rule 4): this round trip
+      // includes a Chrome permission prompt, a Google consent window and a
+      // calendar being created, and without this a closed consent window and a
+      // click that never ran look identical.
+      chip.textContent = enabled ? "Connecting\u2026" : "Disconnecting\u2026";
+
+      // Requested synchronously inside the handler: a user gesture does not
+      // survive an await, so the worker cannot ask (see the Campuswire row).
+      const asked = enabled
+        ? chrome.permissions.request({ origins: [GCAL_MATCH] })
+        : Promise.resolve(true);
+      void asked
+        .then((granted) => {
+          if (!granted) {
+            restore("Permission denied, so Google Calendar stays off.");
+            return undefined;
+          }
+          return send({ type: enabled ? "gcal-connect" : "gcal-disconnect" }).then((response) => {
+            if (response.type === "error") restore(response.message);
+            else if (response.type === "permission") {
+              restore("Chrome did not grant access to the Google Calendar API.");
+            } else void refreshOptions();
+          });
+        })
+        // Every send from a page gets one (UI rule 2): without it a stale worker
+        // rejects into nothing at all and the switch just springs back.
+        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+    },
+  });
+  const hint = row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  row.append(chip);
+
+  if (facts?.enabled) {
+    const push = el("button", "Push now", "btn btn-secondary btn-sm");
+    push.addEventListener("click", () => {
+      push.disabled = true;
+      const was = push.textContent;
+      push.textContent = "Pushing\u2026";
+      void send({ type: "gcal-push-now" })
+        .then((response) => {
+          if (response.type === "error") hint.textContent = response.message;
+          return refreshOptions();
+        })
+        .catch((err: unknown) => {
+          hint.textContent = err instanceof Error ? err.message : String(err);
+        })
+        .finally(() => {
+          push.disabled = false;
+          push.textContent = was;
+        });
+    });
+    row.append(push);
+  }
+  rows.append(row);
+
+  if (facts?.enabled) {
+    // Said plainly beside the switch rather than only in the privacy policy:
+    // this is the one place in the extension where something leaves the
+    // browser, and the student is standing in front of the switch that does it.
+    rows.append(
+      plainRow(
+        "What is sent",
+        "The course, title, time and link of each unfinished deadline — to a " +
+          "calendar named “Illini Dash” in your own Google account, and nowhere " +
+          "else. Turning this off deletes that calendar.",
+      ),
+    );
+  }
 }
 
 /** Whether a `<select>` already offers this value. */

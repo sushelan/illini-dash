@@ -231,6 +231,51 @@ const query = new URLSearchParams(location.search);
  */
 const stale = query.has("stale");
 
+/**
+ * `?gcal=<state>` — the Google Calendar section in each of its states.
+ *
+ * Eight of the nine states cannot be reached without a Google account, a
+ * Workspace policy or a revoked grant, and `admin_blocked` in particular is one
+ * nobody outside an @illinois.edu tenant can produce at all. A harness that can
+ * only draw the happy path is a harness that has never seen the sentences a
+ * student in trouble reads.
+ *
+ * `?gcal=connected` is deliberately the *pushed* shape — the one with a number
+ * on it — because that is the only state allowed to be green, and looking at
+ * it beside `?gcal=fresh` (connected, nothing pushed) is the whole of worker
+ * rule 2 in two screenshots.
+ */
+const gcalState = query.get("gcal");
+
+function previewGcal(): Record<string, unknown> {
+  const base = { enabled: true, byItemId: {}, calendarId: "illini-dash-preview" };
+  switch (gcalState) {
+    case null:
+    case "off":
+      return { enabled: false, byItemId: {}, state: "never" };
+    case "fresh":
+      return { ...base, state: "connected" };
+    case "connected":
+      return {
+        ...base,
+        state: "connected",
+        lastPushAt: new Date(now - 4 * 60_000).toISOString(),
+        lastPushCount: 14,
+      };
+    case "empty":
+      return {
+        ...base,
+        state: "connected",
+        lastPushAt: new Date(now - 60_000).toISOString(),
+        lastPushCount: 0,
+      };
+    default:
+      // Any other value is passed straight through, so a state added later is
+      // reachable in the harness without editing this file.
+      return { ...base, state: gcalState };
+  }
+}
+
 /** The build the page was compiled with, injected by scripts/preview.mjs. */
 const pageBuild =
   (globalThis as unknown as { __PREVIEW_BUILD__?: string }).__PREVIEW_BUILD__ ?? "dev";
@@ -458,12 +503,16 @@ const sources = {
               postsSeen: 3,
             },
           },
+          gcal: previewGcal(),
           notificationsBlocked: false,
         };
         // An older worker does not have the field at all — this is the exact
         // shape that threw, so the preview reproduces the omission rather than
         // sending an empty array.
         if (stale) delete (base as Record<string, unknown>)["setAsideCourses"];
+        // A worker from before Google Calendar landed sends no `gcal` at all,
+        // which is the case `core/compat.ts` fills in as "Off".
+        if (stale) delete (base as Record<string, unknown>)["gcal"];
         return base;
       }
       // Remove and Undo against the stub. Without these the harness answered
@@ -491,6 +540,18 @@ const sources = {
           adapters,
           fetchedAt: new Date(now - 5 * 60_000).toISOString(),
         };
+      }
+      if (
+        req.type === "gcal-connect" ||
+        req.type === "gcal-disconnect" ||
+        req.type === "gcal-push-now"
+      ) {
+        // The harness has no Google account, so these answer the way the worker
+        // does on the happy path and the section redraws from `?gcal=`. Say so
+        // in the console rather than silently returning ok, which is what made
+        // the adapter Remove button look like it worked when it did not.
+        console.log(`[preview] ${req.type} — the worker would talk to Google here`);
+        return { type: "ok" };
       }
       if (req.type === "get-diagnostics") {
         return { type: "diagnostics", report: "illini-dash diagnostics (preview)" };

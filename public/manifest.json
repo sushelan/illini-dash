@@ -32,8 +32,13 @@
     "notifications",
     "offscreen",
     "contextMenus",
-    "scripting"
+    "scripting",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "REPLACE_ME.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/calendar.app.created"]
+  },
   "host_permissions": [
     "https://canvas.illinois.edu/*",
     "https://www.gradescope.com/*",

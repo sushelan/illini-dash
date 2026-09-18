@@ -17,7 +17,7 @@ import type { SetupRow } from "./core/setup.js";
 import type { Candidate } from "./core/detect.js";
 import type { ManualInput } from "./core/manual.js";
 import type { ObservedPost } from "./core/suggest.js";
-import type { ObserverId, ObserverState } from "./core/store.js";
+import type { GcalStore, ObserverId, ObserverState } from "./core/store.js";
 import type {
   Adapter,
   Item,
@@ -95,6 +95,19 @@ export type Request =
   | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
   | { type: "refresh-registry" }
   | { type: "test-notification" }
+  /*
+   * Google Calendar (§8.3). Three messages, no decisions in the worker:
+   * `core/gcal.ts` decides what goes on the calendar, `core/gcal-auth.ts`
+   * decides what every failure is called, and the worker holds the token and
+   * the queue (worker rules 1 and 4).
+   *
+   * `gcal-connect` is sent from a click, because `getAuthToken({interactive:
+   * true})` opens a window and Chrome refuses that without a user gesture in
+   * recent memory — the same constraint `permissions.request` has.
+   */
+  | { type: "gcal-connect" }
+  | { type: "gcal-disconnect" }
+  | { type: "gcal-push-now" }
   | { type: "get-diagnostics" };
 
 export type OverrideAction =
@@ -166,6 +179,17 @@ export type Response =
        * (worker rule 2).
        */
       observers: Record<ObserverId, ObserverState>;
+      /**
+       * Google Calendar's switch and what it has actually pushed.
+       *
+       * Carried with the rest of the state for the same reason `observers` is,
+       * and with the same rule behind it: the chip says "Pushed 14 events ·
+       * 10:32" only when a push wrote those two fields, never because the
+       * switch is on (worker rule 2). Optional on the wire because a worker
+       * from before this change does not send it; `core/compat.ts` fills it in
+       * and the page says so.
+       */
+      gcal?: GcalStore;
       lastSyncAt?: string;
     }
   | { type: "ok" }

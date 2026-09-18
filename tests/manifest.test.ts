@@ -22,6 +22,12 @@ import { SMARTPHYSICS_ORIGIN } from "../src/sources/smartphysics.js";
 import { REGISTRY_URL } from "../src/core/registry.js";
 import { SOURCE_NAME } from "../src/core/names.js";
 import { CAMPUSWIRE_ORIGIN } from "../src/core/campuswire.js";
+import {
+  GCAL_API_ORIGIN,
+  GCAL_CLIENT_ID_PLACEHOLDER,
+  GCAL_SCOPE,
+  isGcalConfigured,
+} from "../src/core/gcal-config.js";
 
 const build = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
 
@@ -37,6 +43,8 @@ const manifest = JSON.parse(
   commands?: Record<string, { suggested_key?: { default?: string }; description?: string }>;
   icons: Record<string, string>;
   action: { default_icon: Record<string, string> };
+  oauth2?: { client_id?: string; scopes?: string[] };
+  key?: string;
 };
 
 /** Chrome's match-pattern semantics, for the shapes this manifest actually uses. */
@@ -350,6 +358,71 @@ describe("the Campuswire observer", () => {
     // The claim a reviewer will check against `scripting`: it reads a page the
     // student already has open, and only when switched on.
     expect(policy).toContain("off unless you switch it on");
+  });
+});
+
+/**
+ * Google Calendar's OAuth block.
+ *
+ * The scope is the whole risk surface of this feature, and it is a decision
+ * Sushi took on evidence: `calendar.app.created` is classified NON-SENSITIVE in
+ * the Google Cloud console (checked 2026-09-18), so there is no verification
+ * review and no 100-user cap. `calendar.events` and `calendar.events.owned` are
+ * sensitive, and either one would turn this into a months-long review AND hand
+ * the extension the student's whole calendar. A test is the only thing standing
+ * between "one scope" and somebody adding a second one to fix a 403.
+ */
+describe("the Google Calendar OAuth block", () => {
+  it("asks for exactly one scope, and it is the app-created one", () => {
+    expect(manifest.oauth2?.scopes).toEqual([GCAL_SCOPE]);
+    expect(GCAL_SCOPE).toBe("https://www.googleapis.com/auth/calendar.app.created");
+  });
+
+  it("never asks for a scope that can read the student's other calendars", () => {
+    const scopes = (manifest.oauth2?.scopes ?? []).join(" ");
+    for (const forbidden of [
+      "auth/calendar ",
+      "auth/calendar.events",
+      "auth/calendar.events.owned",
+      "auth/calendar.readonly",
+    ]) {
+      expect(`${scopes} `, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  it("declares a client id, even before Sushi has pasted the real one", () => {
+    // `getAuthToken` reads this out of the manifest and nowhere else, so the
+    // block has to exist. Until the id is real, `isGcalConfigured` is what
+    // turns an opaque `OAuth2 request failed` into a sentence on the row.
+    expect(typeof manifest.oauth2?.client_id).toBe("string");
+    expect(manifest.oauth2?.client_id).not.toBe("");
+    expect(isGcalConfigured(manifest.oauth2?.client_id)).toBe(
+      manifest.oauth2?.client_id !== GCAL_CLIENT_ID_PLACEHOLDER,
+    );
+  });
+
+  it("ships no `key`, because an invalid one is a hard load error", () => {
+    /*
+     * `dist/` is what Sushi loads unpacked every day (docs/dev-loop.md), and
+     * Chrome refuses to load an extension whose `key` is not valid base64. A
+     * placeholder there would break the development loop to save one paste.
+     * docs/gcal.md says where it goes instead.
+     */
+    expect(manifest.key).toBeUndefined();
+  });
+
+  it("keeps the Calendar API host out of the install prompt", () => {
+    // Opt-in, like Campuswire: the origin is requested from the Connect click
+    // and covered by the same one-wildcard optional entry.
+    expect(manifest.host_permissions.some((p) => covers(p, GCAL_API_ORIGIN))).toBe(false);
+    expect(namedInTable(new URL(GCAL_API_ORIGIN).hostname)).toBe(true);
+  });
+
+  it("is disclosed in the privacy policy, in what it can and cannot reach", () => {
+    const policy = readFileSync(new URL("../docs/store/privacy-policy.md", import.meta.url), "utf8");
+    expect(policy).toContain("calendar.app.created");
+    expect(policy).toContain("only calendars it created itself");
+    expect(policy).toContain("off when you install");
   });
 });
 

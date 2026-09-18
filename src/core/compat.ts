@@ -43,6 +43,13 @@ const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
   // chip say, so a page from after the change talking to a worker from before
   // it would throw in the middle of the sources list.
   observers: "map",
+  // Added in the same change as the field itself. The Google Calendar section
+  // reads `.enabled`, `.state` and the two `lastPush*` fields off this, and the
+  // section is drawn *before* Courses — so a page from after the change talking
+  // to a worker from before it would throw with two of eight sections painted.
+  // `{}` is the right absence: `describeGcal` reads it as "Off", which is what
+  // a worker that has never heard of this feature is in fact doing.
+  gcal: "map",
 };
 
 /** The `state` fields the popup dereferences. */

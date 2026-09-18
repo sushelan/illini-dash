@@ -52,6 +52,23 @@ import {
 } from "./core/overrides.js";
 import { ingestPost } from "./core/suggest.js";
 import { CAMPUSWIRE_MATCH } from "./core/campuswire.js";
+import { projectEvents } from "./core/gcal.js";
+import {
+  GCAL_CLIENT_ID_PLACEHOLDER,
+  GCAL_MATCH,
+  GCAL_NOT_CONFIGURED,
+  isGcalConfigured,
+} from "./core/gcal-config.js";
+import { classifyAuthFailure, nextGcalState } from "./core/gcal-auth.js";
+import {
+  GcalError,
+  createCalendar,
+  listEvents,
+  purgeCalendar,
+  pushEvents,
+  setCalendarColor,
+  type GcalHttp,
+} from "./core/gcal-client.js";
 import {
   loadStore,
   normalizeQuietHours,
@@ -352,6 +369,16 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
     running = null;
   });
   await running;
+  /*
+   * The calendar follows the list, and follows it from *outside* the hold.
+   *
+   * `gcalPush` takes the queue itself. Starting it inside the sync's hold would
+   * run its first section re-entrantly and then let the rest continue after the
+   * hold was released — an unqueued writer by accident, which is worker rule 4's
+   * exact defect (a write that is read and then overwritten seconds later).
+   * Started here, it is an ordinary queued caller that lands behind the sync.
+   */
+  if (!skipped) gcalPushAfter("sync");
   return { skipped };
 }
 
@@ -516,6 +543,239 @@ async function mutate(change: (store: Awaited<ReturnType<typeof loadStore>>) => 
     await saveStore(store);
   });
   await reschedule();
+  // A tick, a hide or a rename changes what belongs on the calendar as surely
+  // as a sync does — and the tick is the one this feature exists for. Queued,
+  // not held: see the note in `sync`.
+  gcalPushAfter("a change to the list");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Google Calendar (§8.3)                                                      */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Wiring only. What goes on the calendar is `core/gcal.ts`, what each failure
+ * is called is `core/gcal-auth.ts`, and the request sequence is
+ * `core/gcal-client.ts`'s `pushEvents`. What is left here is the token, the
+ * permission, the queue and the logging — the four things that need a browser.
+ */
+
+/** The identity calls, behind an interface so core never sees `chrome`. */
+interface Identity {
+  getToken(interactive: boolean): Promise<string>;
+  removeToken(token: string): Promise<void>;
+  clearAll(): Promise<void>;
+}
+
+const identity: Identity = {
+  getToken: (interactive) =>
+    new Promise<string>((resolve, reject) => {
+      // Callback form, like `notifications.getPermissionLevel` above: the
+      // promise form of this API is not in the pinned @types/chrome, and
+      // `chrome.runtime.lastError` is the only place the *reason* appears —
+      // which is the whole input to `classifyAuthFailure`.
+      chrome.identity.getAuthToken({ interactive }, (token?: string) => {
+        const error = chrome.runtime.lastError?.message;
+        if (error) reject(new Error(error));
+        else if (typeof token !== "string" || token === "") {
+          reject(new Error("Chrome returned no token and no error"));
+        } else resolve(token);
+      });
+    }),
+  removeToken: (token) =>
+    new Promise<void>((resolve) => {
+      chrome.identity.removeCachedAuthToken({ token }, () => resolve());
+    }),
+  clearAll: () =>
+    new Promise<void>((resolve) => {
+      chrome.identity.clearAllCachedAuthTokens(() => resolve());
+    }),
+};
+
+function gcalClientId(): string {
+  try {
+    const manifest = chrome.runtime.getManifest() as unknown as {
+      oauth2?: { client_id?: string };
+    };
+    return manifest.oauth2?.client_id ?? GCAL_CLIENT_ID_PLACEHOLDER;
+  } catch {
+    return GCAL_CLIENT_ID_PLACEHOLDER;
+  }
+}
+
+/** Writes the gcal block, through the queue like every other writer (rule 4). */
+async function writeGcal(change: (gcal: StoredGcal) => void): Promise<void> {
+  await withStore(async () => {
+    const store = await loadStore();
+    change(store.gcal);
+    await saveStore(store);
+  });
+}
+
+type StoredGcal = Awaited<ReturnType<typeof loadStore>>["gcal"];
+
+/** Records a state transition and says so, both branches (worker rule 5). */
+async function noteGcal(
+  event: Parameters<typeof nextGcalState>[1],
+  lastError?: string,
+): Promise<void> {
+  await writeGcal((gcal) => {
+    const before = gcal.state;
+    gcal.state = nextGcalState(before, event);
+    gcal.lastError = lastError;
+    console.log(`[gcal] ${event.kind}: ${before} → ${gcal.state}${lastError ? ` — ${lastError}` : ""}`);
+  });
+}
+
+/** A `GcalError` in the vocabulary the state machine transitions on. */
+function gcalEventFor(err: unknown): Parameters<typeof nextGcalState>[1] | undefined {
+  if (!(err instanceof GcalError)) return undefined;
+  if (err.failure === "token_invalid") return { kind: "token-invalid" };
+  if (err.failure === "rate_limited") return { kind: "rate-limited" };
+  if (err.failure === "calendar_missing") return { kind: "calendar-missing" };
+  return undefined;
+}
+
+/**
+ * One push: make sure the calendar exists, work out the diff, send it.
+ *
+ * Held inside `withStore` from the first read to the last write, because a sync
+ * landing in the middle would otherwise overwrite `byItemId` with its own older
+ * copy — and `byItemId` is the only record of which Google event a deadline
+ * lives in. Losing it does not lose data, but it orphans every event on the
+ * calendar: the next push adopts them by listing, which is a request per page
+ * rather than none.
+ *
+ * `interactive` is true only from the Connect click. Everywhere else a missing
+ * grant must not open a window over whatever the student is doing.
+ */
+async function gcalPush(reason: string, interactive = false): Promise<void> {
+  await withStore(async () => {
+    const store = await loadStore();
+    const gcal = store.gcal;
+
+    if (!gcal.enabled) {
+      console.log(`[gcal] ${reason}: switched off, nothing pushed`);
+      return;
+    }
+    if (!isGcalConfigured(gcalClientId())) {
+      console.warn(`[gcal] ${reason}: the OAuth client id is still a placeholder (docs/gcal.md)`);
+      return;
+    }
+    if (!(await chrome.permissions.contains({ origins: [GCAL_MATCH] }))) {
+      // Not an error: the student revoked the host permission, or granted it on
+      // a profile this one is not. Connect asks for it again.
+      await noteGcal({ kind: "auth-failed", message: "user cancelled" }, `${GCAL_MATCH} is not granted`);
+      return;
+    }
+
+    await writeGcal((g) => {
+      g.state = nextGcalState(g.state, { kind: "push-started" });
+    });
+
+    let token: string;
+    try {
+      token = await identity.getToken(interactive);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[gcal] ${reason}: no token — ${message} (${classifyAuthFailure(message)})`);
+      await noteGcal({ kind: "auth-failed", message }, message);
+      return;
+    }
+
+    const attempt = async (bearer: string): Promise<void> => {
+      const http: GcalHttp = { token: bearer, fetch: (input, init) => fetch(input, init) };
+      let calendarId = gcal.calendarId;
+      let index = new Map(Object.entries(gcal.byItemId));
+
+      if (calendarId === undefined) {
+        calendarId = await createCalendar(http);
+        console.log(`[gcal] created the calendar (${calendarId})`);
+        // Cosmetic, and never worth failing a push over.
+        await setCalendarColor(http, calendarId).catch((err: unknown) => {
+          console.warn("[gcal] the calendar colour could not be set:", err);
+        });
+        index = new Map();
+        await writeGcal((g) => {
+          g.calendarId = calendarId;
+          g.byItemId = {};
+        });
+      } else if (index.size === 0) {
+        // Adoption, not a routine cost: this runs on a reconnect or after a
+        // store reset, and it is what stops a second push duplicating every
+        // event that is already there.
+        index = await listEvents(http, calendarId);
+        console.log(`[gcal] adopted ${index.size} events already on the calendar`);
+      }
+
+      const projected = projectEvents(store.items, store.settings, store.overrides.courseNames);
+      const result = await pushEvents(http, calendarId, projected, index, (line) => console.log(line));
+      const at = new Date().toISOString();
+      await writeGcal((g) => {
+        g.byItemId = Object.fromEntries(result.index);
+        // Written together and only here: worker rule 2 says the chip may say
+        // "Pushed 14 events · 10:32" only from a push that returned, and this
+        // is the one place that can have returned.
+        g.lastPushAt = at;
+        g.lastPushCount = result.total;
+        g.state = nextGcalState(g.state, { kind: "pushed" });
+        g.lastError = undefined;
+      });
+    };
+
+    try {
+      await attempt(token);
+    } catch (err) {
+      if (err instanceof GcalError && err.failure === "token_invalid") {
+        // One retry, after throwing away the token Chrome had cached. Chrome
+        // hands out a cached token without checking it, so the *first* call
+        // after a revocation always fails — retrying once is the difference
+        // between a self-healing hiccup and a student pressing Reconnect for
+        // no reason.
+        console.warn("[gcal] the cached token was refused; clearing it and retrying once");
+        await identity.removeToken(token);
+        try {
+          const fresh = await identity.getToken(interactive);
+          await attempt(fresh);
+          return;
+        } catch (retryErr) {
+          const message = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          console.warn(`[gcal] the retry failed too: ${message}`);
+          const event = gcalEventFor(retryErr) ?? { kind: "token-invalid" as const };
+          await noteGcal(event, message);
+          return;
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      const event = gcalEventFor(err);
+      if (event) {
+        await noteGcal(event, message);
+      } else {
+        // An HTTP failure with no state of its own. The connection is still
+        // good, so it stays `connected` and the error rides along — a push that
+        // failed for a bad body must not read as "sign in again".
+        console.warn(`[gcal] ${reason}: push failed — ${message}`);
+        await writeGcal((g) => {
+          g.state = nextGcalState(g.state, { kind: "pushed" });
+          g.lastError = message;
+        });
+      }
+    }
+  });
+}
+
+/**
+ * Pushes, but only when there is a connection to push with.
+ *
+ * Called after every sync and after every override, so it has to be cheap and
+ * silent in the overwhelmingly common case where the feature is off. Fire and
+ * forget: nothing the student is waiting for depends on it, and a Google outage
+ * must not hold the queue open behind a sync.
+ */
+function gcalPushAfter(reason: string): void {
+  void gcalPush(reason).catch((err: unknown) => {
+    console.warn(`[gcal] the push after ${reason} failed:`, err);
+  });
 }
 
 async function applyOverride(action: import("./messages.js").OverrideAction): Promise<void> {
@@ -1233,6 +1493,7 @@ chrome.runtime.onMessage.addListener(
             .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
           setAsideCourses: store.setAsideCourses,
           observers: store.observers,
+          gcal: store.gcal,
           lastSyncAt: store.lastSyncAt,
         }) as const),
       );
@@ -1257,6 +1518,91 @@ chrome.runtime.onMessage.addListener(
             console.log(`[observer] ${observer}: switched ${enabled ? "on" : "off"}`);
           });
           await applyObserver(observer, enabled);
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    /*
+     * Google Calendar. Three handlers; every decision in them is a call into
+     * core (worker rule 1), every write goes through `withStore` (rule 4), and
+     * both branches of each are logged (rule 5).
+     */
+    if (request?.type === "gcal-connect") {
+      return answer(
+        (async () => {
+          if (!isGcalConfigured(gcalClientId())) {
+            return { type: "error", message: GCAL_NOT_CONFIGURED } as const;
+          }
+          // Verified, not requested: the options page asks synchronously inside
+          // the click, because a user gesture does not survive the message hop
+          // (the same constraint the adapter rows and Campuswire already have).
+          if (!(await chrome.permissions.contains({ origins: [GCAL_MATCH] }))) {
+            console.warn(`[gcal] connect: ${GCAL_MATCH} was not granted`);
+            return { type: "permission", granted: false } as const;
+          }
+          await writeGcal((gcal) => {
+            gcal.enabled = true;
+            gcal.state = nextGcalState(gcal.state, { kind: "connect-started" });
+            console.log("[gcal] connect: switched on, asking Chrome for a token");
+          });
+          // Interactive: this is the one path that may open a consent window.
+          await gcalPush("connect", true);
+          const after = await loadStore();
+          console.log(`[gcal] connect finished in state ${after.gcal.state}`);
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "gcal-push-now") {
+      return answer(gcalPush("push now", true).then(() => ({ type: "ok" }) as const));
+    }
+    if (request?.type === "gcal-disconnect") {
+      return answer(
+        (async () => {
+          /*
+           * The order matters, and it is the promise §0 rule 1's amended
+           * wording makes: "turning it off deletes that calendar's events".
+           * So the events go first, then the calendar, then the token, and only
+           * then is the local index forgotten — forgetting it first would leave
+           * a calendar full of coursework nothing could ever find again.
+           */
+          const store = await loadStore();
+          const { calendarId, byItemId } = store.gcal;
+          if (calendarId === undefined) {
+            console.log("[gcal] disconnect: no calendar was ever created, nothing to remove");
+          } else {
+            try {
+              const token = await identity.getToken(false);
+              await purgeCalendar(
+                { token, fetch: (input, init) => fetch(input, init) },
+                calendarId,
+                new Map(Object.entries(byItemId)),
+                (line) => console.log(line),
+              );
+              await identity.removeToken(token);
+            } catch (err) {
+              // Said out loud and then carried on. A student who revoked the
+              // grant in their Google account cannot be helped by failing here,
+              // and refusing to switch off would trap them in a state whose own
+              // sentence says to press this button.
+              console.warn(
+                "[gcal] disconnect: the calendar could not be removed from Google — " +
+                  "switching off locally anyway:",
+                err,
+              );
+            }
+          }
+          await identity.clearAll();
+          await writeGcal((gcal) => {
+            gcal.enabled = false;
+            gcal.calendarId = undefined;
+            gcal.byItemId = {};
+            gcal.lastPushAt = undefined;
+            gcal.lastPushCount = undefined;
+            gcal.lastError = undefined;
+            gcal.state = nextGcalState(gcal.state, { kind: "disconnected" });
+            console.log("[gcal] disconnect: switched off and forgotten");
+          });
           return { type: "ok" } as const;
         })(),
       );
