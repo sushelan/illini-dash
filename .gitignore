@@ -4,3 +4,4 @@ dist/
 release/
 .claude/settings.local.json
 graphify-out/cost.json
+.claude/worktrees/
