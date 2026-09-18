@@ -1781,7 +1781,18 @@ export function describePiazza(facts: PiazzaFacts | undefined, now: Date = new D
    */
   if (facts.classes !== undefined) {
     if (facts.classes.length === 0) return "On · no Piazza classes found";
-    if (!facts.classes.some((entry) => entry.active)) return "On · no class in this term";
+    if (!facts.classes.some((entry) => entry.active)) {
+      /*
+       * And the one surface `extra.unparsedTerm` has ever had. `parseClassPage`
+       * records it for a class whose `term_key` and `term` both failed their
+       * anchored regexes, marks the class inactive — and nothing read the field
+       * again, so "this comes back in January" and "the term format changed and
+       * this needs fixing" were the same sentence. They want opposite actions.
+       */
+      return facts.classes.every((entry) => entry.extra?.unparsedTerm !== undefined)
+        ? "On · no class here has a term that could be read"
+        : "On · no class in this term";
+    }
   }
 
   const note = facts.lastError === undefined ? "" : ` · ${facts.lastError}`;

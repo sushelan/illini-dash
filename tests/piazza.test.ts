@@ -1818,3 +1818,36 @@ describe("an empty enrolment list", () => {
     );
   });
 });
+
+describe("a class list whose terms could not be read", () => {
+  /*
+   * `extra.unparsedTerm` was recorded by `parseClassPage` and read by nothing:
+   * the class-list log called it "— other term", asserting a term it had never
+   * managed to read, and the row said the same words it says in July. "Wait
+   * until January" and "Piazza changed its term format" want opposite actions,
+   * and the evidence to tell them apart was already on disk.
+   */
+  const unreadable: PiazzaClass = {
+    nid: "n1",
+    courseRaw: "GEOL 415",
+    courseCodes: ["GEOL415"],
+    active: false,
+    extra: { unparsedTerm: "whenever" },
+  };
+
+  it("says so on the row, rather than blaming the calendar", () => {
+    expect(
+      describePiazza({ enabled: true, state: "pending", classes: [unreadable] }, NOW),
+    ).toBe("On · no class here has a term that could be read");
+  });
+
+  it("still blames the calendar when the terms read fine", () => {
+    expect(describePiazza({ enabled: true, state: "pending", classes: [OLD] }, NOW)).toBe(
+      "On · no class in this term",
+    );
+    // One readable stale term is enough: the fix there is to wait.
+    expect(
+      describePiazza({ enabled: true, state: "pending", classes: [OLD, unreadable] }, NOW),
+    ).toBe("On · no class in this term");
+  });
+});
