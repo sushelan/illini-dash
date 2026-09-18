@@ -321,8 +321,8 @@ TEMPORARY probe is gone.
 
 Proven the only way it could be: real pointer events in the preview document, dark mode,
 the menu held open across the stubbed sync landing, then "Hide" and a "Merge with…"
-candidate each logging `… requested for …` from the click handler. One confirming press
-in the real popup is still owed by Sushi.
+candidate each logging `… requested for …` from the click handler. Confirmed by Sushi in the real popup
+the same evening: "hide works."
 
 Also this day: Graphify is installed (`graphify-out/`, `.claude/skills/graphify`),
 Ponytail is vendored (`.claude/skills/ponytail`, subordinate to this file), and the

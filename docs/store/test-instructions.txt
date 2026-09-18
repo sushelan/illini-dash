@@ -1,0 +1,7 @@
+Test instructions for the Chrome Web Store review (Access tab, 500-character field).
+DRAFT 2026-09-18 — Sushi to approve. A reviewer has no UIUC account, so this names what is
+verifiable without one. Character count of the block between the rules is printed by
+`wc -m` on it and must stay at or under 500.
+--------------------------------------------------------------------------------
+No account needed to verify. 1) Open the popup: it shows a first-run checklist with a sign-in link per site; nothing is fetched until you sign in. 2) Open Settings > Course websites > Add a course site, paste https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html (a public page), press Read this page: it previews the deadlines it found, and Use this one enables it after Chrome's own permission prompt. 3) Sync now: the popup lists those deadlines. Nothing leaves the browser.
+--------------------------------------------------------------------------------

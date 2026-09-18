@@ -333,7 +333,7 @@ capture-phase `scroll` listener on `window` closed a menu that was scrolling its
 Redraws that find a menu open are now **deferred, not skipped**, and run when it closes;
 `closeMenus` clears `aria-expanded`; the probe is gone. Verified with real pointer events
 in the preview document (Hide and a Merge candidate both reach their handlers and log
-`… requested for …`). One confirming press from Sushi in the real popup is still owed.
+`… requested for …`), and confirmed by Sushi in the real popup the same evening.
 
 ### Also open
 
