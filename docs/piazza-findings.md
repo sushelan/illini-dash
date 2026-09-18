@@ -186,6 +186,90 @@ The wiring of each stage is pinned by a deliberately edited copy of its own capt
 with a deadline sentence appended past character 400 — so "the pipeline is dead" and "the
 posts say nothing" cannot be confused.
 
+### Amendment (2026-09-18, evening): the fetch plan after the trace
+
+A seven-segment trace of the live path found nine defects in this stage. None of them is a
+parsing mistake — every one is about *what a run may settle and what it may claim* — so
+they are recorded here beside the stage they change.
+
+**Discovery no longer wedges on a stored class id.** The class page was always fetched as
+`/class/<the first stored class's nid>`, and that class is the one most likely to have
+gone away: the list keeps inactive and archived enrolments (the capture's own Spring 2025
+entry) and Piazza's `networks` order is not "active first". A 404 for it ended the run and
+armed §6's ladder, a 403 ended it as "Sign in needed", neither branch clears `classes`, and
+the next refresh derived the same dead URL — for ever, with no user-reachable recovery.
+`classPageAttempts` now returns `[<stored nid>, undefined]` and `readClassList` falls back
+to `${PIAZZA_ORIGIN}/class`, which answers for any signed-in student, logging both
+branches. A sign-out is not retried: the bare URL would answer it the same way.
+
+**A 403 on one class is that class's failure, not the session's.** Piazza answers 403 for a
+class you have been removed from or that has been archived, and `classifyPiazzaResponse`
+cannot tell that from an expired session (house rule 8 says the status decides whether this
+is a login problem; it does not say 403 means only one thing). Raised for the whole run, it
+threw away every healthy class's new notes before the body stage and put "Sign in needed" —
+with a button that fixes nothing — on a source whose other three classes had just answered
+200. `feedSignedOut` now decides: it is the session only when **every** polled class says
+so. The class page's own sign-out still ends the run, because that one really is the
+session, and the same rule is applied to the body pool.
+
+**A body that could not be fetched no longer settles the post.** `bodyBatch` exists so that
+"advancing either mark past a post whose body was never fetched would leave it read at its
+120-character snippet for good" — and the worker threw that guarantee away the moment a
+fetch *failed* rather than being deferred: `lastNr` was written in the feed pool, before any
+`content.get` was sent, and the snippet was ingested, so `seenPosts` marked the post read
+too. One transient 502 on a note whose deadline sentence is at character 400 cost that
+deadline for the term. Now `bodyFailureKind` splits the failure: a timeout, a network
+error, a 429 or a 5xx is **transient** — the post is not ingested and `cappedLastNr` holds
+that class below it, so the feed offers it again next sync — and a 404, a 403 or a body
+that is not this endpoint's JSON is **refused**, which is given up on at the snippet with
+the reason logged. The retry is bounded without any per-post memory (there is no store
+field for one), and the cost of holding the mark back is bounded too: `postsNeedingBody`
+drops posts this store has already ingested, so a stuck class re-asks for the stuck post
+only, not for everything above it.
+
+**What the row may claim.** `PiazzaResult` now carries `requests`, `classesPolled`,
+`classFailures`, `bodiesRead` and `bodiesFailed`, and `applyPiazzaResult` is the one
+function that turns them into stored facts — assigned by the worker, never spread over the
+old ones (a spread cannot delete a key, which is how every recovery used to put a
+four-hour `nextAttemptAt` straight back). Four claims changed:
+
+- A run that made **no request** records `pending`, not `ok` (worker rule 2). It happens
+  whenever no stored class is in this term, which is every term boundary, and the row said
+  "last read Dec 12 · 312 posts, 4 deadlines found" through all of it. `describePiazza`
+  says why from the class list — "On · no class in this term", or "On · no Piazza classes
+  found" for an empty one.
+- A run where some classes failed keeps the caveat: "1 of 4 classes couldn't be read", in
+  `lastError`, which the row prints beside the counts. The `ok` branch used to delete it.
+- A run whose bodies were refused says "25 posts couldn't be opened" rather than reporting
+  deadline counts for posts it never received.
+- A successful run that found no new notes says "On · checked 10:32, nothing new" instead
+  of the words a switch that has never fetched gets. That is the steady state of a working
+  class for most of the term.
+
+**Two things that fetched more often than §6 allows.** The popup's 5-minute debounce
+stopped at the loop, so five popup opens in ten minutes were 20 `network.get_my_feed` POSTs
+where the loop made none; `planPiazza` now holds the same debounce, keyed on
+`lastAttemptAt`. And a navigation on *another* source's site reached `runPiazza` as a
+manual trigger, which overrides the ladder — so a resting Piazza was refetched on every
+Gradescope page view. That path now uses a `recheck` trigger, which the loop treats as the
+student asking (it is evidence about the source whose page loaded) and Piazza treats as
+scheduled. A page load on piazza.com still asks for a manual run by name.
+
+**`needs_login` has a ceiling.** It deliberately sets `failures = 0` and no
+`nextAttemptAt`, so that signing in is noticed at once. That is right for an expiry and
+wrong for the other thing a 401/403 means: a server refusing this client was retried on
+every alarm, every popup open and every page load with no ladder — the pattern most likely
+to harden the refusal. After `PIAZZA_LOGIN_GRACE` consecutive refusals the ladder applies;
+the row still says "Sign in needed", and a piazza.com page load still overrides it, so a
+student who does sign in never waits.
+
+**One run at a time.** `runPiazza` has its own in-flight promise. `sync()`'s `running`
+guard did not cover the two paths that call it directly — the piazza.com re-check and
+`set-observer-enabled` — so two runs could put eight requests in flight at a host whose
+pool is four (worker rule 9) and race each other's `seenPosts`. `lastAttemptAt` is now
+stamped when a run **starts**, which is what `piazzaNeedsRecheck` compares against: stamped
+at the end, every page load during a 30-second run started another whole run.
+
 ## The feed's shapes, as captured
 
 - A healthy response carries **`"error": null` at the top level**. `if ("error" in json)`

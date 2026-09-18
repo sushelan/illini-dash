@@ -72,27 +72,37 @@ import {
 import {
   applyPiazzaResult,
   bodyBatch,
+  bodyFailureKind,
+  cappedLastNr,
+  classListLine,
   classifyClassPage,
   classesToPoll,
   classifyPiazzaResponse,
   classPageUrl,
   feedRequest,
+  feedSignedOut,
   parseClassPage,
   parseFeed,
   parsePostBody,
   piazzaNeedsRecheck,
   planPiazza,
   postBodyRequest,
+  postsNeedingBody,
   postsToSend,
+  readClassList,
   readerUpgrade,
   readerVersionOf,
+  resolveBodies,
   withPostBody,
+  PiazzaNeedsLogin,
   MAX_BODIES_PER_SYNC,
   PIAZZA_CSRF_HEADER,
   PIAZZA_READER_VERSION,
   PIAZZA_MATCH,
   PIAZZA_ORIGIN,
   PIAZZA_SESSION_COOKIE,
+  type BodyAttempt,
+  type FeedOutcome,
   type ObservedPost,
   type PiazzaClass,
   type PiazzaPoll,
@@ -107,6 +117,7 @@ import {
   withoutLocalAdapter,
   ALL_OBSERVERS,
   type ObserverId,
+  type ObserverState,
   MAX_POLL_MINUTES,
   MIN_POLL_MINUTES,
 } from "./core/store.js";
@@ -121,8 +132,8 @@ import {
   MAX_CONCURRENT_PER_HOST,
   REQUEST_TIMEOUT_MS,
   adapterPrefix,
-  runSync,
   sourcePrefix,
+  syncOnce,
   withoutRows,
   type FetchedPage,
   type SyncDeps,
@@ -238,21 +249,26 @@ async function seedRegistryFromBundle(): Promise<void> {
     for (const line of rejected) console.warn(`[registry] bundled entry rejected: ${line}`);
     if (adapters.length === 0) return;
 
-    const store = await loadStore();
-    if (!shouldSeedFromBundle(store.registry.adapters, adapters)) {
-      // Said out loud. Returning silently here made a healthy store and a seed
-      // that never ran look identical in the console, which is the difference
-      // between "tick the box" and "the fix is broken".
-      console.log(
-        `[registry] bundle not seeded: ${store.registry.adapters.length} adapter(s) already stored`,
-      );
-      return;
-    }
-    // No `fetchedAt`: seeding must not look like a refresh, or the daily window
-    // would suppress the first real fetch for 24 hours.
-    store.registry = { ...store.registry, adapters };
-    await saveStore(store);
-    console.log(`[registry] seeded ${adapters.length} bundled adapter(s)`);
+    // Queued, and the read is inside the hold with the write: the queue is
+    // strictly exclusive now, so load-change-save is atomic only when the load
+    // is in the same section (worker rule 4).
+    await withStore(async () => {
+      const store = await loadStore();
+      if (!shouldSeedFromBundle(store.registry.adapters, adapters)) {
+        // Said out loud. Returning silently here made a healthy store and a seed
+        // that never ran look identical in the console, which is the difference
+        // between "tick the box" and "the fix is broken".
+        console.log(
+          `[registry] bundle not seeded: ${store.registry.adapters.length} adapter(s) already stored`,
+        );
+        return;
+      }
+      // No `fetchedAt`: seeding must not look like a refresh, or the daily window
+      // would suppress the first real fetch for 24 hours.
+      store.registry = { ...store.registry, adapters };
+      await saveStore(store);
+      console.log(`[registry] seeded ${adapters.length} bundled adapter(s)`);
+    }, "registry: seed");
   } catch (err) {
     console.warn("[registry] could not read the bundled registry:", err);
   }
@@ -283,28 +299,43 @@ async function maybeRefreshRegistry(): Promise<void> {
     const { adapters, rejected } = validateRegistry(await response.text());
     for (const line of rejected) console.warn(`[registry] rejected ${line}`);
 
-    const fresh = await loadStore();
-    fresh.registry = { fetchedAt: new Date().toISOString(), adapters };
-    await saveStore(fresh);
+    await withStore(async () => {
+      const fresh = await loadStore();
+      fresh.registry = { fetchedAt: new Date().toISOString(), adapters };
+      await saveStore(fresh);
+    }, "registry: refreshed");
     console.log(`[registry] ${adapters.length} adapters, ${rejected.length} rejected`);
   } catch (err) {
     // The previous copy stays. §4.5 is explicit that this must not be fatal.
-    const failed = await loadStore();
-    failed.registry = { ...failed.registry, attemptedAt: new Date().toISOString() };
-    await saveStore(failed);
+    await withStore(async () => {
+      const failed = await loadStore();
+      failed.registry = { ...failed.registry, attemptedAt: new Date().toISOString() };
+      await saveStore(failed);
+    }, "registry: attempt");
     console.warn("[registry] refresh failed, keeping the stored copy:", err);
   }
 }
 
 /**
- * Every store writer goes through one queue.
+ * Every store writer goes through one queue, and **no section holds it across a
+ * fetch**.
  *
  * `chrome.storage.local.get` hands back a fresh copy, so two overlapping
  * read-modify-writes lose one side wholesale: a sync landing over a
  * notification restores the empty `notified` and §7 fires the same reminder
  * again, and a sync landing over a hide reverts it — spending one of §9 G3's
- * two corrections a semester. Holding the queue across a sync's fetches delays
- * a reminder by at most one sync; that is the right trade.
+ * two corrections a semester.
+ *
+ * It used to say that holding the queue across a sync's fetches "delays a
+ * reminder by at most one sync; that is the right trade". It was not a trade,
+ * because the queue was not excluding: its re-entrancy flag stayed true across
+ * every await the holder made, so a Hide pressed during those fetches ran
+ * unqueued and was then overwritten by the sync's own write (worker rule 4, in
+ * the primitive written to prevent it). The queue is strictly exclusive now, so
+ * the obligation moved here: every section below is a load, a change and a save,
+ * and anything that fetches does it between two sections. `core/queue.ts` names
+ * a section that outstays `SLOW_HOLD_MS`, which is the only way a section that
+ * asks for the queue again — a permanent deadlock — says anything at all.
  */
 const withStore = createStoreQueue();
 
@@ -366,20 +397,34 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
   }
   let skipped = false;
   void setSyncing(true);
-  running = withStore(async () => {
+  running = (async () => {
+    // Outside every hold, because it fetches: `syncOnce` below is the rule for
+    // everything in this worker now — read in a short section, fetch with the
+    // queue free, write in a short section.
     await maybeRefreshRegistry();
-    const store = await loadStore();
-    // Read before the loop runs, written after: the loop is pure over its deps.
-    keptCourseIds = new Set(store.overrides.keptCourses);
-    lastSetAsideCourses = store.setAsideCourses;
-    const result = await runSync(store, trigger, deps);
+
+    const result = await syncOnce(trigger, deps, {
+      withStore,
+      load: loadStore,
+      save: saveStore,
+      onPlanned: (store) => {
+        // Read before the fetches run: the loop is pure over its deps.
+        keptCourseIds = new Set(store.overrides.keptCourses);
+        lastSetAsideCourses = store.setAsideCourses;
+      },
+      // §4.1's term filter ran during the fetches and its result has to outlive
+      // them; the loop must not write the store itself (worker rule 4).
+      beforeSave: (fresh) => {
+        fresh.setAsideCourses = lastSetAsideCourses;
+      },
+    });
     skipped = result.skipped;
     if (!result.skipped) {
-      result.store.setAsideCourses = lastSetAsideCourses;
-      await saveStore(result.store);
       // §7's alarms are derived from the item list, so they are rebuilt whenever
       // it changes — a deadline that moved, or an item that was submitted,
-      // must not leave a stale reminder armed.
+      // must not leave a stale reminder armed. Outside the hold: `reschedule`
+      // reaches `fireNotification`, which takes the queue itself, and a section
+      // that asks for the queue again never returns.
       await reschedule();
       for (const outcome of result.outcomes) {
         console.log(
@@ -395,29 +440,30 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
       }
     }
     /*
-     * Piazza, after the loop and inside the same queued section.
+     * Piazza, after the loop and with the queue free.
      *
      * Not part of `runSync`: it contributes no `RawItem`, so putting it in the
      * loop would give it an outcome row and a health dot the loop does not know
-     * how to fill. It runs here because it is a *fetch on the sync schedule*,
-     * and it is awaited so its writes land before the queue is released.
+     * how to fill. It runs here because it is a *fetch on the sync schedule* —
+     * and it is a fetch, which is why it may not be inside a hold. It is still
+     * awaited, so `syncing` stays true until its writes have landed, and it
+     * decides for itself whether the popup's debounce applies (`planPiazza`).
      */
     await runPiazza(trigger).catch((err: unknown) => {
       console.warn("[piazza] the run itself failed:", err);
     });
-  }).finally(() => {
+  })().finally(() => {
     void setSyncing(false);
     running = null;
   });
   await running;
   /*
-   * The calendar follows the list, and follows it from *outside* the hold.
+   * The calendar follows the list, and follows it after the sync has written.
    *
-   * `gcalPush` takes the queue itself. Starting it inside the sync's hold would
-   * run its first section re-entrantly and then let the rest continue after the
-   * hold was released — an unqueued writer by accident, which is worker rule 4's
-   * exact defect (a write that is read and then overwritten seconds later).
-   * Started here, it is an ordinary queued caller that lands behind the sync.
+   * `gcalPush` takes the queue for each of its own writes. Started from inside
+   * a section it would deadlock against it, and started before the apply it
+   * would project the pre-sync list; started here it reads what this sync just
+   * wrote.
    */
   if (!skipped) gcalPushAfter("sync");
   return { skipped };
@@ -680,18 +726,21 @@ function gcalEventFor(err: unknown): Parameters<typeof nextGcalState>[1] | undef
 /**
  * One push: make sure the calendar exists, work out the diff, send it.
  *
- * Held inside `withStore` from the first read to the last write, because a sync
- * landing in the middle would otherwise overwrite `byItemId` with its own older
- * copy — and `byItemId` is the only record of which Google event a deadline
- * lives in. Losing it does not lose data, but it orphans every event on the
- * calendar: the next push adopts them by listing, which is a request per page
- * rather than none.
+ * **Not** held inside one `withStore` section, although it used to be: this is
+ * a sequence of Google requests, and the queue is exclusive now, so holding it
+ * across them would stop every click in the extension for the length of a push
+ * (and deadlock against `writeGcal`). Each write below takes the queue on its
+ * own and loads the store inside it, so a sync landing in the middle cannot
+ * overwrite `byItemId` — which is the only record of which Google event a
+ * deadline lives in. What a concurrent sync can now change under this is the
+ * *item list* it projected, and the cost of that is one deadline pushed on the
+ * next push rather than this one.
  *
  * `interactive` is true only from the Connect click. Everywhere else a missing
  * grant must not open a window over whatever the student is doing.
  */
 async function gcalPush(reason: string, interactive = false): Promise<void> {
-  await withStore(async () => {
+  {
     const store = await loadStore();
     const gcal = store.gcal;
 
@@ -802,7 +851,7 @@ async function gcalPush(reason: string, interactive = false): Promise<void> {
         });
       }
     }
-  });
+  }
 }
 
 /**
@@ -999,7 +1048,15 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
     // Both branches would otherwise be one silence (worker rule 5): "a page
     // finished on a site we were waiting for" and "the listener never ran".
     console.log(`[illini-dash] ${source} finished loading in a tab — re-reading it`);
-    await sync("manual").catch((err: unknown) => {
+    /*
+     * "recheck", not "manual". §6's ladder gives way to both, because this
+     * navigation is evidence about *this* source — but Piazza is read on the
+     * back of the same sync, and a page load on Gradescope is no evidence at
+     * all about Piazza. Passed through as "manual" it refetched a resting
+     * Piazza on every page view of every other site, so the ladder never held
+     * for a student who uses them (`piazzaTrigger`).
+     */
+    await sync("recheck").catch((err: unknown) => {
       console.warn(`[illini-dash] the sync after ${source} loaded failed:`, err);
     });
   })();
@@ -1220,9 +1277,6 @@ async function pool<T, R>(items: readonly T[], run: (item: T) => Promise<R>): Pr
   return out;
 }
 
-/** Thrown out of a stage to say "this whole run is a login problem, not a failure". */
-class PiazzaNeedsLogin extends Error {}
-
 /** The class list off the class page, cached in the observer state for a day. */
 async function piazzaClasses(nid: string | undefined): Promise<PiazzaClass[]> {
   const page = await piazzaFetch(classPageUrl(nid));
@@ -1252,18 +1306,23 @@ async function piazzaClasses(nid: string | undefined): Promise<PiazzaClass[]> {
 }
 
 /**
- * The whole post behind one feed entry, or `undefined` with the reason logged.
+ * The whole post behind one feed entry, or the reason it could not be read.
  *
  * Isolated per post on purpose: a `content.get` that fails costs that post its
- * body and nothing else — it keeps its 120-character snippet, which is what
- * this stage was before — and never the other twenty-four (parser house rule 1,
- * one level up).
+ * body and nothing else (parser house rule 1, one level up). What it must not
+ * do is *settle* the post — the worker used to fall back to the 120-character
+ * snippet, ingest that and advance both marks, so one transient 502 on a note
+ * whose deadline is at character 400 cost that deadline for the term. The
+ * failure is classified (`bodyFailureKind`) and `resolveBodies` decides;
+ * nothing here decides anything (worker rule 1).
  */
 async function piazzaBody(
   post: ObservedPost,
+  entry: PiazzaPoll,
   token: string,
-  notes: string[],
-): Promise<ObservedPost> {
+): Promise<BodyAttempt> {
+  const attempt = { nid: post.nid, courseHint: entry.courseHint };
+  let status: number | undefined;
   try {
     const request = postBodyRequest(post.cid, post.nid);
     const response = await piazzaFetch(request.url, {
@@ -1271,62 +1330,139 @@ async function piazzaBody(
       body: request.body,
       headers: { "Content-Type": "application/json", [PIAZZA_CSRF_HEADER]: token },
     });
+    status = response.status;
     const json = asJson(response.body);
     const kind = classifyPiazzaResponse({
       status: response.status,
       finalUrl: response.finalUrl,
       body: json,
     });
-    if (kind === "needs_login") throw new PiazzaNeedsLogin(`post ${post.nr} asked for a sign-in`);
+    if (kind === "needs_login") {
+      // Never settled at its snippet: if the session really has gone, every
+      // body says this and the run below ends as a sign-out; if only this one
+      // does, the post is read again next sync.
+      return {
+        ...attempt,
+        post,
+        failure: {
+          kind: "transient",
+          message: `Piazza asked for a sign-in for post ${post.nr}`,
+          login: true,
+        },
+      };
+    }
     if (kind === "http_error") {
       throw new Error(`Piazza answered ${response.status} for post ${post.nr}`);
     }
-    return withPostBody(post, parsePostBody(json, { nid: post.nid, cid: post.cid }));
+    return { ...attempt, post: withPostBody(post, parsePostBody(json, { nid: post.nid, cid: post.cid })) };
   } catch (err) {
-    if (err instanceof PiazzaNeedsLogin) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    // Worker rule 5: the fallback is a decision the student may have to debug,
-    // so it says which post and what it fell back *to*.
-    notes.push(`post ${post.nr}: body unread (${message}) — reading its 120-character snippet instead`);
-    return post;
+    // A 2xx whose body is not the JSON this endpoint returns is a refusal, not
+    // a hiccup: `status` is 2xx and the parse is what failed.
+    const unreadable = status !== undefined && status >= 200 && status < 300;
+    return { ...attempt, post, failure: { kind: bodyFailureKind(status, unreadable), message } };
   }
 }
 
 /**
- * One Piazza run: the class list if it is stale, then one feed per active class.
+ * One Piazza run at a time, whichever path asked for it.
  *
- * Called from `sync()` after the loop has saved, and from the navigation
- * re-check. It never throws at its caller: a failure is a state on the row,
- * which is the only place the student can act on it.
+ * `sync()` has its own `running` guard, and two paths went round it: the
+ * `tabs.onUpdated` re-check on piazza.com and `set-observer-enabled`. Two runs
+ * put eight requests in flight at a host whose pool is four (worker rule 9),
+ * both computed the same `sinceNr`, and both fetched the same bodies. A student
+ * signing in clicks through five or six pages while a run is in flight, and
+ * every one of them started another.
  */
-async function runPiazza(trigger: SyncTrigger): Promise<void> {
-  const store = await loadStore();
-  const facts = store.observers.piazza;
-  const granted = await chrome.permissions.contains({ origins: [PIAZZA_MATCH] }).catch(() => false);
-  const plan = planPiazza(facts, {
-    granted,
-    now: new Date(),
-    trigger: trigger === "manual" ? "manual" : "scheduled",
-  });
+let piazzaRunning: Promise<void> | null = null;
 
-  if (!plan.fetch) {
-    console.log(`[piazza] ${plan.reason}`);
-    if (plan.record) {
-      const record = plan.record;
-      await mutate((fresh) => {
-        fresh.observers.piazza = {
-          ...fresh.observers.piazza,
-          state: record.state,
-          ...(record.lastError === undefined ? {} : { lastError: record.lastError }),
-        };
-      });
-    }
+async function runPiazza(trigger: SyncTrigger): Promise<void> {
+  if (piazzaRunning) {
+    // Both branches (worker rule 5): "a run was already going" and "the call
+    // never happened" are otherwise the same silence.
+    console.log("[piazza] a run is already in flight — joining it rather than starting a second");
+    await piazzaRunning;
     return;
   }
+  piazzaRunning = piazzaRun(trigger).finally(() => {
+    piazzaRunning = null;
+  });
+  await piazzaRunning;
+}
+
+/**
+ * What a sync trigger means to Piazza.
+ *
+ * "recheck" is a page finishing on *another* source's site, and the loop treats
+ * it as the student asking because it is evidence about that source. It is no
+ * evidence at all about Piazza, and passing it through as "manual" is how a
+ * student who browses Gradescope refetched a resting Piazza on every page load,
+ * for ever — §6's ladder never held. A page load on piazza.com is different,
+ * and that path asks for a manual run by name.
+ */
+function piazzaTrigger(trigger: SyncTrigger): "manual" | "scheduled" | "popup" {
+  if (trigger === "manual") return "manual";
+  if (trigger === "popup") return "popup";
+  return "scheduled";
+}
+
+/** The observer block, written through the queue like every other writer. */
+async function writePiazza(next: (facts: ObserverState) => ObserverState): Promise<void> {
+  await withStore(async () => {
+    const store = await loadStore();
+    store.observers.piazza = next(store.observers.piazza);
+    await saveStore(store);
+  }, "piazza: state");
+}
+
+/**
+ * One Piazza run: plan in a short hold, fetch with the queue free, apply in a
+ * second short hold.
+ *
+ * It never throws at its caller: a failure is a state on the row, which is the
+ * only place the student can act on it.
+ */
+async function piazzaRun(trigger: SyncTrigger): Promise<void> {
+  const granted = await chrome.permissions.contains({ origins: [PIAZZA_MATCH] }).catch(() => false);
+
+  /*
+   * Hold 1. Read what the fetches need — and stamp the attempt that is
+   * *starting*, not the one that finished. `piazzaNeedsRecheck` compares a
+   * navigation against `lastAttemptAt` and `core/health.ts` says the pattern is
+   * "self-limiting without a timer: once the re-check runs, lastAttemptAt is
+   * newer than the navigation". Stamped at the end, that was false for the
+   * whole length of a run.
+   */
+  const planned = await withStore(async () => {
+    const store = await loadStore();
+    const facts = store.observers.piazza;
+    const plan = planPiazza(facts, {
+      granted,
+      now: new Date(),
+      trigger: piazzaTrigger(trigger),
+    });
+    if (plan.fetch) {
+      store.observers.piazza = { ...facts, lastAttemptAt: new Date().toISOString() };
+      await saveStore(store);
+    } else if (plan.record) {
+      store.observers.piazza = {
+        ...facts,
+        state: plan.record.state,
+        ...(plan.record.lastError === undefined ? {} : { lastError: plan.record.lastError }),
+      };
+      await saveStore(store);
+    }
+    return { plan, facts, seenPosts: store.seenPosts };
+  }, "piazza: plan");
+
+  const { plan, facts } = planned;
+  console.log(`[piazza] ${plan.reason}`);
+  if (!plan.fetch) return;
 
   let result: PiazzaResult;
   /** The upgrade's own line, logged outside `mutate` so the queue is not held. */
   let upgraded: string | undefined;
+  let requests = 0;
   let read = 0;
   let moved = 0;
   let suggested = 0;
@@ -1342,7 +1478,14 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       let classes: PiazzaClass[] | undefined;
       let poll: PiazzaPoll[] = plan.poll;
       if (plan.refreshClasses) {
-        classes = await piazzaClasses(facts?.classes?.[0]?.nid);
+        classes = await readClassList(
+          facts?.classes?.[0]?.nid,
+          async (nid) => {
+            requests += 1;
+            return piazzaClasses(nid);
+          },
+          (line) => console.log(`[piazza] ${line}`),
+        );
         /*
          * `classesToPoll`, not a second copy of it. The list the plan was made
          * with was the stored one; this is the list that just arrived — but
@@ -1351,27 +1494,25 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
          * copy here would silently not have (mutation rule 3).
          */
         poll = classesToPoll(classes, plan.rereadAll ? undefined : facts?.lastNr);
-        console.log(
-          `[piazza] class list: ${classes.length} enrolment(s), ${poll.length} in this term ` +
-            `(${classes.map((entry) => `${entry.courseRaw}${entry.active ? "" : " — other term"}`).join("; ")})`,
-        );
+        console.log(`[piazza] ${classListLine(classes, poll)}`);
       }
       classCount = poll.length;
 
-      const lastNr: Record<string, number> = {};
+      const plannedLastNr: Record<string, number> = {};
+      const floors: Record<string, number> = {};
       const payloads: {
         nid: string;
         payload: ReturnType<typeof postsToSend>["payloads"][number];
         reread?: true;
       }[] = [];
 
-      const failures: string[] = [];
       /** Every new note from every class, for one bounded pool of body fetches. */
       const queued: { entry: PiazzaPoll; post: ObservedPost }[] = [];
-      let signedOut = false;
+      const feeds: FeedOutcome[] = [];
       const outcomes = await pool(poll, async (entry) => {
         try {
           const request = feedRequest(entry.nid);
+          requests += 1;
           const response = await piazzaFetch(request.url, {
             method: request.method,
             body: request.body,
@@ -1402,21 +1543,22 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
            */
           const send = postsToSend(posts, {
             sinceNr: entry.sinceNr,
-            seenPosts: store.seenPosts,
+            seenPosts: planned.seenPosts,
           });
           /*
            * The bodies are **not** fetched here. `content_snipet` is the first
            * 120 characters and every deadline this class states is past them,
            * so each new note needs a second request — but a pool inside a pool
            * would be four classes times four bodies, sixteen requests at once
-           * at piazza.com. They are queued for one pool below instead, which is
-           * the only way `MAX_CONCURRENT_PER_HOST` means what it says.
+           * at piazza.com (worker rule 9). They are queued for one pool below.
            *
-           * `lastNr` stops at the batch rather than at the top of the feed, so a
-           * deferred post is read in full next sync instead of being marked read
-           * at its snippet for ever (`bodyBatch`).
+           * `postsNeedingBody` first: a post above `lastNr` may already have
+           * been ingested, because an earlier sync held the mark back under a
+           * body it could not read. Asking for its body again every sync for
+           * the rest of the term is the repeating fetch §6 exists to stop.
            */
-          const batch = bodyBatch(send.sent, posts, MAX_BODIES_PER_SYNC);
+          const needed = postsNeedingBody(send.sent, planned.seenPosts);
+          const batch = bodyBatch(needed.fetch, posts, MAX_BODIES_PER_SYNC);
           if (batch.deferred > 0) {
             console.log(
               `[piazza] ${entry.courseHint}: ${batch.deferred} more new note(s) deferred to the ` +
@@ -1424,58 +1566,99 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
             );
           }
           if (batch.lastNr !== undefined) {
-            lastNr[entry.nid] = Math.max(batch.lastNr, entry.sinceNr ?? 0);
+            plannedLastNr[entry.nid] = Math.max(batch.lastNr, entry.sinceNr ?? 0);
           }
+          floors[entry.nid] = entry.sinceNr ?? 0;
           for (const post of batch.batch) queued.push({ entry, post });
-          return `${entry.courseHint}: ${posts.length} post(s) in the feed, ${batch.batch.length} new note(s) to read`;
+          feeds.push({ courseHint: entry.courseHint, kind: "ok" });
+          return (
+            `${entry.courseHint}: ${posts.length} post(s) in the feed, ` +
+            `${batch.batch.length} new note(s) to read` +
+            (needed.alreadyRead > 0 ? `, ${needed.alreadyRead} already read` : "")
+          );
         } catch (err) {
           /*
            * Per class, so one class cannot cost the others their announcements
-           * — parser house rule 1 one level up, where the "row" is a class. A
-           * sign-out is the exception: it is the session, not the class, so it
-           * is raised for the whole run.
+           * — parser house rule 1 one level up, where the "row" is a class.
+           * **Including a sign-out**, which used to be raised for the whole run
+           * here: Piazza answers 403 for a class you have been removed from or
+           * that has been archived, and `classifyPiazzaResponse` cannot tell
+           * that from an expired session, so one such class threw away every
+           * other class's new notes and put "Sign in needed" — with a button
+           * that fixes nothing — on a source whose other three classes had just
+           * answered 200. `feedSignedOut` decides below: it is the session only
+           * when *every* class says so.
            */
           if (err instanceof PiazzaNeedsLogin) {
-            signedOut = true;
-            return `${entry.courseHint}: needs a sign-in`;
+            feeds.push({ courseHint: entry.courseHint, kind: "needs_login" });
+            return `${entry.courseHint}: refused — a sign-in, or no access to this class`;
           }
           const message = err instanceof Error ? err.message : String(err);
-          failures.push(`${entry.courseHint}: ${message}`);
+          feeds.push({ courseHint: entry.courseHint, kind: "failed", message });
           return `${entry.courseHint}: could not be read — ${message}`;
         }
       });
 
       for (const line of outcomes) console.log(`[piazza] ${line}`);
-      if (signedOut) throw new PiazzaNeedsLogin("a class feed asked for a sign-in");
+      if (feedSignedOut(feeds)) throw new PiazzaNeedsLogin("every class feed asked for a sign-in");
+
+      const classFailures = feeds
+        .filter((outcome) => outcome.kind !== "ok")
+        .map((outcome) => ({
+          courseHint: outcome.courseHint,
+          message:
+            outcome.message ??
+            "Piazza refused this class — you may have been removed from it, or it may be archived",
+        }));
 
       /*
        * One pool for every new note in every class: `MAX_CONCURRENT_PER_HOST`
-       * requests in flight at piazza.com, whatever the classes divide into. A
-       * post whose body fails keeps its snippet and says so (`piazzaBody`); a
-       * sign-out raised here is the session, so it ends the run.
+       * requests in flight at piazza.com, whatever the classes divide into.
        */
-      const notes: string[] = [];
-      const bodies = await pool(queued, ({ post }) => piazzaBody(post, token, notes));
-      for (const note of notes) console.warn(`[piazza] ${note}`);
+      const attempts = await pool(queued, ({ entry, post }) => {
+        requests += 1;
+        return piazzaBody(post, entry, token);
+      });
+      if (
+        feedSignedOut(
+          attempts.map((body) => ({
+            courseHint: body.courseHint,
+            kind: body.failure === undefined ? "ok" : body.failure.login === true ? "needs_login" : "failed",
+          })),
+        )
+      ) {
+        // Every body asked for a sign-in: that is the session, not the posts.
+        throw new PiazzaNeedsLogin("every post body asked for a sign-in");
+      }
+
+      const bodies = resolveBodies(attempts);
+      for (const note of bodies.notes) console.warn(`[piazza] ${note}`);
+      /*
+       * `lastNr` stops below every post whose body this run could not read.
+       * `bodyBatch` already caps it at the batch; this caps it at the *failure*,
+       * which is the half the worker used to throw away — it wrote `lastNr`
+       * before a single `content.get` had been sent.
+       */
+      const lastNr = cappedLastNr(plannedLastNr, bodies.retry, floors);
+
       // Re-run over the posts as they now read: one place builds a payload, and
       // these have already passed every filter in it.
-      for (const [index, post] of bodies.entries()) {
-        for (const payload of postsToSend([post]).payloads) {
+      for (const body of bodies.ingest) {
+        for (const payload of postsToSend([body.post]).payloads) {
           // `reread` travels on the post, not in the payload: a `PostPayload`
           // is what every surface hands `ingestPost`, and only this source can
           // know that a post it has already read has been rewritten since.
           payloads.push({
-            nid: queued[index]!.entry.nid,
+            nid: body.nid,
             payload,
-            ...(post.reread === true ? { reread: true as const } : {}),
+            ...(body.post.reread === true ? { reread: true as const } : {}),
           });
         }
       }
-      const full = bodies.filter((post) => post.bodyRead === true).length;
-      if (bodies.length > 0) {
+      if (attempts.length > 0) {
         console.log(
-          `[piazza] ${bodies.length} new note(s): ${full} read in full, ` +
-            `${bodies.length - full} from the 120-character snippet only`,
+          `[piazza] ${attempts.length} new note(s): ${bodies.bodiesRead} read in full, ` +
+            `${bodies.bodiesFailed} unread (${bodies.retry.length} to try again next sync)`,
         );
       }
 
@@ -1483,17 +1666,17 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
        * One `mutate`, holding the queue across every post: this is the same
        * core function `post-observed` calls, so a post read here and a post
        * read by the Campuswire observer cannot disagree about what a post does
-       * (worker rules 1 and 4).
+       * (worker rules 1 and 4). Every request is already done by here, so the
+       * section is a read, a change and a write like every other one.
        */
       if (payloads.length > 0 || plan.rereadAll === true) {
         await mutate((fresh) => {
           /*
            * The reader upgrade, in the write that carries what the new reader
-           * read — never before the fetch (`applyPiazzaResult` is later, but
-           * every request is already done by here). A crash anywhere above
-           * leaves the stored version alone, so the next sync runs the upgrade
-           * again rather than skipping it, and the upgrade is idempotent: the
-           * second sync's plan no longer asks for it.
+           * read — never before the fetch. A crash anywhere above leaves the
+           * stored version alone, so the next sync runs the upgrade again
+           * rather than skipping it, and the upgrade is idempotent: the second
+           * sync's plan no longer asks for it.
            */
           if (plan.rereadAll === true) {
             const upgrade = readerUpgrade(fresh.seenPosts, readerVersionOf(fresh.observers.piazza));
@@ -1536,14 +1719,25 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       }
       if (upgraded !== undefined) console.log(`[piazza] ${upgraded}`);
 
-      if (failures.length > 0 && failures.length === poll.length) {
-        throw new Error(failures.join("; "));
+      if (classFailures.length > 0 && classFailures.length === poll.length) {
+        throw new Error(classFailures.map((failure) => `${failure.courseHint}: ${failure.message}`).join("; "));
       }
-      if (failures.length > 0) {
-        console.warn(`[piazza] ${failures.length} of ${poll.length} classes failed: ${failures.join("; ")}`);
+      if (classFailures.length > 0) {
+        console.warn(
+          `[piazza] ${classFailures.length} of ${poll.length} classes failed: ` +
+            classFailures.map((failure) => `${failure.courseHint}: ${failure.message}`).join("; "),
+        );
       }
       result = {
         kind: "ok",
+        // Every fact the row is allowed to assert comes from this run, and
+        // `requests` is the one that decides whether it may claim health at all
+        // (worker rule 2).
+        requests,
+        classesPolled: poll.length,
+        ...(classFailures.length > 0 ? { classFailures } : {}),
+        bodiesRead: bodies.bodiesRead,
+        bodiesFailed: bodies.bodiesFailed,
         ...(classes === undefined ? {} : { classes }),
         newPosts: read,
         // Recorded whenever posts were actually ingested, including when the
@@ -1564,17 +1758,20 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
     }
   }
 
-  await mutate((fresh) => {
-    fresh.observers.piazza = {
-      ...fresh.observers.piazza,
-      ...applyPiazzaResult(fresh.observers.piazza, result, new Date().toISOString()),
-    };
-  });
+  /*
+   * Assigned, never spread over the old facts: `applyPiazzaResult` expresses
+   * its recovery contract with `delete`, and `{ ...old, ...new }` put back
+   * exactly the keys it had deleted — so a sync that succeeded after four
+   * failures was written `state: "ok"` with a four-hour `nextAttemptAt` still
+   * on it, and Piazza then fetched nothing for four hours after the student
+   * watched it work.
+   */
+  await writePiazza((current) => applyPiazzaResult(current, result, new Date().toISOString()));
 
   if (result.kind === "ok") {
     console.log(
-      `[piazza] ${classCount} class${classCount === 1 ? "" : "es"}, ${read} new note${read === 1 ? "" : "s"}, ` +
-        `${moved} moved, ${suggested} suggested`,
+      `[piazza] ${classCount} class${classCount === 1 ? "" : "es"}, ${result.requests} request(s), ` +
+        `${read} new note${read === 1 ? "" : "s"}, ${moved} moved, ${suggested} suggested`,
     );
   }
 }

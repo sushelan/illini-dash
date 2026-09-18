@@ -13,7 +13,18 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   applyPiazzaResult,
+  bodyFailureKind,
+  cappedLastNr,
+  classListLine,
+  classPageAttempts,
   classesToPoll,
+  feedSignedOut,
+  postsNeedingBody,
+  readClassList,
+  resolveBodies,
+  runNote,
+  PiazzaNeedsLogin,
+  PIAZZA_LOGIN_GRACE,
   classifyPiazzaResponse,
   classPageUrl,
   currentTermKey,
@@ -472,11 +483,21 @@ describe("applyPiazzaResult and the row it feeds", () => {
     // Worker rule 2: a switch the student flipped has read nothing.
     expect(describePiazza({ enabled: true })).toBe("On · nothing read yet");
     expect(describePiazza({ enabled: false })).toBe("Off");
-    expect(describePiazza({ enabled: true, state: "ok" })).toBe("On · nothing read yet");
+    /*
+     * And the other half, which this test used to pin the wrong way round
+     * (mutation rule 6): `state: "ok"` with no `lastObservedAt` is a run that
+     * fetched every class and found no new notes — the steady state of a
+     * working source for most of the term — and it said the same words as a
+     * switch that had just been flipped.
+     */
+    expect(describePiazza({ enabled: true, state: "ok" }, NOW)).toBe("On · checked, nothing new");
+    expect(
+      describePiazza({ enabled: true, state: "ok", lastAttemptAt: NOW_ISO }, NOW),
+    ).toMatch(/^On · checked \d{1,2}:\d{2}( ?[AP]M)?, nothing new$/);
   });
 
   it("stamps an attempt on every branch, and a reading only on a success", () => {
-    const ok = applyPiazzaResult({ enabled: true }, { kind: "ok", newPosts: 3 }, NOW_ISO);
+    const ok = applyPiazzaResult({ enabled: true }, { kind: "ok", requests: 1, classesPolled: 1, newPosts: 3 }, NOW_ISO);
     expect(ok).toMatchObject({
       state: "ok",
       lastAttemptAt: NOW_ISO,
@@ -485,7 +506,7 @@ describe("applyPiazzaResult and the row it feeds", () => {
       failures: 0,
     });
     // A successful poll that found nothing new is an attempt, not a reading.
-    const quiet = applyPiazzaResult(ok, { kind: "ok", newPosts: 0 }, "2026-09-18T13:00:00-05:00");
+    const quiet = applyPiazzaResult(ok, { kind: "ok", requests: 1, classesPolled: 1, newPosts: 0 }, "2026-09-18T13:00:00-05:00");
     expect(quiet.lastAttemptAt).toBe("2026-09-18T13:00:00-05:00");
     expect(quiet.lastObservedAt).toBe(NOW_ISO);
     expect(quiet.postsSeen).toBe(3);
@@ -497,15 +518,15 @@ describe("applyPiazzaResult and the row it feeds", () => {
     expect(Date.parse(once.nextAttemptAt!)).toBeGreaterThan(Date.parse(NOW_ISO));
     const twice = applyPiazzaResult(once, { kind: "error", message: "boom" }, NOW_ISO);
     expect(Date.parse(twice.nextAttemptAt!)).toBeGreaterThan(Date.parse(once.nextAttemptAt!));
-    const better = applyPiazzaResult(twice, { kind: "ok", newPosts: 1 }, NOW_ISO);
+    const better = applyPiazzaResult(twice, { kind: "ok", requests: 1, classesPolled: 1, newPosts: 1 }, NOW_ISO);
     expect(better.nextAttemptAt).toBeUndefined();
     expect(better.lastError).toBeUndefined();
     expect(better.failures).toBe(0);
   });
 
-  it("does not back off a login, because the fix is a tab away", () => {
+  it("does not back off the first few logins, because the fix is a tab away", () => {
     const out = applyPiazzaResult({ enabled: true }, { kind: "needs_login" }, NOW_ISO);
-    expect(out).toMatchObject({ state: "needs_login", failures: 0 });
+    expect(out).toMatchObject({ state: "needs_login", failures: 1 });
     expect(out.nextAttemptAt).toBeUndefined();
     expect(describePiazza(out)).toBe("Sign in needed");
     expect(describePiazza({ enabled: true, state: "error", lastError: "boom" })).toBe(
@@ -567,22 +588,22 @@ describe("applyPiazzaResult and the row it feeds", () => {
   it("counts deadlines across runs, and only from a run that ingested", () => {
     const first = applyPiazzaResult(
       { enabled: true },
-      { kind: "ok", newPosts: 2, deadlines: 1 },
+      { kind: "ok", requests: 1, classesPolled: 1, newPosts: 2, deadlines: 1 },
       NOW_ISO,
     );
     expect(first.deadlinesFound).toBe(1);
     // A later sync that read no new posts passes no count, and must not reset
     // the row to "none with a deadline".
-    const second = applyPiazzaResult(first, { kind: "ok", newPosts: 0 }, NOW_ISO);
+    const second = applyPiazzaResult(first, { kind: "ok", requests: 1, classesPolled: 1, newPosts: 0 }, NOW_ISO);
     expect(second.deadlinesFound).toBe(1);
     // And a later sync that found more adds to it, rather than replacing it:
     // the row's count is "since this source was switched on", like `postsSeen`.
-    expect(applyPiazzaResult(second, { kind: "ok", newPosts: 4, deadlines: 2 }, NOW_ISO)
+    expect(applyPiazzaResult(second, { kind: "ok", requests: 1, classesPolled: 1, newPosts: 4, deadlines: 2 }, NOW_ISO)
       .deadlinesFound).toBe(3);
     // A sync that read posts and found nothing does record the zero.
     const third = applyPiazzaResult(
       { enabled: true },
-      { kind: "ok", newPosts: 25, deadlines: 0 },
+      { kind: "ok", requests: 1, classesPolled: 1, newPosts: 25, deadlines: 0 },
       NOW_ISO,
     );
     expect(third.deadlinesFound).toBe(0);
@@ -1325,5 +1346,475 @@ describe("a re-read post through ingestPost", () => {
     );
     expect(again.suggestions).toHaveLength(1);
     expect(again.suggestions[0]?.at).toBe("2026-09-03T17:00:00-05:00");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* What a run may claim, and what it may settle                               */
+/* -------------------------------------------------------------------------- */
+
+describe("a run that made no request", () => {
+  /*
+   * Worker rule 2, one level down from `syncSites`: "a green dot must mean
+   * *I fetched, and it was fine* — never *I did not fetch*". With a cached
+   * class list and nothing active in it, `planPiazza` still says `fetch: true`
+   * and `runPiazza` polls an empty list: no HTTP at all, and the row went on
+   * printing December's reading for as long as the term boundary lasted.
+   */
+  const between: PiazzaFacts = {
+    enabled: true,
+    classes: [OLD],
+    classesFetchedAt: NOW_ISO,
+    state: "ok",
+    lastObservedAt: "2026-06-01T10:00:00-05:00",
+    postsSeen: 25,
+    deadlinesFound: 3,
+  };
+
+  it("is not recorded as health", () => {
+    const after = applyPiazzaResult(
+      between,
+      { kind: "ok", requests: 0, classesPolled: 0, newPosts: 0, lastNr: {} },
+      NOW_ISO,
+    );
+    expect(after.state).toBe("pending");
+    expect(after.lastAttemptAt).toBe(NOW_ISO);
+    // The attempt is recorded; the reading it did not make is not touched.
+    expect(after.lastObservedAt).toBe("2026-06-01T10:00:00-05:00");
+  });
+
+  it("says why, from the class list that caused it", () => {
+    const after = applyPiazzaResult(
+      between,
+      { kind: "ok", requests: 0, classesPolled: 0, newPosts: 0, lastNr: {} },
+      NOW_ISO,
+    );
+    expect(describePiazza(after, NOW)).toBe("On · no class in this term");
+    // And an account with no Piazza classes at all is a different sentence.
+    expect(describePiazza({ enabled: true, state: "pending", classes: [] }, NOW)).toBe(
+      "On · no Piazza classes found",
+    );
+  });
+
+  it("still records a run that did fetch as health", () => {
+    const after = applyPiazzaResult(
+      { enabled: true, classes: [CS425], classesFetchedAt: NOW_ISO },
+      { kind: "ok", requests: 3, classesPolled: 1, newPosts: 2 },
+      NOW_ISO,
+    );
+    expect(after.state).toBe("ok");
+  });
+});
+
+describe("a class that failed while the others answered", () => {
+  /*
+   * The per-class catch escalated only when *every* class failed, and the `ok`
+   * branch then deleted `lastError` — so a course that had contributed nothing
+   * for a week existed only as a `console.warn` in the service worker's
+   * console, which UI rule 1 says is not a console a student has open.
+   */
+  const ok = {
+    kind: "ok" as const,
+    requests: 5,
+    classesPolled: 4,
+    classFailures: [{ courseHint: "CS 446", message: "Piazza answered 500 for CS 446" }],
+    newPosts: 25,
+    deadlines: 1,
+  };
+
+  it("keeps the failure on the row instead of deleting it", () => {
+    const after = applyPiazzaResult({ enabled: true }, ok, NOW_ISO);
+    expect(after.state).toBe("ok");
+    expect(after.lastError).toBe("1 of 4 classes couldn't be read");
+  });
+
+  it("says it beside the counts rather than only in the console", () => {
+    const after = applyPiazzaResult({ enabled: true }, ok, NOW_ISO);
+    expect(describePiazza(after, NOW)).toMatch(
+      /^On · last read .* · 25 posts, 1 deadline found · 1 of 4 classes couldn't be read$/,
+    );
+  });
+
+  it("clears the caveat on a clean run", () => {
+    const after = applyPiazzaResult({ enabled: true }, ok, NOW_ISO);
+    const clean = applyPiazzaResult(
+      after,
+      { kind: "ok", requests: 5, classesPolled: 4, newPosts: 0 },
+      NOW_ISO,
+    );
+    expect(clean.lastError).toBeUndefined();
+  });
+
+  it("says so when the bodies were the thing that failed", () => {
+    // Every `content.get` refused while the feeds kept working: the row used to
+    // read "25 posts, 0 deadlines found" about posts it never received.
+    const after = applyPiazzaResult(
+      { enabled: true },
+      {
+        kind: "ok",
+        requests: 30,
+        classesPolled: 4,
+        bodiesRead: 0,
+        bodiesFailed: 25,
+        newPosts: 0,
+      },
+      NOW_ISO,
+    );
+    expect(after.lastError).toBe("25 posts couldn't be opened");
+    expect(runNote({ kind: "ok", requests: 1, classesPolled: 1, newPosts: 0, bodiesFailed: 1 })).toBe(
+      "1 post couldn't be opened",
+    );
+  });
+});
+
+describe("a recovery after a failure", () => {
+  it("returns the complete facts, so a spread of the old ones cannot undo it", () => {
+    /*
+     * The contract is expressed with `delete`, and the worker wrote
+     * `{ ...old, ...applyPiazzaResult(old, …) }` — a spread cannot delete a
+     * key, so every recovery put `nextAttemptAt` and `lastError` straight back
+     * and Piazza rested for four hours after the student watched it work.
+     */
+    let facts: PiazzaFacts = { enabled: true };
+    for (let i = 0; i < 4; i += 1) {
+      facts = applyPiazzaResult(facts, { kind: "error", message: "Failed to fetch" }, NOW_ISO);
+    }
+    expect(facts.nextAttemptAt).toBeDefined();
+    const recovered = applyPiazzaResult(
+      facts,
+      { kind: "ok", requests: 4, classesPolled: 1, newPosts: 1 },
+      NOW_ISO,
+    );
+    expect(recovered.nextAttemptAt).toBeUndefined();
+    expect(recovered.lastError).toBeUndefined();
+    // Complete: the row's own switch survives, so the worker can assign this
+    // rather than merging it.
+    expect(recovered.enabled).toBe(true);
+    expect(planPiazza(recovered, { granted: true, now: NOW }).fetch).toBe(true);
+  });
+});
+
+describe("a refusal that signing in cannot fix", () => {
+  /*
+   * `classifyPiazzaResponse` answers `needs_login` for a 403 as well as a 401,
+   * and the `needs_login` branch reset `failures` and deleted `nextAttemptAt`
+   * deliberately — so a server refusing this client was retried on every alarm,
+   * every popup open and every page load, for ever, with no ladder.
+   */
+  it("keeps the first few attempts free", () => {
+    let facts: PiazzaFacts = { enabled: true };
+    for (let i = 0; i < PIAZZA_LOGIN_GRACE; i += 1) {
+      facts = applyPiazzaResult(facts, { kind: "needs_login" }, NOW_ISO);
+      expect(facts.nextAttemptAt, `attempt ${i + 1}`).toBeUndefined();
+    }
+    expect(describePiazza(facts, NOW)).toBe("Sign in needed");
+  });
+
+  it("puts §6's ladder back once the refusals keep coming", () => {
+    let facts: PiazzaFacts = { enabled: true };
+    for (let i = 0; i < PIAZZA_LOGIN_GRACE + 1; i += 1) {
+      facts = applyPiazzaResult(facts, { kind: "needs_login" }, NOW_ISO);
+    }
+    expect(Date.parse(facts.nextAttemptAt!)).toBeGreaterThan(Date.parse(NOW_ISO));
+    // It still says "Sign in needed" — the row's advice does not change, only
+    // how often this asks.
+    expect(describePiazza(facts, NOW)).toBe("Sign in needed");
+    expect(planPiazza(facts, { granted: true, now: NOW }).fetch).toBe(false);
+    // …and the student's own navigation still overrides it (a manual run).
+    expect(planPiazza(facts, { granted: true, now: NOW, trigger: "manual" }).fetch).toBe(true);
+  });
+
+  it("forgets the count the moment a run succeeds", () => {
+    let facts: PiazzaFacts = { enabled: true };
+    for (let i = 0; i < PIAZZA_LOGIN_GRACE + 2; i += 1) {
+      facts = applyPiazzaResult(facts, { kind: "needs_login" }, NOW_ISO);
+    }
+    const back = applyPiazzaResult(
+      facts,
+      { kind: "ok", requests: 2, classesPolled: 1, newPosts: 0 },
+      NOW_ISO,
+    );
+    expect(back.failures).toBe(0);
+    expect(back.nextAttemptAt).toBeUndefined();
+  });
+});
+
+describe("one class's 403 is not the session's", () => {
+  it("signs out only when every class says so", () => {
+    expect(
+      feedSignedOut([
+        { courseHint: "CS 425", kind: "ok" },
+        { courseHint: "CS 446", kind: "needs_login" },
+      ]),
+    ).toBe(false);
+    expect(
+      feedSignedOut([
+        { courseHint: "CS 425", kind: "needs_login" },
+        { courseHint: "CS 446", kind: "needs_login" },
+      ]),
+    ).toBe(true);
+    // A class that merely failed is not evidence either way, and an empty poll
+    // is not a sign-out — it is the no-request run above.
+    expect(
+      feedSignedOut([
+        { courseHint: "CS 425", kind: "failed", message: "500" },
+        { courseHint: "CS 446", kind: "needs_login" },
+      ]),
+    ).toBe(false);
+    expect(feedSignedOut([])).toBe(false);
+  });
+});
+
+describe("the class page a stored class id no longer answers", () => {
+  /*
+   * The discovery URL was built from the first stored class, and that class is
+   * the one most likely to have gone away — the list keeps archived enrolments
+   * and Piazza's order is not "active first". A 404 for it ended the run, the
+   * stored list was never cleared, and the next refresh derived the same dead
+   * URL for ever.
+   */
+  it("falls back to the bare class page and says that it did", () => {
+    expect(classPageAttempts("m5yccp4jza15ry")).toEqual(["m5yccp4jza15ry", undefined]);
+    expect(classPageAttempts(undefined)).toEqual([undefined]);
+  });
+
+  it("retries once, on the URL that works for any signed-in student", async () => {
+    const asked: (string | undefined)[] = [];
+    const lines: string[] = [];
+    const classes = await readClassList(
+      "m5yccp4jza15ry",
+      async (nid) => {
+        asked.push(nid);
+        if (nid !== undefined) throw new Error("Piazza answered 404 for https://piazza.com/class/m5yccp4jza15ry");
+        return [CS425];
+      },
+      (line) => lines.push(line),
+    );
+    expect(asked).toEqual(["m5yccp4jza15ry", undefined]);
+    expect(classes).toEqual([CS425]);
+    expect(lines.join("\n")).toContain("404");
+  });
+
+  it("does not retry a sign-out, which the bare page would answer the same way", async () => {
+    const asked: (string | undefined)[] = [];
+    await expect(
+      readClassList(
+        NID,
+        async (nid) => {
+          asked.push(nid);
+          throw new PiazzaNeedsLogin("the Piazza class page asked for a sign-in");
+        },
+        () => undefined,
+      ),
+    ).rejects.toThrow(PiazzaNeedsLogin);
+    expect(asked).toEqual([NID]);
+  });
+
+  it("reports the last failure when neither URL answers", async () => {
+    await expect(
+      readClassList(
+        NID,
+        async () => {
+          throw new Error("Failed to fetch");
+        },
+        () => undefined,
+      ),
+    ).rejects.toThrow("Failed to fetch");
+  });
+});
+
+describe("the class-list line names why a class is skipped", () => {
+  it("does not call an unreadable term another term", () => {
+    // Those want opposite fixes: "it comes back in January" against "this
+    // parser needs a new term format" (worker rule 5).
+    const unreadable: PiazzaClass = {
+      nid: "n1",
+      courseRaw: "GEOL 415",
+      courseCodes: ["GEOL415"],
+      active: false,
+      extra: { unparsedTerm: "whenever" },
+    };
+    const line = classListLine([CS425, OLD, unreadable], [{ nid: NID, courseHint: CS425.courseRaw }]);
+    expect(line).toContain("3 enrolment(s), 1 in this term");
+    expect(line).toContain('GEOL 415 — its term could not be read ("whenever")');
+    expect(line).toContain("spring2025, not this one");
+    expect(line).not.toContain("GEOL 415 — no term");
+  });
+});
+
+describe("a body fetch that failed", () => {
+  const note = (nr: number): ObservedPost => ({
+    id: `piazza:${NID}:${nr}`,
+    nid: NID,
+    nr,
+    cid: `cid${nr}`,
+    kind: "note",
+    subject: `note ${nr}`,
+    snippet: "a snippet",
+    text: `note ${nr}\na snippet`,
+    courseHint: "CS 425",
+    postedAt: NOW_ISO,
+    extra: {},
+  });
+
+  it("is retried when the failure is the kind that answers next time", () => {
+    expect(bodyFailureKind(undefined)).toBe("transient");
+    expect(bodyFailureKind(500)).toBe("transient");
+    expect(bodyFailureKind(429)).toBe("transient");
+    expect(bodyFailureKind(408)).toBe("transient");
+    expect(bodyFailureKind(404)).toBe("refused");
+    expect(bodyFailureKind(403)).toBe("refused");
+    // A 200 whose body is not the JSON this endpoint returns will read the same
+    // way next time: taking the snippet is the honest end of it.
+    expect(bodyFailureKind(200, true)).toBe("refused");
+  });
+
+  it("leaves the post unread rather than settling it at its snippet", () => {
+    const resolved = resolveBodies([
+      { nid: NID, courseHint: "CS 425", post: { ...note(159), bodyRead: true } },
+      {
+        nid: NID,
+        courseHint: "CS 425",
+        post: note(160),
+        failure: { kind: "transient", message: "Piazza answered 502 for post 160" },
+      },
+      { nid: NID, courseHint: "CS 425", post: { ...note(161), bodyRead: true } },
+    ]);
+    expect(resolved.ingest.map((entry) => entry.post.nr)).toEqual([159, 161]);
+    expect(resolved.retry.map((entry) => entry.post.nr)).toEqual([160]);
+    expect(resolved.bodiesRead).toBe(2);
+    expect(resolved.bodiesFailed).toBe(1);
+    expect(resolved.notes.join("\n")).toContain("502");
+  });
+
+  it("gives up on a refusal, at the snippet, with the reason said out loud", () => {
+    const resolved = resolveBodies([
+      {
+        nid: NID,
+        courseHint: "CS 425",
+        post: note(42),
+        failure: { kind: "refused", message: "Piazza answered 404 for post 42" },
+      },
+    ]);
+    expect(resolved.ingest.map((entry) => entry.post.nr)).toEqual([42]);
+    expect(resolved.retry).toEqual([]);
+    expect(resolved.notes.join("\n")).toContain("giving up");
+  });
+
+  it("holds `lastNr` below the post it could not read", () => {
+    // `bodyBatch` allowed 161; post 160's body never arrived, so this class
+    // stops at 159 and the feed offers 160 again next sync. Advancing past it
+    // is the permanent half-read the batch mechanism exists to prevent.
+    expect(
+      cappedLastNr({ [NID]: 161 }, [{ nid: NID, post: note(160) }], { [NID]: 100 }),
+    ).toEqual({ [NID]: 159 });
+  });
+
+  it("never moves a class's mark backwards", () => {
+    // The floor is what this store has already ingested; a cap below it would
+    // re-offer posts that have been read.
+    expect(cappedLastNr({ [NID]: 161 }, [{ nid: NID, post: note(101) }], { [NID]: 150 })).toEqual({
+      [NID]: 150,
+    });
+  });
+
+  it("leaves a class with no failed body alone", () => {
+    expect(cappedLastNr({ [NID]: 161, other: 12 }, [{ nid: "other", post: note(9) }])).toEqual({
+      [NID]: 161,
+      other: 8,
+    });
+  });
+
+  it("does not fetch a body for a post this store has already ingested", () => {
+    /*
+     * The cost of holding `lastNr` back: every post above the stuck one is
+     * offered again next sync. They have been ingested, so `ingestPost` would
+     * refuse them — and a second `content.get` each per sync for the rest of
+     * the term is the kind of repeating fetch §6 exists to stop.
+     */
+    const seen = { [`piazza:${NID}:161`]: NOW_ISO };
+    const plan = postsNeedingBody([note(160), note(161)], seen);
+    expect(plan.fetch.map((entry) => entry.nr)).toEqual([160]);
+    expect(plan.alreadyRead).toBe(1);
+    // …unless the instructor has rewritten it, which is the whole point of the
+    // re-read flag.
+    const edited = postsNeedingBody([{ ...note(161), reread: true }], seen);
+    expect(edited.fetch.map((entry) => entry.nr)).toEqual([161]);
+  });
+});
+
+describe("the popup's debounce covers Piazza too", () => {
+  const facts: PiazzaFacts = {
+    enabled: true,
+    classes: [CS425],
+    classesFetchedAt: NOW_ISO,
+    state: "ok",
+    lastAttemptAt: "2026-09-18T11:58:00-05:00",
+  };
+
+  it("does not refetch every class feed on every popup open", () => {
+    const plan = planPiazza(facts, { granted: true, now: NOW, trigger: "popup" });
+    expect(plan.fetch).toBe(false);
+    expect(plan.reason).toContain("debounce");
+    // Nothing is recorded: not fetching is not a state (worker rule 2).
+    expect(plan.record).toBeUndefined();
+  });
+
+  it("reads again once the window has passed", () => {
+    const later = new Date("2026-09-18T12:04:00-05:00");
+    expect(
+      planPiazza({ ...facts, lastAttemptAt: "2026-09-18T11:58:00-05:00" }, {
+        granted: true,
+        now: later,
+        trigger: "popup",
+      }).fetch,
+    ).toBe(true);
+  });
+
+  it("never debounces a scheduled sync or the student's own button", () => {
+    expect(planPiazza(facts, { granted: true, now: NOW, trigger: "scheduled" }).fetch).toBe(true);
+    expect(planPiazza(facts, { granted: true, now: NOW, trigger: "manual" }).fetch).toBe(true);
+  });
+});
+
+describe("an empty enrolment list", () => {
+  const empty: PiazzaFacts = {
+    enabled: true,
+    classes: [],
+    classesFetchedAt: "2026-09-18T11:30:00-05:00",
+    state: "pending",
+    readerVersion: PIAZZA_READER_VERSION,
+  };
+
+  it("is a list, and is not re-read on every sync", () => {
+    // `classes.length === 0` forcing a refresh defeated CLASS_LIST_MAX_AGE_MS
+    // entirely: a class-page GET every half hour for an account with no
+    // enrolments.
+    const plan = planPiazza(empty, { granted: true, now: NOW });
+    expect(plan.refreshClasses).toBe(false);
+    expect(plan.reason).toBe("polling 0 classes");
+  });
+
+  it("is re-read when the student presses Sync now, which is the button to press", () => {
+    const plan = planPiazza(empty, { granted: true, now: NOW, trigger: "manual" });
+    expect(plan.refreshClasses).toBe(true);
+    expect(plan.reason).toContain("the stored list is empty and you asked");
+  });
+
+  it("is re-read when it really is a day old, and says so as staleness", () => {
+    const old = planPiazza(
+      { ...empty, classesFetchedAt: "2026-09-16T09:00:00-05:00" },
+      { granted: true, now: NOW },
+    );
+    expect(old.refreshClasses).toBe(true);
+    expect(old.reason).toContain("a day old");
+  });
+
+  it("calls a list it has never stored 'none stored', not stale", () => {
+    // The log said "(stale)" about a list written sixty seconds earlier,
+    // pointing at the clock rather than at the empty array (worker rule 5).
+    expect(planPiazza({ enabled: true }, { granted: true, now: NOW }).reason).toContain(
+      "none stored",
+    );
   });
 });

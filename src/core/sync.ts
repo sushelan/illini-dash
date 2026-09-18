@@ -12,6 +12,7 @@ import { applyRetention, dedupe } from "./dedupe.js";
 import { dedupeInput } from "./manual.js";
 import { looksLoggedOut } from "./parsing.js";
 import { inBackoff, nextAttemptAt, type StoreV1Plus } from "./store.js";
+import type { StoreQueue } from "./queue.js";
 import * as canvas from "../sources/canvas.js";
 import * as gradescope from "../sources/gradescope.js";
 import * as prairielearn from "../sources/prairielearn.js";
@@ -81,7 +82,17 @@ export interface SyncDeps {
   now(): string;
 }
 
-export type SyncTrigger = "alarm" | "popup" | "install" | "manual";
+/**
+ * What started this sync.
+ *
+ * "recheck" is a page finishing on a source's own site while that source is
+ * waiting on a login — the only evidence this extension gets that a sign-in
+ * happened, since it happens in a tab it does not own. It is *not* "manual":
+ * a page load on Gradescope is not the student asking for Piazza, and treating
+ * it as one defeated §6's ladder for every student who browses the other sites
+ * (`planPiazza`, which maps it to a scheduled run).
+ */
+export type SyncTrigger = "alarm" | "popup" | "install" | "manual" | "recheck";
 
 export interface SourceOutcome {
   source: Source;
@@ -549,33 +560,118 @@ export interface SyncResult {
 }
 
 /**
- * §6's loop.
+ * What this sync is going to do, decided in one short read of the store.
  *
- * The load-bearing property is that raw items are replaced **per source**: a
- * Gradescope outage must not wipe Canvas's items, and a source that fails keeps
- * whatever it last returned so the list does not silently shrink.
+ * §6's loop used to be one function that loaded the store, fetched everything
+ * and wrote the result — and the worker ran the whole of it inside one hold of
+ * the store queue. With the queue strictly exclusive (`core/queue.ts`) that
+ * would make every click in the extension wait behind the network; with the
+ * queue re-entrant, which is how it was, it did something worse: a hide or a
+ * tick that landed during the fetches ran unqueued and was then overwritten by
+ * the sync's own `saveStore` of a store loaded before the click.
+ *
+ * So the loop is three pieces: a **plan** made in a short hold, the **fetches**
+ * with no hold at all, and an **apply** in a second short hold over a store
+ * that has just been loaded again. Anything the student did while the fetches
+ * were in flight is in that store, and the results are merged onto it.
  */
-export async function runSync(
-  store: StoreV1Plus,
-  trigger: SyncTrigger,
-  deps: SyncDeps,
-): Promise<SyncResult> {
-  const now = deps.now();
+export interface SyncPlan {
+  trigger: SyncTrigger;
+  /** When the plan was made; `applySync` is given its own, later instant. */
+  at: string;
+  /** §6's popup debounce: this sync is a no-op and nothing may be written. */
+  skipped: boolean;
+  /** The sources to read now, in `PLANS` order. */
+  attempt: Source[];
+  /** Enabled but resting in §6's ladder — reported without being read. */
+  resting: Source[];
+}
+
+/**
+ * Whether this trigger is a person asking, which §6's ladder gives way to.
+ *
+ * "manual" is Sync now and the per-source retry. "recheck" is a page finishing
+ * on a source's own site while that source is waiting on a login — evidence
+ * about *that* source, and the commonest reason a failing source is worth
+ * asking again. Neither an alarm nor a popup opening is a person asking.
+ */
+function overridesBackoff(trigger: SyncTrigger): boolean {
+  return trigger === "manual" || trigger === "recheck";
+}
+
+export function planSync(store: StoreV1Plus, trigger: SyncTrigger, now: string): SyncPlan {
+  const plan: SyncPlan = { trigger, at: now, skipped: false, attempt: [], resting: [] };
 
   if (
     trigger === "popup" &&
     store.lastSyncAt !== undefined &&
     Date.parse(now) - Date.parse(store.lastSyncAt) < POPUP_DEBOUNCE_MS
   ) {
-    return { store, outcomes: [], skipped: true };
+    return { ...plan, skipped: true };
   }
 
+  for (const source of Object.keys(PLANS) as Source[]) {
+    // Switched off in Settings: not attempted, and `applySync` drops its rows.
+    if (!store.sources[source].enabled) continue;
+    /*
+     * §6's backoff exists to stop a *scheduled* loop hammering a site that is
+     * failing. A person pressing "Sync now" is not that loop, and the commonest
+     * reason to press it is having just fixed the thing that failed — logging
+     * back in. Making them wait out a 30-minute ladder would ignore the user and
+     * leave a stale error on screen with no way to refresh it.
+     */
+    if (overridesBackoff(trigger) || !inBackoff(store, source, now)) plan.attempt.push(source);
+    else plan.resting.push(source);
+  }
+  return plan;
+}
+
+/**
+ * Every source the plan named, read with **no hold on the store**.
+ *
+ * They all start before any of them is awaited, so the sync takes the slowest
+ * source rather than the sum of them: with a 20s request timeout and six
+ * sources, one site that hangs used to delay every other one behind it, and
+ * since the store is written once at the end the screen showed the pre-sync
+ * answer for all of it ("I signed in and it still says not connected").
+ *
+ * Safe because the fetches were already concurrent one level down —
+ * `MAX_CONCURRENT_PER_HOST` runs four requests per source at a time. Different
+ * sources are different hosts, so nothing here shares a rate limit either. The
+ * results are returned in `PLANS` order, so the store this produces does not
+ * depend on which site answered first.
+ */
+export async function fetchSync(plan: SyncPlan, deps: SyncDeps): Promise<SourceOutcome[]> {
+  const attempts = plan.attempt.map((source) => syncOneSource(source, deps));
+  const outcomes: SourceOutcome[] = [];
+  for (const attempt of attempts) outcomes.push(await attempt);
+  return outcomes;
+}
+
+/**
+ * §6's loop, applied to a store that was loaded **after** the fetches finished.
+ *
+ * The load-bearing property is that raw items are replaced **per source**: a
+ * Gradescope outage must not wipe Canvas's items, and a source that fails keeps
+ * whatever it last returned so the list does not silently shrink.
+ *
+ * Pure, and given the store rather than loading one, so the worker can hand it
+ * a fresh copy — which is what makes a click that landed during the fetches
+ * survive the sync that was running when it was made.
+ */
+export function applySync(
+  store: StoreV1Plus,
+  plan: SyncPlan,
+  outcomes: readonly SourceOutcome[],
+  now: string,
+): SyncResult {
   const next: StoreV1Plus = {
     ...store,
     sources: { ...store.sources },
     backoffUntil: { ...store.backoffUntil },
   };
-  const outcomes: SourceOutcome[] = [];
+  const applied: SourceOutcome[] = [];
+  const fetched = new Map(outcomes.map((outcome) => [outcome.source, outcome]));
   const raw = { ...store.raw };
   const seenThisSync = new Set<string>();
 
@@ -600,99 +696,78 @@ export async function runSync(
     for (const key of keysOf(source)) delete raw[key];
   };
 
-  /*
-   * Every source that is going to be read starts reading **now**, before the
-   * loop below awaits any of them.
-   *
-   * The loop used to `await syncOneSource` inside the iteration, so the sync
-   * took the *sum* of its sources. With a 20s request timeout and six sources,
-   * one site that hangs delays every other one behind it — and since the store
-   * is written once at the end, the screen shows the pre-sync answer for all of
-   * that, which is what "I signed in and it still says not connected, it takes
-   * some time, maybe it gets hung" is. The wait is now the slowest source
-   * rather than the total.
-   *
-   * Safe because the fetches were already concurrent one level down —
-   * `MAX_CONCURRENT_PER_HOST` runs four requests per source at a time, so the
-   * offscreen parser has always had several parses in flight. Different sources
-   * are different hosts, so nothing here shares a rate limit either.
-   *
-   * Deciding *whether* to attempt is done here too, and reads only this
-   * source's own entry in `next`, which no other source's application touches.
-   * Results are still applied in `PLANS` order below, so the store this
-   * produces does not depend on which site answered first.
-   */
-  const attempts = new Map<Source, Promise<SourceOutcome>>();
   for (const source of Object.keys(PLANS) as Source[]) {
-    const status = next.sources[source];
-    if (!status.enabled) continue;
-    if (trigger !== "manual" && inBackoff(next, source, now)) continue;
-    attempts.set(source, syncOneSource(source, deps));
-  }
-
-  for (const source of Object.keys(PLANS) as Source[]) {
+    // The *fresh* store's switch, never the plan's copy of it: a source the
+    // student turned off while the fetches were in flight is off, and an
+    // outcome fetched before that click must not put its rows back.
     const status = next.sources[source];
     if (!status.enabled) {
-      // Switched off in Settings. Its rows go with it — see `dropItemsOf`.
       dropItemsOf(source);
       continue;
     }
-    // §6's backoff exists to stop a *scheduled* loop hammering a site that is
-    // failing. A person pressing "Sync now" is not that loop, and the commonest
-    // reason to press it is having just fixed the thing that failed — logging
-    // back in. Making them wait out a 30-minute ladder would ignore the user and
-    // leave a stale error on screen with no way to refresh it.
-    if (trigger !== "manual" && inBackoff(next, source, now)) {
-      outcomes.push({ source, state: status.state, items: [], requests: 0 });
-      // Resting, not off. Its previous keys count as seen, or §5.4 would purge
-      // undated items belonging to a source that is about to be read again.
+
+    const outcome = fetched.get(source);
+    if (!outcome) {
+      /*
+       * Nothing was read for this source. Either it is resting in §6's ladder,
+       * or it was switched on while the fetches were in flight — and in both
+       * cases the honest thing is to write nothing about it (worker rule 2).
+       * Its previous keys count as seen, or §5.4 would purge undated items
+       * belonging to a source that is about to be read again.
+       */
+      if (plan.resting.includes(source)) {
+        // Resting, not off: it reports the state that put it there, with no
+        // attempt behind this row.
+        applied.push({ source, state: status.state, items: [], requests: 0 });
+      }
       for (const key of keysOf(source)) seenThisSync.add(key);
       continue;
     }
 
-    // Started above; awaited here in a fixed order.
-    const outcome = await attempts.get(source)!;
-
-    // §0 rule 3 at the loop level. A source that held items and now reports none
-    // has more likely short-circuited than emptied — Gradescope's dashboard
-    // guard, for instance, passes if *any* term has courses while its only
-    // consumer reads the current term alone. The `ok` branch below would delete
-    // every key for this source and leave a green dot over the gap, and it
-    // happens before §5.4, so the 3-miss grace never applies.
-    //
-    // Keyed on N→0 rather than on emptiness, so Canvas's legitimately empty
-    // planner (0→0 on this account) stays green.
-    if (
+    /*
+     * §0 rule 3 at the loop level. A source that held items and now reports none
+     * has more likely short-circuited than emptied — Gradescope's dashboard
+     * guard, for instance, passes if *any* term has courses while its only
+     * consumer reads the current term alone. The `ok` branch below would delete
+     * every key for this source and leave a green dot over the gap, and it
+     * happens before §5.4, so the 3-miss grace never applies.
+     *
+     * Keyed on N→0 rather than on emptiness, so Canvas's legitimately empty
+     * planner (0→0 on this account) stays green.
+     */
+    const result: SourceOutcome =
       outcome.state === "ok" &&
       outcome.items.length === 0 &&
       Object.keys(raw).some((key) => key.startsWith(`${source}:`))
-    ) {
-      outcome.state = "parse_error";
-      outcome.error = `${source}: 0 items where it previously had some`;
-    }
-    outcomes.push(outcome);
+        ? {
+            ...outcome,
+            state: "parse_error",
+            error: `${source}: 0 items where it previously had some`,
+          }
+        : outcome;
+    applied.push(result);
 
     // Neither branch below fits: the success branch would claim `ok`, and the
     // failure branch would count a failure and arm a backoff against a source
     // that is merely unconfigured. The rows go, though — nothing is reading
     // them, which is the whole meaning of this state.
-    if (outcome.state === "disabled") {
+    if (result.state === "disabled") {
       dropItemsOf(source);
       next.sources[source] = {
         ...status,
         state: "disabled",
         lastAttemptAt: now,
-        lastError: outcome.error,
+        lastError: result.error,
         consecutiveFailures: 0,
       };
       delete next.backoffUntil[source];
       continue;
     }
 
-    if (outcome.state === "ok") {
+    if (result.state === "ok") {
       // Atomic per source (§6): drop this source's old keys, then add the new.
       dropItemsOf(source);
-      for (const item of outcome.items) {
+      for (const item of result.items) {
         const key = memberKey(item.source, item.sourceId);
         raw[key] = item;
         seenThisSync.add(key);
@@ -710,12 +785,12 @@ export async function runSync(
       const failures = status.consecutiveFailures + 1;
       next.sources[source] = {
         ...status,
-        state: outcome.state,
+        state: result.state,
         lastAttemptAt: now,
-        lastError: outcome.error,
+        lastError: result.error,
         // Cleared, not merged, when this attempt was not a logout: a stale URL
         // from a previous 401 would offer "Sign in" over a network error.
-        loginUrl: outcome.loginUrl,
+        loginUrl: result.loginUrl,
         consecutiveFailures: failures,
       };
       next.backoffUntil[source] = nextAttemptAt(failures, now);
@@ -746,5 +821,80 @@ export async function runSync(
   });
   next.lastSyncAt = now;
 
-  return { store: next, outcomes, skipped: false };
+  return { store: next, outcomes: applied, skipped: false };
+}
+
+/**
+ * §6's loop over one store: plan, fetch, apply.
+ *
+ * The composition, for callers with no queue to hold — the tests, and anything
+ * that is not the service worker. The worker runs the three pieces itself, so
+ * that the store it applies onto is loaded **after** the fetches
+ * (`src/background.ts`, `sync`).
+ */
+export async function runSync(
+  store: StoreV1Plus,
+  trigger: SyncTrigger,
+  deps: SyncDeps,
+): Promise<SyncResult> {
+  const plan = planSync(store, trigger, deps.now());
+  if (plan.skipped) return { store, outcomes: [], skipped: true };
+  const outcomes = await fetchSync(plan, deps);
+  return applySync(store, plan, outcomes, deps.now());
+}
+
+/**
+ * One queued sync: a short hold to plan, the fetches with no hold, a short hold
+ * to apply — and the apply reads the store **again**.
+ *
+ * This is the whole of worker rule 4's fix, and it is here rather than in
+ * `background.ts` because the worker is the file the suite cannot reach
+ * (worker rule 1) — which is exactly where the lost click lived. The load
+ * inside the second hold is the load-bearing line: a hide, a tick, a rename or
+ * an accepted suggestion that was queued while the fetches were in flight has
+ * already been written by then, so it is in `fresh`, and `applySync` merges
+ * this sync's rows onto it instead of over it.
+ */
+export interface QueuedSyncIo {
+  /** The store queue. Every hold here is short, and none of them nests. */
+  withStore: StoreQueue;
+  load(): Promise<StoreV1Plus>;
+  save(store: StoreV1Plus): Promise<void>;
+  /**
+   * Inside the planning hold, with the store the plan was made from.
+   *
+   * §4.1's term filter needs `keptCourses` before the fetches start, and it is
+   * read here rather than loaded again mid-fetch so that the whole run sees one
+   * consistent answer.
+   */
+  onPlanned?(store: StoreV1Plus, plan: SyncPlan): void;
+  /** Inside the apply hold, on the freshly loaded store, before it is written. */
+  beforeSave?(store: StoreV1Plus): void;
+}
+
+export async function syncOnce(
+  trigger: SyncTrigger,
+  deps: SyncDeps,
+  io: QueuedSyncIo,
+): Promise<SyncResult> {
+  const planned = await io.withStore(async () => {
+    const store = await io.load();
+    const plan = planSync(store, trigger, deps.now());
+    io.onPlanned?.(store, plan);
+    return { store, plan };
+  }, "sync: plan");
+
+  if (planned.plan.skipped) return { store: planned.store, outcomes: [], skipped: true };
+
+  // Outside every hold: this is seconds of network, and a click must not wait
+  // behind it — nor be overwritten by it.
+  const outcomes = await fetchSync(planned.plan, deps);
+
+  return io.withStore(async () => {
+    const fresh = await io.load();
+    io.beforeSave?.(fresh);
+    const result = applySync(fresh, planned.plan, outcomes, deps.now());
+    await io.save(result.store);
+    return result;
+  }, "sync: apply");
 }
