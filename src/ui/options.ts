@@ -35,7 +35,7 @@ import { icon } from "./icons.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
-import { send } from "../messages.js";
+import { send, type Response } from "../messages.js";
 
 const runButton = document.getElementById("run-gate0") as HTMLButtonElement;
 const copyButton = document.getElementById("copy-gate0") as HTMLButtonElement;
@@ -563,6 +563,307 @@ function stateChip(
   return chip;
 }
 
+/* ---- Course-site adapters, grouped by course -----------------------------
+ *
+ * One course can have several pages (§4.5's "an adapter is one fixed URL", and
+ * a course that keeps assignments on one page and exams on another needs two).
+ * These four helpers are what turns that list into a grouped one; the render
+ * pass in `renderOptions` only decides the order.
+ */
+
+/** One entry of the `get-adapters` answer, as this page sees it. */
+type AdapterEntry = Extract<Response, { type: "adapters" }>["adapters"][number];
+
+/**
+ * Whether the student added this one themselves.
+ *
+ * `local` is not on the `adapters` response type — the worker sets it — so it
+ * is read defensively rather than declared (worker rule 8: a message is data
+ * from another build). An older worker omits it, and `undefined !== true`
+ * leaves the Remove button off, which is the harmless direction: a published
+ * adapter has nothing to remove.
+ */
+function isLocalAdapter(adapter: AdapterEntry): boolean {
+  return (adapter as { local?: unknown }).local === true;
+}
+
+/**
+ * The page an adapter reads, as the student would say it: `assignments.html`.
+ *
+ * Two rows for one course are otherwise identical — same course code, same
+ * hostname, same "course site" label — so this is the field that tells them
+ * apart. The last non-empty path segment, so a directory URL ending in `/`
+ * gives its own name rather than an empty string.
+ */
+function adapterPagePath(url: string): string {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return url;
+  }
+  const segments = pathname.split("/").filter((segment) => segment !== "");
+  return segments.length > 0 ? segments[segments.length - 1]! : "/";
+}
+
+/**
+ * The row's name: the adapter's label with the course code taken off the front.
+ *
+ * The code is the heading directly above, so repeating it in every row under it
+ * spends the widest column on the one thing the row does not distinguish.
+ * `ECE 411 assignments` becomes `assignments`. A label that is not prefixed
+ * with its code — every published one today is `CS 424 course site` — is left
+ * exactly as it is rather than guessed at, and a label that is *only* the code
+ * keeps the whole label, because an empty row name is worse than a repeated one.
+ */
+function adapterPageName(adapter: AdapterEntry): string {
+  for (const prefix of [displayCourseLabel(adapter.courseCode), adapter.courseCode]) {
+    if (!adapter.label.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+    const rest = adapter.label.slice(prefix.length).trim();
+    if (rest !== "") return rest;
+  }
+  return adapter.label;
+}
+
+/**
+ * How long "Removed ECE 411 · Undo" stays on screen.
+ *
+ * A removal is one click away from being a mistake and the JSON to put it back
+ * is already in hand, so the undo is offered rather than the removal being
+ * confirmed first — one click to do it, one to take it back, against two clicks
+ * every time for a dialog nobody reads.
+ */
+const UNDO_WINDOW_MS = 10_000;
+
+interface Removal {
+  id: string;
+  courseCode: string;
+  pageName: string;
+  /** Whether it was switched on, so Undo can put that back too. */
+  enabled: boolean;
+  /** Exactly what `add-local-adapter` will be handed again. */
+  adapter: Record<string, unknown>;
+  expiresAt: number;
+}
+
+/**
+ * The one local adapter that was just removed.
+ *
+ * Module state rather than a node in the section, because every control on this
+ * page redraws all of it: a notice appended to the DOM would be thrown away by
+ * the `refreshOptions` that follows the removal it is announcing.
+ */
+let removal: Removal | undefined;
+let removalTimer: ReturnType<typeof setTimeout> | undefined;
+
+function noteRemoval(adapter: AdapterEntry): void {
+  /*
+   * The page's own fields are stripped before the JSON is kept.
+   *
+   * `enabled`, `granted`, `local` and `currentTerm` are this page's view of an
+   * adapter rather than part of one, and `add-local-adapter` stores what it is
+   * handed — so handing them back would write four invented fields into the
+   * store on every undo.
+   */
+  const rest = { ...(adapter as unknown as Record<string, unknown>) };
+  for (const key of ["enabled", "granted", "local", "currentTerm"]) delete rest[key];
+  removal = {
+    id: adapter.id,
+    courseCode: adapter.courseCode,
+    pageName: adapterPageName(adapter),
+    enabled: adapter.enabled,
+    adapter: rest,
+    expiresAt: Date.now() + UNDO_WINDOW_MS,
+  };
+  if (removalTimer !== undefined) clearTimeout(removalTimer);
+  removalTimer = setTimeout(() => {
+    removal = undefined;
+    void refreshOptions();
+  }, UNDO_WINDOW_MS);
+}
+
+function clearRemoval(): void {
+  removal = undefined;
+  if (removalTimer !== undefined) clearTimeout(removalTimer);
+  removalTimer = undefined;
+}
+
+/**
+ * The removal still worth offering back, if there is one.
+ *
+ * The deadline is checked here as well as fired by the timer: a background tab
+ * can have its timers throttled for minutes, and an undo line that outlives its
+ * own window by five minutes is a control whose label is a lie.
+ */
+function pendingUndo(): Removal | undefined {
+  if (!removal) return undefined;
+  if (Date.now() >= removal.expiresAt) {
+    clearRemoval();
+    return undefined;
+  }
+  return removal;
+}
+
+/** `Removed ECE 411 assignments · Undo`, inline, for about ten seconds. */
+function undoLine(pending: Removal): HTMLElement {
+  const line = el("p", undefined, "agroup--undo");
+  const said = el(
+    "span",
+    `Removed ${displayCourseLabel(pending.courseCode)} ${pending.pageName} · `,
+  );
+  const undo = el("button", "Undo", "btn btn-quiet btn-sm");
+  // Asynchronous, so it says so on itself (UI rule 4): "Undo" that stays
+  // "Undo" cannot tell "the click never ran" from "the round trip failed".
+  const note = el("span", undefined, "opt-note");
+  undo.addEventListener("click", () => {
+    undo.disabled = true;
+    undo.textContent = "Adding back…";
+    void send({ type: "add-local-adapter", adapter: pending.adapter })
+      .then(async (response) => {
+        if (response.type === "error") {
+          undo.disabled = false;
+          undo.textContent = "Undo";
+          note.textContent = response.message;
+          return;
+        }
+        // Removing switched it off as well as deleting it, so putting it back
+        // switched off would be half an undo. Chrome's host permission is not
+        // touched by a removal, so this cannot need a prompt.
+        if (pending.enabled) {
+          const on = await send({
+            type: "set-adapter-enabled",
+            adapterId: pending.id,
+            enabled: true,
+          });
+          if (on.type === "error") note.textContent = on.message;
+        }
+        clearRemoval();
+        await refreshOptions();
+      })
+      .catch((err: unknown) => {
+        // Every `send` from a page needs this (UI rule 2): `send` rejects with
+        // the sentence that explains the commonest cause, and swallowing it
+        // hides the one line that ends the investigation.
+        undo.disabled = false;
+        undo.textContent = "Undo";
+        note.textContent = err instanceof Error ? err.message : String(err);
+      });
+  });
+  line.append(said, undo, note);
+  return line;
+}
+
+/** One course: its code, its pages, and any undo it is still owed. */
+function adapterGroup(
+  courseCode: string,
+  list: AdapterEntry[],
+  statusEl: HTMLElement,
+): HTMLElement {
+  const group = el("div", undefined, "agroup");
+  const head = el("h4", displayCourseLabel(courseCode), "agroup--head");
+  // Only when there is more than one, because "1 page" beside every single-page
+  // course is a column of noise saying nothing.
+  if (list.length > 1) head.append(el("span", `${list.length} pages`, "agroup--count"));
+  group.append(head);
+  if (list.length > 0) {
+    const box = el("div", undefined, "rows");
+    for (const adapter of list) box.append(adapterRow(adapter, statusEl));
+    group.append(box);
+  }
+  const pending = pendingUndo();
+  if (pending && pending.courseCode === courseCode) group.append(undoLine(pending));
+  return group;
+}
+
+/** One page of one course: a switch, the page it reads, and what is wrong. */
+function adapterRow(adapter: AdapterEntry, statusEl: HTMLElement): HTMLElement {
+  const row = switchRow({
+    name: adapterPageName(adapter),
+    // The page path first: it is what distinguishes this row from the one above
+    // it. The hostname stays, because a course site on a host nobody recognises
+    // is the thing worth noticing before granting it.
+    hint: `${adapterPagePath(adapter.url)} · ${new URL(adapter.url).hostname}`,
+    checked: adapter.enabled && adapter.granted,
+    onChange: (enabled) => {
+      // Requested here, synchronously in the handler: a user gesture does
+      // not survive an await, so asking from the service worker — as this
+      // first did — meant Chrome refused the prompt and the checkbox
+      // silently reverted with no diagnostic.
+      const asked = enabled
+        ? chrome.permissions.request({ origins: [adapter.hostPattern] })
+        : Promise.resolve(true);
+      void asked.then((granted) => {
+        if (!granted) {
+          // Returned, not followed by a refresh, or the refresh overwrites
+          // the only explanation the student gets.
+          statusEl.textContent = "Permission denied, so that site stays off.";
+          return;
+        }
+        return send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
+          (response) => {
+            if (response.type === "error") statusEl.textContent = response.message;
+            else void refreshOptions();
+          },
+        );
+      });
+    },
+  });
+
+  // Two controls can share this cell now — Allow and Remove — and the grid
+  // places one child per cell, so they go in together or they land on top of
+  // each other.
+  const actions = el("span", undefined, "srow2--actions");
+
+  if (adapter.enabled && !adapter.granted) {
+    // Switched on, but Chrome never granted the host — so it reads nothing
+    // and says nothing. A chip and a button rather than a note, because
+    // there is exactly one thing to do about it.
+    // Not "Sign in needed": nothing about this is a login. Chrome was
+    // asked for permission to read one host and did not grant it, and the
+    // button beside this asks again.
+    const chip = stateChip("needs_login", undefined, "Chrome has not granted access to this site");
+    chip.textContent = "Permission missing";
+    row.append(chip);
+    const allow = el("button", "Allow", "btn btn-secondary btn-sm");
+    allow.addEventListener("click", () => {
+      void chrome.permissions
+        .request({ origins: [adapter.hostPattern] })
+        .then((granted) => (granted ? refreshOptions() : undefined));
+    });
+    actions.append(allow);
+  }
+
+  if (isLocalAdapter(adapter)) {
+    const remove = el("button", "Remove", "btn btn-secondary btn-sm");
+    remove.title =
+      `Removes ${adapter.label} from this browser. You added it yourself, so nobody ` +
+      `else loses it — and you can put it back for a few seconds afterwards.`;
+    remove.addEventListener("click", () => {
+      remove.disabled = true;
+      remove.textContent = "Removing…";
+      const restore = (text: string): void => {
+        remove.disabled = false;
+        remove.textContent = "Remove";
+        statusEl.textContent = text;
+      };
+      void send({ type: "remove-local-adapter", adapterId: adapter.id })
+        .then((response) => {
+          if (response.type === "error") {
+            restore(response.message);
+            return;
+          }
+          noteRemoval(adapter);
+          return refreshOptions();
+        })
+        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+    });
+    actions.append(remove);
+  }
+
+  if (actions.childElementCount > 0) row.append(actions);
+  return row;
+}
+
 /**
  * The section list down the left, built from the sections themselves.
  *
@@ -811,61 +1112,49 @@ async function renderOptions(): Promise<void> {
     // §4.5: adapters carry a term and expire; stale ones are hidden.
     const current = adapterState.adapters.filter((a) => a.currentTerm);
     if (current.length === 0) {
-      adaptersEl.append(
+      const box = el("div", undefined, "rows");
+      box.append(
         plainRow(
           "None for this term yet",
           "They are published separately, so this list can fill in without updating the extension.",
         ),
       );
+      adaptersEl.append(box);
     }
+
+    /*
+     * Grouped by course, because a course is no longer one page.
+     *
+     * ECE 411 keeps assignments on one page and exams on another, and a flat
+     * list showed those as two rows both called "ECE 411 course site" — the
+     * same name, the same hostname, and no way to tell which switch turned off
+     * the exams. The course code is the heading; each row is named for its page
+     * and carries that page's own switch, state and path.
+     *
+     * Insertion order, not sorted: the registry lists a course's pages in the
+     * order they were written, and reordering them here would make "the second
+     * ECE 411 row" mean different things in two places.
+     */
+    const groups = new Map<string, typeof current>();
     for (const adapter of current) {
-      const row = switchRow({
-        name: adapter.label,
-        hint: `${adapter.courseCode} · ${new URL(adapter.url).hostname}`,
-        checked: adapter.enabled && adapter.granted,
-        onChange: (enabled) => {
-          // Requested here, synchronously in the handler: a user gesture does
-          // not survive an await, so asking from the service worker — as this
-          // first did — meant Chrome refused the prompt and the checkbox
-          // silently reverted with no diagnostic.
-          const asked = enabled
-            ? chrome.permissions.request({ origins: [adapter.hostPattern] })
-            : Promise.resolve(true);
-          void asked.then((granted) => {
-            if (!granted) {
-              // Returned, not followed by a refresh, or the refresh overwrites
-              // the only explanation the student gets.
-              registryStatus.textContent = "Permission denied, so that site stays off.";
-              return;
-            }
-            return send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
-              (response) => {
-                if (response.type === "error") registryStatus.textContent = response.message;
-                else void refreshOptions();
-              },
-            );
-          });
-        },
-      });
-      if (adapter.enabled && !adapter.granted) {
-        // Switched on, but Chrome never granted the host — so it reads nothing
-        // and says nothing. A chip and a button rather than a note, because
-        // there is exactly one thing to do about it.
-        // Not "Sign in needed": nothing about this is a login. Chrome was
-        // asked for permission to read one host and did not grant it, and the
-        // button beside this asks again.
-        const chip = stateChip("needs_login", undefined, "Chrome has not granted access to this site");
-        chip.textContent = "Permission missing";
-        row.append(chip);
-        const allow = el("button", "Allow", "btn btn-secondary btn-sm");
-        allow.addEventListener("click", () => {
-          void chrome.permissions
-            .request({ origins: [adapter.hostPattern] })
-            .then((granted) => (granted ? refreshOptions() : undefined));
-        });
-        row.append(allow);
-      }
-      adaptersEl.append(row);
+      const list = groups.get(adapter.courseCode);
+      if (list) list.push(adapter);
+      else groups.set(adapter.courseCode, [adapter]);
+    }
+    for (const [courseCode, list] of groups) {
+      adaptersEl.append(adapterGroup(courseCode, list, registryStatus));
+    }
+
+    /*
+     * The undo line for a course that no longer has a group.
+     *
+     * Removing a course's only page removes its heading too, so the notice has
+     * nowhere to hang — and that is exactly the removal a student is most
+     * likely to want back. It gets a group of its own, with no rows.
+     */
+    const pending = pendingUndo();
+    if (pending && !groups.has(pending.courseCode)) {
+      adaptersEl.append(adapterGroup(pending.courseCode, [], registryStatus));
     }
   }
 

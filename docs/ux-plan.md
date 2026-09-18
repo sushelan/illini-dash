@@ -478,3 +478,36 @@ after a sign-in (C); one reminder toast (F).
 
 About six and a half days of agent time; C and D can overlap. G4 (the beta) is unchanged
 by this plan and can run on the Phase A build; G5 needs everything through G.
+
+---
+
+## 9. Course websites, once a course has several pages
+
+*Decided while building it, 2026-09-18. Recorded here because two of these are
+choices a reader would otherwise read as accidents.*
+
+An adapter is one fixed URL (§4.5), so a course that keeps assignments on one page
+and exams on another needs two of them — and the flat list showed those as two rows
+both called `ECE 411 course site` on the same host, with no way to tell which switch
+turned off the exams.
+
+- **The course code is a heading, not a column.** Each course gets its own bordered
+  list, headed by the code, and a row is named for its page — the adapter's label with
+  the code taken off the front, so `ECE 411 assignments` reads as `assignments`. A
+  label that is not prefixed with its code is left exactly as written rather than
+  guessed at.
+- **The page path is the row's hint.** `assignments.html · courses.grainger.illinois.edu`.
+  The hostname stays because a course site on a host nobody recognises is the thing
+  worth noticing before granting it; the path is what makes two rows of one course
+  different.
+- **The undo line names the page, not just the course.** The brief said
+  `Removed ECE 411 · Undo`; it says `Removed ECE 411 exams · Undo`, because after a
+  change made entirely to tell one page of a course from another, an undo that cannot
+  say which page went is the one place the old ambiguity would survive.
+- **Remove offers an undo rather than asking first.** The JSON to put it back is already
+  in hand, so it is one click to do it and one to take it back, against two clicks every
+  time for a dialog nobody reads. Undo restores the switch as well as the entry:
+  removing switches it off, and putting it back switched off would be half an undo.
+- **A course whose last page was removed keeps its heading for those ten seconds**, with
+  no rows under it, because otherwise the notice has nowhere to hang — and that is
+  exactly the removal most likely to be a mistake.

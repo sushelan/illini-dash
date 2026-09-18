@@ -91,7 +91,9 @@
             </p>
           </details>
           <div id="site-health" class="opt-note"></div>
-          <div id="adapters" class="rows"></div>
+          <!-- Not `.rows` itself any more: one course can have several pages, so
+               this holds one bordered group per course rather than one flat list. -->
+          <div id="adapters" class="agroups"></div>
           <p class="row-actions">
             <button id="refresh-registry" class="btn btn-quiet">Check for updates</button>
             <span id="registry-status" class="opt-note"></span>
@@ -100,7 +102,9 @@
           <h3>Add a course site</h3>
           <p class="lede">
             Paste the page that lists your deadlines. It is read once, and you get to check
-            what it found before anything is saved.
+            what it found before anything is saved. If it cannot work the page out on its
+            own, and your copy of Chrome has the built-in on-device model, it asks that
+            model for a suggestion — which you check the same way.
           </p>
           <p class="row-actions">
             <input id="add-site-url" class="field field--grow" type="url"

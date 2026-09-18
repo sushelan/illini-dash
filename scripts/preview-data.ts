@@ -170,7 +170,7 @@ const setAsideCourses = [
     reason: "Canvas lists no term for it" },
 ];
 
-const adapters = [
+const adapters: Record<string, unknown>[] = [
   { id: "cs424-fa26", label: "CS 424 course site", courseCode: "CS424",
     url: "https://courses.grainger.illinois.edu/cs424/fa2026/schedule/",
     hostPattern: "https://courses.grainger.illinois.edu/*",
@@ -179,6 +179,28 @@ const adapters = [
     url: "https://physics.illinois.edu/phys214/schedule",
     hostPattern: "https://physics.illinois.edu/*",
     enabled: true, granted: false, currentTerm: true },
+  // Two pages of one course: the shape that made a flat list unreadable, since
+  // both rows were called "ECE 411 course site" on the same host. The second is
+  // switched on without permission, so one group carries both a healthy row and
+  // a "Permission missing" one.
+  { id: "ece411-fa26-assignments", label: "ECE 411 assignments", courseCode: "ECE411",
+    url: "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: true, granted: true, currentTerm: true },
+  { id: "ece411-fa26-exams", label: "ECE 411 exams", courseCode: "ECE411",
+    url: "https://courses.grainger.illinois.edu/ece411/fa2026/exams.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: true, granted: false, currentTerm: true },
+  // One the student added themselves, which is the only kind with a Remove
+  // button. `local` is set by the worker and is not on the response type, so
+  // without an entry carrying it here the button was unreachable in the harness.
+  { id: "cs233-fa2026-local", label: "CS 233 course site", courseCode: "CS233",
+    term: "fa2026",
+    url: "https://courses.grainger.illinois.edu/cs233/fa2026/schedule.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "table tr", title: "td:nth-child(1)", due: "td:nth-child(2)",
+    dateFormat: "M/D/YYYY", timezone: "America/Chicago", minExtensionVersion: "1.0.0",
+    enabled: true, granted: true, local: true, currentTerm: true },
 ];
 
 const sessionFlags: Record<string, unknown> = {};
@@ -312,6 +334,25 @@ const sources = {
         // sending an empty array.
         if (stale) delete (base as Record<string, unknown>)["setAsideCourses"];
         return base;
+      }
+      // Remove and Undo against the stub. Without these the harness answered
+      // `ok` and changed nothing, so the list redrew identically and "Removed ·
+      // Undo" appeared over a row that was still there — a harness that cannot
+      // show the bug it is there to show.
+      if (req.type === "remove-local-adapter") {
+        const at = adapters.findIndex((a) => a["id"] === req.adapterId);
+        if (at >= 0) adapters.splice(at, 1);
+        return { type: "ok" };
+      }
+      if (req.type === "add-local-adapter") {
+        const adapter = req.adapter as Record<string, unknown>;
+        adapters.push({ ...adapter, enabled: false, granted: true, local: true, currentTerm: true });
+        return { type: "ok" };
+      }
+      if (req.type === "set-adapter-enabled") {
+        const found = adapters.find((a) => a["id"] === req.adapterId);
+        if (found) found["enabled"] = req.enabled;
+        return { type: "ok" };
       }
       if (req.type === "get-adapters") {
         return {
