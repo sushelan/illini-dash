@@ -7,6 +7,110 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 1: seven workers, seven branches, one merge — 2026-09-18
+
+Sushi's instruction for this phase: coding goes to parallel subagents (Opus 5, medium
+effort), each in its own worktree with an explicit goal, and the orchestrator merges. Seven
+ran at once from `ee4ade2`; every branch passed typecheck and the suite alone, and the
+merge passed as a whole: **1023 → 1268 tests.** Each item below was mutation-checked by
+its worker (the counts are in the commit messages); survivors were classified and either
+tested or documented as unreachable.
+
+1. **Finished work is drawn on the calendar, struck through, instead of vanishing.**
+   *"completed assignments from prairielearn don't show up in the calendar."* `visibleItems`
+   dropped finished work whose anchor was still ahead, so something handed in at 14:00 and
+   due at 23:59 left today's list, and a finished undated row was hidden for good. The drop
+   is now an opt-in (`{ dropFinished: true }`) that only the Attention tab asks for; the
+   badge and reminders filter for themselves and are unchanged. Two layout rules moved into
+   core with tests: `sinkDone` orders finished pills after open ones inside a month cell so
+   three struck pills cannot hide the one thing still owed, and `quietDay` keeps a week day
+   that holds only finished work at its 22px header. Five tests that pinned the old default
+   now quote the decision. Hand-ticked rows are drawn struck too (Sushi's choice).
+2. **A partial PrairieLearn score is not "done" (roadmap I37), decided in the parser.**
+   Any bar above 0% was `graded`, so a 40% homework with its 80% tier still open vanished
+   from the list and lost its reminders. `mapStatus` now returns `graded` only at 100% or
+   when no credit tier is still open, and records `extra.scorePercent`; `formatDue` says
+   "40% so far" on an open row. The capture has only 0/100/103% bars, so
+   `fixtures/prairielearn/assessments-partial-scores.html` is a **constructed** page (its
+   README says so). SPEC §4.3 is rewritten in place; the one-shot-quiz false positive is
+   recorded in `docs/prairielearn-findings.md` as the chosen direction for the error.
+3. **A third page shape for course-site adapters: the `label: value` list.** ECE 411's
+   Sphinx site keeps `Due: 9/7` bullets under an `<h3>` per MP, with the label's position
+   varying by section, so neither a header table nor a rowspan grid could read it. Three
+   optional declarative fields: `dueLabel` (exact match on the text before the colon, the
+   remainder to the date parser, the label appended to the title so checkpoints get
+   distinct keys), `titleFrom` (`section >> h3`, or the nearest preceding heading) and
+   `time` (a clock stated in a sibling bullet, anchored on the word *Time*, start of a
+   range; a clock read this way is stated, not assumed). Two page guards throw rather than
+   return []. `ece411-fa26-mp` and `ece411-fa26-exams` ship as two entries under one
+   courseCode — the general answer to "course sites split across pages". Both fixtures are
+   unmodified public captures. Also: `safeUrl` in the popup was a second, stricter copy of
+   the `.illinois.edu` rule `validateAdapter` dropped on 2026-09-12, so cs225.org rows
+   rendered as unclickable divs; it now accepts any https URL.
+4. **An announcement grammar, pure and unwired** (`src/core/announce.ts`). Reads "due Fri
+   10/3 at 11:59pm", "extended to Oct 10", "pushed back to Tuesday", "tonight", 24-hour
+   times and the rest into mentions whose `span` is provably a substring of the post; a
+   bare date is 23:59 with `timeAssumed`; an unreadable date-like phrase comes back as
+   `other` with a reason rather than being dropped; `describeEmpty` makes "no dates" and
+   "could not read" distinguishable. `resolveMentions` reuses §5.2 to match a subject to an
+   existing item. Sixteen constructed posts in `fixtures/announcements/`. Wiring into the
+   Piazza source, the Campuswire observer and the attention section is the next wave.
+5. **A sixth source, `manual`, without its UI yet.** Manual rows live in
+   `store.manualItems`, never in `raw`: §5.4 purges an undated raw row after three syncs in
+   which nothing fetched it, and nothing ever fetches a typed one. `dedupeInput` splices the
+   two lists at the three places the item list is rebuilt. `RawItem.url` is optional now,
+   which found a real defect on the way: `buildItem` took the top-ranked member's URL, so a
+   typed row merged with a Gradescope row would have lost the Gradescope link — it now takes
+   the highest-ranked member *with* a link. `core/manual.ts` holds every decision (anchored
+   date/time regexes, blank time → 23:59 assumed, https-only link, `endAt` after start,
+   opaque `randomUUID` id that editing keeps) and refuses with a student-readable sentence
+   rather than a `ParseError`. Health excludes the source everywhere via `isFetchedSource`.
+   Delete prunes override keys through `withoutKeys`, which `applyRetention` now shares.
+6. **Six procedures became project skills** under `.claude/skills/` (mutation-check,
+   capture-ask, new-adapter, trace-symptom, beta-triage, popup-verify), each quoting the
+   rules from this file and CLAUDE.md rather than paraphrasing them; `docs/dev-loop.md`
+   indexes them and explains Graphify and Ponytail.
+7. **Add a course site can ask Chrome's on-device model when the search finds nothing.**
+   `core/skeleton.ts` renders a page compactly inside the model's context budget (each
+   table gets an equal share — in document order, ECE 310's homework table, last on its
+   page, was the one that fell off); `core/author.ts` owns the schema (row selector and
+   column *headers* only — never a date, never a positional selector), the prompt, the
+   validator (the real runner over the real DOM: ≥1 row, ≥50% dated, no unparsed tails) and
+   a retry loop that feeds the rejection back, capped at three. The options page uses it
+   only when `LanguageModel.availability()` is `available`; otherwise the page reads exactly
+   as before. Nothing has run against a real model yet — one round trip on a qualifying
+   machine is the evidence.
+
+**Defects found by the workers, outside their own goals, not yet fixed:**
+
+- `background.ts` `add-local-adapter` and `remove-local-adapter` mutate the loaded store
+  and never call `saveStore`, so adding or removing a course site is lost when the worker
+  reloads. Two lines each. (Found while mapping the manual source; the adapter section
+  was another worker's.)
+- `detect.ts` proposes `<table> tr`, which matches the header row too; run through the
+  real runner that yields an undated "Exercises" item the preview never showed. The
+  hand-written entry and the model author both use `tbody tr`.
+- `capture.ts` is a third copy of the `.illinois.edu` host rule that `validateAdapter` and
+  `safeUrl` no longer apply: a student can add a cs225.org adapter but cannot capture the
+  page to build it from.
+- `runAdapter` hard-codes `kind: "assignment"`, so ECE 411's midterms are labelled
+  assignments; an adapter-level `kind` is the missing field.
+- `npm test` in a fresh checkout fails one test until `npm run build` has produced
+  `dist/adapters/registry.json`.
+
+**Amendments recorded this day:** §4.3 (partial score, above); §4.5 (three new adapter
+fields, `docs/adapters.md`); §3.1/§3 (`manual` source keyed by an opaque id, `RawItem.url`
+optional); §3.2 for announcements only (an instructor never states a deadline in a previous
+year, so a weekday-preferring year inference that lands before the post is refused).
+
+**Decisions Sushi took, driving all of this:** finished work struck through, including
+hand-ticked; the model only at adapter-authoring time and for pasted or observed text;
+Piazza as a background source, Campuswire as a page observer, Discord not yet; moves to
+known items auto-apply, new deadlines are suggestions; Google Calendar after the bugs and
+manual entries, opt-in.
+
+1268 tests.
+
 ## The menu received every press; a microtask threw it away — 2026-09-18
 
 Five rounds and a probe had concluded that not even `pointerdown` reached the menu. It
