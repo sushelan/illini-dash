@@ -47,7 +47,27 @@ export const ALL_SOURCES: Source[] = [
   "prairietest",
   "smartphysics",
   "site",
+  "manual",
 ];
+
+/**
+ * The sources this extension actually reads from a site.
+ *
+ * `manual` is the student's own list: nothing is fetched for it, so it has no
+ * health to report and must not appear in "n of m sources OK", in the sources
+ * panel, or in the stale banner. Worker rule 2 says a green dot means "I
+ * fetched, and it was fine" — a source that is never fetched cannot earn one,
+ * and a dot that can only ever be the same colour is not information.
+ *
+ * One predicate rather than a `!== "manual"` at each surface, because there are
+ * four surfaces and the one that forgets is the one that shows a dot nobody can
+ * act on.
+ */
+export function isFetchedSource(source: Source): boolean {
+  return source !== "manual";
+}
+
+export const FETCHED_SOURCES: Source[] = ALL_SOURCES.filter(isFetchedSource);
 
 /** §3: leadTimes both, quiet hours 23–8, hide submitted, poll 30 (min 15). */
 export const DEFAULT_SETTINGS: Settings = {
@@ -119,6 +139,21 @@ export interface StoreV1Plus extends StoreV1 {
    * fetched, whoever typed them.
    */
   localAdapters: Adapter[];
+  /**
+   * Deadlines the student typed in themselves (the `manual` source).
+   *
+   * A list beside `raw`, not entries in it. `raw` is what the sync loop replaces
+   * per source and what §5.4's retention prunes: an undated row that no sync
+   * reports is purged after three misses, and no sync will ever report these,
+   * because nothing fetches them. Keeping them out of `raw` means
+   * `applyRetention`, `dropItemsOf` and `withoutRows` cannot reach them — one
+   * decision instead of three exemptions that each have to be remembered.
+   *
+   * They are spliced into the dedupe input instead, so a manual row still merges
+   * with a Gradescope one, still honours hide / done / split / merge, and still
+   * carries a memberKey like every other row.
+   */
+  manualItems: RawItem[];
 }
 
 function defaultStatus(source: Source): SourceStatus {
@@ -130,11 +165,20 @@ function defaultStatus(source: Source): SourceStatus {
     // otherwise get a yellow "sign in" dot and a banner for a site they do not
     // use — the opposite of the honest-health work in `core/health.ts`. The
     // beta guide tells PHYS testers to switch it on.
+    // `manual` is on and stays on: there is nothing to switch off, and a switch
+    // over the student's own typed rows would be a control that does nothing.
     enabled: source !== "site" && source !== "smartphysics",
     // Not `ok`. Nothing has been fetched yet, and a state field that claims
     // success before the first request is the fresh-install green dot — worker
     // house rule 2. `core/health.ts` renders this grey and says "not checked".
-    state: source === "site" || source === "smartphysics" ? "disabled" : "pending",
+    // `manual` is seeded `disabled` for the opposite reason to `site`: not
+    // "nothing is configured", but "nothing will ever be fetched". It is the
+    // one state every health surface already excludes, which is exactly what a
+    // source with no attempt behind it needs (`isFetchedSource`).
+    state:
+      source === "site" || source === "smartphysics" || source === "manual"
+        ? "disabled"
+        : "pending",
     consecutiveFailures: 0,
   };
 }
@@ -156,6 +200,7 @@ export function emptyStore(): StoreV1Plus {
     enabledAdapters: [],
     localAdapters: [],
     setAsideCourses: [],
+    manualItems: [],
   };
 }
 
@@ -181,7 +226,14 @@ export function emptyStore(): StoreV1Plus {
 function isUsableRaw(value: unknown): value is RawItem {
   if (!isRecord(value)) return false;
   const text = (key: string) => typeof value[key] === "string" && (value[key] as string) !== "";
-  return text("source") && text("sourceId") && text("title") && text("url") && text("fetchedAt");
+  // `url` is *not* required. It became optional with the `manual` source, and a
+  // required-field test is how a schema change silently deletes data: every
+  // hand-typed deadline without a link would have been dropped on the next load,
+  // with no error and nothing on screen to say a row had ever existed. When the
+  // field is present it still has to be a non-empty string — `""` passing a
+  // `typeof` check is house rule 5's own example.
+  if (value["url"] !== undefined && !text("url")) return false;
+  return text("source") && text("sourceId") && text("title") && text("fetchedAt");
 }
 
 /**
@@ -310,6 +362,10 @@ export function migrate(stored: unknown): StoreV1Plus {
           .map((entry) => validateAdapter(entry).adapter)
           .filter((adapter): adapter is Adapter => adapter !== undefined)
       : [],
+    // Validated on the way back in like `localAdapters`, and for a sharper
+    // reason: these rows exist in exactly one place. A fetched row that fails
+    // validation comes back on the next sync; a hand-typed one is gone for good.
+    manualItems: Array.isArray(value.manualItems) ? value.manualItems.filter(isUsableRaw) : [],
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>

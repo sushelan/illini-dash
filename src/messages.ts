@@ -15,6 +15,7 @@ import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
 import type { SetupRow } from "./core/setup.js";
 import type { Candidate } from "./core/detect.js";
+import type { ManualInput } from "./core/manual.js";
 import type {
   Adapter,
   Item,
@@ -56,6 +57,14 @@ export type Request =
   | { type: "set-course-name"; course: string; name: string }
   | { type: "keep-course"; courseId: string; keep: boolean }
   | { type: "override"; action: OverrideAction }
+  /*
+   * The `manual` source (§3). The worker only wires these: `core/manual.ts`
+   * validates the input and builds the row, and a refusal comes back as an
+   * `error` response carrying the sentence the student should read.
+   */
+  | { type: "add-manual-item"; input: ManualInput }
+  | { type: "edit-manual-item"; sourceId: string; input: ManualInput }
+  | { type: "delete-manual-item"; sourceId: string }
   | { type: "export" }
   | { type: "reset" }
   | { type: "get-adapters" }

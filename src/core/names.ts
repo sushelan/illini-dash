@@ -78,12 +78,19 @@ export const SOURCE_NAME: Record<Source, string> = {
   prairietest: "PrairieTest",
   smartphysics: "smartPhysics",
   site: "the course website",
+  // Lower case and possessive for the same reason `site` is: it is not a
+  // product, and "Sign in to Manual" is not a sentence anybody could act on.
+  // "your own list" is what the student will call it, because they made it.
+  manual: "your own list",
 };
 
 /** The same, as a heading or a row label, where an article would read oddly. */
 export const SOURCE_TITLE: Record<Source, string> = {
   ...SOURCE_NAME,
   site: "Course websites",
+  // The heading answers "where did this row come from", and the answer is the
+  // student. "Your own list" as a label would read as a place to go.
+  manual: "Added by you",
 };
 
 /**
@@ -99,6 +106,8 @@ export const SOURCE_CODE: Record<Source, string> = {
   prairietest: "PT",
   smartphysics: "SP",
   site: "WEB",
+  // Not "MAN", which reads as a word rather than a code beside CV and GS.
+  manual: "ME",
 };
 
 /**
@@ -120,6 +129,7 @@ export const SOURCE_HINT: Record<Source, string> = {
   prairietest: "Exams booked at the CBTF",
   smartphysics: "PHYS 211, 212, 213 and 214 only",
   site: "Courses that keep their schedule on their own page",
+  manual: "Deadlines you add yourself",
 };
 
 /**

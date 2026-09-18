@@ -184,7 +184,10 @@ describe("parseAssignments — the real PHYS 214 capture", () => {
 
   it("keeps the URL on the source origin and absolute (house rule 7)", () => {
     for (const item of items) {
-      expect(item.url.startsWith(`${SMARTPHYSICS_ORIGIN}/`), item.url).toBe(true);
+      // Asserted, not assumed: `RawItem.url` became optional with the `manual`
+      // source, so a parser that stopped setting it would otherwise pass here.
+      expect(item.url, item.title).toBeDefined();
+      expect(item.url!.startsWith(`${SMARTPHYSICS_ORIGIN}/`), item.url).toBe(true);
     }
   });
 

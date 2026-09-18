@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   LOGIN_URL,
   SOURCE_CODE,
+  SOURCE_HOME,
   SOURCE_NAME,
   SOURCE_TITLE,
   STATE_PHRASE,
@@ -153,5 +154,21 @@ describe("timeAgo", () => {
 
   it("keeps the exact stamp available for the tooltip", () => {
     expect(fullStamp(now)).toContain("2026");
+  });
+});
+
+describe("the manual source's words", () => {
+  it("is named as the student's own list, not as a place to go", () => {
+    // "Sign in to Manual" is not a sentence anybody could act on; `site` takes
+    // an article for the same reason.
+    expect(SOURCE_NAME.manual).toBe("your own list");
+    expect(SOURCE_TITLE.manual).toBe("Added by you");
+    expect(SOURCE_CODE.manual).toBe("ME");
+  });
+
+  it("has nowhere to sign in and nowhere to visit", () => {
+    // Both maps are `Partial` precisely so a source with no page can say so.
+    expect(LOGIN_URL.manual).toBeUndefined();
+    expect(SOURCE_HOME.manual).toBeUndefined();
   });
 });

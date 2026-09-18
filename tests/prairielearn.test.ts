@@ -121,7 +121,12 @@ describe("parseAssessments (real capture)", () => {
   });
 
   it("builds absolute urls, falling back to the page for a row with no link", () => {
-    expect(byBadge("HW3").url.startsWith(`${PRAIRIELEARN_ORIGIN}/pl/`)).toBe(true);
+    // `RawItem.url` is optional since the `manual` source, so "a fetched row
+    // always has one" is now a claim this test has to make rather than one the
+    // type makes for it — and it is the claim house rule 7's fallback exists for.
+    const hw3 = byBadge("HW3").url;
+    expect(hw3).toBeDefined();
+    expect(hw3!.startsWith(`${PRAIRIELEARN_ORIGIN}/pl/`)).toBe(true);
     // PQ1 has no link in the capture.
     expect(byBadge("PQ1").url).toBe(page.url);
   });

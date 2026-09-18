@@ -866,3 +866,44 @@ describe("sourceRows (the pill's popover, and Settings)", () => {
     });
   });
 });
+
+/**
+ * The student's own list is not a source with health.
+ *
+ * Worker house rule 2 says a green dot means "I fetched, and it was fine".
+ * Nothing is ever fetched for `manual`, so there is no attempt behind any dot it
+ * could show — and a row that can only ever read "Off", with a switch that does
+ * nothing and no error it could ever report, is a line that costs a reader
+ * attention and returns nothing.
+ */
+describe("the manual source is excluded from every health surface", () => {
+  const manual = status({ source: "manual", enabled: true, state: "disabled" });
+
+  it("is on neither side of \"n of m sources OK\"", () => {
+    const withoutIt = summarize(sources({ canvas: status(), gradescope: status() }));
+    const withIt = summarize(sources({ canvas: status(), gradescope: status(), manual }));
+    expect(withIt).toEqual(withoutIt);
+    // Not in `disabled` either: that list reads as "switched off or
+    // unconfigured", which is something a student could act on.
+    expect(withIt.disabled).toEqual([]);
+  });
+
+  it("does not change the status line", () => {
+    const line = statusLine(
+      sources({ canvas: status(), gradescope: status(), manual }),
+      NOW.toISOString(),
+      NOW,
+    );
+    expect(line).toContain("all 2 sources OK");
+  });
+
+  it("gets no row in the sources panel", () => {
+    const rows = sourceRows(sources({ canvas: status(), manual }), NOW);
+    expect(rows.map((row) => row.source)).toEqual(["canvas"]);
+  });
+
+  it("never becomes a stale banner", () => {
+    // Nothing is fetched for it, so "hasn't been read since…" has no meaning.
+    expect(staleNotice(sources({ manual }), NOW)).toBeUndefined();
+  });
+});

@@ -25,7 +25,8 @@ import {
   validateRegistry,
   validateAdapter,
 } from "./core/registry.js";
-import { dedupe } from "./core/dedupe.js";
+import { dedupe, withoutKeys } from "./core/dedupe.js";
+import { dedupeInput, editManualItem, newManualItem } from "./core/manual.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, sourcesToRecheck, statusAfterEnable, type NavigatedAt } from "./core/health.js";
 import { sourceForUrl } from "./core/origins.js";
@@ -73,7 +74,7 @@ import {
 import { runGate0 } from "./gate0.js";
 import type { Request, Response } from "./messages.js";
 import type { ParserId } from "./sources/registry.js";
-import type { Adapter } from "./sources/types.js";
+import { memberKey, type Adapter } from "./sources/types.js";
 
 const SYNC_ALARM = "sync";
 /** notificationId → the url its click should open (§7). */
@@ -495,7 +496,13 @@ async function mutate(change: (store: Awaited<ReturnType<typeof loadStore>>) => 
   await withStore(async () => {
     const store = await loadStore();
     change(store);
-    store.items = dedupe(Object.values(store.raw), store.overrides, { previous: store.items });
+    // `dedupeInput`, not `Object.values(store.raw)`: the student's own rows live
+    // in `manualItems` so §5.4 cannot purge them, and every rebuild of the list
+    // has to put them back or a hide — or a tick, or a rename — would make every
+    // hand-typed deadline vanish until the next sync.
+    store.items = dedupe(dedupeInput(store.raw, store.manualItems), store.overrides, {
+      previous: store.items,
+    });
     await saveStore(store);
   });
   await reschedule();
@@ -895,6 +902,78 @@ chrome.runtime.onMessage.addListener(
             state: fresh.enabledAdapters.length > 0 ? fresh.sources.site.state : "disabled",
           };
         }).then(() => ({ type: "ok" }) as const),
+      );
+    }
+    /*
+     * The `manual` source. Three handlers, no decisions: `core/manual.ts`
+     * validates and builds, `mutate` queues the write and rebuilds the list
+     * (worker rules 1 and 4). A `ManualItemError` reaches the page through
+     * `answer`'s catch as an `error` response carrying its sentence.
+     */
+    if (request?.type === "add-manual-item") {
+      const { input } = request;
+      return answer(
+        (async () => {
+          const item = newManualItem(input, new Date().toISOString(), SITE_TIMEZONE);
+          await mutate((store) => {
+            store.manualItems = [...store.manualItems, item];
+          });
+          console.log(
+            `[manual] added ${JSON.stringify(item.title.slice(0, 40))} ` +
+              `(${memberKey("manual", item.sourceId)}, due ${item.dueAt})`,
+          );
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "edit-manual-item") {
+      const { sourceId, input } = request;
+      return answer(
+        (async () => {
+          let missing = false;
+          await mutate((store) => {
+            const existing = store.manualItems.find((item) => item.sourceId === sourceId);
+            if (!existing) {
+              // Both branches logged (worker rule 5): "the id is stale" and "the
+              // edit never ran" are otherwise the same silence in the console.
+              console.warn(
+                `[manual] edit: no item ${sourceId}; store holds ${store.manualItems.length}`,
+              );
+              missing = true;
+              return;
+            }
+            const updated = editManualItem(existing, input, new Date().toISOString(), SITE_TIMEZONE);
+            store.manualItems = store.manualItems.map((item) =>
+              item.sourceId === sourceId ? updated : item,
+            );
+            console.log(`[manual] edited ${memberKey("manual", sourceId)} → due ${updated.dueAt}`);
+          });
+          if (missing) {
+            throw new Error(`no such deadline ${sourceId} — the list changed, try again`);
+          }
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "delete-manual-item") {
+      const { sourceId } = request;
+      return answer(
+        (async () => {
+          await mutate((store) => {
+            const before = store.manualItems.length;
+            store.manualItems = store.manualItems.filter((item) => item.sourceId !== sourceId);
+            // The overrides go with it, exactly as §5.4's retention prunes the
+            // overrides of a purged row: a key for a row that no longer exists
+            // stays armed forever and silently re-applies to anything that ever
+            // reforms the same member set.
+            store.overrides = withoutKeys(store.overrides, [memberKey("manual", sourceId)]);
+            console.log(
+              `[manual] deleted ${memberKey("manual", sourceId)} ` +
+                `(${before} → ${store.manualItems.length})`,
+            );
+          });
+          return { type: "ok" } as const;
+        })(),
       );
     }
     if (request?.type === "get-setup") {
