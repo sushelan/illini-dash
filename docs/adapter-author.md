@@ -214,6 +214,17 @@ Three changes, and none of them is "ask the model more nicely":
    now read `"rows": "ROWS"` — no real selector from any course is left in the
    prompt for a model to copy.
 
+**Both halves of a scoped spec are compiled.** The probe used to compile only
+the part before `>>`, so the inner half of `section >> h3:` went straight into
+`row.closest(scope)?.querySelector(inner)` with no try — and a `SyntaxError`
+there escaped `groundProposal`, `validateProposal` *and* `authorAdapter`'s loop.
+That is not a rejection with a reason, it is the end of the run: the remaining
+attempts lost, the model never told what was wrong, and `Expected name, found :`
+— a CSS-parser message — shown to a student on a page the model answered
+correctly on its second try. `section >> h3` is the literal example the prompt
+gives, so a truncated copy of it is the likeliest small-model slip. House rule 1
+one level up: a bad value costs its own proposal, never the run.
+
 `modelStatusLine` says this failure differently, because it sends a person
 somewhere different: *its proposals named parts of the page that do not exist
 (last: `#schedule .event`)*, not *its last proposal read no deadlines*, which is
@@ -250,7 +261,7 @@ block prints what a proposal needs:
 
 ```
 LIST ul.simple
-  rows selector: #mp-setup ul.simple > li
+  rows selector: #mp-setup li
   every list like it: #mp-information ul.simple > li (5 lists)
   heading: h3 mp_setup
   titleFrom: section >> h3
@@ -262,6 +273,44 @@ LIST ul.simple
 `every list like it` is there because the handle nearest one MP is `#mp-setup`,
 and an adapter built on it silently covers a sixth of the course; the shipped
 `ece411-fa26-mp` entry uses the wider selector.
+
+**The `rows selector:` line is the inventory's own spelling, and only ever
+that.** These were two lists built by different code: `renderTable` and
+`renderList` printed a selector for every block they drew, while
+`proposalSchema` closes `rows` over `repeatedStructures`' top twelve. Measured
+at the real budget, ECE 310 printed eight `rows selector:` lines of which **six
+were absent from the enum** — including the exams table and the schedule table,
+both cut by the cap — and ECE 411 printed two, both absent. The model was shown
+a selector directly above the deadlines, told to copy one "character for
+character", and then forbidden by the constrained decode from emitting it; where
+the decode is unavailable, `#mp-setup ul.simple > li` validates, previews two
+rows, and saves an adapter reading a sixth of ECE 411. `skeletonise` now takes
+the inventory and prints the narrowest entry that covers the block — `#mp-setup
+li` for the block above — and prints no line at all where the cap dropped the
+group. One list, two readers (mutation rule 3).
+
+**A table's rows never include its header row.** `#homework tr` is `#homework
+table tbody tr` plus the `<thead>` line, and the inventory's sort is rowLike →
+count → length, so being one element larger ranked the wrong spelling above the
+right one on every table on every page (`#staff tr ×55` over `×39`, `#syllabus
+tr ×36` over `×34`). That is the selector `detect.ts` documents as a defect —
+read through a `columns.title` of "Exercises" it produces a row *titled*
+Exercises with the words "Due Date" where its date should be. `repeatedStructures`
+drops such a group, and an unconstrained decode that writes one anyway is now
+refused by name: *rows `"#homework tr"` matches the table's header row as well as
+its data rows. Use `"#homework table tbody tr"`*, rather than by the
+unparsed-date check, whose reason named the row and gave a retry nothing to act
+on. One predicate, `isHeaderRowOutsideTbody`, used by both.
+
+**The inventory is bounded work, too.** `repeatedStructures` ran a fresh
+`querySelectorAll` per candidate group and `proposeWithModel` calls it
+synchronously on the options page's main thread — 2,177 calls for 15 distinct
+selector strings on a 518KB page, which is 7.6s under linkedom and 2.7s in
+Chrome with every other control frozen and no cancel, while `MAX_AUTHOR_HTML`
+admits 2MB. It now evaluates each distinct selector once (output identical by
+construction: `best` already kept the shortest spelling per matched set), which
+takes the 12,000-element case from 10.1s to 337ms; `tests/skeleton.test.ts`
+pins the bound.
 
 A list qualifies only if it has two `<li>`s, half of them reading `Label:
 value`, a heading above it to take a name from, and at least one value shaped
@@ -285,7 +334,33 @@ replaces was three branches that said nothing.
 | `availability()` is not `available`, or the API is missing or throws | *Chrome's built-in model is not available on this computer.* |
 | The model is downloadable, or downloading | One line saying which, because "there is a thing that could have tried" is a different answer from "nothing found" |
 | The page was too large to summarise | *That page was too large to summarise for Chrome's built-in model.* |
+| The fetch came back with a zero-length body | *That page came back empty, so there was nothing to show Chrome's built-in model.* |
+| The `detected` message carried no `html` field at all | `staleWorkerNotice(["html"])` — *open chrome://extensions and click Reload* — plus the size limit as a second possibility |
 | The session or the prompt threw | *…could not be used on this page: `<the message>`* — reached via `AuthorOutcome`'s `kind: "threw"`, never merged into the row above |
+
+The last two rows are worth their own paragraph, because the second was
+reported as the first for as long as this feature has existed. `html` was added
+to the `detected` message in the same commit as the feature, and Chrome keeps
+the running service worker while reloading extension pages from disk — so a
+fresh options page routinely talks to a worker that never sends the field
+(worker rule 8). `if (!html)` folded that into the size branch, and a student
+with a 33KB course site was told a fact about their page while the actual fix
+was one click on chrome://extensions, with the model branch silently never run.
+`pageForAuthoring` in `core/author.ts` decides which of the three it was.
+`chrome.runtime` messages are JSON, which drops an `undefined` value *with* its
+key, so an absent `html` cannot yet distinguish "older worker" from "2MB page"
+on its own: the stale-worker sentence names the cheap fix first and the size
+second, and it collapses to one fact the moment `background.ts` states the size
+decision positively — see `changesNeededElsewhere` in this wave's report.
+
+A fourth, invisible ending has a sentence now too. "Use this one" awaited three
+`send()` calls with no catch, and `send` *rejects* — with the sentence naming
+the reload — when the worker has no handler for a message. That became an
+unhandled promise rejection, invisible in the page and in the worker's console,
+with the button left disabled reading "Saving…" and the candidate unrecoverable
+without re-running detect and the model (UI rules 2 and 4).
+`saveProposedAdapter` runs the three, checks all three responses, and returns
+the message; the button re-enables and says what failed.
 
 The deterministic search's own reason — why *it* found nothing — is printed
 underneath, as a muted line, whenever no proposal survived. Both facts, in the

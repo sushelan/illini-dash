@@ -17,8 +17,11 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it, vi } from "vitest";
 import {
+  attemptLogLine,
   authorAdapter,
   buildPrompt,
+  pageForAuthoring,
+  saveProposedAdapter,
   CHARS_PER_TOKEN,
   groundingSelector,
   htmlForAuthoring,
@@ -1318,5 +1321,233 @@ describe("what the console says happened", () => {
       "PAGE TITLE: ECE 310",
     );
     expect(outcome.ok).toBe(true);
+  });
+});
+
+/*
+ * No page came back, and why (wave-8 trace, author #31).
+ *
+ * `html` was added to the `detected` message in the same commit as this
+ * feature, and Chrome keeps the running service worker while reloading
+ * extension pages from disk — so a fresh options page routinely talks to a
+ * worker that never sends the field (worker rule 8). `if (!html)` folded that
+ * into the same branch as a 2MB page, and a student with a 33KB course site
+ * was told a fact about their page while the fix was one click on
+ * chrome://extensions.
+ */
+describe("what the detected message says about its page", () => {
+  it("takes a page that came back", () => {
+    expect(pageForAuthoring({ type: "detected", html: "<html></html>" })).toEqual({
+      ok: true,
+      html: "<html></html>",
+    });
+  });
+
+  it("reads a missing html field as a worker older than this page", () => {
+    const page = pageForAuthoring({ type: "detected", candidates: [], url: "https://x/" });
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.outcome).toEqual({ state: "stale-worker", missing: ["html"] });
+    // The sentence that names the fix, not one about the student's page.
+    const line = modelStatusLine(page.outcome);
+    expect(line).toContain("chrome://extensions");
+    expect(line).toContain("missing: html");
+  });
+
+  it("keeps the size sentence for a worker that says it dropped a large page", () => {
+    const page = pageForAuthoring({ type: "detected", htmlOmitted: "too-large" });
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.outcome).toEqual({ state: "page-too-large" });
+    expect(modelStatusLine(page.outcome)).toContain("too large");
+    expect(modelStatusLine(page.outcome)).not.toContain("chrome://extensions");
+  });
+
+  it("tells an empty body apart from both", () => {
+    for (const message of [{ html: "" }, { htmlOmitted: "empty" }]) {
+      const page = pageForAuthoring(message);
+      expect(page.ok).toBe(false);
+      if (page.ok) return;
+      expect(page.outcome).toEqual({ state: "empty-page" });
+      expect(modelStatusLine(page.outcome)).toContain("came back empty");
+    }
+  });
+});
+
+/*
+ * Saving what the student pressed "Use this one" on (wave-8 trace, author #35).
+ *
+ * `send` rejects — with the sentence naming the reload — when the worker has no
+ * handler for a message, and the handler awaited three of them with no catch.
+ * The rejection was invisible in the page and in the worker's console, and the
+ * button stayed disabled reading "Saving…" for good.
+ */
+describe("saveProposedAdapter", () => {
+  const adapter = { id: "local-ece411", label: "ECE 411" };
+
+  it("sends all three, in order, and reports success once", async () => {
+    const seen: string[] = [];
+    const result = await saveProposedAdapter(async (request) => {
+      seen.push(request.type);
+      return { type: "ok" };
+    }, adapter);
+    expect(result).toEqual({ ok: true });
+    expect(seen).toEqual(["add-local-adapter", "set-adapter-enabled", "sync"]);
+  });
+
+  it("returns the rejection's own sentence instead of throwing it away", async () => {
+    const result = await saveProposedAdapter(async () => {
+      throw new Error(
+        'The service worker received "add-local-adapter" but returned no response. ' +
+          "The usual cause is that the worker is running older code than this page",
+      );
+    }, adapter);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("older code than this page");
+  });
+
+  it("stops at a worker-side error on the second message, not only the first", async () => {
+    const seen: string[] = [];
+    const result = await saveProposedAdapter(async (request) => {
+      seen.push(request.type);
+      return request.type === "set-adapter-enabled"
+        ? { type: "error", message: "no such adapter" }
+        : { type: "ok" };
+    }, adapter);
+    expect(result).toEqual({ ok: false, message: "no such adapter" });
+    // "Saved but switched off" must not be reported as added, and the sync it
+    // would have triggered must not run.
+    expect(seen).toEqual(["add-local-adapter", "set-adapter-enabled"]);
+  });
+
+  it("names the step when the worker's error carries no message", async () => {
+    const result = await saveProposedAdapter(async () => ({ type: "error" }), adapter);
+    expect(result).toEqual({ ok: false, message: '"add-local-adapter" failed' });
+  });
+});
+
+/*
+ * The one line per attempt (wave-8 trace, tonight's live ECE 411 re-run).
+ *
+ * The console and the status line together have to explain any outcome without
+ * a second round trip of Sushi's time, which is the resource this project has
+ * least of: which attempt, what became of it, and — when the rejection was
+ * about a selector — which selector, quoted where it can be found without
+ * reading the whole sentence.
+ */
+describe("attemptLogLine", () => {
+  it("names the attempt, the outcome and both sizes", () => {
+    const line = attemptLogLine({
+      attempt: 2,
+      outcome: "proposed",
+      answerChars: 180,
+      promptChars: 9_000,
+    });
+    expect(line).toBe("[author] attempt 2: proposed (prompt 9000 chars, answer 180 chars)");
+  });
+
+  it("pulls the invented selector out of the reason", () => {
+    const line = attemptLogLine({
+      attempt: 1,
+      outcome: "rejected",
+      reason: 'no element matches rows "#schedule .event". The repeated structures on this page are: li (×9).',
+      answerChars: 120,
+      promptChars: 8_000,
+    });
+    expect(line).toContain("selector not on the page: \"#schedule .event\"");
+    expect(line).toContain("attempt 1: rejected");
+    // And the whole reason is still there, because the retry was given it.
+    expect(line).toContain("The repeated structures on this page are");
+  });
+
+  it("says nothing about a selector for a rejection that was not about one", () => {
+    const line = attemptLogLine({
+      attempt: 3,
+      outcome: "threw",
+      reason: "An unknown error occurred: kErrorUnknown",
+      answerChars: 0,
+      promptChars: 8_000,
+    });
+    expect(line).not.toContain("selector not on the page");
+    expect(line).toContain("kErrorUnknown");
+  });
+});
+
+/*
+ * The scoped half of a spec is a selector too (wave-8 trace, author #32).
+ *
+ * `groundProposal` compiled only the part before `>>`; the inner half went
+ * straight into `row.closest(scope)?.querySelector(inner)` with no try, so a
+ * SyntaxError escaped `validateProposal` *and* `authorAdapter` — not a
+ * rejection with a reason but the end of the run, with the remaining attempts
+ * lost and a CSS-parser message ("Expected name, found :") shown to a student.
+ * House rule 1 one level up: a bad value costs its own proposal, never the run.
+ */
+describe("a proposal whose scoped spec is malformed CSS", () => {
+  for (const field of ["titleFrom", "time"] as const) {
+    it(`rejects a malformed ${field} with a reason instead of throwing`, () => {
+      const outcome = validateProposal(
+        { ...ECE411_PROPOSAL, [field]: "section >> h3:" },
+        ece411(),
+        URL_ECE411,
+        ZONE,
+        REFERENCE,
+      );
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) return;
+      expect(outcome.reason).toBe(`${field} "section >> h3:" is not a CSS selector.`);
+    });
+  }
+
+  it("costs its own attempt, and attempt 2 still runs", async () => {
+    const answers = [
+      JSON.stringify({ ...ECE411_PROPOSAL, titleFrom: "section >> h3:" }),
+      JSON.stringify(ECE411_PROPOSAL),
+    ];
+    let asked = 0;
+    const outcome = await authorAdapter(
+      async () => answers[asked++] ?? "no more answers",
+      ece411(),
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      "PAGE TITLE: ECE 411",
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.attempts).toBe(2);
+    expect(asked).toBe(2);
+  });
+});
+
+/*
+ * The header-including spelling of a table (wave-8 trace, author #34).
+ *
+ * `#homework tr` is one element wider than `#homework table tbody tr`, and the
+ * inventory's sort is rowLike → count → length, so the spelling `detect.ts`
+ * documents as a defect ("an undated item literally titled *Exercises*, with
+ * the words 'Due Date' where its date should be") outranked the right answer on
+ * every table on every page. The rejection it earned named the row, not the
+ * header, so a retry had nothing to act on.
+ */
+describe("a table proposal that includes the header row", () => {
+  it("is refused by name, pointing at the tbody spelling", () => {
+    const outcome = validateProposal(
+      {
+        shape: "table",
+        rows: "#homework tr",
+        columns: { title: "Exercises", due: "Due Date" },
+        dateFormat: "M/d",
+      },
+      ece310(),
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+    );
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("header row");
+    expect(outcome.reason).toContain("#homework table tbody tr");
   });
 });

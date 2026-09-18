@@ -31,7 +31,9 @@
  */
 
 import { runAdapter, supportedDateFormats } from "../sources/site.js";
+import { staleWorkerNotice } from "./compat.js";
 import { ParseError, type Adapter, type Kind, type PageCtx } from "../sources/types.js";
+import { isHeaderRowOutsideTbody, rowSelectorForTable } from "./detect.js";
 import type { Candidate, DetectedRow } from "./detect.js";
 import { validateAdapter } from "./registry.js";
 import { renderStructures, repeatedStructures, type RepeatedStructure } from "./skeleton.js";
@@ -396,6 +398,46 @@ export function htmlForAuthoring(body: string): string | undefined {
   return body.length > 0 && body.length <= MAX_AUTHOR_HTML ? body : undefined;
 }
 
+/**
+ * Why the `detected` message carried no page, told apart at the boundary.
+ *
+ * `html` was added to that message in the same commit as this whole feature,
+ * and Chrome keeps the running service worker while reloading extension pages
+ * from disk — so a fresh options page routinely talks to a worker that has
+ * never heard of the field (worker rule 8, the case `core/compat.ts` exists
+ * for). The page read `if (!html)` and said "That page was too large to
+ * summarise" about a 33KB page: a fact about the student's course site, when
+ * the actual fix was one click on chrome://extensions, with the model branch
+ * silently never run.
+ *
+ * Three causes, and they send a person to three different places:
+ *
+ * - the worker is older than this page — reload the extension;
+ * - the page was over `MAX_AUTHOR_HTML` — nothing to do here;
+ * - the fetch came back with a zero-length body — the site, not the size.
+ *
+ * `chrome.runtime` messages are JSON, which drops an `undefined` value along
+ * with its key, so an absent `html` cannot by itself say which of the three it
+ * was: the worker has to state the size decision positively (`htmlOmitted`),
+ * and until it does, the stale-worker sentence names the cheap fix first and
+ * the size second. Read here rather than in the page because it is a decision
+ * (worker rule 1) and because the page is one of the two files the suite
+ * cannot reach.
+ */
+export type AuthorPage =
+  | { ok: true; html: string }
+  | { ok: false; outcome: ModelOutcome };
+
+export function pageForAuthoring(response: unknown): AuthorPage {
+  const message = (response ?? {}) as { html?: unknown; htmlOmitted?: unknown };
+  const html = message.html;
+  if (typeof html === "string" && html.length > 0) return { ok: true, html };
+  const omitted = message.htmlOmitted;
+  if (omitted === "too-large") return { ok: false, outcome: { state: "page-too-large" } };
+  if (omitted === "empty" || html === "") return { ok: false, outcome: { state: "empty-page" } };
+  return { ok: false, outcome: { state: "stale-worker", missing: ["html"] } };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Grounding: does the page have what the proposal named?                       */
 /* -------------------------------------------------------------------------- */
@@ -467,12 +509,56 @@ function selectorPart(spec: string): string {
 }
 
 /**
+ * Every CSS selector inside a spec — *both* halves of a scoped one.
+ *
+ * The probe below used to compile `spec.split(">>")[0]`, so the inner half went
+ * straight into `row.closest(scope)?.querySelector(inner)` with no try. A
+ * SyntaxError there escaped `groundProposal`, escaped `validateProposal` and
+ * escaped `authorAdapter`'s loop, which is not a rejection with a reason but
+ * the end of the run: the remaining attempts lost, the model never told what
+ * was wrong, and `Expected name, found :` — a CSS-parser message — shown to a
+ * student on a page the model answered correctly on its second try. The
+ * unscoped path was guarded the whole time; this is one decision written twice
+ * with only one copy correct (mutation rule 3), so now it is written once.
+ *
+ * An empty half is not returned: `reachesFromRow` reads `section >> ` as "does
+ * not reach", which is a grounding rejection naming the page's own structures
+ * rather than a syntax complaint.
+ */
+function selectorParts(spec: string): string[] {
+  if (spec.includes(SCOPE_SEP)) {
+    const at = spec.indexOf(SCOPE_SEP);
+    return [spec.slice(0, at).trim(), selectorPart(spec.slice(at + SCOPE_SEP.length))].filter(
+      (part) => part !== "",
+    );
+  }
+  const selector = selectorPart(spec);
+  // `.` is the row itself, which `reachesFromRow` answers without the DOM.
+  return selector === "" || selector === "." ? [] : [selector];
+}
+
+/** The "that is not CSS" rejection for a field, or nothing if every half compiles. */
+function notASelector(field: string, spec: string, doc: Document): string | undefined {
+  for (const part of selectorParts(spec)) {
+    try {
+      doc.querySelectorAll(part);
+    } catch {
+      return `${field} ${JSON.stringify(spec)} is not a CSS selector.`;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Whether a row-relative spec reaches an element from at least one row.
  *
  * "At least one", not "every one": a labelled list is rows-per-line and the
  * lines this adapter is not about legitimately have nothing in them. What this
  * refuses is the case the runner would take a fetch and a full parse to reach —
  * a selector no row on the page contains, anywhere.
+ *
+ * Every caller compiles the spec with `notASelector` first, so nothing here
+ * throws; that order is the whole fix above.
  */
 function reachesFromRow(rows: Element[], spec: string): boolean {
   if (spec.includes(SCOPE_SEP)) {
@@ -522,6 +608,29 @@ function groundProposal(
   if (rowEls.length === 0) return ungrounded("rows", rows, "", structures);
 
   /*
+   * The header row, named as the header row.
+   *
+   * `#homework tr` is `#homework table tbody tr` plus the `<thead>` line, and
+   * read through a `columns.title` of "Exercises" it produces a row *titled*
+   * Exercises with the words "Due Date" where its date should be. It used to be
+   * refused two checks later, on the unparsed-date test, whose reason names the
+   * row — so the retry was told an assignment called "Exercises" had an
+   * unreadable date and a small model could repeat the selector until the
+   * attempts ran out. The inventory no longer offers this spelling; an
+   * unconstrained decode can still write it, and this is the sentence that
+   * tells it exactly which selector to use instead.
+   */
+  const header = rowEls.find(isHeaderRowOutsideTbody);
+  if (header) {
+    const table = header.closest("table");
+    const instead = table ? rowSelectorForTable(table, doc) : "the table's tbody rows";
+    return (
+      `rows ${JSON.stringify(rows)} matches the table's header row as well as its data rows. ` +
+      `Use ${JSON.stringify(instead)}, which is the same rows without the header.`
+    );
+  }
+
+  /*
    * A table's `columns` are header *text*, not selectors, so nothing below
    * looks at them — `runAdapter` owns that check and already names the missing
    * header in a sentence a retry can act on.
@@ -537,32 +646,26 @@ function groundProposal(
   for (const field of ["title", "due", "time"] as const) {
     const spec = p[field];
     if (typeof spec !== "string") continue;
-    const probe = spec.includes(SCOPE_SEP) ? selectorPart(spec.split(SCOPE_SEP)[0]!) : selectorPart(spec);
-    if (probe !== "" && probe !== ".") {
-      try {
-        doc.querySelectorAll(probe);
-      } catch {
-        return `${field} ${JSON.stringify(spec)} is not a CSS selector.`;
-      }
-    }
+    const malformed = notASelector(field, spec, doc);
+    if (malformed) return malformed;
     if (!reachesFromRow(rowEls, spec)) return ungrounded(field, spec, inRows, structures);
   }
 
   const titleFrom = p["titleFrom"];
   if (typeof titleFrom === "string") {
+    const malformed = notASelector("titleFrom", titleFrom, doc);
+    if (malformed) return malformed;
     // The unscoped form is "the nearest heading preceding the row", which a
     // selector search cannot answer without walking every row backwards — so
     // this asks the weaker question the page can answer cheaply, and leaves the
     // rest to `runAdapter`'s own `no row reached a title via …`.
+    // `selectorParts` returns nothing for `""` and `"."` — a bare `@datetime`,
+    // or the row itself, neither of which names a heading — so those are "not
+    // reached" rather than a query this would have to guard.
+    const parts = selectorParts(titleFrom);
     const reached = titleFrom.includes(SCOPE_SEP)
       ? reachesFromRow(rowEls, titleFrom)
-      : (() => {
-          try {
-            return doc.querySelectorAll(selectorPart(titleFrom)).length > 0;
-          } catch {
-            return false;
-          }
-        })();
+      : parts.length > 0 && doc.querySelectorAll(parts[0]!).length > 0;
     if (!reached) return ungrounded("titleFrom", titleFrom, "", structures);
   }
   return undefined;
@@ -1030,6 +1133,82 @@ export async function authorAdapter(
  * `core/`, the page keeps the `chrome.*` calls, and both rows of the table are
  * pinned.
  */
+/* -------------------------------------------------------------------------- */
+/* Saving the candidate the student pressed "Use this one" on                  */
+/* -------------------------------------------------------------------------- */
+
+/** The three messages that turn an approved candidate into a running adapter. */
+export type SaveRequest =
+  | { type: "add-local-adapter"; adapter: unknown }
+  | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
+  | { type: "sync"; trigger: "manual" };
+
+/**
+ * Save it, switch it on, sync — and say which of the three failed.
+ *
+ * This was three bare `await send(…)` calls in the click handler with no catch
+ * and two unchecked responses. `send` *rejects* when the worker has no handler
+ * for a message — the older-worker case (worker rule 8) — and it rejects with
+ * the one sentence that names the fix, so the rejection became an unhandled
+ * promise rejection: invisible in the page and in the worker's console, with
+ * the button left disabled reading "Saving…" and the candidate unrecoverable
+ * without re-running detect and the model (UI rules 2 and 4). A `{type:"error"}`
+ * from either of the later two was dropped the same way, leaving an entry that
+ * is saved and switched off while the page says "added".
+ *
+ * In core rather than in the handler because it is a decision about what
+ * counts as saved, and because the page is one of the two files the suite
+ * cannot reach.
+ */
+export async function saveProposedAdapter(
+  send: (request: SaveRequest) => Promise<{ type: string; message?: string }>,
+  adapter: { id: string } & Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const steps: SaveRequest[] = [
+    { type: "add-local-adapter", adapter },
+    { type: "set-adapter-enabled", adapterId: adapter.id, enabled: true },
+    { type: "sync", trigger: "manual" },
+  ];
+  for (const step of steps) {
+    let response: { type: string; message?: string };
+    try {
+      response = await send(step);
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+    if (response.type === "error") {
+      return { ok: false, message: response.message ?? `"${step.type}" failed` };
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * One attempt, as one line in the page's console.
+ *
+ * Live evidence again, 2026-09-18: the second ECE 411 run is being re-run on a
+ * build whose attempts each get a fresh session, and what a second round trip
+ * of Sushi's time would buy is exactly the fields below. So the line carries
+ * every one of them: which attempt, what became of it, the selector that was
+ * refused when the rejection was about a selector (quoted out of the reason so
+ * it is findable without reading the whole sentence), how big the prompt and
+ * the answer were, and — appended by the caller, which is the only place that
+ * can read them — the session's input usage against its quota.
+ *
+ * Here rather than inline in `proposeWithModel` for worker rule 1's reason: the
+ * options page is as unreachable from the suite as the service worker, and a
+ * log line nobody can pin drifts out of step with the status line beside it.
+ */
+export function attemptLogLine(info: AttemptInfo): string {
+  const invented = groundingSelector(info.reason);
+  return (
+    `[author] attempt ${info.attempt}: ${info.outcome}` +
+    (invented === undefined ? "" : ` — selector not on the page: ${invented}`) +
+    ` (prompt ${info.promptChars} chars, answer ${info.answerChars} chars)` +
+    (info.reason === undefined ? "" : ` — ${info.reason}`)
+  );
+}
+
 export function modelOutcomeFor(outcome: AuthorOutcome): ModelOutcome {
   if (outcome.ok) return { state: "proposed", attempts: outcome.attempts };
   if (outcome.kind === "threw") return { state: "failed", message: outcome.message };
@@ -1058,6 +1237,10 @@ export type ModelOutcome =
   | { state: "downloading" }
   /** The page was too large to summarise, so nothing was asked. */
   | { state: "page-too-large" }
+  /** The fetch came back with a zero-length body: nothing to summarise. */
+  | { state: "empty-page" }
+  /** The worker sent no page at all, which is a build older than this page. */
+  | { state: "stale-worker"; missing: string[] }
   | { state: "proposed"; attempts: number }
   | { state: "rejected"; attempts: number; reason?: string }
   /** The session or the prompt threw: a quota, a destroyed session, a crash. */
@@ -1089,6 +1272,23 @@ export function modelStatusLine(outcome: ModelOutcome): string {
       return "Chrome is still downloading its built-in model. Try this page again once it has finished.";
     case "page-too-large":
       return "That page was too large to summarise for Chrome's built-in model.";
+    case "empty-page":
+      return "That page came back empty, so there was nothing to show Chrome's built-in model.";
+    case "stale-worker":
+      /*
+       * The reload first, the size second.
+       *
+       * Both are true of an absent `html`, and only one of them is something
+       * the student can act on — the other is a 2MB page nobody has ever
+       * captured (the largest so far is 33KB). Once `background.ts` sends
+       * `htmlOmitted`, this branch means the worker alone and the second
+       * sentence can go.
+       */
+      return (
+        `${staleWorkerNotice(outcome.missing)} ` +
+        `(If it is already up to date, that page was too large to carry: the limit is ` +
+        `${Math.round(MAX_AUTHOR_HTML / 1_000_000)} MB.)`
+      );
     case "proposed":
       return (
         `Chrome's built-in model proposed an entry (${attemptCount(outcome.attempts)}). ` +

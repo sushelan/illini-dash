@@ -163,6 +163,25 @@ export function rowSelectorForTable(table: Element, doc: Document): string {
   return table.querySelector("tbody") ? `${selector} tbody tr` : `${selector} tr`;
 }
 
+/**
+ * The row `rowSelectorForTable` leaves out, recognised again.
+ *
+ * The same decision as the `tbody` branch above, read from the other end: given
+ * a matched element, is this the header row a `… tr` spelling swept in? The
+ * inventory in `skeleton.ts` drops a group containing one, and `author.ts`
+ * refuses a `rows` that matches one by name — both of which are the sentence
+ * above applied to a selector somebody else wrote, so it is one function and
+ * not a third spelling of "the header row is not a deadline".
+ *
+ * `tbody` rather than `thead`: a table with no `<tbody>` has no other spelling
+ * to offer, and `runAdapter` reads its header row as the header. It is the
+ * presence of a tbody that makes `… tr` the *wrong* one of two spellings.
+ */
+export function isHeaderRowOutsideTbody(element: Element): boolean {
+  if (element.tagName !== "TR" || element.closest("tbody")) return false;
+  return element.closest("table")?.querySelector("tbody") != null;
+}
+
 /** An id or class this code may safely put back into a selector. */
 const SAFE_TOKEN = /^[A-Za-z][\w-]*$/;
 
