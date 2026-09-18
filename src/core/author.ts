@@ -34,6 +34,7 @@ import { runAdapter, supportedDateFormats } from "../sources/site.js";
 import { ParseError, type Adapter, type Kind, type PageCtx } from "../sources/types.js";
 import type { Candidate, DetectedRow } from "./detect.js";
 import { validateAdapter } from "./registry.js";
+import { renderStructures, repeatedStructures, type RepeatedStructure } from "./skeleton.js";
 
 /**
  * The fields the model may name, in one place.
@@ -131,7 +132,29 @@ export interface Proposal {
  * selector but never arbitrary matching behaviour, and there is no sense
  * letting the one untrusted author in the project be the exception.
  */
-export function proposalSchema(supportedFormats: string[] = supportedDateFormats()): object {
+export function proposalSchema(
+  supportedFormats: string[] = supportedDateFormats(),
+  structures: RepeatedStructure[] = [],
+): object {
+  /*
+   * `rows` is an enum of the page's own repeated groups; nothing else is.
+   *
+   * Every selector in the inventory was run against this document and matched,
+   * so the set of right answers for `rows` is closed, small, and known before
+   * the model is asked — which is exactly the shape `responseConstraint` is
+   * for. A constrained decode cannot then emit `#schedule .event`, and the
+   * cheapest fix for an invented selector is to make it unspellable rather than
+   * to catch it afterwards.
+   *
+   * The per-row selectors are not enumerable the same way and must not be
+   * faked. `title` and `due` are relative to *one row* and their right answer is
+   * any of the tag, class and `tag@attribute` combinations inside it; an enum
+   * built by guessing would exclude correct answers, which is a worse failure
+   * than a wrong one — a rejection costs an attempt, a missing option costs the
+   * page. They are grounded against the DOM in `validateProposal` instead,
+   * before the runner is called.
+   */
+  const rowsSelectors = structures.map((structure) => structure.selector);
   return {
     type: "object",
     additionalProperties: false,
@@ -151,10 +174,12 @@ export function proposalSchema(supportedFormats: string[] = supportedDateFormats
       },
       rows: {
         type: "string",
-        maxLength: MAX_SELECTOR,
+        ...(rowsSelectors.length > 0
+          ? { enum: rowsSelectors }
+          : { maxLength: MAX_SELECTOR }),
         description:
-          "CSS selector matching every data row, e.g. '#homework table tbody tr' or " +
-          "'#mp-information ul.simple > li'",
+          "CSS selector matching every data row, copied exactly from the REPEATED STRUCTURES " +
+          "list in the page summary",
       },
       columns: {
         type: "object",
@@ -254,35 +279,51 @@ export function buildPrompt(
   skeleton: string,
   url: string,
   supportedFormats: string[] = supportedDateFormats(),
+  structures: RepeatedStructure[] = [],
 ): PromptText {
   const system = [
     "You read a summary of a university course web page and identify where its",
     "assignment deadlines are. Say which of three shapes you saw, and answer with",
     "JSON only, matching the supplied schema.",
     "",
+    /*
+     * Every `rows` in these examples is `ROWS`, and that is the whole point.
+     *
+     * The three examples used to carry real selectors from three real courses —
+     * `#homework table tbody tr`, `#mp-information ul.simple > li` and
+     * `#schedule .event`. Asked about ECE 411 on 2026-09-18, the model answered
+     * `#schedule .event` three times running: it was the nearest thing to a
+     * `rows` value anywhere in its context, and nothing in the prompt said it
+     * belonged to another page. An example selector beside a page summary is an
+     * invitation to copy it, so the only selectors left in this text are the
+     * page's own, printed under REPEATED STRUCTURES by the user half.
+     */
     'shape "table" — a table with a header row naming its columns. Name the header text of',
     "the column holding the name and of the column holding the deadline.",
-    '  { "shape": "table", "rows": "#homework table tbody tr",',
+    '  { "shape": "table", "rows": "ROWS",',
     '    "columns": { "title": "Exercises", "due": "Due Date" }, "dateFormat": "M/d" }',
     "",
     'shape "list" — a LIST block: bullets reading "Label: value" under a heading, where the',
     "heading is the assignment's name and each bullet is one line about it.",
-    '  { "shape": "list", "rows": "#mp-information ul.simple > li", "title": "p", "due": "p",',
+    '  { "shape": "list", "rows": "ROWS", "title": "p", "due": "p",',
     '    "dueLabel": "Due|CP1 Due", "titleFrom": "section >> h3",',
     '    "filter": { "exclude": "\\\\bTB[DA]\\\\b" }, "dateFormat": "M/d" }',
     "",
     'shape "rows" — repeated blocks with no header row, where the name and the date are each',
     "reachable by a selector inside one block.",
-    '  { "shape": "rows", "rows": "#schedule .event", "title": ".name", "due": ".date",',
+    '  { "shape": "rows", "rows": "ROWS", "title": ".name", "due": ".date",',
     '    "dateFormat": "MMM d, h:mm a" }',
+    "",
+    'Replace ROWS with one line copied exactly from REPEATED STRUCTURES. Never invent a',
+    "selector, and never copy one out of these examples: they are from other courses.",
     "",
     `dateFormat is one of: ${supportedFormats.join(", ")}`,
     "",
     "Rules:",
     "- Header text and dueLabel text must be copied exactly from the summary, never shortened:",
     '  "Due" and "Due Date" are different lines and only the exact one is read.',
-    "- Use the 'rows selector' printed above the table or list, and the 'titleFrom' printed",
-    "  with a list. Prefer the wider 'every list like it' selector when one is printed.",
+    "- rows must be one of the REPEATED STRUCTURES lines, character for character. Use the",
+    "  'titleFrom' printed with a list.",
     "- Never answer with a positional selector such as td:nth-child(2) or li:first-child.",
     "- Never answer with a date, a title or any value read off the page: only selectors.",
     "- Pick the graded work. Ignore office hours, lecture topics, grade weights and staff lists.",
@@ -291,8 +332,19 @@ export function buildPrompt(
     "- Add filter.exclude only for rows the page itself marks TBD, TBA or N/A.",
   ].join("\n");
 
+  /*
+   * The inventory goes in the *user* half, not the system half.
+   *
+   * `proposeWithModel` creates one session with `initialPrompts` holding the
+   * system text and then prompts it per attempt, so the system half is fixed
+   * before any page is known. A page-derived list in it would be the previous
+   * page's list — the same class of mistake as the example selectors above, one
+   * process over.
+   */
+  const inventory = renderStructures(structures);
   const user = [
     `Course page: ${url}`,
+    ...(inventory ? ["", inventory] : []),
     "",
     "Summary of the page:",
     skeleton,
@@ -344,6 +396,178 @@ export function htmlForAuthoring(body: string): string | undefined {
   return body.length > 0 && body.length <= MAX_AUTHOR_HTML ? body : undefined;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Grounding: does the page have what the proposal named?                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The opening of every "you named something that is not on this page" reason.
+ *
+ * A sentinel rather than a guess, because two readers depend on telling this
+ * class of rejection apart from the rest: the retry prompt, which quotes it
+ * back, and `modelStatusLine`, which says a different sentence to the student
+ * for it — "no deadlines on that page" and "that selector is not on that page"
+ * send a person to two different places.
+ */
+const GROUNDING_PREFIX = "no element matches ";
+
+/**
+ * Anchored, and it captures the quoted selector (house rule 5).
+ *
+ * The anchor is **unreachable today** and stays: mutating `^` away survives the
+ * suite, because every page-derived string that reaches a reason goes through
+ * `JSON.stringify` first — a row titled `no element matches rows "x"` arrives
+ * with its quotes escaped and the capture group, which must start on a bare
+ * `"`, does not fire. It stays because that is a property of the *other*
+ * reasons rather than of this regex: the first one to interpolate a page's own
+ * text raw would let a course name an assignment into the wrong status line,
+ * and an unanchored search is the kind of marker house rule 12 is about.
+ */
+const GROUNDED = new RegExp(
+  `^${GROUNDING_PREFIX}(?:rows|title|due|titleFrom|time) ("(?:[^"\\\\]|\\\\.)*")`,
+);
+
+/**
+ * The selector a grounding rejection was about, or nothing.
+ *
+ * `undefined` for every other rejection — a header that is not in the table, a
+ * format that read no dates — because those are facts about a page the model
+ * *did* find, and saying "named parts of the page that do not exist" about them
+ * would be a sentence derived from something that did not happen.
+ */
+export function groundingSelector(reason: string | undefined): string | undefined {
+  return reason === undefined ? undefined : (GROUNDED.exec(reason)?.[1] ?? undefined);
+}
+
+/** The page's own answer to "then what is here?", for a model and for a person. */
+function inventorySentence(structures: RepeatedStructure[]): string {
+  if (structures.length === 0) {
+    return "This page has no repeated group of elements to point at, so it may need a hand-written entry.";
+  }
+  return `The repeated structures on this page are: ${structures
+    .map((structure) => `${structure.selector} (×${structure.count})`)
+    .join("; ")}.`;
+}
+
+function ungrounded(
+  field: string,
+  spec: string,
+  where: string,
+  structures: RepeatedStructure[],
+): string {
+  return `${GROUNDING_PREFIX}${field} ${JSON.stringify(spec)}${where}. ${inventorySentence(structures)}`;
+}
+
+/** The scope separator `runAdapter` reads in a `titleFrom` / `time` spec. */
+const SCOPE_SEP = ">>";
+
+/** `time@datetime` is a selector and an attribute; only the selector is searched. */
+function selectorPart(spec: string): string {
+  return spec.split("@")[0]!.trim();
+}
+
+/**
+ * Whether a row-relative spec reaches an element from at least one row.
+ *
+ * "At least one", not "every one": a labelled list is rows-per-line and the
+ * lines this adapter is not about legitimately have nothing in them. What this
+ * refuses is the case the runner would take a fetch and a full parse to reach —
+ * a selector no row on the page contains, anywhere.
+ */
+function reachesFromRow(rows: Element[], spec: string): boolean {
+  if (spec.includes(SCOPE_SEP)) {
+    const at = spec.indexOf(SCOPE_SEP);
+    const scope = spec.slice(0, at).trim();
+    const inner = selectorPart(spec.slice(at + SCOPE_SEP.length));
+    if (!scope || !inner) return false;
+    return rows.some((row) => row.closest(scope)?.querySelector(inner) != null);
+  }
+  const selector = selectorPart(spec);
+  // `.` is the row itself, which is the one spec that cannot fail to match.
+  if (selector === "" || selector === ".") return true;
+  return rows.some((row) => row.querySelector(selector) !== null);
+}
+
+/**
+ * Every selector in the proposal, checked against the real DOM, before the
+ * runner is asked for anything.
+ *
+ * Live evidence, 2026-09-18: the model answered `#schedule .event` for ECE 411
+ * three times, the runner rejected it three times, and each round trip was ten
+ * seconds of a student watching a button — for an answer `querySelectorAll`
+ * refuses in a millisecond. The runner still runs and still owns the verdict;
+ * this only declines to pay for it when the page plainly has not got what the
+ * proposal named, and it names what the page *does* have so the next attempt
+ * has somewhere to go.
+ *
+ * Membership of the inventory is deliberately *not* what is checked. The
+ * inventory is twelve entries out of a page's dozens, and a selector outside it
+ * that matches is a right answer — the enum in `proposalSchema` is what keeps a
+ * constrained decode inside the list, and this is what keeps every answer,
+ * constrained or not, on the page.
+ */
+function groundProposal(
+  p: Record<string, unknown>,
+  doc: Document,
+  structures: RepeatedStructure[],
+): string | undefined {
+  const rows = p["rows"];
+  if (typeof rows !== "string" || rows.trim() === "") return "rows must be a selector";
+  let rowEls: Element[];
+  try {
+    rowEls = [...doc.querySelectorAll(rows)];
+  } catch {
+    return `rows ${JSON.stringify(rows)} is not a CSS selector. ${inventorySentence(structures)}`;
+  }
+  if (rowEls.length === 0) return ungrounded("rows", rows, "", structures);
+
+  /*
+   * A table's `columns` are header *text*, not selectors, so nothing below
+   * looks at them — `runAdapter` owns that check and already names the missing
+   * header in a sentence a retry can act on.
+   *
+   * There is no `shape === "table"` early return here, though, and that is
+   * deliberate: `time` is the one selector field a table proposal is allowed to
+   * carry (it is not in the `refused` list above), so an early return would
+   * leave the table shape the only one whose selectors reach the runner
+   * ungrounded. `title` and `due` are refused for a table and so are undefined,
+   * and the loop skips them on their own.
+   */
+  const inRows = ` inside any of the ${rowEls.length} rows ${JSON.stringify(rows)} matched`;
+  for (const field of ["title", "due", "time"] as const) {
+    const spec = p[field];
+    if (typeof spec !== "string") continue;
+    const probe = spec.includes(SCOPE_SEP) ? selectorPart(spec.split(SCOPE_SEP)[0]!) : selectorPart(spec);
+    if (probe !== "" && probe !== ".") {
+      try {
+        doc.querySelectorAll(probe);
+      } catch {
+        return `${field} ${JSON.stringify(spec)} is not a CSS selector.`;
+      }
+    }
+    if (!reachesFromRow(rowEls, spec)) return ungrounded(field, spec, inRows, structures);
+  }
+
+  const titleFrom = p["titleFrom"];
+  if (typeof titleFrom === "string") {
+    // The unscoped form is "the nearest heading preceding the row", which a
+    // selector search cannot answer without walking every row backwards — so
+    // this asks the weaker question the page can answer cheaply, and leaves the
+    // rest to `runAdapter`'s own `no row reached a title via …`.
+    const reached = titleFrom.includes(SCOPE_SEP)
+      ? reachesFromRow(rowEls, titleFrom)
+      : (() => {
+          try {
+            return doc.querySelectorAll(selectorPart(titleFrom)).length > 0;
+          } catch {
+            return false;
+          }
+        })();
+    if (!reached) return ungrounded("titleFrom", titleFrom, "", structures);
+  }
+  return undefined;
+}
+
 export type ValidationOutcome =
   | { ok: true; candidate: Candidate }
   | { ok: false; reason: string };
@@ -368,6 +592,8 @@ export function validateProposal(
   url: string,
   timezone: string,
   reference: string,
+  /** Computed from `doc` when the caller has not already; `authorAdapter` has. */
+  structures: RepeatedStructure[] = repeatedStructures(doc),
 ): ValidationOutcome {
   if (!proposal || typeof proposal !== "object" || Array.isArray(proposal)) {
     return { ok: false, reason: "the answer was not a JSON object" };
@@ -453,6 +679,12 @@ export function validateProposal(
       };
     }
   }
+
+  // Before the runner, and before `validateAdapter`: a proposal naming elements
+  // this page has not got costs a `querySelectorAll` to refuse and a full parse
+  // to refuse the other way round.
+  const ungroundedReason = groundProposal(p, doc, structures);
+  if (ungroundedReason) return { ok: false, reason: ungroundedReason };
 
   let host: string;
   try {
@@ -630,8 +862,16 @@ export type AuthorOutcome =
 
 export interface AuthorOptions {
   maxAttempts?: number;
-  /** Defaults to `proposalSchema()`; injectable so a test can pin what is sent. */
+  /** Defaults to the grounded `proposalSchema`; injectable so a test can pin it. */
   schema?: object;
+  /**
+   * The page's repeated groups, when the caller has already computed them.
+   *
+   * `proposeWithModel` has: it needs them to *measure* the prompt before it can
+   * decide how much summary fits, and computing them twice would let the
+   * measured prompt and the sent prompt disagree.
+   */
+  structures?: RepeatedStructure[];
 }
 
 const DEFAULT_ATTEMPTS = 3;
@@ -662,9 +902,13 @@ export async function authorAdapter(
   skeleton: string,
   options: AuthorOptions = {},
 ): Promise<AuthorOutcome> {
-  const schema = options.schema ?? proposalSchema();
+  const structures = options.structures ?? repeatedStructures(doc);
+  const schema = options.schema ?? proposalSchema(supportedDateFormats(), structures);
   const limit = Math.min(Math.max(1, Math.floor(options.maxAttempts ?? DEFAULT_ATTEMPTS)), MAX_ATTEMPTS);
-  const base = buildPrompt(skeleton, url).user;
+  // The inventory is in `base`, so it is in the first prompt and in every
+  // retry — a retry that dropped it would be the attempt most likely to invent
+  // a selector, having just been told the last one was invented.
+  const base = buildPrompt(skeleton, url, supportedDateFormats(), structures).user;
 
   let reason = "";
   for (let attempt = 1; attempt <= limit; attempt += 1) {
@@ -695,7 +939,7 @@ export async function authorAdapter(
       continue;
     }
 
-    const outcome = validateProposal(parsed, doc, url, timezone, reference);
+    const outcome = validateProposal(parsed, doc, url, timezone, reference, structures);
     if (outcome.ok) return { ok: true, candidate: outcome.candidate, attempts: attempt };
     reason = outcome.reason;
   }
@@ -766,11 +1010,31 @@ export function modelStatusLine(outcome: ModelOutcome): string {
         `Chrome's built-in model proposed an entry (${attemptCount(outcome.attempts)}). ` +
         "Check the rows before saving it — you are the only one who knows what this course sets."
       );
-    case "rejected":
+    case "rejected": {
+      /*
+       * Two rejections, two sentences.
+       *
+       * "its last proposal read no deadlines" is true of a proposal that found
+       * the schedule and read the wrong column, and it is a lie about
+       * `#schedule .event` — which found nothing because there is nothing of
+       * that name on the page. Sushi read the first sentence off a real run and
+       * went looking for the deadlines it said had not been read; there were
+       * none to look for, and the words sent him to the page instead of to the
+       * one fact that mattered.
+       */
+      const invented = groundingSelector(outcome.reason);
+      if (invented !== undefined) {
+        return (
+          `Chrome's built-in model tried ${attemptCount(outcome.attempts)} and its proposals ` +
+          `named parts of the page that do not exist (last: ${invented}). ` +
+          "A hand-written entry can still be written for it."
+        );
+      }
       return (
         `Chrome's built-in model tried ${attemptCount(outcome.attempts)} and its last proposal ` +
         `read no deadlines: ${outcome.reason ?? "no reason given"}`
       );
+    }
     case "failed":
       return `Chrome's built-in model could not be used on this page: ${outcome.message}`;
   }

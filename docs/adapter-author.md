@@ -33,8 +33,10 @@ are fixed below — the three shapes, and the status line.
 |---|---|---|
 | Fetch the page | `background.ts` → `capture` | Unchanged. The HTML now comes back with the candidates (`htmlForAuthoring`), so nothing is fetched twice |
 | Propose deterministically | offscreen → `core/detect.ts` | Unchanged. Candidates → the existing preview |
+| **Inventory the page** | `core/skeleton.ts` | `repeatedStructures(doc)` — the page's repeated element groups, each with a selector that has been run and matched |
 | **Summarise the page** | `core/skeleton.ts` | `skeletonise(doc, budgetChars)` — tags, ids, classes, table structure; scripts, styles, nav and footer dropped |
-| **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })` |
+| **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })`, with `rows` enumerated from the inventory |
+| **Ground** | `core/author.ts` | `groundProposal` — every selector checked against the DOM, before the runner is paid for |
 | **Check** | `core/author.ts` | `validateProposal` → `validateAdapter` + `runAdapter`, on the real DOM |
 | Confirm | `ui/options.ts` | The same `renderCandidates` preview, "Use this one", "Copy for sharing" |
 
@@ -138,6 +140,42 @@ the saved entry carried both. Naming the shape lets the validator refuse that in
 one line, and it is the cheapest signal that the model read the page rather than
 pattern-matched a table onto it.
 
+### A selector the page has not got is refused before the runner
+
+Live, 2026-09-18, on the public ECE 411 page: *"Chrome's built-in model tried 3
+attempts and its last proposal read no deadlines: adapter proposed: no rows
+matched `#schedule .event`"*. Nothing on that page is called `#schedule` or
+`.event`. It was the example selector in this file's own system prompt, for a
+different course — the nearest thing to a `rows` value anywhere in the model's
+context, with nothing saying it belonged to another page. Three round trips of a
+ten-second model call were spent on it.
+
+Three changes, and none of them is "ask the model more nicely":
+
+1. **The page says what it has.** `repeatedStructures(doc)` returns up to twelve
+   repeated element groups — `#mp-information ul.simple > li ×16`, `#homework
+   table tbody tr ×13` — each with a selector that was run against the document
+   and matched the count printed beside it. That list goes in the first prompt
+   and in every retry. The groups that read like schedule rows (a date, or a
+   `Label: value`) come first, because the cap is twelve and a page has dozens;
+   ordering by selector length was measured and it cut both of the answers above.
+2. **`rows` is an enum of that list** in the JSON Schema, so a constrained decode
+   cannot spell `#schedule .event`. The per-row selectors stay free text: their
+   right answer is any tag, class or `tag@attribute` inside one row, and an enum
+   guessed for them would exclude correct answers — which costs the page, where a
+   wrong answer costs an attempt.
+3. **Every selector is checked against the DOM** before `runAdapter` is called.
+   `rows` must match at least one element and each row-relative selector must
+   reach something from at least one row; the rejection names what the page
+   *does* have, so the retry has somewhere to go. The examples in the system half
+   now read `"rows": "ROWS"` — no real selector from any course is left in the
+   prompt for a model to copy.
+
+`modelStatusLine` says this failure differently, because it sends a person
+somewhere different: *its proposals named parts of the page that do not exist
+(last: `#schedule .event`)*, not *its last proposal read no deadlines*, which is
+an invitation to go looking for deadlines that were never in question.
+
 Two rejections are worth naming because they are house rules, not preferences:
 
 - **A positional selector is refused**, not merely discouraged in the prompt.
@@ -200,6 +238,7 @@ replaces was three branches that said nothing.
 |---|---|
 | A proposal survived the runner | *Chrome's built-in model proposed an entry (N attempts).* Then the preview |
 | It answered, and nothing it proposed read a deadline | *Chrome's built-in model tried N attempts and its last proposal read no deadlines: `<the validator's reason>`* |
+| It answered, and named selectors the page has not got | *…its proposals named parts of the page that do not exist (last: `<the selector>`). A hand-written entry can still be written for it.* |
 | `availability()` is not `available`, or the API is missing or throws | *Chrome's built-in model is not available on this computer.* |
 | The model is downloadable, or downloading | One line saying which, because "there is a thing that could have tried" is a different answer from "nothing found" |
 | The page was too large to summarise | *That page was too large to summarise for Chrome's built-in model.* |

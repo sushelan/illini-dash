@@ -23,7 +23,7 @@
  */
 
 import { ParseError } from "../sources/types.js";
-import { rowSelectorForList, selectorForTable } from "./detect.js";
+import { rowSelectorForList, rowSelectorForTable, selectorForTable } from "./detect.js";
 
 /** Tags that are all bytes and no structure. */
 const DROPPED = new Set([
@@ -267,22 +267,41 @@ export function isLabelledList(list: Element): boolean {
  * sixth of the course. Printed alongside, with the count, so the choice is
  * visible rather than inferred.
  */
-function siblingListSelector(list: Element, doc: Document): string | undefined {
+export function wideListSelector(list: Element, doc: Document): string | undefined {
   const self = tagOf(list);
   for (let node = list.parentElement; node; node = node.parentElement) {
     const id = node.getAttribute("id");
-    if (!id || !/^[A-Za-z][\w-]*$/.test(id)) continue;
+    if (!id || !SAFE_TOKEN.test(id)) continue;
     const within = [...node.querySelectorAll(self)];
-    if (within.length > 1) return `#${id} ${self} > li (${within.length} lists)`;
+    if (within.length > 1) return `#${id} ${self} > li`;
   }
   return doc.querySelectorAll(self).length > 1 ? `${self} > li` : undefined;
 }
+
+/**
+ * The same selector with its list count, for the summary's own line.
+ *
+ * One spelling of the selector, two readers (mutation house rule 3): the
+ * inventory below offers it to the model as a `rows` answer, and `renderList`
+ * prints it with the count so the choice between the narrow and the wide form
+ * is visible. When these were two functions the inventory could have offered
+ * `#mp-information ul.simple > li (6 lists)`, which matches nothing.
+ */
+function siblingListSelector(list: Element, doc: Document): string | undefined {
+  const wide = wideListSelector(list, doc);
+  if (!wide) return undefined;
+  const lists = doc.querySelectorAll(wide.slice(0, -" > li".length)).length;
+  return `${wide} (${lists} lists)`;
+}
+
+/** An id or class this code may safely put back into a selector. */
+const SAFE_TOKEN = /^[A-Za-z][\w-]*$/;
 
 /** `ul.simple` — the tag and its first class, as `selectorForList` spells it. */
 function tagOf(list: Element): string {
   const first = (list.getAttribute("class") ?? "").trim().split(/\s+/)[0];
   const tag = list.tagName.toLowerCase();
-  return first && /^[A-Za-z][\w-]*$/.test(first) ? `${tag}.${first}` : tag;
+  return first && SAFE_TOKEN.test(first) ? `${tag}.${first}` : tag;
 }
 
 /**
@@ -442,4 +461,189 @@ export function skeletonise(doc: Document, budgetChars: number): string {
   // QuotaExceededError instead of an answer.
   const text = sections.join("\n");
   return text.length <= budgetChars ? text : text.slice(0, budgetChars);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The inventory: the groups this page actually repeats                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One repeated group of elements, and a selector that reaches it.
+ *
+ * Live evidence, 2026-09-18: asked about ECE 411's Sphinx page, Chrome's
+ * built-in model answered `#schedule .event` three times running. Nothing on
+ * that page is called `#schedule` or `.event` — it is the selector printed in
+ * this file's sibling prompt as the *example* of the "rows" shape, for a
+ * different course. The model was being shown a summary of one page and an
+ * example from another, and it could not tell which it was allowed to quote.
+ * Three ten-second round trips were spent on answers a `querySelectorAll` would
+ * have refused in a millisecond.
+ *
+ * So the page is asked what it has, and the answer goes in the prompt. Every
+ * `selector` here has been run against `doc` and matched `count` elements —
+ * that is the invariant this type exists for, and `author.ts` may put the list
+ * straight into the response schema's `enum` because of it: a constrained
+ * decode cannot invent a group the page does not have.
+ */
+export interface RepeatedStructure {
+  /** A CSS selector that matched, on this document, exactly `count` elements. */
+  selector: string;
+  count: number;
+  /** The first match's text, clipped — so the model can tell a schedule from a nav. */
+  sample: string;
+  /**
+   * Whether most of the group reads like a schedule row, which is what decides
+   * the twelve.
+   *
+   * A page has dozens of repeated groups and the cap has to drop most of them.
+   * Dropping by selector length alone was measured and it is wrong in both
+   * directions: on ECE 411 it kept `#mp-setup li` and `#mp-cache li` — one MP
+   * each — and cut the one group covering the whole course, and on ECE 310 it
+   * cut `#homework table tbody tr`, which is the answer, in favour of `#staff
+   * td`. The test is the one `isLabelledList` and `detectCandidates` already
+   * apply: does the member state a date, or a `Label: value`?
+   */
+  rowLike: boolean;
+}
+
+/** Shown to the model, and enumerated in the schema. Both want a short list. */
+const MAX_STRUCTURES = 12;
+/** One element is not a repeated structure. */
+const MIN_REPEAT = 2;
+const MAX_STRUCTURE_SAMPLE = 80;
+/** The share of a group's members that must read like a row. */
+const MIN_ROW_LIKE_SHARE = 0.5;
+
+/**
+ * A selector for the element a repeated group hangs off.
+ *
+ * An `id` is what a page author meant as a handle, the same reason
+ * `selectorForTable` prefers one. Failing that the group is named at document
+ * level — which is still a selector that *matches*, which is this function's
+ * whole contract.
+ */
+function anchorSelector(parent: Element): string | undefined {
+  const own = parent.getAttribute("id");
+  if (own && SAFE_TOKEN.test(own)) return `#${own}`;
+  for (let node = parent.parentElement; node; node = node.parentElement) {
+    const id = node.getAttribute("id");
+    if (id && SAFE_TOKEN.test(id)) return `#${id}`;
+  }
+  return undefined;
+}
+
+/**
+ * The repeated element groups on `doc` worth proposing as an adapter's `rows`.
+ *
+ * Pure, and deliberately generous about *what* repeats: a course page's
+ * deadlines are a table's rows, a list's bullets, or a run of sibling blocks,
+ * and which of the three it is, is the thing the model is being asked. What it
+ * is not generous about is whether the selector works — every entry is checked
+ * against the document before it is emitted, and a group whose every member
+ * sits inside `<nav>` or `<footer>` is dropped rather than offered as a
+ * schedule.
+ *
+ * Deduplicated **by the elements matched, not by the selector string**: three
+ * spellings of the same seventeen `<li>`s are one answer, and the shortest is
+ * the one a model copies correctly.
+ */
+export function repeatedStructures(doc: Document): RepeatedStructure[] {
+  const order = new Map<Element, number>();
+  for (const [i, element] of [...doc.querySelectorAll("*")].entries()) order.set(element, i);
+
+  const best = new Map<string, RepeatedStructure>();
+  const consider = (selector: string): void => {
+    let matched: Element[];
+    try {
+      matched = [...doc.querySelectorAll(selector)];
+    } catch {
+      // A selector this file built that the DOM will not parse is a bug here,
+      // not a proposal — and offering it would break the invariant above.
+      return;
+    }
+    if (matched.length < MIN_REPEAT) return;
+    if (matched.some((element) => DROPPED.has(element.tagName) || droppedAncestor(element))) return;
+    const texts = matched.map((element) => squash(element.textContent));
+    const sample = clip(texts[0]!, MAX_STRUCTURE_SAMPLE);
+    if (!sample) return;
+    const key = matched.map((element) => order.get(element)).join(",");
+    const seen = best.get(key);
+    if (seen && seen.selector.length <= selector.length) return;
+    const rows = texts.filter((text) => DATE_SHAPED.test(text) || LABEL_LINE.test(text)).length;
+    best.set(key, {
+      selector,
+      count: matched.length,
+      sample,
+      rowLike: rows / matched.length >= MIN_ROW_LIKE_SHARE,
+    });
+  };
+
+  // The two shapes that already have a spelling, taken from the code that
+  // spells them, so the inventory offers the same selector the summary prints
+  // and the shipped registry entries use.
+  for (const table of doc.querySelectorAll("table")) {
+    if (droppedAncestor(table)) continue;
+    consider(rowSelectorForTable(table, doc));
+  }
+  for (const list of doc.querySelectorAll("ul, ol")) {
+    if (droppedAncestor(list) || directItems(list).length < MIN_REPEAT) continue;
+    consider(rowSelectorForList(list, doc));
+    const wide = wideListSelector(list, doc);
+    if (wide) consider(wide);
+  }
+
+  // And the general case: any element with two children of the same shape.
+  // This is what reaches a page whose deadlines are `div.assignment` blocks,
+  // which neither of the two above can see.
+  for (const parent of doc.querySelectorAll("*")) {
+    if (DROPPED.has(parent.tagName) || droppedAncestor(parent)) continue;
+    const counts = new Map<string, number>();
+    for (const child of parent.children) {
+      if (DROPPED.has(child.tagName)) continue;
+      const name = tagOf(child);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const anchor = anchorSelector(parent);
+    for (const [name, n] of counts) {
+      if (n < MIN_REPEAT) continue;
+      // `#id > name` when the group's own parent is the handle; otherwise the
+      // nearest identified ancestor, as a descendant — a wider match than the
+      // group, but `consider` reports the count it really has.
+      consider(anchor ? `${anchor} ${parent.getAttribute("id") ? "> " : ""}${name}` : name);
+    }
+  }
+
+  /*
+   * Row-like groups first, then the *biggest*, and only then the shortest.
+   *
+   * Count before length was measured too. Ordering row-like groups by selector
+   * length put `#assignments ul.simple > li` (20 bullets, the MPs plus the late
+   * policy) in the last slot and cut `#mp-information ul.simple > li` (15, the
+   * MPs) by one place — offering the model a wrong group and withholding the
+   * right one, which is a worse failure than the invented selector this list
+   * was written to prevent. A schedule has more rows than a summary box.
+   */
+  return [...best.values()]
+    .sort(
+      (a, b) =>
+        Number(b.rowLike) - Number(a.rowLike) ||
+        b.count - a.count ||
+        a.selector.length - b.selector.length,
+    )
+    .slice(0, MAX_STRUCTURES);
+}
+
+/**
+ * The inventory as the model is shown it.
+ *
+ * Here rather than in `author.ts` because the count and the sample come from
+ * this file's budgeting vocabulary, and because `author.ts` quotes a rejected
+ * selector against this same list — one rendering, two callers.
+ */
+export function renderStructures(structures: RepeatedStructure[]): string {
+  if (structures.length === 0) return "";
+  return [
+    "REPEATED STRUCTURES ON THIS PAGE — the rows selector must be one of these:",
+    ...structures.map((s) => `  ${s.selector}  ×${s.count}  e.g. ${JSON.stringify(s.sample)}`),
+  ].join("\n");
 }
