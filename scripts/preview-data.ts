@@ -230,6 +230,15 @@ const query = new URLSearchParams(location.search);
  * that one click on chrome://extensions was the fix (worker rule 8).
  */
 const stale = query.has("stale");
+/**
+ * `?piazza=read` — Piazza after a sync that actually read something.
+ *
+ * The default below is `needs_login`, because that is the only observer state
+ * with a control beside it. It is also the one state whose row says nothing
+ * about *what was read*, so the sentence the row was rewritten for — "25 posts,
+ * 1 deadline found" — is unreachable in the harness without this.
+ */
+const piazzaRead = query.has("piazza");
 
 /**
  * `?gcal=<state>` — the Google Calendar section in each of its states.
@@ -505,11 +514,20 @@ const sources = {
             // Piazza in the state that has a button: `needs_login` is the only
             // observer state with a control beside it, so it is the one the
             // harness has to be able to show.
-            piazza: {
-              enabled: true,
-              state: "needs_login",
-              lastAttemptAt: new Date().toISOString(),
-            },
+            piazza: piazzaRead
+              ? {
+                  enabled: true,
+                  state: "ok",
+                  lastAttemptAt: new Date().toISOString(),
+                  lastObservedAt: new Date().toISOString(),
+                  postsSeen: 25,
+                  deadlinesFound: 1,
+                }
+              : {
+                  enabled: true,
+                  state: "needs_login",
+                  lastAttemptAt: new Date().toISOString(),
+                },
           },
           gcal: previewGcal(),
           notificationsBlocked: false,

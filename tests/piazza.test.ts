@@ -18,24 +18,50 @@ import {
   classPageUrl,
   currentTermKey,
   describePiazza,
+  bodyBatch,
+  classifyClassPage,
   feedRequest,
-  fetchPostBody,
   highestNr,
+  htmlToText,
   parseClassPage,
   parseFeed,
+  parsePostBody,
   piazzaNeedsRecheck,
   planPiazza,
   postBodyRequest,
   postsToSend,
+  withPostBody,
+  MAX_BODIES_PER_SYNC,
   PIAZZA_MATCH,
   type ObservedPost,
   type PiazzaClass,
   type PiazzaFacts,
 } from "../src/core/piazza.js";
+import { describeEmpty, extractDeadlineMentions } from "../src/core/announce.js";
 import { ingestPost } from "../src/core/suggest.js";
 import { ParseError, type Overrides } from "../src/sources/types.js";
 
 const HTML = readFileSync(new URL("../fixtures/piazza/class-page.html", import.meta.url), "utf8");
+const SIGNED_OUT = readFileSync(
+  new URL("../fixtures/piazza/class-page-signed-out.html", import.meta.url),
+  "utf8",
+);
+const POST = JSON.parse(
+  readFileSync(new URL("../fixtures/piazza/post.json", import.meta.url), "utf8"),
+) as Record<string, unknown>;
+
+/** A fresh deep copy of the `content.get` capture. */
+function post(): Record<string, unknown> {
+  return structuredClone(POST);
+}
+
+function result(json: Record<string, unknown>): Record<string, unknown> {
+  return json["result"] as Record<string, unknown>;
+}
+
+function history0(json: Record<string, unknown>): Record<string, unknown> {
+  return (result(json)["history"] as Record<string, unknown>[])[0]!;
+}
 const FEED = JSON.parse(
   readFileSync(new URL("../fixtures/piazza/feed.json", import.meta.url), "utf8"),
 ) as Record<string, unknown>;
@@ -499,12 +525,63 @@ describe("applyPiazzaResult and the row it feeds", () => {
     expect(piazzaNeedsRecheck(waiting, undefined)).toBe(false);
   });
 
-  it("says the time and the count once something has been read", () => {
+  it("says the time, the count, and what the posts produced", () => {
+    /*
+     * "On · last read 10:32 · 25 posts" reads as working while producing
+     * nothing, which is exactly what this source did for a day: a number that
+     * names an activity and implies a result. Both halves come from an attempt
+     * (worker rule 2) — `postsSeen` from posts that were ingested,
+     * `deadlinesFound` from what they produced.
+     */
+    const read = {
+      enabled: true,
+      state: "ok",
+      lastObservedAt: "2026-09-18T10:32:00-05:00",
+      postsSeen: 25,
+    } as const;
+    expect(describePiazza({ ...read, deadlinesFound: 1 }, NOW)).toMatch(
+      /^On · last read .* · 25 posts, 1 deadline found$/,
+    );
+    expect(describePiazza({ ...read, deadlinesFound: 3 }, NOW)).toMatch(
+      /^On · last read .* · 25 posts, 3 deadlines found$/,
+    );
+    expect(describePiazza({ ...read, deadlinesFound: 0 }, NOW)).toMatch(
+      /^On · last read .* · 25 posts, none with a deadline$/,
+    );
+  });
+
+  it("says nothing about deadlines a run never counted", () => {
+    // A store written before the count existed. "none with a deadline" would be
+    // a claim about an attempt that never recorded one.
     const row = describePiazza(
       { enabled: true, state: "ok", lastObservedAt: "2026-09-18T10:32:00-05:00", postsSeen: 3 },
       NOW,
     );
     expect(row).toMatch(/^On · last read .* · 3 posts$/);
+  });
+
+  it("counts deadlines across runs, and only from a run that ingested", () => {
+    const first = applyPiazzaResult(
+      { enabled: true },
+      { kind: "ok", newPosts: 2, deadlines: 1 },
+      NOW_ISO,
+    );
+    expect(first.deadlinesFound).toBe(1);
+    // A later sync that read no new posts passes no count, and must not reset
+    // the row to "none with a deadline".
+    const second = applyPiazzaResult(first, { kind: "ok", newPosts: 0 }, NOW_ISO);
+    expect(second.deadlinesFound).toBe(1);
+    // And a later sync that found more adds to it, rather than replacing it:
+    // the row's count is "since this source was switched on", like `postsSeen`.
+    expect(applyPiazzaResult(second, { kind: "ok", newPosts: 4, deadlines: 2 }, NOW_ISO)
+      .deadlinesFound).toBe(3);
+    // A sync that read posts and found nothing does record the zero.
+    const third = applyPiazzaResult(
+      { enabled: true },
+      { kind: "ok", newPosts: 25, deadlines: 0 },
+      NOW_ISO,
+    );
+    expect(third.deadlinesFound).toBe(0);
   });
 });
 
@@ -524,14 +601,281 @@ describe("the requests this module describes", () => {
     expect(classPageUrl()).toBe("https://piazza.com/class");
   });
 
-  it("writes down content.get without pretending to parse it", () => {
-    // The request is known; the response is not captured, so there is no
-    // parser — and the seam throws rather than returning an empty answer.
+  it("asks content.get for one post by its cid", () => {
     expect(JSON.parse(postBodyRequest("mtca1sh8pfk6ze", NID).body)).toEqual({
       method: "content.get",
       params: { cid: "mtca1sh8pfk6ze", nid: NID },
     });
-    expect(() => fetchPostBody()).toThrow(/post\.json/);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Post bodies                                                                */
+/* -------------------------------------------------------------------------- */
+
+/** The cid and nr of the captured `content.get` response (fixtures README). */
+const CID = "mu6b814nxeb4ko";
+const CTX = { nid: NID, cid: CID };
+
+describe("htmlToText", () => {
+  /*
+   * Tested directly rather than only through the capture, because every way of
+   * getting this wrong is invisible against well-formed markup: the capture has
+   * no `<script>`, no encoded markup and no tag-less line that would notice a
+   * missing break. Deliberately unrealistic inputs, house rule 10.
+   */
+  it("turns block tags into line breaks and inline tags into nothing", () => {
+    // A paragraph is a blank line, which is one of `announce.ts`'s sentence
+    // boundaries; a `<br>` is a single break, which is the other.
+    expect(htmlToText("<p>HW2 is out.</p><p>It is <strong>due</strong> Friday.</p>")).toBe(
+      "HW2 is out.\n\nIt is due Friday.",
+    );
+    expect(htmlToText("line one<br>line two")).toBe("line one\nline two");
+  });
+
+  it("keeps a sentence boundary the grammar depends on", () => {
+    // The point of the break: with the tags merely deleted the two sentences
+    // would read "It is due.Friday we review", and a trigger in one would be
+    // free to bind the date in the other.
+    expect(htmlToText("<div>It is due.</div><div>Friday we review.</div>")).toBe(
+      "It is due.\n\nFriday we review.",
+    );
+  });
+
+  it("decodes entities last, so quoted markup is not eaten as a tag", () => {
+    expect(htmlToText("<p>write &lt;div&gt; here</p>")).toBe("write <div> here");
+    expect(htmlToText("<p>MP1 &#34;Recommended&#34; &#43; more&nbsp;now</p>")).toBe(
+      'MP1 "Recommended" + more now',
+    );
+  });
+
+  it("drops scripts and styles with their contents", () => {
+    expect(htmlToText("<p>a</p><script>var due = '9/25';</script><p>b</p>")).toBe("a\n\nb");
+  });
+});
+
+describe("parsePostBody over the real content.get capture", () => {
+  it("reads the newest version, its subject and the text the grammar sees", () => {
+    const body = parsePostBody(post(), CTX);
+    expect(body.nr).toBe(179);
+    expect(body.cid).toBe(CID);
+    expect(body.subject).toBe('MP1 "Recommended" solutions (On-campus MPs only)');
+    // `history` is newest first and holds five versions; this is version 0's
+    // own timestamp, not the post's `created` (2026-09-18T01:58:47Z).
+    expect(body.versionAt).toBe("2026-09-18T03:12:18Z");
+    expect(body.instructorNote).toBe(true);
+    expect(body.text.startsWith(`${body.subject}\n`)).toBe(true);
+    expect(body.bodyText).toContain("Dear 4cr On-campus + Chicago students,");
+    // Past character 120 — the whole reason this request exists.
+    expect(body.bodyText).toContain("START MP2 NOW!");
+    expect(body.bodyText).not.toContain("<");
+    expect(body.bodyText).not.toContain("&#");
+  });
+
+  it("states no deadline, and says which kind of nothing that is", () => {
+    // The capture is a real instructor note announcing solutions, so the honest
+    // answer is none — and `describeEmpty` tells it from a post this grammar
+    // failed on (parser rule 2).
+    const body = parsePostBody(post(), CTX);
+    expect(extractDeadlineMentions(body.text, "2026-09-18T01:58:47Z")).toEqual([]);
+    expect(describeEmpty(body.text)).toBe("trigger-without-date-words");
+  });
+
+  it("reads a deadline out of a deliberately edited copy of the same post", () => {
+    /*
+     * Deliberately edited (house rule 10). The capture states no deadline, so
+     * it cannot tell "the body stage works" from "the body stage is dead" — and
+     * the sentence below sits far past the 120th character, where no snippet
+     * could ever have reached it.
+     */
+    const edited = post();
+    const version = history0(edited);
+    version["content"] = `${String(version["content"])}<p>Also: MP2 is due 10/3 at 11:59pm.</p>`;
+    const body = parsePostBody(edited, CTX);
+    expect(body.bodyText.indexOf("MP2 is due")).toBeGreaterThan(120);
+    const mentions = extractDeadlineMentions(body.text, "2026-09-18T01:58:47Z");
+    expect(mentions).toHaveLength(1);
+    expect(mentions[0]).toMatchObject({
+      at: "2026-10-03T23:59:00-05:00",
+      timeAssumed: false,
+      subject: "MP2",
+      kind: "due",
+    });
+    // Grounded in the text that was handed to the grammar, not in the HTML.
+    expect(body.text).toContain(mentions[0]!.span);
+  });
+
+  it("marks a staff post from either marker, and a student post from neither", () => {
+    const tagged = post();
+    result(tagged)["config"] = {};
+    expect(parsePostBody(tagged, CTX).instructorNote).toBe(true);
+
+    const announced = post();
+    result(announced)["tags"] = ["pin"];
+    expect(parsePostBody(announced, CTX).instructorNote).toBe(true);
+
+    const student = post();
+    result(student)["tags"] = ["pin", "student"];
+    result(student)["config"] = { is_announcement: 0 };
+    expect(parsePostBody(student, CTX).instructorNote).toBe(false);
+  });
+
+  it("matches the tag exactly, never as a substring", () => {
+    // House rule 6: `instructor-notes` is not `instructor-note`.
+    const near = post();
+    result(near)["tags"] = ["instructor-notes"];
+    result(near)["config"] = {};
+    expect(parsePostBody(near, CTX).instructorNote).toBe(false);
+  });
+
+  it("throws, naming the field, when history[0] is unreadable", () => {
+    const cases: [string, (json: Record<string, unknown>) => void, RegExp][] = [
+      ["no history", (json) => { delete result(json)["history"]; }, /history\[0\]/],
+      ["empty history", (json) => { result(json)["history"] = []; }, /history\[0\]/],
+      ["no content", (json) => { delete history0(json)["content"]; }, /history\[0\]\.content/],
+      ["empty content", (json) => { history0(json)["content"] = "   "; }, /history\[0\]\.content/],
+      ["no subject", (json) => { delete history0(json)["subject"]; }, /history\[0\]\.subject/],
+      [
+        "naive created",
+        (json) => { history0(json)["created"] = "2026-09-18 03:12:18"; },
+        /history\[0\]\.created/,
+      ],
+    ];
+    for (const [name, edit, message] of cases) {
+      const json = post();
+      edit(json);
+      expect(() => parsePostBody(json, CTX), name).toThrow(message);
+    }
+  });
+
+  it("refuses an error body, and a body for another post", () => {
+    const failed = post();
+    failed["error"] = "content not found";
+    expect(() => parsePostBody(failed, CTX)).toThrow(/content not found/);
+
+    // `error: null` is what a healthy response carries, so its presence proves
+    // nothing (house rule 5).
+    expect(POST["error"]).toBeNull();
+    expect(() => parsePostBody(post(), CTX)).not.toThrow();
+
+    // A response for a different post would be ingested under this post's id
+    // and quoted back at the student as words it does not contain.
+    expect(() => parsePostBody(post(), { nid: NID, cid: "mother1postid" })).toThrow(
+      /mu6b814nxeb4ko/,
+    );
+  });
+
+  it("replaces the snippet without moving the id or the posted instant", () => {
+    const feedPost = posts().find((entry) => entry.nr === 179)!;
+    const merged = withPostBody(feedPost, parsePostBody(post(), CTX));
+    expect(merged.id).toBe(feedPost.id);
+    // `history[0].created` is when the latest *edit* was made; every relative
+    // phrase in the post resolves against when it was written.
+    expect(merged.postedAt).toBe(feedPost.postedAt);
+    expect(merged.bodyRead).toBe(true);
+    expect(merged.text).toContain("START MP2 NOW!");
+    expect(merged.text.length).toBeGreaterThan(feedPost.text.length);
+  });
+
+  it("refuses a body that belongs to another post number", () => {
+    const feedPost = posts().find((entry) => entry.nr === 42)!;
+    expect(() => withPostBody(feedPost, parsePostBody(post(), CTX))).toThrow(/42/);
+  });
+});
+
+describe("postsToSend carries the posts, not only the payloads", () => {
+  it("hands back every sent post, in the payloads' order", () => {
+    // The body stage reads `cid` and `nr` off these; an empty `sent` would
+    // fetch no bodies at all and leave every post at its 120-character
+    // snippet, with the log still saying the feed was read.
+    const plan = postsToSend(posts());
+    expect(plan.sent.map((post) => post.id)).toEqual(plan.payloads.map((payload) => payload.id));
+    expect(plan.sent).toHaveLength(25);
+    expect(plan.sent.every((post) => post.cid !== "")).toBe(true);
+  });
+
+  it("leaves out everything it skipped", () => {
+    const plan = postsToSend(posts(), { sinceNr: 100 });
+    expect(plan.sent.every((post) => post.nr > 100)).toBe(true);
+    expect(plan.sent.every((post) => post.kind === "note")).toBe(true);
+  });
+});
+
+describe("bodyBatch", () => {
+  const stub = (nr: number): ObservedPost => ({ nr, id: `piazza:${NID}:${nr}` }) as ObservedPost;
+
+  it("takes the oldest first and stops the mark at the batch", () => {
+    // The deferred posts are read next sync, so `lastNr` may not run ahead of
+    // them: a post marked read at its snippet never gets its body.
+    const batch = bodyBatch([stub(5), stub(9), stub(7)], [stub(5), stub(7), stub(9), stub(11)], 2);
+    expect(batch.batch.map((entry) => entry.nr)).toEqual([5, 7]);
+    expect(batch.deferred).toBe(1);
+    expect(batch.lastNr).toBe(7);
+  });
+
+  it("marks the whole feed read when nothing was deferred", () => {
+    // Including the questions above the last note: they were decided this sync.
+    const batch = bodyBatch([stub(5), stub(7)], [stub(5), stub(7), stub(11)], 25);
+    expect(batch.deferred).toBe(0);
+    expect(batch.lastNr).toBe(11);
+  });
+
+  it("defaults to 25 bodies per sync per class", () => {
+    expect(MAX_BODIES_PER_SYNC).toBe(25);
+    const many = Array.from({ length: 30 }, (_, i) => stub(i + 1));
+    const batch = bodyBatch(many, many);
+    expect(batch.batch).toHaveLength(25);
+    expect(batch.deferred).toBe(5);
+    expect(batch.lastNr).toBe(25);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Signed in, signed out, or changed                                          */
+/* -------------------------------------------------------------------------- */
+
+describe("classifyClassPage", () => {
+  it("calls the real signed-out capture signed out", () => {
+    expect(classifyClassPage(SIGNED_OUT)).toBe("signed_out");
+  });
+
+  it("calls the real signed-in capture signed in", () => {
+    expect(classifyClassPage(HTML)).toBe("signed_in");
+  });
+
+  it("is not fooled by a class called Log In, or by a link to /login", () => {
+    /*
+     * House rule 12, in its most dangerous form: a marker that also matches a
+     * signed-in page turns every successful sync into "Sign in needed" and
+     * freezes the list, silently. Neither capture can show that, so this page is
+     * deliberately adversarial — a real signed-in page carrying the words a
+     * loose marker would match.
+     */
+    const adversarial =
+      HTML.replace('"CS 424: CS 424"', '"CS 424: Log Interpretation"') +
+      '<a href="/login">Log In</a><div class="qa_homepage_container">Log in to proceed</div>' +
+      // And the marker itself, on a page that is signed in: a login form in a
+      // hidden modal is markup a signed-in shell could ship any day, and a
+      // marker that fired on it would freeze this source on "Sign in needed"
+      // for every student at once. `const USER` decides first, always.
+      '<form id="login-form" method="post" action="https://piazza.com/class"></form>';
+    expect(adversarial).toContain("Log In");
+    expect(classifyClassPage(adversarial)).toBe("signed_in");
+  });
+
+  it("calls a page with neither marker a redesign, not a sign-in", () => {
+    // "No `const USER`" used to mean needs_login on its own. With a positive
+    // marker, a page that has neither is what it says it is.
+    expect(classifyClassPage("<html><body><h1>Piazza</h1></body></html>")).toBe("changed");
+    expect(classifyClassPage(SIGNED_OUT.replace('id="login-form"', 'id="search-form"'))).toBe(
+      "changed",
+    );
+  });
+
+  it("wants the form's own action, not any form on the page", () => {
+    expect(
+      classifyClassPage(SIGNED_OUT.replace('action="https://piazza.com/class"', 'action="/search"')),
+    ).toBe("changed");
   });
 });
 
@@ -576,27 +920,38 @@ function ingestAll(json: unknown = feed()): {
 }
 
 describe("the real feed through ingestPost", () => {
-  it("reads all 25 notes, and finds no deadline in any of them", () => {
+  it("reads all 25 notes, and finds the one deadline their snippets state", () => {
     /*
-     * The finding, recorded rather than assumed away (docs/piazza-findings.md).
-     * Every note in this class states its deadlines *inside the post*, past the
-     * 120th character that `content_snipet` stops at — the running posts that
-     * carry the real dates are the longest ones on the page — and the two
-     * subjects that do carry a date say "Register Your MP Group by EOD Today
-     * 8/31", which `announce.ts` does not read: it wants a due-word, and "by
-     * EOD" is not one.
+     * The scorecard, recorded rather than assumed away
+     * (docs/piazza-findings.md). It was **zero** until 2026-09-18, when
+     * `announce.ts` learned that "<verb> … by <date>" is a deadline: post 42
+     * says "Reminder: Register Your MP Group by EOD Today 8/31!" in its subject
+     * and again in its snippet, and the grammar declined both because "by" was
+     * not a due-word.
      *
-     * So the snippet stage's value is **unproven on this class**, and the case
-     * below is what would have to change for it to produce anything. The point
-     * of asserting zero rather than loosening the assertion is that the day
-     * `content.get` lands, this number has to move.
+     * One suggestion, not two: the snippet restates the subject's deadline, and
+     * `alreadySuggested` collapses one deadline stated twice into one row.
+     *
+     * Every other note's deadlines are still inside the post, past the 120th
+     * character `content_snipet` stops at — which is what `parsePostBody` and
+     * the body stage in `background.ts` are for, and why this number is a
+     * floor rather than a finding about the class.
      */
     const { suggestions, seen } = ingestAll();
     expect(Object.keys(seen)).toHaveLength(25);
-    expect(suggestions).toEqual([]);
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toEqual({
+      title: "MP Group",
+      // Posted 2026-08-31T15:33:29Z — 10:33 in Chicago — so "Today" is the
+      // 31st, and EOD is 23:59 on it. `timeAssumed` stays true: "end of day"
+      // has been this grammar's own 23:59 since `eod-friday.txt`, and "EOD"
+      // follows that convention rather than inventing a second one.
+      at: "2026-08-31T23:59:00-05:00",
+      span: "EOD Today",
+    });
   });
 
-  it("does produce a suggestion when a snippet states one", () => {
+  it("produces another when a second snippet states one", () => {
     /*
      * Deliberately unrealistic (house rule 10): the wiring — subject, snippet,
      * `postedAt` as the anchor, the id `seenPosts` remembers — is either
@@ -610,9 +965,10 @@ describe("the real feed through ingestPost", () => {
       content_snipet: "HW2 is out. It is due 9/25 at 11:59pm. Start early.",
     };
     const { suggestions } = ingestAll(stated);
-    expect(suggestions).toHaveLength(1);
-    expect(suggestions[0]).toMatchObject({ at: "2026-09-25T23:59:00-05:00" });
-    expect(suggestions[0]!.span).toContain("9/25");
+    expect(suggestions).toHaveLength(2);
+    const hw2 = suggestions.find((entry) => entry.title === "HW2 released")!;
+    expect(hw2).toMatchObject({ at: "2026-09-25T23:59:00-05:00" });
+    expect(hw2.span).toContain("9/25");
   });
 
   it("reads each post once, whatever the poll returns next time", () => {

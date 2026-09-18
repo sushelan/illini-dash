@@ -630,6 +630,57 @@ describe("the triggers the real feed writes", () => {
     expect(mention.at).toBe("2026-09-25T17:00:00-05:00");
   });
 
+  it("reads 'register … by <when>', off the real Piazza feed", () => {
+    /*
+     * The trigger table was written from the Campuswire capture, where every
+     * deadline was a submission, so nothing in it covered the hardest deadline
+     * on the Piazza page: "Reminder: Register Your MP Group by EOD Today
+     * 8/31!" (miss it and you get no VM). `tests/piazza-real.test.ts` holds the
+     * post itself; this is the phrase.
+     */
+    const mention = read("Please register your MP Group by Friday.");
+    expect(mention.kind).toBe("due");
+    expect(mention.subject).toBe("MP Group");
+    expect(mention.at).toBe("2026-09-25T23:59:00-05:00");
+  });
+
+  it("reads 'sign up … by' and 'respond … by' too", () => {
+    expect(read("Sign up for a demo slot by Monday at 5 pm.").at).toBe(
+      "2026-09-21T17:00:00-05:00",
+    );
+    expect(read("Please respond to the partner survey by Tuesday.").at).toBe(
+      "2026-09-22T23:59:00-05:00",
+    );
+  });
+
+  it("reads 'by EOD <day>' as the end of that day, and says the time is ours", () => {
+    // 23:59 is this code's invention, not a clock the instructor typed — the
+    // same reading `fixtures/announcements/eod-friday.txt` pins for the
+    // spelled-out "end of day Friday", rather than a second convention for the
+    // abbreviation.
+    const mention = read("Register your group by EOD Friday.");
+    expect(mention.at).toBe("2026-09-25T23:59:00-05:00");
+    expect(mention.timeAssumed).toBe(true);
+  });
+
+  it("never reads a bare 'by <name>': an attribution is not a deadline", () => {
+    /*
+     * The verb is the only thing that makes a "by" a deadline, and these are
+     * the sentences that would break if a bare "by <date-ish>" arm were ever
+     * added: an announcement says "by" about who wrote something far more often
+     * than about when it is due. Each one is a sentence off a real feed's
+     * shape, and each must produce nothing at all.
+     */
+    for (const text of [
+      "Today's slides by Prof. STAFF-9 are on the website.",
+      "The solutions were posted by the TAs on Friday.",
+      "This guide was written by last year's staff on Monday.",
+      "The recording by STAFF-1 from Tuesday is up.",
+    ]) {
+      expect(extractDeadlineMentions(text, POSTED), text).toEqual([]);
+    }
+  });
+
   it("does not join a 'by' in the next clause to a verb in this one", () => {
     // ":" and ";" end the object, so "submit … : … by Friday" is not one
     // deadline. Without that the filler would reach across a whole list.

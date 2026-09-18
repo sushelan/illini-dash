@@ -72,6 +72,16 @@ export interface IngestResult {
    * otherwise the same silence, and they want opposite fixes.
    */
   skipped: { reason: string }[];
+  /**
+   * How many **items** this post moved, as opposed to how many keys were
+   * written.
+   *
+   * `dueOverrides` is keyed by every member of every moved item, so counting it
+   * counts sources rather than deadlines: one assignment that Canvas and the
+   * course page both list would be announced as two corrections. Added for the
+   * Piazza row, which says how many deadlines a sync found (`core/piazza.ts`).
+   */
+  movedItems: number;
 }
 
 /**
@@ -189,7 +199,13 @@ export function ingestPost(
   }
   if (!isInstant(now)) throw new ParseError(`now must be an instant with an offset: ${String(now)}`);
 
-  const result: IngestResult = { dueOverrides: {}, suggestions: [], seenPosts: {}, skipped: [] };
+  const result: IngestResult = {
+    dueOverrides: {},
+    suggestions: [],
+    seenPosts: {},
+    skipped: [],
+    movedItems: 0,
+  };
 
   if (input.seenPosts[post.id] !== undefined) {
     result.skipped.push({
@@ -286,6 +302,7 @@ export function ingestPost(
     }
 
     movedHere.add(item.id);
+    result.movedItems = movedHere.size;
     const entry: DueOverride = {
       at: mention.at,
       ...(resolution.from ? { from: resolution.from } : {}),

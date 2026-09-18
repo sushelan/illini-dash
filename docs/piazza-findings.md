@@ -51,6 +51,9 @@ it was first modelled on (parser house rule 9).
 3. `fixtures/piazza/class-page.html` — `https://piazza.com/class/<nid>` via the options
    page's Fixture capture tool (it accepts any https URL), scrubbed; for the course name
    and any embedded config.
+4. `fixtures/piazza/class-page-signed-out.html` — the same URL with no session, pasted from
+   *view-source* (2026-09-18). It is what makes a **positive** signed-out marker possible;
+   see below.
 
 ## What the term rule is, and why `status` is not it
 
@@ -61,25 +64,53 @@ is", derived from `term_key` (falling back to the `term` text), and `status` is 
 Fall is Aug–Dec, spring Jan–May, summer Jun–Jul (Sushi). A class whose term cannot be read
 is kept and not polled, with the raw value in `extra.unparsedTerm`.
 
-## What the snippet stage actually reads — and what it does not
+## What the two stages read, and the scorecard over the real feed
 
-`content_snipet` is **the first 120 characters of the body and no more**, so this build
-sees a subject and one line. Run over the whole captured feed (25 notes), the existing
-grammar in `announce.ts` finds **zero deadlines**, and `tests/piazza.test.ts` asserts that
-number rather than loosening the assertion. Two reasons, both worth knowing before this is
-called a feature:
+`content_snipet` is **the first 120 characters of the body and no more**, so the feed stage
+sees a subject and one line. That is why there is a second stage: `content.get` returns the
+whole post, `parsePostBody` reads `result.history[0]` (newest version first), and
+`background.ts` fetches a body for every new note — at most four in flight, at most 25 per
+class per sync, each failure isolated to its own post, which falls back to its snippet and
+says so in the log.
 
-1. The notes that carry real dates are the long "Running Post" ones, and every date in them
-   is far past character 120.
-2. The two subjects that do carry a date say *"Register Your MP Group by EOD Today 8/31"*.
-   `announce.ts` requires a due-word — "due", "deadline", "extended to" — and "by EOD" is
-   not one of them. This is a grammar question, not a Piazza one; widening it would affect
-   every source, so it is recorded here rather than done here.
+**The feed alone yields exactly one deadline over the 25 real notes** (it yielded zero until
+2026-09-18), and `tests/piazza-real.test.ts` asserts that note by note rather than in
+aggregate:
 
-So **the value of the snippet stage is unproven on real data**, and `content.get` is what
-would change that. The wiring is pinned separately by a deliberately edited feed entry
-whose snippet states a deadline (house rule 10), so "the pipeline is dead" and "the posts
-say nothing" cannot be confused.
+| note | subject | reading |
+| --- | --- | --- |
+| 42 | *Reminder: Register Your MP Group by EOD Today 8/31!* | due `2026-08-31T23:59:00-05:00`, `timeAssumed`, confidence 0.65, span `EOD Today`, subject `MP Group` — **one suggestion**, though the snippet restates it |
+
+The other 24 read nothing, and the file records *which* nothing each of them is
+(`describeEmpty`): 14 have no date words at all, 4 say a date with no trigger, 4 say a
+trigger with no date, and **two — notes 68 and 28 — say both without joining them**
+("Group/VM mapping (updated 9/9)", "[Last Updated Sep 13.]"), which is the reason that
+distinction exists.
+
+Two corrections to what this document said before, both load-bearing:
+
+1. It said the grammar "finds **zero** deadlines" and inferred that *the value of the
+   snippet stage is unproven on real data*. The zero was real; the inference was wrong, and
+   so was the reason given for one half of it. Note 42's *"Register … by EOD Today 8/31"* is
+   the hardest deadline on the page — miss it and you get no VM — and it was declined
+   because `announce.ts`'s trigger table was written from the Campuswire capture, where
+   every deadline is a submission. "`<verb phrase>` … by `<date>`" is now a trigger for
+   `register`, `sign up` and `respond` as well as the submission verbs, and **there is
+   still no bare "by `<date>`" arm**: "slides by Prof. X", "posted by", "written by" are
+   attributions, and each is pinned as producing nothing (`tests/announce.test.ts`).
+2. The other half stands and is worth restating: the long "Running Post" notes keep their
+   dates far past character 120, and **no grammar can reach them from the feed response**.
+   That is `content.get`'s job, not the grammar's.
+
+`timeAssumed` stays **true** for "EOD": "end of day" has been this grammar's own 23:59
+since `fixtures/announcements/eod-friday.txt`, and the abbreviation follows the same
+convention rather than introducing a second one. It keeps the reading below
+`AUTO_MOVE_CONFIDENCE`, so it is offered and never applied silently.
+
+The wiring of each stage is pinned by a deliberately edited copy of its own capture
+(house rule 10) — a feed entry whose snippet states a deadline, and a `content.get` body
+with a deadline sentence appended past character 400 — so "the pipeline is dead" and "the
+posts say nothing" cannot be confused.
 
 ## The feed's shapes, as captured
 
@@ -94,19 +125,39 @@ say nothing" cannot be confused.
   arrive as JSON rather than through a DOM. They are decoded before the text reaches the
   grammar, since a suggestion quotes its span back at the student.
 
-## VERIFY — the two captures this is still missing
+## The signed-out page, and the positive marker it made possible
 
-1. **A signed-out class page.** Until one exists, "no `const USER =` on the page" is treated
-   as `needs_login` rather than `parse_error`: signing in is the fix in the case that
-   matters, and a wrong "sign in" costs a click while a wrong "the page changed" costs the
-   deadlines. That is a *negative* marker, which house rule 11 says is the weak form — a
-   positive one (a login form's own hook, or a `/login` landing) needs the capture. Logging
-   out also rotates the session cookie, which is worth doing anyway.
-2. ~~`fixtures/piazza/post.json`~~ — **captured** (2026-09-18, the same evening this was
-   written, on a branch the feed build could not see): one `content.get` response, a
-   five-version instructor note whose body is HTML in `result.history[0].content`. The
-   request shape is in `postBodyRequest`, and `fetchPostBody` throws rather than returning
-   an empty answer until the parser for it exists — which is the next build, not a VERIFY.
+1. **A signed-out class page is captured** (`fixtures/piazza/class-page-signed-out.html`,
+   2026-09-18), and the negative marker it was standing in for is gone. Piazza answers
+   `/class/<nid>` for a signed-out student with its **marketing splash** — 200, the
+   unchanged URL, an ordinary title, no redirect, and no `const USER =` — which is house
+   rule 11's case exactly.
+
+   `classifyClassPage` now answers three ways, and the third is the one that had no name:
+
+   - `const USER =` present → **signed in**, whatever else is on the page.
+   - Absent, and the splash's own `<form id="login-form" action="https://piazza.com/class">`
+     present → **signed out**, so the row says "Sign in needed" and offers the button.
+   - Neither → **the page changed**, reported as an error rather than as a sign-in. Until
+     this build, "no `const USER`" alone meant `needs_login`, which is right for a sign-out
+     and wrong the day Piazza renames the object: the row would ask a signed-in student to
+     sign in and the list would freeze at whatever it last held, silently.
+
+   The form was chosen over `body.qa_homepage_container` because a class attribute is a
+   list that can acquire neighbours and can be reused by any page borrowing the homepage
+   shell, while a form posting credentials to `/class` *is* the sign-in prompt — and both
+   halves of its match (the id and the literal `action`) are required, because "a form
+   somewhere on the page" is the loose marker house rule 12 warns about. House rule 12's
+   other half is covered by a deliberately adversarial page in `tests/piazza.test.ts`: the
+   real signed-in capture, with a class renamed *Log Interpretation*, a `/login` link and a
+   hidden login form appended, which must still read as signed in.
+2. **`fixtures/piazza/post.json` is captured and read** (2026-09-18): one `content.get`
+   response, a five-version instructor note whose body is HTML in
+   `result.history[0].content`. `postBodyRequest` builds the request and `parsePostBody`
+   reads the response; the seam that used to throw is gone. The one thing still unobserved
+   is what `content.get` answers for an **expired** session — `classifyPiazzaResponse` is
+   written for a 401/403 or an `error` string and handles a 200 with neither as a parse
+   failure of that one post, which costs a snippet rather than the run.
 
 ## The fixture's scrub was broken, and is repaired
 

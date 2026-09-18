@@ -71,19 +71,25 @@ import {
 } from "./core/gcal-client.js";
 import {
   applyPiazzaResult,
+  bodyBatch,
+  classifyClassPage,
   classifyPiazzaResponse,
   classPageUrl,
   feedRequest,
-  highestNr,
   parseClassPage,
   parseFeed,
+  parsePostBody,
   piazzaNeedsRecheck,
   planPiazza,
+  postBodyRequest,
   postsToSend,
+  withPostBody,
+  MAX_BODIES_PER_SYNC,
   PIAZZA_CSRF_HEADER,
   PIAZZA_MATCH,
   PIAZZA_ORIGIN,
   PIAZZA_SESSION_COOKIE,
+  type ObservedPost,
   type PiazzaClass,
   type PiazzaPoll,
   type PiazzaResult,
@@ -1221,20 +1227,64 @@ async function piazzaClasses(nid: string | undefined): Promise<PiazzaClass[]> {
   if (kind === "http_error") {
     throw new Error(`Piazza answered ${page.status} for ${classPageUrl(nid)}`);
   }
+  /*
+   * Status first, then the page itself (house rules 8 and 11). Piazza serves a
+   * signed-out student its **marketing splash at 200**, so the status alone
+   * says "signed in" — and the splash's own login form is the positive marker
+   * that says otherwise. A page with neither that form nor `const USER` is
+   * neither state: it is a redesign, and saying "sign in" about it would leave
+   * the row asking for a click that fixes nothing.
+   */
+  const shape = classifyClassPage(page.body);
+  if (shape === "signed_out") {
+    throw new PiazzaNeedsLogin("Piazza served its signed-out splash for the class page");
+  }
+  if (shape === "changed") {
+    throw new Error(
+      "the Piazza class page has neither the enrolment list nor the sign-in form: it changed shape",
+    );
+  }
+  return parseClassPage(page.body, new Date()).networks;
+}
+
+/**
+ * The whole post behind one feed entry, or `undefined` with the reason logged.
+ *
+ * Isolated per post on purpose: a `content.get` that fails costs that post its
+ * body and nothing else — it keeps its 120-character snippet, which is what
+ * this stage was before — and never the other twenty-four (parser house rule 1,
+ * one level up).
+ */
+async function piazzaBody(
+  post: ObservedPost,
+  token: string,
+  notes: string[],
+): Promise<ObservedPost> {
   try {
-    return parseClassPage(page.body, new Date()).networks;
-  } catch (err) {
-    /*
-     * A class page with no `const USER` is currently indistinguishable from a
-     * student who has never signed in (house rule 11), and until the signed-out
-     * capture exists that ambiguity is resolved towards `needs_login`: it
-     * offers a button, and the alternative offers "the page changed" to someone
-     * whose entire fix is signing in. Recorded as VERIFY in the findings doc.
-     */
-    if (err instanceof Error && err.message.includes("`const USER =`")) {
-      throw new PiazzaNeedsLogin(err.message);
+    const request = postBodyRequest(post.cid, post.nid);
+    const response = await piazzaFetch(request.url, {
+      method: request.method,
+      body: request.body,
+      headers: { "Content-Type": "application/json", [PIAZZA_CSRF_HEADER]: token },
+    });
+    const json = asJson(response.body);
+    const kind = classifyPiazzaResponse({
+      status: response.status,
+      finalUrl: response.finalUrl,
+      body: json,
+    });
+    if (kind === "needs_login") throw new PiazzaNeedsLogin(`post ${post.nr} asked for a sign-in`);
+    if (kind === "http_error") {
+      throw new Error(`Piazza answered ${response.status} for post ${post.nr}`);
     }
-    throw err;
+    return withPostBody(post, parsePostBody(json, { nid: post.nid, cid: post.cid }));
+  } catch (err) {
+    if (err instanceof PiazzaNeedsLogin) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    // Worker rule 5: the fallback is a decision the student may have to debug,
+    // so it says which post and what it fell back *to*.
+    notes.push(`post ${post.nr}: body unread (${message}) — reading its 120-character snippet instead`);
+    return post;
   }
 }
 
@@ -1308,6 +1358,8 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       const payloads: { nid: string; payload: ReturnType<typeof postsToSend>["payloads"][number] }[] = [];
 
       const failures: string[] = [];
+      /** Every new note from every class, for one bounded pool of body fetches. */
+      const queued: { entry: PiazzaPoll; post: ObservedPost }[] = [];
       let signedOut = false;
       const outcomes = await pool(poll, async (entry) => {
         try {
@@ -1332,11 +1384,31 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
             courseHint: entry.courseHint,
             fetchedAt: new Date().toISOString(),
           });
-          const top = highestNr(posts);
-          if (top !== undefined) lastNr[entry.nid] = Math.max(top, entry.sinceNr ?? 0);
           const send = postsToSend(posts, { sinceNr: entry.sinceNr });
-          for (const payload of send.payloads) payloads.push({ nid: entry.nid, payload });
-          return `${entry.courseHint}: ${posts.length} post(s) in the feed, ${send.payloads.length} new note(s)`;
+          /*
+           * The bodies are **not** fetched here. `content_snipet` is the first
+           * 120 characters and every deadline this class states is past them,
+           * so each new note needs a second request — but a pool inside a pool
+           * would be four classes times four bodies, sixteen requests at once
+           * at piazza.com. They are queued for one pool below instead, which is
+           * the only way `MAX_CONCURRENT_PER_HOST` means what it says.
+           *
+           * `lastNr` stops at the batch rather than at the top of the feed, so a
+           * deferred post is read in full next sync instead of being marked read
+           * at its snippet for ever (`bodyBatch`).
+           */
+          const batch = bodyBatch(send.sent, posts, MAX_BODIES_PER_SYNC);
+          if (batch.deferred > 0) {
+            console.log(
+              `[piazza] ${entry.courseHint}: ${batch.deferred} more new note(s) deferred to the ` +
+                `next sync (${MAX_BODIES_PER_SYNC} bodies per sync per class)`,
+            );
+          }
+          if (batch.lastNr !== undefined) {
+            lastNr[entry.nid] = Math.max(batch.lastNr, entry.sinceNr ?? 0);
+          }
+          for (const post of batch.batch) queued.push({ entry, post });
+          return `${entry.courseHint}: ${posts.length} post(s) in the feed, ${batch.batch.length} new note(s) to read`;
         } catch (err) {
           /*
            * Per class, so one class cannot cost the others their announcements
@@ -1356,6 +1428,30 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
 
       for (const line of outcomes) console.log(`[piazza] ${line}`);
       if (signedOut) throw new PiazzaNeedsLogin("a class feed asked for a sign-in");
+
+      /*
+       * One pool for every new note in every class: `MAX_CONCURRENT_PER_HOST`
+       * requests in flight at piazza.com, whatever the classes divide into. A
+       * post whose body fails keeps its snippet and says so (`piazzaBody`); a
+       * sign-out raised here is the session, so it ends the run.
+       */
+      const notes: string[] = [];
+      const bodies = await pool(queued, ({ post }) => piazzaBody(post, token, notes));
+      for (const note of notes) console.warn(`[piazza] ${note}`);
+      // Re-run over the posts as they now read: one place builds a payload, and
+      // these have already passed every filter in it.
+      for (const [index, post] of bodies.entries()) {
+        for (const payload of postsToSend([post]).payloads) {
+          payloads.push({ nid: queued[index]!.entry.nid, payload });
+        }
+      }
+      const full = bodies.filter((post) => post.bodyRead === true).length;
+      if (bodies.length > 0) {
+        console.log(
+          `[piazza] ${bodies.length} new note(s): ${full} read in full, ` +
+            `${bodies.length - full} from the 120-character snippet only`,
+        );
+      }
 
       /*
        * One `mutate`, holding the queue across every post: this is the same
@@ -1383,7 +1479,7 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
             };
             fresh.suggestions = [...fresh.suggestions, ...outcome.suggestions];
             fresh.seenPosts = { ...fresh.seenPosts, ...outcome.seenPosts };
-            moved += Object.keys(outcome.dueOverrides).length;
+            moved += outcome.movedItems;
             suggested += outcome.suggestions.length;
             // `seenPosts` is empty exactly when the post had been read before,
             // so this counts what was new rather than what was offered.
@@ -1402,6 +1498,10 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
         kind: "ok",
         ...(classes === undefined ? {} : { classes }),
         newPosts: read,
+        // Recorded whenever posts were actually ingested, including when the
+        // answer is zero — that is the number the Settings row needs in order
+        // to stop reading as "working" while producing nothing (worker rule 2).
+        ...(payloads.length > 0 ? { deadlines: moved + suggested } : {}),
         lastNr,
       };
     }

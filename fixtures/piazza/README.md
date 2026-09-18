@@ -23,10 +23,12 @@ discovery reads:
   do, and the Canvas current-term rule (§4.1 amendment) is the precedent.
 - Everything else in `USER` (profile, emails, notifications, `feed_prefetch`) is dropped
   from the fixture and must not be read by the source.
-- **No signed-out capture yet.** An expired session presumably redirects `/class/<nid>` to
-  `/login` (path marker, house rule 8) and the API answers 401 or an `error` body; a
-  never-signed-in student gets the marketing page (rule 11). Until captured, the source
-  treats a class page without `const USER =` as `needs_login`, not as "no classes".
+- **The signed-out capture exists** (below), and it is the marketing splash rather than a
+  redirect: 200 at the unchanged URL, no `const USER =`, a login form. So the source no
+  longer reads "no `const USER =`" as `needs_login` on its own — `classifyClassPage` wants
+  the splash's own `form#login-form` for that, and a page with neither is reported as a
+  page that changed. An *expired* session on the API is still the 401-or-`error` case
+  `classifyPiazzaResponse` handles (house rule 8).
 
 ## feed.json — `POST https://piazza.com/logic/api?method=network.get_my_feed`
 
@@ -84,7 +86,19 @@ and five students credited in the body are `STUDENT-N`.
   "Search for Teammates!" carries `tags: ["pin","student"]`).
 - Five versions of one note is why `history_size` exists; read `history[0]` only.
 
-Deliberately unrealistic: nothing.
+**Deliberately edited, inside the test.** The capture is a real instructor note about
+solutions and it states **no deadline**, which is the honest case and is asserted as such
+(with `describeEmpty` saying *which* nothing it is). It therefore cannot tell "the body
+stage reads a deadline" from "the body stage is dead", so `tests/piazza.test.ts` appends
+`<p>Also: MP2 is due 10/3 at 11:59pm.</p>` to a **copy** of `history[0].content` and says
+so there. The sentence sits far past character 120 on purpose: that is the whole claim
+this stage makes over the feed's snippet. The file on disk is untouched.
+
+`tests/piazza.test.ts` also edits copies for the cases the capture is healthy in — a
+missing `history`, an empty `content`, a naive `created`, a body answered for another
+`cid`, an `instructor-notes` tag that must not match `instructor-note`.
+
+Deliberately unrealistic in the file itself: nothing.
 
 ## class-page-signed-out.html — `GET https://piazza.com/class/<nid>` (signed OUT)
 
