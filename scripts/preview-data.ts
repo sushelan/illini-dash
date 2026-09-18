@@ -448,6 +448,16 @@ const sources = {
           // visible at once: a filled box beside an empty one whose placeholder
           // is the derived label.
           courseNames: { CS424: "Distributed Systems" },
+          // Switched on and having actually read something, because the state
+          // worth looking at in the preview is the one the row derives rather
+          // than the one the switch asserts.
+          observers: {
+            campuswire: {
+              enabled: true,
+              lastObservedAt: new Date().toISOString(),
+              postsSeen: 3,
+            },
+          },
           notificationsBlocked: false,
         };
         // An older worker does not have the field at all — this is the exact

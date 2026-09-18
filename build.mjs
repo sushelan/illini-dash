@@ -24,6 +24,21 @@ const options = {
   logLevel: "info",
 };
 
+/**
+ * The content script, built separately and as an IIFE.
+ *
+ * A dynamically registered content script is injected as a *classic* script, so
+ * the ESM output the four extension pages use would fail to parse in the page —
+ * and it would fail inside somebody else's console, on a page this extension is
+ * a guest on. Separate options rather than a second field on `options`, because
+ * esbuild's `format` is per-build.
+ */
+const observerOptions = {
+  ...options,
+  entryPoints: { "campuswire-observer": "src/observers/campuswire.ts" },
+  format: "iife",
+};
+
 async function copyStatic() {
   await cp("public", outdir, { recursive: true });
   await cp("adapters", `${outdir}/adapters`, { recursive: true });
@@ -38,9 +53,12 @@ if (watch) {
     setup(b) { b.onEnd(() => copyStatic()); },
   }] });
   await ctx.watch();
+  const observerCtx = await context(observerOptions);
+  await observerCtx.watch();
   console.log(`watching... (build ${buildId})`);
 } else {
   await build(options);
+  await build(observerOptions);
   await copyStatic();
   console.log(`built -> dist/ (build ${buildId})`);
 }

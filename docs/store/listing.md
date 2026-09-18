@@ -87,6 +87,7 @@ Store review asks for a sentence per permission. Keep them literal.
 | `notifications` | Displays the deadline reminders the user has enabled. |
 | `offscreen` | A Manifest V3 service worker has no DOM parser. Fetched course pages are parsed in an offscreen document using the browser's own inert HTML parser, which runs no scripts and loads no resources. |
 | `contextMenus` | Adds one right-click item, "Report this page to Illini Dash", so a user can report a course page whose deadlines are not being read. It opens the extension's own settings page with the address filled in; nothing is sent anywhere without the user pressing a button. |
+| `scripting` | Registers one content script, on `https://campuswire.com/*` only, and only after the user switches Campuswire on in the extension's settings and grants that host. The script reads the posts a class feed has already rendered, to find deadlines stated in them; it makes no request to Campuswire, reads no cookie, token or storage, and modifies nothing on the page. Switching Campuswire off unregisters it. Nothing is registered on install. |
 | `host_permissions` for the five sites | The extension reads the user's own assignment and exam pages from these five sites using the session already present in the browser. It requests only pages the user's account can already see. |
 | `optional_host_permissions` | Some courses publish their schedule on their own website, and many UIUC course sites are their own domains (cs124.org, cs225.org) rather than university subdomains, so the host cannot be known in advance. Nothing is granted at install: a single host is requested at runtime, only when the user turns that course's site on, and Chrome's prompt names it. An adapter may not name a host already granted above. |
 | `commands` | One suggested keyboard shortcut (Alt+Shift+D) that opens the extension's own popup. It is the standard `_execute_action` command and does nothing else. |
@@ -185,5 +186,8 @@ trademark.
       live and returning 200 since 2026-09-10
 - [x] Every fetched origin is in `host_permissions` — `tests/manifest.test.ts` asserts it.
       smartPhysics was missing and would have failed for every PHYS 211–214 student
+- [ ] Re-check the permission justifications: `scripting` was added on 2026-09-18 for
+      the Campuswire observer and its block in `privacy-practices.txt` has not been pasted
+      into the developer console yet
 - [x] Every permission has a justification — same test asserts it. `contextMenus` was
       missing

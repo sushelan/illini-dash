@@ -177,6 +177,58 @@ export interface StoreV1Plus extends StoreV1 {
    * with a time so `pruneSeenPosts` can forget a semester's worth.
    */
   seenPosts: Record<string, string>;
+  /**
+   * Page observers, which read a rendered page instead of fetching one.
+   *
+   * Not a `Source`: nothing is fetched, nothing is synced, and a `SourceStatus`
+   * would give it a health dot the loop could never fill in. What it has
+   * instead is evidence of an attempt — worker rule 2 at the observer level.
+   * `enabled` is the student's switch; the other two are set only by a page
+   * that was actually read, so a switch that was merely flipped cannot claim a
+   * reading it never made.
+   */
+  observers: Record<ObserverId, ObserverState>;
+}
+
+/** Every page observer this build knows about. */
+export type ObserverId = "campuswire";
+
+export const ALL_OBSERVERS: ObserverId[] = ["campuswire"];
+
+export interface ObserverState {
+  enabled: boolean;
+  /** When a page was last read. Absent until one has been. */
+  lastObservedAt?: string;
+  /** How many posts have reached the worker from it. Absent until one has. */
+  postsSeen?: number;
+}
+
+/**
+ * A stored observer entry that is actually usable.
+ *
+ * House rule 5: `enabled` is checked for the boolean it must be, because a
+ * store written before this field existed carries `undefined` — which is
+ * falsy, and would read as "the student switched this off" rather than "there
+ * was nothing to switch". The difference matters at exactly one moment: the
+ * service worker re-registering the content script at startup.
+ */
+function migrateObservers(stored: unknown): Record<ObserverId, ObserverState> {
+  const out = {} as Record<ObserverId, ObserverState>;
+  const value = isRecord(stored) ? stored : {};
+  for (const id of ALL_OBSERVERS) {
+    const entry = value[id];
+    const from = isRecord(entry) ? entry : {};
+    out[id] = {
+      enabled: from["enabled"] === true,
+      // An instant, not any string: this is what the Settings row prints, and
+      // a half-written value would render "last read Invalid Date".
+      ...(isInstant(from["lastObservedAt"]) ? { lastObservedAt: from["lastObservedAt"] } : {}),
+      ...(typeof from["postsSeen"] === "number" && Number.isInteger(from["postsSeen"]) && from["postsSeen"] >= 0
+        ? { postsSeen: from["postsSeen"] }
+        : {}),
+    };
+  }
+  return out;
 }
 
 /** §5.4's shape, one level up: a post read this long ago cannot recur. */
@@ -286,6 +338,9 @@ export function emptyStore(): StoreV1Plus {
     manualItems: [],
     suggestions: [],
     seenPosts: {},
+    observers: Object.fromEntries(
+      ALL_OBSERVERS.map((id) => [id, { enabled: false }]),
+    ) as Record<ObserverId, ObserverState>,
   };
 }
 
@@ -476,6 +531,7 @@ export function migrate(stored: unknown, now: string = new Date().toISOString())
         : {},
       now,
     ),
+    observers: migrateObservers(value.observers),
     setAsideCourses: Array.isArray(value.setAsideCourses)
       ? value.setAsideCourses.filter(
           (entry): entry is StoreV1Plus["setAsideCourses"][number] =>

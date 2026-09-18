@@ -51,6 +51,7 @@ import {
   unhideItem,
 } from "./core/overrides.js";
 import { ingestPost } from "./core/suggest.js";
+import { CAMPUSWIRE_MATCH } from "./core/campuswire.js";
 import {
   loadStore,
   normalizeQuietHours,
@@ -58,6 +59,8 @@ import {
   sourcesToRetryAfterUpdate,
   withLocalAdapter,
   withoutLocalAdapter,
+  ALL_OBSERVERS,
+  type ObserverId,
   MAX_POLL_MINUTES,
   MIN_POLL_MINUTES,
 } from "./core/store.js";
@@ -751,6 +754,86 @@ async function openFullView(): Promise<void> {
   }
 }
 
+/* ---- Page observers (§4.6) ------------------------------------------------
+ *
+ * A content script this extension registers at runtime rather than declaring in
+ * the manifest, because the host is optional: nothing about Campuswire is asked
+ * for at install, and the script cannot exist until the student has switched it
+ * on and Chrome has granted the origin. `chrome.*` calls only — what the script
+ * reads and what it sends is `core/campuswire.ts`'s.
+ */
+
+const OBSERVER_SCRIPT: Record<ObserverId, { id: string; js: string; match: string }> = {
+  campuswire: {
+    id: "campuswire-observer",
+    js: "campuswire-observer.js",
+    match: CAMPUSWIRE_MATCH,
+  },
+};
+
+/**
+ * Register or unregister one observer's content script, to match the store.
+ *
+ * Every branch logged (worker rule 5): "it is on and registered", "it is on and
+ * the permission is gone" and "this never ran" are otherwise the same silence
+ * in the worker's console, and they want three different answers.
+ */
+async function applyObserver(observer: ObserverId, enabled: boolean): Promise<void> {
+  const script = OBSERVER_SCRIPT[observer];
+  const registered = await chrome.scripting
+    .getRegisteredContentScripts({ ids: [script.id] })
+    .catch(() => []);
+  const already = registered.length > 0;
+
+  if (!enabled) {
+    if (!already) {
+      console.log(`[observer] ${observer}: off, nothing registered`);
+      return;
+    }
+    await chrome.scripting.unregisterContentScripts({ ids: [script.id] });
+    console.log(`[observer] ${observer}: unregistered ${script.id}`);
+    return;
+  }
+
+  // The switch is in the store, but the permission is Chrome's and the student
+  // can revoke it from chrome://extensions without this extension hearing. A
+  // registration without it would silently never inject.
+  const granted = await chrome.permissions.contains({ origins: [script.match] });
+  if (!granted) {
+    console.warn(
+      `[observer] ${observer}: switched on, but ${script.match} is not granted — ` +
+        `nothing will be read until it is allowed again in settings`,
+    );
+    if (already) await chrome.scripting.unregisterContentScripts({ ids: [script.id] });
+    return;
+  }
+  if (already) {
+    console.log(`[observer] ${observer}: already registered as ${script.id}`);
+    return;
+  }
+  await chrome.scripting.registerContentScripts([
+    {
+      id: script.id,
+      matches: [script.match],
+      js: [script.js],
+      runAt: "document_idle",
+    },
+  ]);
+  console.log(`[observer] ${observer}: registered ${script.id} for ${script.match}`);
+}
+
+/** Re-apply every observer from the store. The worker is torn down constantly. */
+async function ensureObservers(): Promise<void> {
+  const store = await loadStore();
+  for (const observer of ALL_OBSERVERS) {
+    await applyObserver(observer, store.observers[observer]?.enabled === true).catch(
+      (err: unknown) => {
+        console.warn(`[observer] ${observer}: could not be applied:`, err);
+      },
+    );
+  }
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[illini-dash] installed: ${details.reason} (build ${BUILD_ID})`);
   createReportMenu();
@@ -765,6 +848,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     // "the listener never ran" are otherwise the same silence.
     console.log(`[illini-dash] ${details.reason}: no setup tab`);
   }
+  void ensureObservers();
   void scheduleAlarm()
     .then(() =>
       // Only on `update`. `install` has nothing resting yet, and
@@ -781,6 +865,10 @@ chrome.runtime.onStartup.addListener(() => {
   // the sync rather than only after it — otherwise a browser restart shows a
   // blank icon over a source that is still failing.
   void refreshBadge().catch(() => undefined);
+  // A dynamic content script survives a browser restart, but the permission
+  // behind it may not have — so this re-derives the registration from the store
+  // and from `chrome.permissions.contains` rather than trusting what is there.
+  void ensureObservers();
   void scheduleAlarm().then(() => sync("alarm"));
 });
 
@@ -1008,6 +1096,20 @@ chrome.runtime.onMessage.addListener(
             };
             store.suggestions = [...store.suggestions, ...outcome.suggestions];
             store.seenPosts = { ...store.seenPosts, ...outcome.seenPosts };
+            /*
+             * Evidence that a page was read, which is the only thing the
+             * Settings row is allowed to assert (worker rule 2). Counted here
+             * rather than in the observer because the observer is a page, and a
+             * page cannot be trusted to have reached the worker — the count has
+             * to come from the arrival, not the departure.
+             */
+            const facts = store.observers[post.source as ObserverId] as
+              | { enabled: boolean; lastObservedAt?: string; postsSeen?: number }
+              | undefined;
+            if (facts) {
+              facts.lastObservedAt = new Date().toISOString();
+              facts.postsSeen = (facts.postsSeen ?? 0) + 1;
+            }
             // Both branches, always (worker rule 5): "the post moved nothing"
             // and "the observer never reached the worker" are otherwise the
             // same silence in the console, and they want opposite fixes.
@@ -1130,12 +1232,34 @@ chrome.runtime.onMessage.addListener(
             .filter((item) => item.done)
             .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
           setAsideCourses: store.setAsideCourses,
+          observers: store.observers,
           lastSyncAt: store.lastSyncAt,
         }) as const),
       );
     }
     if (request?.type === "update-settings") {
       return answer(applySettings(request.settings).then(() => ({ type: "ok" }) as const));
+    }
+    if (request?.type === "set-observer-enabled") {
+      const { observer, enabled } = request;
+      return answer(
+        (async () => {
+          await mutate((store) => {
+            const facts = store.observers[observer];
+            facts.enabled = enabled;
+            /*
+             * Only the switch. `lastObservedAt` and `postsSeen` are deliberately
+             * left where they are: they say what this observer has read, and
+             * flipping a switch reads nothing. Clearing them on the way off
+             * would also mean a student who toggled it twice could not tell
+             * "it has never worked" from "it worked yesterday".
+             */
+            console.log(`[observer] ${observer}: switched ${enabled ? "on" : "off"}`);
+          });
+          await applyObserver(observer, enabled);
+          return { type: "ok" } as const;
+        })(),
+      );
     }
     if (request?.type === "set-source-enabled") {
       const { source, enabled } = request;
