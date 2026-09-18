@@ -8,7 +8,14 @@
 import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
 import { SITE_TIMEZONE, type Candidate } from "../core/detect.js";
-import { authorAdapter, buildPrompt, proposalSchema, skeletonBudgetChars } from "../core/author.js";
+import {
+  authorAdapter,
+  buildPrompt,
+  modelStatusLine,
+  proposalSchema,
+  skeletonBudgetChars,
+  type ModelOutcome,
+} from "../core/author.js";
 import { skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
@@ -1660,13 +1667,26 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
   if (response.type !== "detected") return;
 
   if (response.candidates.length === 0) {
-    addSiteStatus.textContent = "Nothing found on that page.";
-    const why = el("p", response.reason ?? "", "muted");
-    addSiteResult.append(why);
-    // The deterministic proposer is the answer whenever it has one. This is the
-    // second answer, for the pages it cannot read — and it runs only here, on a
-    // page the student pasted, never in the sync loop.
-    await proposeWithModel(response.html, response.url, response.courseCodeGuess);
+    /*
+     * The deterministic proposer is the answer whenever it has one. This is the
+     * second answer, for the pages it cannot read — and it runs only here, on a
+     * page the student pasted, never in the sync loop.
+     *
+     * The status line is written *after* it, from what it did. It used to be
+     * written before: "Nothing found on that page", then "Asking the on-device
+     * model…", and then, whatever the model did, the generic sentence about
+     * tables was the only thing left on screen. Sushi ran exactly that on ECE
+     * 411 and could not tell from the page whether the model had answered, been
+     * refused, or never existed (worker rule 2: what the UI asserts has to come
+     * from an attempt that happened).
+     */
+    const outcome = await proposeWithModel(response.html, response.url, response.courseCodeGuess);
+    addSiteStatus.textContent = modelStatusLine(outcome);
+    if (outcome.state !== "proposed") {
+      // Why the search itself found nothing, under what the model did — both
+      // facts, in the order they happened.
+      addSiteResult.append(el("p", response.reason ?? "", "muted"));
+    }
     return;
   }
   addSiteStatus.textContent =
@@ -1695,41 +1715,24 @@ async function proposeWithModel(
   html: string | undefined,
   url: string,
   codeGuess?: string,
-): Promise<void> {
-  if (!("LanguageModel" in self)) return;
+): Promise<ModelOutcome> {
+  if (!("LanguageModel" in self)) return { state: "unavailable" };
 
   let availability: LanguageModelAvailability;
   try {
     availability = await LanguageModel.availability();
   } catch {
     // An API that is present and throws is an API that is not there.
-    return;
+    return { state: "unavailable" };
   }
-  if (availability === "unavailable") return;
+  // Said out loud rather than silently skipped: "nothing found" and "there is a
+  // thing that could have tried and has not been downloaded" are different
+  // answers, and only one of them is worth coming back for.
+  if (availability === "downloadable") return { state: "downloadable" };
+  if (availability === "downloading") return { state: "downloading" };
+  if (availability !== "available") return { state: "unavailable" };
 
-  if (availability === "downloadable" || availability === "downloading") {
-    // Said out loud rather than silently skipped: "nothing found" and "there is
-    // a thing that could have tried and has not been downloaded" are different
-    // answers, and only one of them is worth coming back for.
-    addSiteResult.append(
-      el(
-        "p",
-        availability === "downloading"
-          ? "Chrome is still downloading its built-in model. Try this page again once it has finished."
-          : "Chrome can run a built-in model on this computer, but has not downloaded it yet. " +
-            "Open any page that uses it, or try again later, and this can have a second go at the page.",
-        "muted",
-      ),
-    );
-    return;
-  }
-
-  if (!html) {
-    addSiteResult.append(
-      el("p", "That page was too large to summarise for the built-in model.", "muted"),
-    );
-    return;
-  }
+  if (!html) return { state: "page-too-large" };
 
   addSiteStatus.textContent = "Asking the on-device model…";
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -1756,21 +1759,15 @@ async function proposeWithModel(
       skeleton,
     );
     if (!outcome.ok) {
-      addSiteStatus.textContent = "The built-in model could not read that page either.";
-      addSiteResult.append(el("p", outcome.failed, "muted"));
-      return;
+      return { state: "rejected", attempts: outcome.attempts, reason: outcome.reason ?? outcome.failed };
     }
-    addSiteStatus.textContent =
-      `Chrome's built-in model proposed this after ${outcome.attempts} ` +
-      `attempt${outcome.attempts === 1 ? "" : "s"}. Check the rows before saving it — ` +
-      "you are the only one who knows what this course actually sets.";
     renderCandidates([outcome.candidate], url, codeGuess);
+    return { state: "proposed", attempts: outcome.attempts };
   } catch (err) {
     // UI rule 2: a rejection with no catch is invisible in the page *and* in
     // the worker's console, and this branch is the one nobody will have devtools
     // open for.
-    addSiteStatus.textContent = "The built-in model could not be used on this page.";
-    addSiteResult.append(el("p", err instanceof Error ? err.message : String(err), "muted"));
+    return { state: "failed", message: err instanceof Error ? err.message : String(err) };
   } finally {
     session?.destroy();
   }
@@ -1788,11 +1785,50 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
   const codeLabel = el("label", "Course code ");
   codeLabel.htmlFor = code.id;
   codeRow.append(codeLabel, code);
+
+  /*
+   * What the rows on this page *are*, for the whole page.
+   *
+   * A course site splits by page — ECE 411 keeps its MPs on `assignments.html`
+   * and its two midterms on `syllabus.html` — and `examBoard` filters on
+   * `kind === "exam"`, so a student who adds the syllabus page without this
+   * gets two midterms filed as homework and an Exams tab that stays empty. The
+   * page is what knows; the parser cannot tell an exam row from an assignment
+   * row by looking at it.
+   *
+   * It is a picker rather than part of the proposal because `kind` changes no
+   * selector and no instant: the preview below is the same rows either way, so
+   * changing it after the validation cannot make the saved entry differ from
+   * the one that was checked.
+   */
+  const kind = el("select") as HTMLSelectElement;
+  kind.id = "add-site-kind";
+  for (const [value, label] of [
+    ["assignment", "assignments"],
+    ["exam", "exams"],
+    ["quiz", "quizzes"],
+    ["event", "events"],
+    ["other", "something else"],
+  ] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    kind.append(option);
+  }
+  kind.value = candidates[0]?.kind ?? "assignment";
+  const kindLabel = el("label", " These rows are ");
+  kindLabel.htmlFor = kind.id;
+  codeRow.append(kindLabel, kind);
   addSiteResult.append(codeRow);
 
   for (const candidate of candidates) {
     const box = el("div", undefined, "result");
-    const heading = el("h3", `${candidate.columns.title} · ${candidate.columns.due}`);
+    const heading = el(
+      "h3",
+      candidate.columns
+        ? `${candidate.columns.title} · ${candidate.columns.due}`
+        : `${candidate.rows} · ${candidate.dueLabel ?? candidate.due ?? ""}`,
+    );
     box.append(heading);
 
     // The count, before the rows. "13 of 13" and "6 of 20" are different
@@ -1828,7 +1864,7 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
       }
       use.disabled = true;
       status.textContent = "Saving…";
-      const adapter = buildAdapter(candidate, url, courseCode);
+      const adapter = buildAdapter(candidate, url, courseCode, kind.value);
       const saved = await send({ type: "add-local-adapter", adapter });
       if (saved.type === "error") {
         status.textContent = saved.message;
@@ -1850,7 +1886,7 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     share.addEventListener("click", async () => {
       const courseCode = code.value.trim().toUpperCase() || "COURSE";
       await navigator.clipboard.writeText(
-        JSON.stringify(buildAdapter(candidate, url, courseCode), null, 2),
+        JSON.stringify(buildAdapter(candidate, url, courseCode, kind.value), null, 2),
       );
       status.textContent = "Copied. Send it over and everyone in the course gets it.";
     });
@@ -1874,6 +1910,7 @@ function buildAdapter(
   candidate: Candidate,
   url: string,
   courseCode: string,
+  kind = "assignment",
 ): Record<string, unknown> & { id: string } {
   const host = new URL(url).origin;
   const term = currentTermCode(new Date());
@@ -1885,11 +1922,30 @@ function buildAdapter(
     url,
     hostPattern: `${host}/*`,
     rows: candidate.rows,
-    columns: candidate.columns,
-    // Required by the schema and the fallback when a header is missing at
-    // parse time; the named columns are what actually resolve.
-    title: "td:nth-child(1)",
-    due: "td:nth-child(2)",
+    /*
+     * Every field the validation actually ran with, or the entry is not the one
+     * that was checked.
+     *
+     * The table shape is unchanged: `columns` plus the positional fallback for
+     * a header that has gone missing at parse time. The other two shapes carry
+     * their own `title` / `due` selectors, and a list carries `dueLabel`,
+     * `titleFrom`, `time` and `filter` — drop any one of those and the entry
+     * saved is a different adapter from the one whose rows the student just
+     * read. `core/author.ts` validates the whole set through `runAdapter`; this
+     * is the hop where it used to be thrown away.
+     */
+    ...(candidate.columns
+      ? { columns: candidate.columns, title: "td:nth-child(1)", due: "td:nth-child(2)" }
+      : { title: candidate.title ?? "", due: candidate.due ?? "" }),
+    ...(candidate.dueLabel ? { dueLabel: candidate.dueLabel } : {}),
+    ...(candidate.titleFrom ? { titleFrom: candidate.titleFrom } : {}),
+    ...(candidate.time ? { time: candidate.time } : {}),
+    ...(candidate.splitTitle ? { splitTitle: candidate.splitTitle } : {}),
+    ...(candidate.filter ? { filter: candidate.filter } : {}),
+    // Omitted when it is the default, which is what every entry written before
+    // `kind` existed means, so a saved entry reads the same as a hand-written
+    // one rather than carrying a field it did not need.
+    ...(kind && kind !== "assignment" ? { kind } : {}),
     dateFormat: candidate.dateFormat,
     timezone: SITE_TIMEZONE,
     minExtensionVersion: "0.1.0",

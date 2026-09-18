@@ -31,7 +31,7 @@
  */
 
 import { runAdapter, supportedDateFormats } from "../sources/site.js";
-import { ParseError, type Adapter, type PageCtx } from "../sources/types.js";
+import { ParseError, type Adapter, type Kind, type PageCtx } from "../sources/types.js";
 import type { Candidate, DetectedRow } from "./detect.js";
 import { validateAdapter } from "./registry.js";
 
@@ -43,23 +43,83 @@ import { validateAdapter } from "./registry.js";
  * cannot drift apart — two copies of one decision is one copy too many
  * (mutation house rule 3).
  *
- * `title` / `due` as raw CSS selectors, `splitTitle` and `filter` are
- * deliberately **not** here even though `Adapter` carries them. The value that
- * comes out of this file is a `Candidate`, which is what the existing preview
- * and "Use this one" path saves, and a `Candidate` cannot carry them — asking
- * for a field the save path then drops is how a student ends up confirming a
- * filter that was never applied. They stay the hand-written entry's job.
+ * This was `rows` + `columns` + `dateFormat` only, which is the header-table
+ * shape and nothing else — while `runAdapter` had already grown `dueLabel`,
+ * `titleFrom` and `time` for ECE 411's Sphinx page, whose deadlines are `<li>`s
+ * reading `Due: 9/7` under an `<h3>` and which has no table on it at all. So the
+ * one page that produced "No table on this page" in front of Sushi was also the
+ * one page the model was structurally unable to answer about: it could only
+ * propose a table, on a page with none. The three shapes below are the three
+ * `runAdapter` can read.
+ *
+ * `splitTitle` stays out: it is a literal that cuts a cell in half, and the one
+ * page that needs it (CS 424's `HW5 Due; HW6 Out`) needs a human to decide which
+ * half is the deadline. `filter.include` stays out for a different reason — an
+ * include that matches nothing empties the page and reads exactly like a term
+ * that has not started.
  */
-const PROPOSAL_FIELDS = ["rows", "columns", "dateFormat"] as const;
+const PROPOSAL_FIELDS = [
+  "shape",
+  "rows",
+  "columns",
+  "title",
+  "due",
+  "dueLabel",
+  "titleFrom",
+  "time",
+  "kind",
+  "filter",
+  "dateFormat",
+] as const;
 const COLUMN_FIELDS = ["title", "due", "link"] as const;
+const FILTER_FIELDS = ["exclude"] as const;
+
+/** The three shapes `runAdapter` can read, named so the model can say which. */
+export const SHAPES = ["table", "list", "rows"] as const;
+export type Shape = (typeof SHAPES)[number];
+
+/**
+ * What the rows on this page are, as the registry spells it.
+ *
+ * Kept here as a list only so the schema can offer it; the *validation* is
+ * `validateAdapter`'s `ADAPTER_KINDS`, which this proposal passes through like
+ * any other registry entry. A value that gets past this list and not past that
+ * one is a rejection with a reason, not an item labelled with a `kind` no
+ * `switch` in the UI has a branch for.
+ */
+const PROPOSAL_KINDS: readonly Kind[] = ["assignment", "exam", "quiz", "event", "other"];
 
 /** A selector is a selector, not a document. Remote-ish data gets a length cap. */
 const MAX_SELECTOR = 200;
 const MAX_HEADER = 120;
 
+/**
+ * A selector that picks a cell by its position, which the model may not use.
+ *
+ * House rule 3, stated as a rejection rather than only as a sentence in the
+ * prompt: `cells[2]` turns one added column into a page of undated, mis-statused
+ * items with no error, and a rule that is only asked for politely is a rule a
+ * small model breaks on the page where it matters. `rows` is exempt — the
+ * summary itself offers `table:nth-of-type(2)` as a table's handle, and picking
+ * the second table on a page is not picking the second cell of a row.
+ */
+const POSITIONAL =
+  /:nth-child|:nth-of-type|:nth-last-child|:nth-last-of-type|:first-child|:last-child|:first-of-type|:last-of-type|:only-child/i;
+
+/** The fields whose value is a selector the model chose. */
+const MODEL_SELECTORS = ["title", "due", "titleFrom", "time"] as const;
+
 export interface Proposal {
+  shape: Shape;
   rows: string;
-  columns: { title: string; due: string; link?: string };
+  columns?: { title: string; due: string; link?: string };
+  title?: string;
+  due?: string;
+  dueLabel?: string;
+  titleFrom?: string;
+  time?: string;
+  kind?: Kind;
+  filter?: { exclude?: string };
   dateFormat: string;
 }
 
@@ -75,17 +135,32 @@ export function proposalSchema(supportedFormats: string[] = supportedDateFormats
   return {
     type: "object",
     additionalProperties: false,
-    required: [...PROPOSAL_FIELDS],
+    // Only the three every shape needs. Which of the rest are required, and
+    // which are refused, is decided per `shape` in `validateProposal` — a JSON
+    // Schema can express that with `oneOf`, and a small model given three
+    // branching sub-schemas answers worse, not better. A rejection costs one
+    // attempt and its reason is fed back.
+    required: ["shape", "rows", "dateFormat"],
     properties: {
+      shape: {
+        type: "string",
+        enum: [...SHAPES],
+        description:
+          "'table' for a table with a header row, 'list' for 'Label: value' bullets under a " +
+          "heading, 'rows' for repeated blocks with no header row",
+      },
       rows: {
         type: "string",
         maxLength: MAX_SELECTOR,
-        description: "CSS selector matching every data row of the schedule, e.g. '#homework table tr'",
+        description:
+          "CSS selector matching every data row, e.g. '#homework table tbody tr' or " +
+          "'#mp-information ul.simple > li'",
       },
       columns: {
         type: "object",
         additionalProperties: false,
         required: ["title", "due"],
+        description: "shape 'table' only: the header text of each column",
         properties: {
           title: {
             type: "string",
@@ -101,6 +176,58 @@ export function proposalSchema(supportedFormats: string[] = supportedDateFormats
             type: "string",
             maxLength: MAX_HEADER,
             description: "Optional: the header of a column whose cells link to the assignment",
+          },
+        },
+      },
+      title: {
+        type: "string",
+        maxLength: MAX_SELECTOR,
+        description:
+          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text " +
+          "holding its name, e.g. 'p'",
+      },
+      due: {
+        type: "string",
+        maxLength: MAX_SELECTOR,
+        description:
+          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text " +
+          "holding its deadline, e.g. 'p' or 'time@datetime'",
+      },
+      dueLabel: {
+        type: "string",
+        maxLength: MAX_SELECTOR,
+        description:
+          "shape 'list': the '|'-separated labels that start a deadline line, copied exactly " +
+          "from the page, e.g. 'Due|CP1 Due|CP2 Due'",
+      },
+      titleFrom: {
+        type: "string",
+        maxLength: MAX_SELECTOR,
+        description:
+          "shape 'list': where a row with no name of its own gets one — the 'titleFrom' " +
+          "printed above the list in the summary, e.g. 'section >> h3'",
+      },
+      time: {
+        type: "string",
+        maxLength: MAX_SELECTOR,
+        description:
+          "Optional: a selector whose text states the clock when the deadline line does not, " +
+          "e.g. 'ul' for a sibling 'Time: 7-9PM' bullet",
+      },
+      kind: {
+        type: "string",
+        enum: [...PROPOSAL_KINDS],
+        description: "What every row on this page is. 'assignment' unless the page lists exams",
+      },
+      filter: {
+        type: "object",
+        additionalProperties: false,
+        description: "Optional: drop rows whose text matches, for lines reading TBD, TBA or N/A",
+        properties: {
+          exclude: {
+            type: "string",
+            maxLength: MAX_SELECTOR,
+            description: "A regular expression, e.g. '\\\\bTB[DA]\\\\b|\\\\bN/?A\\\\b'",
           },
         },
       },
@@ -129,23 +256,39 @@ export function buildPrompt(
   supportedFormats: string[] = supportedDateFormats(),
 ): PromptText {
   const system = [
-    "You read a summary of a university course web page and identify the table of",
-    "assignment deadlines in it.",
+    "You read a summary of a university course web page and identify where its",
+    "assignment deadlines are. Say which of three shapes you saw, and answer with",
+    "JSON only, matching the supplied schema.",
     "",
-    "Answer with JSON only, matching the supplied schema:",
-    "  rows       — a CSS selector matching every data row of that table",
-    "  columns.title — the exact header text of the column holding the assignment name",
-    "  columns.due   — the exact header text of the column holding the deadline",
-    "  columns.link  — optional, the header of a column whose cells link to the assignment",
-    `  dateFormat — one of: ${supportedFormats.join(", ")}`,
+    'shape "table" — a table with a header row naming its columns. Name the header text of',
+    "the column holding the name and of the column holding the deadline.",
+    '  { "shape": "table", "rows": "#homework table tbody tr",',
+    '    "columns": { "title": "Exercises", "due": "Due Date" }, "dateFormat": "M/d" }',
+    "",
+    'shape "list" — a LIST block: bullets reading "Label: value" under a heading, where the',
+    "heading is the assignment's name and each bullet is one line about it.",
+    '  { "shape": "list", "rows": "#mp-information ul.simple > li", "title": "p", "due": "p",',
+    '    "dueLabel": "Due|CP1 Due", "titleFrom": "section >> h3",',
+    '    "filter": { "exclude": "\\\\bTB[DA]\\\\b" }, "dateFormat": "M/d" }',
+    "",
+    'shape "rows" — repeated blocks with no header row, where the name and the date are each',
+    "reachable by a selector inside one block.",
+    '  { "shape": "rows", "rows": "#schedule .event", "title": ".name", "due": ".date",',
+    '    "dateFormat": "MMM d, h:mm a" }',
+    "",
+    `dateFormat is one of: ${supportedFormats.join(", ")}`,
     "",
     "Rules:",
-    "- Header text must be copied exactly from the TH row shown in the summary.",
-    "- Use the 'rows selector' printed above the table, which already skips the header row.",
-    "- Never answer with a positional selector such as td:nth-child(2) for a column.",
+    "- Header text and dueLabel text must be copied exactly from the summary, never shortened:",
+    '  "Due" and "Due Date" are different lines and only the exact one is read.',
+    "- Use the 'rows selector' printed above the table or list, and the 'titleFrom' printed",
+    "  with a list. Prefer the wider 'every list like it' selector when one is printed.",
+    "- Never answer with a positional selector such as td:nth-child(2) or li:first-child.",
     "- Never answer with a date, a title or any value read off the page: only selectors.",
-    "- Pick the table of graded work. Ignore office hours, lecture topics and staff lists.",
-    "- If several tables could be it, pick the one whose rows carry dates.",
+    "- Pick the graded work. Ignore office hours, lecture topics, grade weights and staff lists.",
+    "- If several tables or lists could be it, pick the one whose rows carry dates.",
+    '- Set kind to "exam" when every row on the page is an exam; otherwise leave it out.',
+    "- Add filter.exclude only for rows the page itself marks TBD, TBA or N/A.",
   ].join("\n");
 
   const user = [
@@ -235,13 +378,79 @@ export function validateProposal(
       return { ok: false, reason: `unknown field ${JSON.stringify(key)}` };
     }
   }
-  const columns = p["columns"];
-  if (!columns || typeof columns !== "object" || Array.isArray(columns)) {
-    return { ok: false, reason: "columns must be an object naming the title and due headers" };
+  const shape = p["shape"];
+  if (typeof shape !== "string" || !(SHAPES as readonly string[]).includes(shape)) {
+    return { ok: false, reason: `shape must be one of ${SHAPES.join(", ")}` };
   }
-  for (const key of Object.keys(columns as Record<string, unknown>)) {
-    if (!(COLUMN_FIELDS as readonly string[]).includes(key)) {
-      return { ok: false, reason: `unknown columns.${key}` };
+
+  const columns = p["columns"];
+  if (columns !== undefined) {
+    if (!columns || typeof columns !== "object" || Array.isArray(columns)) {
+      return { ok: false, reason: "columns must be an object naming the title and due headers" };
+    }
+    for (const key of Object.keys(columns as Record<string, unknown>)) {
+      if (!(COLUMN_FIELDS as readonly string[]).includes(key)) {
+        return { ok: false, reason: `unknown columns.${key}` };
+      }
+    }
+  }
+
+  const filter = p["filter"];
+  if (filter !== undefined) {
+    if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+      return { ok: false, reason: "filter must be an object" };
+    }
+    for (const key of Object.keys(filter as Record<string, unknown>)) {
+      if (!(FILTER_FIELDS as readonly string[]).includes(key)) {
+        // `include` is refused rather than accepted: an include that matches
+        // nothing empties the page and reads exactly like a term that has not
+        // started, which is house rule 2's silent empty.
+        return { ok: false, reason: `unknown filter.${key}` };
+      }
+    }
+  }
+
+  /*
+   * The shape decides which fields are read, so the shape decides which are
+   * required and which are refused.
+   *
+   * A proposal that names both `columns` and `dueLabel` is not one this can
+   * half-apply: `runAdapter` reads `columns` and ignores the rest, so the
+   * student would confirm a preview produced by one half of an answer and save
+   * an entry carrying the other. Saying which shape it saw is also the cheapest
+   * signal that the model read the page rather than pattern-matched a table
+   * onto it.
+   */
+  const required =
+    shape === "table" ? ["columns"] : shape === "list" ? ["title", "due", "dueLabel"] : ["title", "due"];
+  const refused =
+    shape === "table"
+      ? ["title", "due", "dueLabel", "titleFrom"]
+      : shape === "list"
+        ? ["columns"]
+        : ["columns", "dueLabel", "titleFrom"];
+  for (const field of required) {
+    if (p[field] === undefined) return { ok: false, reason: `shape "${shape}" needs ${field}` };
+  }
+  for (const field of refused) {
+    if (p[field] !== undefined) {
+      return { ok: false, reason: `shape "${shape}" does not take ${field}` };
+    }
+  }
+
+  for (const field of MODEL_SELECTORS) {
+    const value = p[field];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || value.trim() === "") {
+      return { ok: false, reason: `${field} must be a selector` };
+    }
+    if (POSITIONAL.test(value)) {
+      return {
+        ok: false,
+        reason:
+          `${field} ${JSON.stringify(value)} picks by position. Name the element by its ` +
+          "class, id or tag instead — a page that adds one element moves every position.",
+      };
     }
   }
 
@@ -267,11 +476,22 @@ export function validateProposal(
     url,
     hostPattern: `https://${host}/*`,
     rows: p["rows"],
-    columns,
-    // Required by the schema, and the fallback for a table whose header is
-    // missing at parse time. The named columns are what actually resolve.
-    title: "td:nth-child(1)",
-    due: "td:nth-child(2)",
+    ...(columns === undefined ? {} : { columns }),
+    // `title` and `due` are required by the schema. For a table they are the
+    // fallback for a header that is missing at parse time and the named columns
+    // are what resolve; for the other two shapes they are the answer itself.
+    title: shape === "table" ? "td:nth-child(1)" : p["title"],
+    due: shape === "table" ? "td:nth-child(2)" : p["due"],
+    ...(p["dueLabel"] === undefined ? {} : { dueLabel: p["dueLabel"] }),
+    ...(p["titleFrom"] === undefined ? {} : { titleFrom: p["titleFrom"] }),
+    ...(p["time"] === undefined ? {} : { time: p["time"] }),
+    // Passed through to `validateAdapter` rather than checked here: it owns the
+    // `Record<Kind, true>` the compiler watches, and a `kind` this file waved
+    // past would reach `Item.kind` as a value no `switch` in the UI answers.
+    // `filter.exclude` is data compiled into a regex, and it is refused there
+    // if it does not compile.
+    ...(p["kind"] === undefined ? {} : { kind: p["kind"] }),
+    ...(filter === undefined ? {} : { filter }),
     dateFormat: p["dateFormat"],
     timezone,
     minExtensionVersion: "0.1.0",
@@ -293,29 +513,41 @@ export function validateProposal(
   }
 
   /*
-   * Unreachable today, and it stays.
+   * Reachable now, and this is what it was left here for.
    *
-   * `runAdapter` already throws for the two ways a page yields nothing — no row
-   * matched the selector, and no matched row had a title — and the one
-   * remaining way to reach `[]` is a `filter` that excludes every row, which
-   * the schema above does not let the model propose. It is left here because
-   * "the runner returned an empty list" must never become "shown to the
-   * student" if `filter` is ever added to the schema, and because §11 ranks a
-   * silently dropped deadline above every other failure.
+   * `runAdapter` throws for the two ways a page yields nothing — no row matched
+   * the selector, and no matched row had a title — and the remaining way to
+   * reach `[]` is a `filter` that excludes every row, which the model *may* now
+   * propose. A term where every checkpoint still reads TBD is exactly that: a
+   * legitimate page for a hand-written entry and a useless one to show a
+   * student, because there is nothing in the preview to confirm. §11 ranks a
+   * silently dropped deadline above every other failure, so this is a rejection
+   * with a reason the next attempt can act on rather than an empty preview.
    */
   if (items.length === 0) {
-    return { ok: false, reason: `${adapter.rows} matched rows, but none produced an assignment` };
+    return {
+      ok: false,
+      reason:
+        `${adapter.rows} matched rows, but none produced an assignment` +
+        (adapter.filter?.exclude
+          ? ` — filter.exclude ${JSON.stringify(adapter.filter.exclude)} removed every one`
+          : ""),
+    };
   }
   if (items.some((item) => item.title.trim() === "")) {
-    return { ok: false, reason: `column ${JSON.stringify(adapter.columns?.title)} has empty cells` };
+    return {
+      ok: false,
+      reason: `${JSON.stringify(adapter.columns?.title ?? adapter.title)} has empty cells`,
+    };
   }
 
+  const dueName = adapter.columns?.due ?? adapter.dueLabel ?? adapter.due;
   const dated = items.filter((item) => item.dueAt !== undefined);
   if (dated.length === 0) {
     return {
       ok: false,
       reason:
-        `no row's ${JSON.stringify(adapter.columns?.due)} cell parsed as ${adapter.dateFormat}. ` +
+        `no row's ${JSON.stringify(dueName)} cell parsed as ${adapter.dateFormat}. ` +
         `Check the column and the format (${supportedDateFormats().join(", ")}).`,
     };
   }
@@ -353,11 +585,27 @@ export function validateProposal(
     due: item.dueAt ?? "",
   }));
 
+  /*
+   * Built out of the *validated adapter*, never out of the raw proposal.
+   *
+   * What the student confirms has to be what gets saved. A candidate assembled
+   * from `p` could carry a field `validateAdapter` normalised or `runAdapter`
+   * never read, and the preview below it would have been produced by the other
+   * object — which is the defect this whole file exists to make impossible, one
+   * hop later.
+   */
   return {
     ok: true,
     candidate: {
       rows: adapter.rows,
-      columns: adapter.columns ?? { title: "", due: "" },
+      ...(adapter.columns
+        ? { columns: adapter.columns }
+        : { title: adapter.title, due: adapter.due }),
+      ...(adapter.dueLabel ? { dueLabel: adapter.dueLabel } : {}),
+      ...(adapter.titleFrom ? { titleFrom: adapter.titleFrom } : {}),
+      ...(adapter.time ? { time: adapter.time } : {}),
+      ...(adapter.kind ? { kind: adapter.kind } : {}),
+      ...(adapter.filter ? { filter: adapter.filter } : {}),
       dateFormat: adapter.dateFormat,
       total: items.length,
       dated: dated.length,
@@ -368,7 +616,17 @@ export function validateProposal(
 
 export type AuthorOutcome =
   | { ok: true; candidate: Candidate; attempts: number }
-  | { ok: false; failed: string; attempts: number };
+  /**
+   * `failed` is the whole sentence for a log; `reason` is the validator's last
+   * word on the page, which is what the status line quotes.
+   *
+   * They are separate because the two failures are different facts: a model
+   * that produced three unusable selectors has a `reason` about *this page*,
+   * and one that threw `QuotaExceededError` has none — it never got as far as
+   * an answer, and a status line claiming its proposal "read no deadlines"
+   * would be describing something that does not exist.
+   */
+  | { ok: false; failed: string; reason?: string; attempts: number };
 
 export interface AuthorOptions {
   maxAttempts?: number;
@@ -445,6 +703,75 @@ export async function authorAdapter(
   return {
     ok: false,
     failed: `gave up after ${limit} attempt${limit === 1 ? "" : "s"}; last reason: ${reason}`,
+    reason,
     attempts: limit,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* What the student is told happened                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every way this branch can end, as data.
+ *
+ * Worker rule 1: the options page is nearly as hard to reach from the suite as
+ * the service worker is, and the defect this fixes lived there — the page said
+ * "Asking the on-device model…", the model ran, and the only thing left on
+ * screen afterwards was the generic "No table on this page" sentence from
+ * *before* it ran. Three of these outcomes had no wording at all and the rest
+ * were written inline at their branch. Deciding it here means a test can pin
+ * each sentence, and the page keeps the `chrome.*` calls and the DOM.
+ */
+export type ModelOutcome =
+  /** No `LanguageModel` at all, or `availability()` did not say "available". */
+  | { state: "unavailable" }
+  | { state: "downloadable" }
+  | { state: "downloading" }
+  /** The page was too large to summarise, so nothing was asked. */
+  | { state: "page-too-large" }
+  | { state: "proposed"; attempts: number }
+  | { state: "rejected"; attempts: number; reason?: string }
+  /** The session or the prompt threw: a quota, a destroyed session, a crash. */
+  | { state: "failed"; message: string };
+
+function attemptCount(n: number): string {
+  return `${n} attempt${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * The status line for one run of the model branch.
+ *
+ * The rule every sentence here follows is worker rule 2's, one surface over: a
+ * line the student reads must be derived from what actually happened. "Nothing
+ * found on that page" after the model ran says the search found nothing — true
+ * when it was written, and silent about the second thing that then ran, failed,
+ * and had a reason.
+ */
+export function modelStatusLine(outcome: ModelOutcome): string {
+  switch (outcome.state) {
+    case "unavailable":
+      return "Chrome's built-in model is not available on this computer.";
+    case "downloadable":
+      return (
+        "Chrome can run a built-in model on this computer, but has not downloaded it yet. " +
+        "Try this page again later and it can have a second go at it."
+      );
+    case "downloading":
+      return "Chrome is still downloading its built-in model. Try this page again once it has finished.";
+    case "page-too-large":
+      return "That page was too large to summarise for Chrome's built-in model.";
+    case "proposed":
+      return (
+        `Chrome's built-in model proposed an entry (${attemptCount(outcome.attempts)}). ` +
+        "Check the rows before saving it — you are the only one who knows what this course sets."
+      );
+    case "rejected":
+      return (
+        `Chrome's built-in model tried ${attemptCount(outcome.attempts)} and its last proposal ` +
+        `read no deadlines: ${outcome.reason ?? "no reason given"}`
+      );
+    case "failed":
+      return `Chrome's built-in model could not be used on this page: ${outcome.message}`;
+  }
 }

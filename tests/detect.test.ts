@@ -9,7 +9,12 @@
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
-import { detectCandidates, noCandidateReason, selectorForTable } from "../src/core/detect.js";
+import {
+  detectCandidates,
+  noCandidateReason,
+  rowSelectorForList,
+  selectorForTable,
+} from "../src/core/detect.js";
 import { runAdapter } from "../src/sources/site.js";
 import type { Adapter } from "../src/sources/types.js";
 
@@ -333,11 +338,68 @@ describe("noCandidateReason", () => {
     expect(noCandidateReason(docFrom("<div>loading…</div>"))).toContain("JavaScript");
   });
 
+  it("says a list can be read, because it can", () => {
+    /*
+     * The sentence used to end "or it is a list rather than a table — those
+     * need a hand-written entry", and it was the only thing on screen after
+     * Sushi pasted ECE 411's assignments page. Two things were wrong with it by
+     * then: `runAdapter` had gained `dueLabel` and `titleFrom` that morning, so
+     * a list *is* readable; and the model branch that could propose one had
+     * just run, invisibly, immediately underneath it.
+     */
+    const reason = noCandidateReason(docFrom("<h3>mp_setup</h3><ul><li>Due: 9/7</li></ul>"));
+    expect(reason).toContain("list rather than a table");
+    expect(reason).toContain("can be read");
+    expect(reason).toContain("built-in model");
+    expect(reason).not.toContain("those need a hand-written entry");
+  });
+
   it("lists the formats when the table is fine and the dates are not", () => {
     const doc = docFrom(
       `<table id="t"><tr><th>Assignment</th><th>Due</th></tr>` +
         `<tr><td>HW1</td><td>week 3</td></tr><tr><td>HW2</td><td>week 4</td></tr></table>`,
     );
     expect(noCandidateReason(doc)).toContain("M/d");
+  });
+});
+
+describe("a selector for a list, for the pages that are not tables", () => {
+  // The search itself never proposes one — it crosses a table's columns with
+  // the date formats and that is all it does. `skeleton.ts` prints these so the
+  // model has a working `rows` selector to name rather than one to invent.
+  const ece411 = fixture("ece411-fa2026-assignments.html");
+
+  it("names a list by the section that holds it", () => {
+    const list = ece411.querySelector("#mp-setup ul.simple")!;
+    expect(rowSelectorForList(list, ece411)).toBe("#mp-setup ul.simple > li");
+  });
+
+  it("uses a child combinator, so a nested list is not this list's rows", () => {
+    // A `<ul>` inside an `<li>` is a different section of the page, and its
+    // lines would otherwise arrive as rows of this one.
+    expect(rowSelectorForList(ece411.querySelector("#mp-verif ul.simple")!, ece411)).toMatch(
+      /> li$/,
+    );
+  });
+
+  it("prefers the list's own id when it has one", () => {
+    const doc = docFrom("<div id='c'><ul id='work'><li>Due: 9/7</li></ul></div>");
+    expect(rowSelectorForList(doc.querySelector("#work")!, doc)).toBe("#work > li");
+  });
+
+  it("distinguishes two lists of the same shape in one container", () => {
+    const doc = docFrom("<div id='c'><ul class='a'><li>x</li></ul><ul class='a'><li>y</li></ul></div>");
+    const second = [...doc.querySelectorAll("ul.a")][1]!;
+    expect(rowSelectorForList(second, doc)).toBe("#c ul.a:nth-of-type(2) > li");
+  });
+
+  it("never puts a class it could not safely spell into a selector", () => {
+    // Remote markup, put back into `querySelectorAll`. A class the page writes
+    // with a colon or a slash — every Tailwind page — is a selector this code
+    // would then throw on, so the tag alone is used instead.
+    const doc = docFrom("<div id='c'><ul class='md:flex'><li>Due: 9/7</li></ul></div>");
+    const selector = rowSelectorForList(doc.querySelector("ul")!, doc);
+    expect(selector).toBe("#c ul > li");
+    expect(() => doc.querySelectorAll(selector)).not.toThrow();
   });
 });
