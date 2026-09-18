@@ -3294,7 +3294,7 @@
       "file_type": "code",
       "norm_label": "buildadapter()",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2140"
+      "source_location": "L2143"
     },
     {
       "id": "src_ui_options_datastatus",
@@ -4950,7 +4950,7 @@
       "file_type": "code",
       "norm_label": "proposewithmodel()",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1945"
+      "source_location": "L1948"
     },
     {
       "id": "tests_author_test_check",
@@ -8802,7 +8802,7 @@
       "file_type": "code",
       "norm_label": "rendercandidates()",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2007"
+      "source_location": "L2010"
     },
     {
       "id": "src_ui_options_rendergcal",
@@ -35715,7 +35715,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2146",
+      "source_location": "L2149",
       "weight": 1.0
     },
     {
@@ -35727,7 +35727,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2146",
+      "source_location": "L2149",
       "weight": 1.0
     },
     {
@@ -35823,7 +35823,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1972",
+      "source_location": "L1975",
       "weight": 1.0
     },
     {
@@ -35835,7 +35835,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1982",
+      "source_location": "L1985",
       "weight": 1.0
     },
     {
@@ -35847,7 +35847,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1982",
+      "source_location": "L1985",
       "weight": 1.0
     },
     {
@@ -35859,7 +35859,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1983",
+      "source_location": "L1986",
       "weight": 1.0
     },
     {
@@ -35871,7 +35871,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1984",
+      "source_location": "L1987",
       "weight": 1.0
     },
     {
@@ -35883,7 +35883,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1995",
+      "source_location": "L1998",
       "weight": 1.0
     },
     {
@@ -35919,7 +35919,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2010",
+      "source_location": "L2013",
       "weight": 1.0
     },
     {
@@ -35931,7 +35931,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2098",
+      "source_location": "L2101",
       "weight": 1.0
     },
     {
@@ -35943,7 +35943,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2099",
+      "source_location": "L2102",
       "weight": 1.0
     },
     {
@@ -35955,7 +35955,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2109",
+      "source_location": "L2112",
       "weight": 1.0
     },
     {
@@ -40767,7 +40767,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L1945",
+      "source_location": "L1948",
       "weight": 1.0
     },
     {
@@ -40779,7 +40779,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ui/options.ts",
-      "source_location": "L2007",
+      "source_location": "L2010",
       "weight": 1.0
     },
     {
@@ -72310,7 +72310,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ui/options.ts",
-      "source_location": "L2140",
+      "source_location": "L2143",
       "weight": 1.0
     },
     {
@@ -90512,5 +90512,5 @@
       "source_file": "docs/ux-plan.md"
     }
   ],
-  "built_at_commit": "171c6206c9218e1a3f786c656931e5c74f2f5659"
+  "built_at_commit": "d2d35aed9c0d08d9c56a0fd77ce412cff499bdf9"
 }

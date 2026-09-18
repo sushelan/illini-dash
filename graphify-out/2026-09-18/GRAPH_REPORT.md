@@ -1,7 +1,7 @@
 # Graph Report - illini-due  (2026-09-18)
 
 ## Corpus Check
-- 178 files · ~546,076 words
+- 178 files · ~546,349 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 7 file(s) not represented in the graph (top: (none) 4, .css 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `171c6206`
+- Built from commit: `d2d35aed`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -590,10 +590,10 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `--blink-settings=preferredColorScheme, not --force-dark-mode` and `npm run shots headless capture script`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
 - **Why does `vitest` connect `ParseError` to `store.ts`, `health.ts`, `calendar.ts`, `package.json`, `dedupe.ts`, `prairielearn.ts`, `schedule.ts`, `grouping.ts`, `theme-panel.ts`, `prairietest.ts`, `canvas.ts`, `site.ts`, `author.test.ts`, `ics.ts`, `core/registry.ts`, `overrides.ts`, `detect.ts`, `compat.ts`, `gcal.ts`, `announce.test.ts`, `gcal-client.test.ts`, `smartphysics.ts`, `capture.ts`, `campuswire.test.ts`, `icon`, `types.ts`, `scrub.ts`, `diagnostics.ts`, `tokens.test.ts`, `Source`, `gcal-auth.ts`, `manual.ts`, `Repo layout: worker is wiring, decisions live in core/`, `suggest.ts`, `Item`, `gate0.ts`, `announce-real.test.ts`?**
-  _High betweenness centrality (0.062) - this node is a cross-community bridge._
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
 - **Why does `ParseError` connect `ParseError` to `prairielearn.ts`, `messages.ts`, `sync.ts`, `prairietest.ts`, `canvas.ts`, `Review outcome — PrairieLearn (12 findings, all survived)`, `site.ts`, `loadStore`, `announce.ts`, `core/campuswire.ts`, `announce.test.ts`, `smartphysics.ts`, `campuswire.test.ts`, `types.ts`, `author.ts`, `needs_login detection`, `suggest.ts`, `skeleton.ts`, `gate0.ts`, `extractDeadlineMentions`?**
-  _High betweenness centrality (0.054) - this node is a cross-community bridge._
+  _High betweenness centrality (0.051) - this node is a cross-community bridge._
 - **Why does `PROGRESS.md — what is done, which gate, what is blocked` connect `PROGRESS.md — what is done, which gate, what is blocked` to `Canvas — what the API actually returns`, `Roadmap ideas (88 ranked gaps)`, `UX plan for the store release`, `Illini Dash privacy policy (2026-09-12)`, `Chrome Web Store listing draft (§9 G5)`, `validateAdapter`, `Adapter registry (bundled + daily GitHub refresh)`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `ParseError` (e.g. with `House rules for parsers` and `House rules for the worker and the loop`) actually correct?**
   _`ParseError` has 3 INFERRED edges - model-reasoned connections that need verification._

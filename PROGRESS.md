@@ -2,10 +2,48 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1611 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1659 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Piazza as a polled announcement feed — 2026-09-18
+
+One worker; **1611 → 1659 tests** after the merge with Google Calendar (both touched
+the manifest, the store, the options page and every store document; resolved by keeping
+both sides, and the privacy form is now eleven blocks). Piazza is not a `Source` and
+not in `PLANS`: `core/piazza.ts` is the pure half (class list from the class page's
+`const USER`, the feed, the request bodies the live client sends, the response
+classifier with the HTTP status first, the plan/apply/describe trio for its row), and
+the worker reads the `session_id` cookie, GETs the class page once a day, POSTs one
+feed per current-term class, and hands every new note through the same `ingestPost`
+path the Campuswire observer uses, inside one `mutate()`. Its Settings row says what an
+attempt found, with a Sign in button on `needs_login`.
+
+**Two findings, both about the data rather than the code.** First, `feed.json` was
+corrupt as committed: the one-off scrub had replaced the empty string as well as the
+names, so every subject and snippet carried `STAFF-36` between every character while
+the real text — including the name the scrub existed to remove — survived underneath.
+Repaired in place; the class-page capture had the same defect and was repaired the same
+day; `post.json` was checked and is clean. Second, **over the real feed the snippet
+stage reads nothing**: every date the class states sits past `content_snipet`'s
+120-character cut, and the two subjects that carry one say "by EOD Today 8/31", which
+the grammar declines. The test asserts zero rather than loosening, and pins the wiring
+with a deliberately edited entry (parser rule 10). So Piazza produces no row until the
+post-body stage exists; that is the next build, and `post.json` is on main for it.
+
+**Amendments** (docs/piazza-findings.md, rewritten not annotated): discovery reads the
+class page's `const USER`, not the `piazza_session` JWT — the feed carries no class
+name, so the page is fetched anyway, and a private cookie format would be a second
+breakable thing for no gain. And a class's currency comes from `term_key` against the
+clock, not from `status`: the spring 2026 class is still `status: "active"` in
+September.
+
+**Open:** a positive signed-out marker (needs the logged-out capture); whether "by
+EOD <date>" and "register … by <date>" should be due-phrases (affects every source);
+the polling rate (four classes ≈ 48 POSTs a day at the default cadence); and whether
+the switch should ship before the post-body stage, since "On · 25 posts" would read as
+working while producing nothing.
 
 ## Campuswire observer, live — 2026-09-18
 
@@ -2096,6 +2134,9 @@ back with a "Put back" button for anyone legitimately enrolled across two terms.
   fills in 23:59 for a course page that prints a bare date, so a member whose time was
   assumed is now the last resort for `dueAt`, not the first choice. A site that prints a
   real time still outranks Canvas, as §5.3 intends. (2026-09-10, found on live data.)
+- **Piazza (docs/piazza-findings.md)** — class discovery reads the class page's
+  `const USER` object, not the session JWT; and "current" is `term_key` against the
+  clock, because `status` stays `active` after a term ends. (2026-09-18, from the capture.)
 
 ## §12 open questions
 - ~~1. PrairieLearn access-details in fetched HTML~~ — **yes**, resolved 2026-09-03.

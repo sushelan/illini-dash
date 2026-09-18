@@ -83,6 +83,14 @@ them **before** asking for a review, so reviews find new classes instead of thes
     `url`, so anything addressed by an enrolment or account id — smartPhysics's
     `/Course?enrollmentID=…` — cannot be served by one. Check the URL shape before writing
     selectors; it decides whether the answer is a JSON entry or a two-stage fetch plan.
+14. **Read a scrubbed fixture before building on it.** A scrub that maps names to
+    markers will, the moment one name is the empty string, insert its marker *between
+    every character* and redact nothing — `feed.json` came back with 5,033 copies of
+    `STAFF-36` and the guest lecturer's name intact underneath, and `class-page.html`
+    grew to 334KB the same way. `npm run scrub` passed both. A fixture in that state is
+    worse than none: every assertion about what a parser reads is made against text no
+    parser will see. Word-bound and length-gate every replacement, then open the file
+    and read a subject line. (Found 2×, on one day.)
 
 ## House rules for the worker and the loop
 
