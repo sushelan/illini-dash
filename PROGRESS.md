@@ -7,6 +7,95 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 2: the editor, the announcement wiring, and five fixes — 2026-09-18
+
+Four workers, same method as wave 1, branched from the wave-1 merge. **1268 → 1360
+tests**, typecheck clean, merged with two additive conflicts (both workers had appended
+to the same two files).
+
+1. **A student can add, edit and delete their own deadlines in place.** Sushi's ask: *"for
+   the day when they click on the timeline, they can drag a box to the specific time and
+   it should show up at that time, or they have the option to manually write the time and
+   the box should appear at the time, maybe also just a + icon."* `src/ui/editor.ts` is
+   DOM only: it collects strings, sends `add/edit-manual-item`, and routes the sentence a
+   `ManualItemError` comes back with to the field its wording names. It uses
+   `<input type=date>` and `<input type=time>` so no second copy of `manual.ts`'s
+   anchored regexes exists. It renders **in flow** in both windows — a floating form in
+   the popup contributes no height for Chrome to measure and would put Save past the
+   600px edge. The full view's day grid is now always drawn, 8 AM to 10 PM, because the
+   axis is where you add (the popup keeps the agenda); `hourRange` widens under a dragged
+   or typed time, and `spanMinutes` draws a typed `extra.endAt` — or PrairieTest's own
+   "50min" — as a box as tall as the sitting. Drag-to-place: pointer capture, 15-minute
+   snap, 4px slop, a dashed ghost labelled "6:00–8:00 PM"; a dragged span opens the form as
+   an Event, a press with no drag as a Deadline. Week rows and month cells get a hover "+"
+   and click-to-add. Edit and Delete appear in the row menu only for a row whose sole
+   member is `manual` (a merged row would rewrite something Gradescope also owns); Delete
+   leaves "Deleted … · Undo" in the banner slot for ten seconds. The redraw guard that
+   defers a draw under an open menu now also defers under an open editor. Two harness
+   defects fell out: the preview's stub and page bundle collided on an identifier (fixed by
+   wrapping the stub) and the stub had never sent `courseNames`, so every preview carried a
+   false stale-worker banner. Verified twice with real pointer events in the dark preview:
+   by the worker (drag, typed times moving the ghost, Escape, Edit/Delete/Undo, typed text
+   surviving a sync) and by the orchestrator ("+" opens in flow — the document grew from
+   1470 to 1801px — an empty Course is refused with "Say which course this is for." on the
+   field, and the saved row appears as "CS 357 · Lab writeup · ME").
+2. **What a post says now changes the list, the way Sushi split it.** `core/suggest.ts`
+   is one pure `ingestPost` that returns what to add and, in `skipped`, every reason
+   something was not applied. A move to a deadline the student already has is written as a
+   `dueOverride` on **every member key** of the item (the same shape as hide and done: an
+   `Item.id` is a hash of its members and is spent the moment a second source mirrors the
+   row); it needs confidence 0.75, so a bare weekday is downgraded to a suggestion; a row
+   the student typed is never overwritten; a post is read once by id; a deadline already
+   suggested for that day is not suggested twice. `buildItem` treats the override's instant
+   as the item's *stated* one — the instructor said it — and records `Item.movedBy`, which
+   routes through the existing moved-deadline machinery so the fired 24h/2h leads re-arm
+   with no change to `schedule.ts`. An invented 23:59 keeps `timeAssumed` from the post
+   through the override into `acceptSuggestion`, which hands `newManualItem` no time at all
+   rather than laundering a guess into something the student appears to have typed. The
+   store validates `dueOverrides`, `suggestions` and `seenPosts` positively and prunes them
+   (60 days for seen posts; 30 days, or a week past due, for suggestions), with `migrate`
+   taking `now` so the rule is testable. Four worker handlers wire through `mutate()` and
+   the state message carries `suggestions` with `compat.ts`'s entry in the same change.
+   The Attention tab opens with "Found in a post" rows with Add and Ignore; a moved row's
+   detail reads "moved Sun, Sep 20 → Wed, Sep 23 · from Campuswire post …" with an undo.
+   Nothing sends `post-observed` yet — that is the Piazza source and the Campuswire
+   observer, which wait on captures.
+3. **Wave 1's five defects, closed.** The local-adapter handlers now save the store
+   (`withLocalAdapter` / `withoutLocalAdapter` in `core/store.ts`, eight tests, including
+   that neither mutates the store it was handed — the shape that let the defect look
+   right); `detectCandidates` scopes to `tbody tr` (`rowSelectorForTable`), with the test
+   that runs a detected candidate through the real runner and asserts no header item;
+   `capture.ts` asks only for https (the third copy of the `.illinois.edu` rule, six days
+   behind `safeUrl` and twelve behind `validateAdapter`); `Adapter.kind` is optional,
+   validated against the Kind union with `Object.hasOwn` — a deliberately unrealistic test
+   value (`kind: "constructor"`) caught `in` accepting prototype names in the first draft —
+   and `ece411-fa26-exams` now reaches the Exams tab; `pretest` builds before `npm test`
+   so a fresh checkout passes.
+4. **Settings groups course sites by course.** One heading per courseCode ("ECE 411 ·
+   2 pages") over its pages, each named by the label minus the code and hinted by its
+   path; every existing control kept; local adapters gain Remove with a ten-second
+   "Removed ECE 411 exams · Undo" (module-level state, because every control refreshes the
+   section); the add-site copy mentions the on-device model in one hedged sentence.
+
+**Decisions the workers deferred to Sushi:** whether a personal deadline may have no
+course (today "Say which course this is for." is required, and a suggestion with no
+course hint is filed under "From a post"); whether "next Friday" on a Friday means +7 (as
+built) or +14; whether a post that corrects itself mid-way should take its last mention
+rather than its first; whether `project` joins §5.2's numbered prefixes (it would make
+`project2` a badge for §5.3, the split-deliverable case `dedupe.ts` already warns about);
+whether the capture tool accepting any https URL in `options.html#report=` is acceptable
+(the permission prompt remains the real boundary); and that drag-to-place stores a
+dragged clock in the campus zone while the grid draws in the browser's zone, which is
+pre-existing across the calendar but now writable.
+
+**Still owed by Sushi (one batch):** one press on Hide in the real popup; a Piazza
+capture (`user.status` and one feed) plus whether `document.cookie` on piazza.com shows
+the session cookie; a Campuswire feed DOM capture; the Cloud console classification of
+`calendar.app.created` and the draft item's public key; a run of Add a course site on a
+machine where `LanguageModel.availability()` is `available`.
+
+1360 tests.
+
 ## Wave 1: seven workers, seven branches, one merge — 2026-09-18
 
 Sushi's instruction for this phase: coding goes to parallel subagents (Opus 5, medium
