@@ -14,7 +14,7 @@ import {
 import { probeMarkers } from "../src/core/markers.js";
 
 describe("isAllowedCaptureUrl", () => {
-  it("accepts the four source hosts and any illinois.edu subdomain", () => {
+  it("accepts the source hosts and any illinois.edu subdomain", () => {
     for (const url of [
       "https://www.gradescope.com/courses/1352838",
       "https://canvas.illinois.edu/api/v1/courses",
@@ -26,12 +26,26 @@ describe("isAllowedCaptureUrl", () => {
     }
   });
 
-  it("rejects other hosts, http, and junk", () => {
+  it("accepts a course site on its own domain", () => {
+    /*
+     * Was `false` until 2026-09-18, and that was this module disagreeing with
+     * the rest of the extension: `validateAdapter` stopped requiring
+     * `.illinois.edu` on 2026-09-12 and `safeUrl` in wave 1, so a student could
+     * add a cs225.org adapter and then be refused the capture of the very page
+     * it points at. The CS department's biggest courses live on their own
+     * domains.
+     */
+    for (const url of ["https://cs225.org/fa2026/schedule", "https://cs128.org/", "https://example.com/"]) {
+      expect(isAllowedCaptureUrl(url), url).toBe(true);
+    }
+  });
+
+  it("still rejects anything that is not an https URL", () => {
+    // https stays required: a capture is fetched with credentials included.
     for (const url of [
-      "https://example.com/",
       "http://www.gradescope.com/",
-      "https://gradescope.com.evil.test/",
-      "https://notillinois.edu/",
+      "javascript:alert(1)",
+      "file:///etc/passwd",
       "not a url",
       "",
     ]) {
@@ -129,17 +143,31 @@ describe("reportUrlFromHash", () => {
     );
   });
 
-  it("refuses anything else, because a fragment is untrusted input", () => {
+  it("refuses any scheme but https, because a fragment is untrusted input", () => {
     // Any page can navigate to an extension page with any fragment, so the
     // options page validates rather than trusting whoever wrote it.
-    for (const bad of [
-      "https://evil.test/x",
-      "http://www.gradescope.com/x",
-      "javascript:alert(1)",
-      "//other.host/x",
-    ]) {
+    for (const bad of ["http://www.gradescope.com/x", "javascript:alert(1)", "//other.host/x"]) {
       expect(reportUrlFromHash("#report=" + encodeURIComponent(bad)), bad).toBeUndefined();
     }
+  });
+
+  it("no longer refuses an https host on the strength of its name", () => {
+    /*
+     * This asserted `undefined` for `https://evil.test/x` until 2026-09-18, and
+     * it was pinning `isAllowedCaptureUrl`'s `.illinois.edu` rule rather than a
+     * requirement of its own. That rule is gone — `validateAdapter` dropped it
+     * on 2026-09-12, for the reason written there: "The CS department's course
+     * sites are their own domains — cs124.org, cs128.org, cs225.org".
+     *
+     * Nothing is lost by it here. The fragment only *prefills a visible field*;
+     * the student still presses Prepare report, and `capture` still refuses to
+     * fetch a host `chrome.permissions` has not granted — which is where the
+     * boundary actually is, and which a hostname allowlist in this module was
+     * never the second line of.
+     */
+    expect(reportUrlFromHash("#report=" + encodeURIComponent("https://cs225.org/fa2026/"))).toBe(
+      "https://cs225.org/fa2026/",
+    );
   });
 
   it("does not throw on a malformed escape", () => {

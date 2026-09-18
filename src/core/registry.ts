@@ -17,7 +17,24 @@ import { PRAIRIELEARN_ORIGIN } from "../sources/prairielearn.js";
 import { PRAIRIETEST_ORIGIN } from "../sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../sources/smartphysics.js";
 import { supportedDateFormats } from "../sources/site.js";
-import type { Adapter } from "../sources/types.js";
+import type { Adapter, Kind } from "../sources/types.js";
+
+/**
+ * Every value `Adapter.kind` may take.
+ *
+ * A `Record<Kind, true>` so the compiler, not a reviewer, notices when `Kind`
+ * gains a member: a missing key is a typecheck error here. `core/manual.ts`
+ * keeps a second spelling of the same list for hand-entered items, and the two
+ * should be folded into one — mutation house rule 3, two copies of one decision.
+ */
+const ADAPTER_KINDS: Record<Kind, true> = {
+  assignment: true,
+  quiz: true,
+  exam: true,
+  booking: true,
+  event: true,
+  other: true,
+};
 
 /**
  * Hosts the manifest grants permanently, and which an adapter must therefore
@@ -126,6 +143,25 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
   // prompt and no user action at all.
   if (hostPattern !== `https://${parsed.hostname}/*`) {
     return fail(`hostPattern must be exactly https://${parsed.hostname}/*`);
+  }
+
+  /*
+   * `kind` names what the rows on this page are, and it is remote data that
+   * decides which surface an item lands on — `examBoard` filters on
+   * `kind === "exam"` — so it is checked against the union rather than passed
+   * through. A typo would otherwise reach `Item.kind` as a value no `switch` in
+   * the UI has a branch for.
+   *
+   * Written as a `Record<Kind, true>` rather than a list so a seventh kind fails
+   * the typecheck here instead of being silently rejected at runtime.
+   */
+  const kind = a["kind"];
+  if (kind !== undefined) {
+    // `Object.hasOwn`, never `in`: `"constructor" in {}` is true, so an `in`
+    // check on an object literal accepts every name on Object.prototype.
+    if (typeof kind !== "string" || !Object.hasOwn(ADAPTER_KINDS, kind)) {
+      return fail(`unsupported kind (${Object.keys(ADAPTER_KINDS).join(", ")})`);
+    }
   }
 
   const dateFormat = a["dateFormat"];

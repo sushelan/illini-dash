@@ -367,6 +367,25 @@ export interface Adapter {
    * with `>>` like `titleFrom`.
    */
   time?: string;
+  /**
+   * What the rows on this page *are*, when they are not assignments.
+   *
+   * `runAdapter` used to stamp `kind: "assignment"` on everything, so
+   * `ece411-fa26-exams` — a whole page whose only rows are Midterm 1, Midterm 2
+   * and the final — produced three assignments. That is not a label the student
+   * reads past: `examBoard` filters on `kind === "exam"`, so the Exams tab
+   * showed nothing for a course with two midterms in it, and the exams sat
+   * mixed into the list of homework instead.
+   *
+   * One value for the whole adapter rather than per row, because a course site
+   * splits by *page* (see "One course, two adapters"): the page that lists
+   * exams lists nothing else. A page that genuinely mixed them would need a
+   * per-row rule, and no captured page does.
+   *
+   * Omitted means `"assignment"`, which is what every entry meant before this
+   * field existed.
+   */
+  kind?: Kind;
   dateFormat: string;
   timezone: string;
   filter?: { include?: string; exclude?: string };

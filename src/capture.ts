@@ -47,6 +47,23 @@ const ALLOWED_HOSTS = [
   "smart.physics.illinois.edu",
 ];
 
+/**
+ * Whether this URL may be captured at all.
+ *
+ * **AMENDED (2026-09-18).** This was the third copy of an `.illinois.edu` host
+ * rule that `validateAdapter` dropped on 2026-09-12 and `popup.ts`'s `safeUrl`
+ * dropped in wave 1, and being the last one left it was the one that bit: a
+ * student could *add* a cs225.org adapter and then could not capture the page it
+ * points at, with an error naming a restriction nothing else in the extension
+ * still enforced. The CS department's highest-enrolment course sites are their
+ * own domains — cs124.org, cs128.org, cs225.org — and excluding them excluded
+ * exactly the students most likely to want this.
+ *
+ * Any https URL may be captured, which gives away nothing: `capture` still
+ * refuses to fetch a host `chrome.permissions` has not granted, and every host
+ * outside `ALLOWED_HOSTS` is an optional permission the student grants by name
+ * in Chrome's own prompt. https stays required — a capture carries credentials.
+ */
 export function isAllowedCaptureUrl(raw: string): boolean {
   let parsed: URL;
   try {
@@ -54,10 +71,7 @@ export function isAllowedCaptureUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (parsed.protocol !== "https:") return false;
-  return (
-    ALLOWED_HOSTS.includes(parsed.hostname) || parsed.hostname.endsWith(".illinois.edu")
-  );
+  return parsed.protocol === "https:";
 }
 
 /**
@@ -97,8 +111,8 @@ export function isGrantedUpFront(url: string): boolean {
 export async function capture(url: string): Promise<CaptureResult> {
   if (!isAllowedCaptureUrl(url)) {
     throw new Error(
-      `Refusing to capture ${url}: must be https on a UIUC or source host ` +
-        `(${ALLOWED_HOSTS.join(", ")}, or any *.illinois.edu).`,
+      `Refusing to capture ${url}: a capture must be an https URL. ` +
+        `Which host it is on is decided by the permission below, not here.`,
     );
   }
 

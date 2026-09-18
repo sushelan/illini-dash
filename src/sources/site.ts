@@ -746,7 +746,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         courseRaw: adapter.label,
         courseCode: codes[0],
         title,
-        kind: "assignment",
+        // Defaults to "assignment", which is what this was hard-coded to and
+        // what every entry written before `kind` existed meant. An exam page
+        // says so: `examBoard` filters on `kind === "exam"`, so without it a
+        // course with two midterms had an empty Exams tab (§4.5).
+        kind: adapter.kind ?? "assignment",
         dueAt,
         url,
         status: "unknown",

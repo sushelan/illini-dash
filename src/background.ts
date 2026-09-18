@@ -52,6 +52,8 @@ import {
   normalizeQuietHours,
   saveStore,
   sourcesToRetryAfterUpdate,
+  withLocalAdapter,
+  withoutLocalAdapter,
   MAX_POLL_MINUTES,
   MIN_POLL_MINUTES,
 } from "./core/store.js";
@@ -886,10 +888,7 @@ chrome.runtime.onMessage.addListener(
 
           await withStore(async () => {
             const fresh = await loadStore();
-            fresh.localAdapters = [
-              ...fresh.localAdapters.filter((existing) => existing.id !== adapter.id),
-              adapter,
-            ];
+            await saveStore(withLocalAdapter(fresh, adapter));
           });
           return { type: "ok" } as const;
         })(),
@@ -900,13 +899,7 @@ chrome.runtime.onMessage.addListener(
       return answer(
         withStore(async () => {
           const fresh = await loadStore();
-          fresh.localAdapters = fresh.localAdapters.filter((a) => a.id !== adapterId);
-          fresh.enabledAdapters = fresh.enabledAdapters.filter((id) => id !== adapterId);
-          fresh.sources.site = {
-            ...fresh.sources.site,
-            enabled: fresh.enabledAdapters.length > 0,
-            state: fresh.enabledAdapters.length > 0 ? fresh.sources.site.state : "disabled",
-          };
+          await saveStore(withoutLocalAdapter(fresh, adapterId));
         }).then(() => ({ type: "ok" }) as const),
       );
     }

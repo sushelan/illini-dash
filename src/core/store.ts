@@ -486,3 +486,56 @@ export function inBackoff(store: StoreV1Plus, source: Source, now: string): bool
   const until = store.backoffUntil[source];
   return until !== undefined && Date.parse(until) > Date.parse(now);
 }
+
+/* -------------------------------------------------------------------------- */
+/* §4.5 local adapters                                                         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * "Add a course site" and "remove it", as two decisions a test can reach
+ * (worker rule 1).
+ *
+ * They lived inline in `background.ts`'s `add-local-adapter` and
+ * `remove-local-adapter` handlers — the one file the suite cannot reach — and
+ * both mutated the copy `loadStore()` hands back and then returned without
+ * calling `saveStore`. `chrome.storage.local.get` returns a fresh object, so the
+ * write went nowhere: a course site the student added survived exactly as long
+ * as the service worker did, and vanished at the next wake with nothing failing
+ * and nothing logged.
+ */
+
+/** Adds an adapter to the local list, replacing any earlier entry with its id. */
+export function withLocalAdapter(store: StoreV1Plus, adapter: Adapter): StoreV1Plus {
+  return {
+    ...store,
+    localAdapters: [
+      ...store.localAdapters.filter((existing) => existing.id !== adapter.id),
+      adapter,
+    ],
+  };
+}
+
+/**
+ * Removes an adapter, and everything that referred to it.
+ *
+ * `enabledAdapters` goes with it: an id left enabled for an adapter that no
+ * longer exists is a fetch the runner can never satisfy. And the `site` source
+ * follows the count, because a source reporting `ok` while fetching nothing is
+ * worker rule 2's green dot that means "I did not fetch".
+ */
+export function withoutLocalAdapter(store: StoreV1Plus, adapterId: string): StoreV1Plus {
+  const enabledAdapters = store.enabledAdapters.filter((id) => id !== adapterId);
+  return {
+    ...store,
+    localAdapters: store.localAdapters.filter((a) => a.id !== adapterId),
+    enabledAdapters,
+    sources: {
+      ...store.sources,
+      site: {
+        ...store.sources.site,
+        enabled: enabledAdapters.length > 0,
+        state: enabledAdapters.length > 0 ? store.sources.site.state : "disabled",
+      },
+    },
+  };
+}
