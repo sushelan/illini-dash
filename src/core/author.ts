@@ -846,19 +846,39 @@ export function validateProposal(
   };
 }
 
+/**
+ * How the loop ended, with the two failures named apart.
+ *
+ * This was one `{ ok: false; failed; reason? }` branch, and the caller mapped
+ * every `!ok` to `{ state: "rejected", reason: reason ?? failed }` — so a
+ * *throw* was announced to the student as "its last proposal read no
+ * deadlines: An unknown error occurred: kErrorUnknown". There was no proposal.
+ * `ModelOutcome` has had a `"failed"` state the whole time and nothing reached
+ * it. A discriminant rather than an optional field, because the mapping is the
+ * thing that went wrong: `kind` cannot be forgotten the way `reason` was.
+ *
+ * - `"threw"` — the prompt itself rejected (a quota, a destroyed session, a
+ *   crash). There is no answer to quote and no fact about the page in it.
+ * - `"rejected"` — the model answered `maxAttempts` times and the validator
+ *   refused every one. `reason` is its last word about *this page*.
+ */
 export type AuthorOutcome =
   | { ok: true; candidate: Candidate; attempts: number }
-  /**
-   * `failed` is the whole sentence for a log; `reason` is the validator's last
-   * word on the page, which is what the status line quotes.
-   *
-   * They are separate because the two failures are different facts: a model
-   * that produced three unusable selectors has a `reason` about *this page*,
-   * and one that threw `QuotaExceededError` has none — it never got as far as
-   * an answer, and a status line claiming its proposal "read no deadlines"
-   * would be describing something that does not exist.
-   */
-  | { ok: false; failed: string; reason?: string; attempts: number };
+  | { ok: false; kind: "threw"; message: string; attempts: number }
+  | { ok: false; kind: "rejected"; reason: string; attempts: number };
+
+/** One attempt, as it happened, for the log the student will be asked to read. */
+export interface AttemptInfo {
+  /** 1-based, as the status line counts them. */
+  attempt: number;
+  outcome: "proposed" | "rejected" | "threw" | "not-json";
+  /** The validator's reason, or the thrown message; absent for "proposed". */
+  reason?: string;
+  /** Characters the model answered with; 0 when the prompt threw. */
+  answerChars: number;
+  /** Characters sent — the whole prompt, retry suffix included. */
+  promptChars: number;
+}
 
 export interface AuthorOptions {
   maxAttempts?: number;
@@ -872,7 +892,46 @@ export interface AuthorOptions {
    * measured prompt and the sent prompt disagree.
    */
   structures?: RepeatedStructure[];
+  /**
+   * Called once per attempt, before the next one is sent (worker rule 5).
+   *
+   * Both branches of every decision in the loop, in the page's own console. The
+   * live run that produced `kErrorUnknown` left nothing behind to say which
+   * attempt had thrown or how big its prompt was, and the two candidate causes —
+   * a bad answer and an overflowing window — have opposite fixes.
+   */
+  onAttempt?: (info: AttemptInfo) => void;
 }
+
+/**
+ * The longest validator reason a retry will quote back.
+ *
+ * A reason is written for a person as well as for the model and some of them
+ * interpolate the page ("the repeated structures on this page are: …" runs to
+ * twelve selectors). The skeleton budget is measured once, before any reason
+ * exists, so an unbounded suffix is a retry that is over the window by however
+ * much the last rejection happened to say. Capped here, counted in the budget
+ * by `RETRY_SUFFIX_CHARS`, and the model loses nothing: the first clause of a
+ * reason is the fact, and the inventory after it is also in `base`.
+ */
+export const MAX_RETRY_REASON_CHARS = 300;
+
+/** The text appended to `base` on every attempt after the first. */
+export function retrySuffix(reason: string): string {
+  const quoted =
+    reason.length > MAX_RETRY_REASON_CHARS
+      ? `${reason.slice(0, MAX_RETRY_REASON_CHARS - 1)}…`
+      : reason;
+  return `\n\nYour previous answer was rejected: ${quoted}\nAnswer again, correcting that.`;
+}
+
+/**
+ * The most a retry can add, which is what the budget has to reserve.
+ *
+ * Derived from `retrySuffix` rather than written down beside it, so the two
+ * cannot drift: a longer sentence changes both at once (mutation rule 3).
+ */
+export const RETRY_SUFFIX_CHARS = retrySuffix("x".repeat(MAX_RETRY_REASON_CHARS)).length;
 
 const DEFAULT_ATTEMPTS = 3;
 /**
@@ -910,12 +969,11 @@ export async function authorAdapter(
   // a selector, having just been told the last one was invented.
   const base = buildPrompt(skeleton, url, supportedDateFormats(), structures).user;
 
+  const say = options.onAttempt ?? (() => {});
+
   let reason = "";
   for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const text =
-      attempt === 1
-        ? base
-        : `${base}\n\nYour previous answer was rejected: ${reason}\nAnswer again, correcting that.`;
+    const text = attempt === 1 ? base : `${base}${retrySuffix(reason)}`;
 
     let answer: string;
     try {
@@ -924,11 +982,9 @@ export async function authorAdapter(
       // A thrown prompt is the end of the loop, not a retry: it is a
       // QuotaExceededError or a destroyed session, and asking again produces
       // the same throw a second later.
-      return {
-        ok: false,
-        failed: err instanceof Error ? err.message : String(err),
-        attempts: attempt,
-      };
+      const message = err instanceof Error ? err.message : String(err);
+      say({ attempt, outcome: "threw", reason: message, answerChars: 0, promptChars: text.length });
+      return { ok: false, kind: "threw", message, attempts: attempt };
     }
 
     let parsed: unknown;
@@ -936,20 +992,48 @@ export async function authorAdapter(
       parsed = JSON.parse(answer);
     } catch {
       reason = "that was not JSON";
+      say({
+        attempt,
+        outcome: "not-json",
+        reason,
+        answerChars: answer.length,
+        promptChars: text.length,
+      });
       continue;
     }
 
     const outcome = validateProposal(parsed, doc, url, timezone, reference, structures);
-    if (outcome.ok) return { ok: true, candidate: outcome.candidate, attempts: attempt };
+    if (outcome.ok) {
+      say({ attempt, outcome: "proposed", answerChars: answer.length, promptChars: text.length });
+      return { ok: true, candidate: outcome.candidate, attempts: attempt };
+    }
     reason = outcome.reason;
+    say({
+      attempt,
+      outcome: "rejected",
+      reason,
+      answerChars: answer.length,
+      promptChars: text.length,
+    });
   }
 
-  return {
-    ok: false,
-    failed: `gave up after ${limit} attempt${limit === 1 ? "" : "s"}; last reason: ${reason}`,
-    reason,
-    attempts: limit,
-  };
+  return { ok: false, kind: "rejected", reason, attempts: limit };
+}
+
+/**
+ * What the student is told, from what the loop did — the one mapping.
+ *
+ * In the page this was `outcome.reason ?? outcome.failed` at the return
+ * statement, which is where the `kErrorUnknown` defect lived: an expression in
+ * a function the suite cannot reach, collapsing two facts into the one branch
+ * that quotes them as a proposal. Worker rule 1 — the decision moves to
+ * `core/`, the page keeps the `chrome.*` calls, and both rows of the table are
+ * pinned.
+ */
+export function modelOutcomeFor(outcome: AuthorOutcome): ModelOutcome {
+  if (outcome.ok) return { state: "proposed", attempts: outcome.attempts };
+  if (outcome.kind === "threw") return { state: "failed", message: outcome.message };
+  return { state: "rejected", attempts: outcome.attempts, reason: outcome.reason };
 }
 
 /* -------------------------------------------------------------------------- */

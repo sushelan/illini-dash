@@ -11,7 +11,9 @@ import { adapterFromCandidate, SITE_TIMEZONE, type Candidate } from "../core/det
 import {
   authorAdapter,
   buildPrompt,
+  modelOutcomeFor,
   modelStatusLine,
+  RETRY_SUFFIX_CHARS,
   skeletonBudgetChars,
   type ModelOutcome,
 } from "../core/author.js";
@@ -2056,41 +2058,82 @@ async function proposeWithModel(
   // The system half is fixed, so its size comes out of the same window the page
   // summary has to fit in; `buildPrompt` with an empty page measures it.
   const empty = buildPrompt("", url, undefined, structures);
-  const overhead = empty.system.length + empty.user.length;
+  // The retry suffix is part of the overhead, not a surprise on attempt 2: a
+  // budget measured before any rejection exists is a budget that does not know
+  // how long the rejection will be (`MAX_RETRY_REASON_CHARS` bounds it).
+  const overhead = empty.system.length + empty.user.length + RETRY_SUFFIX_CHARS;
 
-  let session: LanguageModelSession | undefined;
+  let pristine: LanguageModelSession | undefined;
   try {
-    session = await LanguageModel.create({
+    pristine = await LanguageModel.create({
       initialPrompts: [{ role: "system", content: empty.system }],
       expectedInputs: [{ type: "text", languages: ["en"] }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
-    const skeleton = skeletonise(doc, skeletonBudgetChars(session.contextWindow, overhead));
+    const skeleton = skeletonise(doc, skeletonBudgetChars(pristine.contextWindow, overhead));
     const outcome = await authorAdapter(
       // The schema `authorAdapter` hands in, not one built here: it carries the
       // enum of *this page's* row selectors, and a second copy built in the
       // page would be the unconstrained one — two spellings of one decision,
       // with the constrained decode silently switched off (mutation rule 3).
-      (text, schema) => session!.prompt(text, { responseConstraint: schema }),
+      async (text, schema) => {
+        /*
+         * One fresh session per attempt, cloned from the pristine one.
+         *
+         * A `LanguageModel` session keeps its history, so prompting the same
+         * one again put the whole of `base` — skeleton plus inventory — on top
+         * of attempt 1's prompt *and* attempt 1's answer. `skeletonBudgetChars`
+         * sizes the summary for an empty window, so attempt 2 was roughly twice
+         * the budget: Chrome answered the second prompt with a throw, which
+         * reached Sushi as "An unknown error occurred: kErrorUnknown". The
+         * first live run survived three attempts only because that page's
+         * summary happened to fit twice.
+         *
+         * The budget is the reason, and there is a second one: a retry that
+         * could see its own previous answer is a retry tempted to repeat it,
+         * when what it was asked for is a different answer. `clone()` copies
+         * the initial prompts — the system half — and nothing else.
+         */
+        const session = await pristine!.clone();
+        try {
+          return await session.prompt(text, { responseConstraint: schema });
+        } finally {
+          // Read before `destroy()`, and guarded: these are optional members of
+          // the Prompt API and a build without them must not throw here, in the
+          // one path whose whole job is to explain a throw.
+          if (typeof session.inputUsage === "number" && typeof session.inputQuota === "number") {
+            console.info(`[author] input usage ${session.inputUsage}/${session.inputQuota} tokens`);
+          }
+          session.destroy();
+        }
+      },
       doc,
       url,
       SITE_TIMEZONE,
       new Date().toISOString(),
       skeleton,
-      { structures },
+      {
+        structures,
+        // UI rule 1 and worker rule 5: this page's console, every attempt,
+        // both branches. "Nothing happened" and "three answers were refused
+        // for three different reasons" looked identical from the status line.
+        onAttempt: (info) =>
+          console.info(
+            `[author] attempt ${info.attempt}: ${info.outcome}` +
+              ` (prompt ${info.promptChars} chars, answer ${info.answerChars} chars)` +
+              (info.reason === undefined ? "" : ` — ${info.reason}`),
+          ),
+      },
     );
-    if (!outcome.ok) {
-      return { state: "rejected", attempts: outcome.attempts, reason: outcome.reason ?? outcome.failed };
-    }
-    renderCandidates([outcome.candidate], url, codeGuess);
-    return { state: "proposed", attempts: outcome.attempts };
+    if (outcome.ok) renderCandidates([outcome.candidate], url, codeGuess);
+    return modelOutcomeFor(outcome);
   } catch (err) {
     // UI rule 2: a rejection with no catch is invisible in the page *and* in
     // the worker's console, and this branch is the one nobody will have devtools
     // open for.
     return { state: "failed", message: err instanceof Error ? err.message : String(err) };
   } finally {
-    session?.destroy();
+    pristine?.destroy();
   }
 }
 

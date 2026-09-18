@@ -40,6 +40,15 @@ declare global {
 
   interface LanguageModelSession {
     prompt(input: string, options?: LanguageModelPromptOptions): Promise<string>;
+    /**
+     * A new session with this one's initial prompts and none of its history.
+     *
+     * The reason this project needs it: a session accumulates, so a second
+     * `prompt()` on one session sends the first prompt, the first answer and
+     * the second prompt — while the summary in each was sized for an empty
+     * window. `authorAdapter` retries, so every attempt runs on a clone.
+     */
+    clone(options?: { signal?: AbortSignal }): Promise<LanguageModelSession>;
     /** Tokens this model can hold, shared between the prompt and the answer. */
     readonly contextWindow: number;
     readonly inputUsage: number;
