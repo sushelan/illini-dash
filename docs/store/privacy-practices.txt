@@ -120,32 +120,23 @@ it immediately.
 ------------------------------------------------------------------- [8 of 9] --
 HOST PERMISSION JUSTIFICATION
 -------------------------------------------------------------------------------
-Reads the user's own assignment and exam pages from the five sites that hold
-them, using the login session already in the browser: canvas.illinois.edu,
-www.gradescope.com, us.prairielearn.com, us.prairietest.com and
-smart.physics.illinois.edu.
+Reads the user's own assignment and exam pages with the browser's session:
+canvas.illinois.edu (courses, planner), www.gradescope.com (assignments),
+us.prairielearn.com (assessments), us.prairietest.com (exam reservations),
+smart.physics.illinois.edu (PHYS 211-214 work). raw.githubusercontent.com: a
+daily public JSON list of supported course sites, no cookies, nothing about the
+user.
 
-It requests only pages the account can already see, no more often than every 15
-minutes, and parses them locally for due dates, titles and course names. It
-never signs in, never sees a password and never writes to these sites.
+These six are up front: a background schedule has no gesture to request a
+permission from. It requests only pages the account can already see, at most
+every 15 minutes, parses them locally, and never signs in, sees a password, or
+writes to a site.
 
-They are up front rather than optional because the check runs on a background
-schedule, where no user gesture exists to request a permission from.
-
-raw.githubusercontent.com is read once a day for one public JSON file listing
-which UIUC course websites are supported, without cookies and carrying no
-information about the user.
-
-Optional host permission: nothing is granted at install. A course website is
-whatever host that course uses - many UIUC courses are on their own domains
-(cs124.org, cs225.org) rather than a university subdomain - so the host cannot
-be known in advance. It is requested at runtime, per site, only when the user
-switches that course on, and Chrome's prompt names that one host. An entry may
-not name a host already granted above.
-
-campuswire.com is optional in the same way and is requested from the click on
-the Campuswire switch; see the "scripting" justification above. It is the one
-host read from a page the user already has open rather than fetched.
+Optional hosts: nothing at install. Many UIUC course sites are their own domains
+(cs124.org, cs225.org), so the host is unknown in advance. One is requested at
+runtime, per site, read-only, when the user switches that course on; Chrome's
+prompt names it, and no entry may name a host granted above. campuswire.com is
+the same, from the Campuswire switch.
 
 ------------------------------------------------------------------- [9 of 9] --
 REMOTE CODE
