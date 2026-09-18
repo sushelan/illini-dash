@@ -30,6 +30,23 @@ import { DEFAULT_SETTINGS } from "./store.js";
  */
 type FieldKind = "list" | "map";
 
+/**
+ * A name may be dotted, because the unit the page dereferences is not always a
+ * top-level field.
+ *
+ * `observers` is a map, and a worker from before Piazza sends a perfectly good
+ * record — `{campuswire: {…}}` — so the top-level check passed, nothing was
+ * reported missing, and the page read `observers.piazza` as `undefined`. That
+ * renders as "Off", which is indistinguishable from the student having switched
+ * it off, and the switch is live: the click grants the host permission first
+ * and only then reaches an old worker, which throws
+ * "Cannot set properties of undefined" into the row hint. One key inside a map
+ * is the unit here, so the table has to be able to name one.
+ */
+function pathParts(field: string): string[] {
+  return field.split(".");
+}
+
 /** The `options-state` fields the options page dereferences. */
 const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
   courses: "list",
@@ -43,6 +60,12 @@ const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
   // chip say, so a page from after the change talking to a worker from before
   // it would throw in the middle of the sources list.
   observers: "map",
+  // The keys inside it, named one by one, because that is the unit the rows
+  // dereference: a worker that has never heard of Piazza sends an `observers`
+  // that is a record and is missing this, and the row would say "Off" with no
+  // banner rather than "reload the extension".
+  "observers.campuswire": "map",
+  "observers.piazza": "map",
   // Added in the same change as the field itself. The Google Calendar section
   // reads `.enabled`, `.state` and the two `lastPush*` fields off this, and the
   // section is drawn *before* Courses — so a page from after the change talking
@@ -91,13 +114,47 @@ function fill<T>(raw: unknown, fields: Record<string, FieldKind>): NormalizedOpt
   const source = isRecord(raw) ? raw : {};
   const missing: string[] = [];
   const state: Record<string, unknown> = { ...source };
+  /**
+   * Parents this call had to invent. A key inside one of them is filled in but
+   * **not** named: the parent is already in the notice, and "observers,
+   * observers.campuswire, observers.piazza" spends the student's attention on
+   * one fact written three ways.
+   */
+  const invented = new Set<string>();
 
   for (const [field, kind] of Object.entries(fields)) {
-    const value = source[field];
+    const parts = pathParts(field);
+    /*
+     * The parent is copied on the way down, so filling a key in does not write
+     * into the object the message arrived in — and a parent listed after its
+     * child (or not listed at all) cannot undo the fill, because each step
+     * reads what the previous one wrote.
+     */
+    let parent = state;
+    let reachable = true;
+    for (const step of parts.slice(0, -1)) {
+      const next = parent[step];
+      if (!isRecord(next)) {
+        reachable = false;
+        break;
+      }
+      const copy = { ...next };
+      parent[step] = copy;
+      parent = copy;
+    }
+    // An unreachable parent is reported as missing in its own right by its own
+    // entry; filling the child under a non-record parent would invent one.
+    if (!reachable) continue;
+    const leaf = parts[parts.length - 1]!;
+    const value = parent[leaf];
     const present = kind === "list" ? Array.isArray(value) : isRecord(value);
     if (present) continue;
-    missing.push(field);
-    state[field] = kind === "list" ? [] : {};
+    const underInvented = parts
+      .slice(0, -1)
+      .some((_, index) => invented.has(parts.slice(0, index + 1).join(".")));
+    if (!underInvented) missing.push(field);
+    invented.add(field);
+    parent[leaf] = kind === "list" ? [] : {};
   }
 
   return { state: state as T, missing };

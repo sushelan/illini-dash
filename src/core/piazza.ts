@@ -126,6 +126,16 @@ export function postBodyRequest(cid: string, nid: string): PiazzaRequest {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * A tag's attribute list, which does **not** end at the first `>`.
+ *
+ * `[^>]*` was the obvious spelling and it is wrong: `title="a > b"` ends the
+ * match inside the tag, so the rest of the tag (`b">`) survives as prose and
+ * the words before it are eaten. Real posts write arrows — `title="MP1 -> MP2"`
+ * — and a `due` or a date can be among the words that vanish. A quoted value is
+ * skipped whole, so only an unquoted `>` closes the tag.
+ */
+const TAG_TAIL = `(?:"[^"]*"|'[^']*'|[^'">])*>`;
+/**
  * Tags that are a line break when they are removed.
  *
  * The body is HTML written in Piazza's rich-text editor, and it reaches the
@@ -138,12 +148,26 @@ export function postBodyRequest(cid: string, nid: string): PiazzaRequest {
  * other. Everything in this list is a block (or `<br>`), and everything not in
  * it — `<strong>`, `<a>`, `<em>` — is inline and leaves no gap.
  */
-const BLOCK_TAG =
-  /<\/?(?:p|div|br|li|ul|ol|tr|td|th|table|h[1-6]|blockquote|pre|section|article|header|footer|hr)\b[^>]*>/gi;
+const BLOCK_TAG = new RegExp(
+  `</?(?:p|div|br|li|ul|ol|tr|td|th|table|h[1-6]|blockquote|pre|section|article|header|footer|hr)\\b${TAG_TAIL}`,
+  "gi",
+);
 /** `<script>`/`<style>` take their contents with them; nothing in them is prose. */
-const DROPPED_BLOCK = /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
+const DROPPED_BLOCK = new RegExp(`<(script|style)\\b${TAG_TAIL}[\\s\\S]*?</\\1\\s*>`, "gi");
 /** Whatever tags are left are inline, and come off without a space. */
-const ANY_TAG = /<\/?[a-z][^>]*>/gi;
+const ANY_TAG = new RegExp(`</?[a-z][a-z0-9-]*${TAG_TAIL}`, "gi");
+/**
+ * A comment and everything inside it, dropped like `<script>` and for its reason.
+ *
+ * `ANY_TAG` cannot match `<!--`, so the delimiters *and the commented-out text*
+ * used to survive into the string the grammar reads. An instructor editing the
+ * weekly post leaves the old line inside a comment, and a Word or Google Docs
+ * paste emits `<!--[if !supportLists]-->` — the first becomes a deadline the
+ * post does not state, the second becomes literal markup inside the evidence
+ * span quoted back at the student. The unterminated half is deliberate: a body
+ * cut off mid-comment must not leak the comment it was cut inside.
+ */
+const COMMENT = /<!--[\s\S]*?-->|<!--[\s\S]*$/g;
 
 /**
  * One HTML post body as the text `announce.ts` reads.
@@ -161,6 +185,7 @@ const ANY_TAG = /<\/?[a-z][^>]*>/gi;
  */
 export function htmlToText(html: string): string {
   const withBreaks = html
+    .replace(COMMENT, " ")
     .replace(DROPPED_BLOCK, " ")
     .replace(BLOCK_TAG, "\n")
     .replace(ANY_TAG, "");
@@ -309,9 +334,13 @@ export function parsePostBody(json: unknown, ctx: PostBodyContext): PostBody {
  * A pure seam rather than an object spread in the worker: the `nr` guard is a
  * decision, and worker house rule 1 says a decision belongs where the suite can
  * mutate it. `id`, `cid` and `postedAt` all stay the feed's — the id is what
- * `seenPosts` remembers, and `history[0].created` is when the latest *edit* was
- * made, which is not when the post was written and must not become the anchor
- * every relative phrase in it resolves against.
+ * `seenPosts` remembers and `postedAt` is when the post was first written.
+ *
+ * `versionAt` rides along beside it, because the text this merges in is version
+ * N and `postedAt` is version 0's instant: the captured "Running Post" was
+ * created 2026-08-28 and last written 2026-09-13, so "this Friday" in the body
+ * the second request returned resolved sixteen days early. `postAnchor` decides
+ * between them in one place.
  */
 export function withPostBody(post: ObservedPost, body: PostBody): ObservedPost {
   if (post.nr !== body.nr) {
@@ -324,6 +353,11 @@ export function withPostBody(post: ObservedPost, body: PostBody): ObservedPost {
     subject: body.subject === "" ? post.subject : body.subject,
     text: body.text,
     bodyRead: true,
+    versionAt: body.versionAt,
+    // The body's own two markers beat the feed's tag: `config.is_announcement`
+    // is only in the full post, and a post read in full is judged by what it
+    // says about itself.
+    instructorNote: body.instructorNote,
   };
 }
 
@@ -620,7 +654,36 @@ export interface ObservedPost {
   editedAt?: string;
   /** True when this post is being read again because it was edited since. */
   reread?: boolean;
+  /**
+   * `history[0].created` of the version `withPostBody` merged in.
+   *
+   * The anchor, once the body has been read: `postAnchor` prefers it over the
+   * feed's create instant, because the text that is parsed is the version that
+   * was fetched and every relative phrase in it ("this Friday") resolves
+   * against when *it* was written.
+   */
+  versionAt?: string;
+  /**
+   * Staff-written, from the feed's own `tags` and confirmed by the body.
+   *
+   * A `type: "note"` can be a pinned **student** post — the capture has four —
+   * and a classmate's "I think MP2 is due 10/3" must not move an assignment.
+   * `postsToSend` refuses one unless `includeStudentNotes` says otherwise, for
+   * the reason questions are refused: the grammar cannot tell an instructor's
+   * sentence from a classmate's guess.
+   */
+  instructorNote?: boolean;
   courseHint?: string;
+  /**
+   * Every §5.1 code of the class this post came from, primary first.
+   *
+   * `courseHint` is the class's raw name and the ingest side derives one code
+   * from it, which loses the second half of a cross-listing: a CS 425 / ECE 428
+   * post matched no ECE 428 item, so every announcement duplicated the student's
+   * assignments instead of correcting them. The first element is the code
+   * `courseHint` already yields; the rest are the ones it dropped.
+   */
+  courseCodes?: string[];
   extra: { unparsedPostedAt?: string; unparsedType?: string; unparsedEditedAt?: string };
 }
 
@@ -628,6 +691,8 @@ export interface ObservedPost {
 export interface FeedContext {
   nid: string;
   courseHint?: string;
+  /** §5.1 over the class's `course_number`, primary first. `PiazzaClass.courseCodes`. */
+  courseCodes?: string[];
   /** ISO instant the response was read. Carried for the caller's bookkeeping. */
   fetchedAt: string;
 }
@@ -644,8 +709,10 @@ export interface FeedContext {
  */
 function decodeEntities(raw: string): string {
   return raw
-    .replace(/&#(\d{1,7});/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]{1,6});/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d{1,7});/g, (match: string, code: string) => codePoint(match, Number(code)))
+    .replace(/&#x([0-9a-f]{1,6});/gi, (match: string, code: string) =>
+      codePoint(match, parseInt(code, 16)),
+    )
     .replace(/&nbsp;/g, " ")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
@@ -653,6 +720,22 @@ function decodeEntities(raw: string): string {
     .replace(/&gt;/g, ">")
     // Last, or `&amp;lt;` decodes twice into a tag.
     .replace(/&amp;/g, "&");
+}
+
+/**
+ * One numeric entity, or the entity text verbatim when it names no character.
+ *
+ * `String.fromCodePoint` **throws** above 0x10FFFF, and a `RangeError` is not a
+ * `ParseError`: one `&#9999999;` in one subject took the whole class's feed
+ * with it, on every sync for ever, because the text is a stable property of the
+ * page. House rule 1 — a bad value costs its own field, and the field here is
+ * one character. A lone surrogate is left alone too: it names no scalar and
+ * would put an unpaired code unit into a span quoted back at the student.
+ */
+function codePoint(raw: string, code: number): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return raw;
+  if (code >= 0xd800 && code <= 0xdfff) return raw;
+  return String.fromCodePoint(code);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -781,10 +864,26 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
     if (!Array.isArray(log) || log.length === 0 || !isRecord(log[0])) {
       throw new ParseError(`Piazza post ${nr} has no \`log[0]\`: the feed changed shape`);
     }
+    const tags = entry["tags"];
+    if (!Array.isArray(tags)) {
+      /*
+       * A hook, not a value (house rule 1): `tags` is what tells a staff
+       * announcement from a pinned classmate's note, and every entry in the
+       * capture has it. Defaulting it would hold every announcement back
+       * silently, which is the failure `type` above is guarded against for the
+       * same reason.
+       */
+      throw new ParseError(
+        `Piazza post ${nr} has no \`tags\`: nothing left to tell staff from a classmate`,
+      );
+    }
 
     // Exact match, never a substring (house rule 6): every other value is
     // something this build must not send, and an unknown one is not a note.
     const kind = type === "note" ? "note" : type === "question" ? "question" : "other";
+    // The same exact marker `parsePostBody` reads, one stage earlier, so a post
+    // whose body this sync never fetches is still judged by it.
+    const instructorNote = tags.some((tag) => tag === "instructor-note");
     const subject = decodeEntities(entry["subject"]);
     // Piazza's own spelling, and the only place the body appears in a feed.
     const snippet =
@@ -807,6 +906,7 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
       cid,
       nid: page.nid,
       kind,
+      instructorNote,
       subject,
       snippet,
       // The subject on its own line, like Campuswire's title: instructors put
@@ -816,6 +916,9 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
       ...(postedAt === undefined ? {} : { postedAt }),
       ...(editedAt === undefined ? {} : { editedAt }),
       ...(page.courseHint ? { courseHint: page.courseHint } : {}),
+      ...(page.courseCodes && page.courseCodes.length > 0
+        ? { courseCodes: [...page.courseCodes] }
+        : {}),
       extra: {
         ...(postedAt === undefined ? { unparsedPostedAt: String(at).slice(0, 120) } : {}),
         ...(kind === "other" ? { unparsedType: type.slice(0, 40) } : {}),
@@ -829,6 +932,30 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
   return posts;
 }
 
+/**
+ * The instant the text this post carries was written.
+ *
+ * `announce.ts` calls `postedAt` "the anchor for every relative phrase and for
+ * §3.2's year inference", and the feed's `log[0].t` is the **create** event.
+ * That is the wrong instant for a post that has been edited, and both captures
+ * say so: nr 28 was created 2026-08-28 and its last `update` is
+ * 2026-09-13T22:22:48Z, which is exactly `history[0].created` in
+ * `post-running.json` — and its `content_snipet` opens "[Last Updated Sep 13.]",
+ * so the snippet is the edited text too. Anchoring either reading at the create
+ * instant put "this Friday" sixteen days in the past.
+ *
+ * So the anchor is the instant the *version that was read* was written:
+ * `versionAt` when the body stage fetched it, the feed's last content edit when
+ * only the snippet was read, and the create instant when neither is readable (a
+ * post that has never been edited has all three equal, which is why no capture
+ * could show the difference).
+ */
+export function postAnchor(post: ObservedPost): string | undefined {
+  if (post.bodyRead === true && isInstant(post.versionAt)) return post.versionAt;
+  if (isInstant(post.editedAt)) return post.editedAt;
+  return isInstant(post.postedAt) ? post.postedAt : undefined;
+}
+
 /** Which posts the deadline pipeline is allowed to see. */
 export interface SendOptions {
   /**
@@ -837,6 +964,15 @@ export interface SendOptions {
    * cannot tell an instructor's sentence from a classmate's guess.
    */
   includeQuestions?: boolean;
+  /**
+   * Send notes that staff did not write. Off, and for `includeQuestions`'s reason.
+   *
+   * A `type: "note"` is not a staff announcement: the capture has four pinned
+   * student notes, and "I think MP2 is due 10/3" from a classmate would move a
+   * real assignment. The marker is the feed's own `instructor-note` tag (or the
+   * body's `config.is_announcement`), never a guess from the words.
+   */
+  includeStudentNotes?: boolean;
   /** Skip posts at or below this number — the last one already read for this class. */
   sinceNr?: number;
   /**
@@ -854,6 +990,11 @@ export interface PostPayload {
   id: string;
   source: "piazza";
   courseHint?: string;
+  /**
+   * Every code of the class, primary first — the second half of a cross-listing
+   * included. The ingest side must match an item on **any** of them.
+   */
+  courseCodes?: string[];
   postedAt: string;
   text: string;
 }
@@ -871,6 +1012,17 @@ export interface SendPlan {
    */
   sent: ObservedPost[];
   skipped: { nr: number; reason: string }[];
+  /**
+   * New posts refused for a reason that may not be true next sync.
+   *
+   * One refusal here is recoverable: a note whose posted date was unreadable.
+   * It is not in `sent`, so its body is never fetched and it is never ingested
+   * — and `bodyBatch` used to mark the whole feed read over its head, which
+   * turned "unreadable this sync" into "skipped for ever". A question and a
+   * classmate's note are *not* held: this build is never going to send them,
+   * and holding them would freeze `lastNr` at the first one for ever.
+   */
+  held: ObservedPost[];
 }
 
 /**
@@ -880,7 +1032,7 @@ export interface SendPlan {
  * "Piazza never ran" are the same silence otherwise (worker rule 5).
  */
 export function postsToSend(posts: readonly ObservedPost[], options: SendOptions = {}): SendPlan {
-  const plan: SendPlan = { payloads: [], sent: [], skipped: [] };
+  const plan: SendPlan = { payloads: [], sent: [], skipped: [], held: [] };
   for (const original of posts) {
     let post = original;
     if (options.sinceNr !== undefined && post.nr <= options.sinceNr) {
@@ -910,18 +1062,37 @@ export function postsToSend(posts: readonly ObservedPost[], options: SendOptions
       plan.skipped.push({ nr: post.nr, reason: `a ${post.kind}, not an announcement` });
       continue;
     }
-    if (post.postedAt === undefined) {
+    if (
+      post.kind === "note" &&
+      post.instructorNote === false &&
+      options.includeStudentNotes !== true
+    ) {
+      // Held back like a question, with its reason: the capture's pinned
+      // "Search for Teammates!" is a note a classmate wrote, and the grammar
+      // reads it exactly as it reads an instructor's announcement.
+      plan.skipped.push({ nr: post.nr, reason: "a note a classmate wrote, not staff" });
+      continue;
+    }
+    const postedAt = postAnchor(post);
+    if (postedAt === undefined) {
       plan.skipped.push({
         nr: post.nr,
         reason: `its posted date is unreadable (${JSON.stringify(post.extra.unparsedPostedAt ?? "")})`,
       });
+      // Recoverable, and the one refusal that is: `bodyBatch` must not run
+      // `lastNr` past it, or Piazza's next readable answer arrives at a post
+      // this store has already called read.
+      plan.held.push(post);
       continue;
     }
     plan.payloads.push({
       id: post.id,
       source: "piazza",
       ...(post.courseHint ? { courseHint: post.courseHint } : {}),
-      postedAt: post.postedAt,
+      ...(post.courseCodes && post.courseCodes.length > 0
+        ? { courseCodes: [...post.courseCodes] }
+        : {}),
+      postedAt,
       text: post.text,
     });
     plan.sent.push(post);
@@ -968,6 +1139,7 @@ export function bodyBatch(
   sent: readonly ObservedPost[],
   all: readonly ObservedPost[],
   limit = MAX_BODIES_PER_SYNC,
+  held: readonly ObservedPost[] = [],
 ): BodyBatch {
   const ordered = [...sent].sort((a, b) => a.nr - b.nr);
   const batch = ordered.slice(0, Math.max(0, limit));
@@ -976,7 +1148,21 @@ export function bodyBatch(
     return { batch, deferred, lastNr: batch[batch.length - 1]!.nr };
   }
   const top = highestNr(all);
-  return { batch, deferred: 0, ...(top === undefined ? {} : { lastNr: top }) };
+  if (top === undefined) return { batch, deferred: 0 };
+  /*
+   * The second way `lastNr` can run past a post nobody read, and the one no
+   * test connected: `postsToSend` refuses a note whose posted date is
+   * unreadable, nothing defers, and the mark goes to the top of the feed —
+   * over the refused note's head, so it is "already read" for ever, even after
+   * Piazza's log becomes readable again. The cap is the same one the deferred
+   * path uses, one post lower.
+   */
+  const lowestHeld = held.reduce<number | undefined>(
+    (low, post) => (low === undefined || post.nr < low ? post.nr : low),
+    undefined,
+  );
+  const lastNr = lowestHeld === undefined ? top : Math.min(top, lowestHeld - 1);
+  return { batch, deferred: 0, lastNr };
 }
 
 /** The highest post number in a feed, for `lastNr`. `undefined` for an empty one. */

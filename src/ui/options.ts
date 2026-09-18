@@ -1113,8 +1113,17 @@ async function renderOptions(): Promise<void> {
    * more than once.
    */
   const piazza = observers["piazza"] as PiazzaFacts | undefined;
+  /*
+   * The tone comes from the state, like every Source row below (`displayState`).
+   * It was the literal "disabled", so "Couldn't be read" and "Sign in needed"
+   * were painted the same neutral grey as "Off" — on a page whose other rows
+   * use colour as the scanning signal, which left this row's failure legible
+   * only word by word. The words still come from `describePiazza`.
+   */
+  const pzState = (): string =>
+    piazza?.enabled === true ? (piazza.state ?? "pending") : "disabled";
   const pzChip = stateChip(
-    "disabled",
+    pzState(),
     undefined,
     "Illini Dash reads your Piazza class feeds in the background, on each sync.",
   );
@@ -1132,12 +1141,17 @@ async function renderOptions(): Promise<void> {
       // permission prompt and a first poll, and without it a denied prompt and
       // a click that never ran look identical.
       if (box) box.disabled = true;
+      // Working, not broken: the tone goes back to neutral while the round trip
+      // is in flight, or a failing row keeps its red under the word "Asking".
+      pzChip.className = "chip-base chip-state";
       pzChip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
       const restore = (text: string): void => {
         if (box) {
           box.disabled = false;
           box.checked = piazza?.enabled === true;
         }
+        // The chip goes back to the state it was drawn in, tone and all.
+        pzChip.className = stateChip(pzState()).className;
         pzChip.textContent = describePiazza(piazza);
         // On the row, where the error happened (UI rule 3).
         pzHint.textContent = text;
@@ -1167,6 +1181,21 @@ async function renderOptions(): Promise<void> {
   });
   const pzHint = pzRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
   pzRow.append(pzChip);
+  if (missing.includes("observers.piazza")) {
+    /*
+     * The worker is older than this page and has no Piazza observer at all.
+     * Without this the row says "Off", which is the student's own switch, and
+     * the click would grant the host permission and only then reach a worker
+     * that throws on it. The banner at the top says it too; this says it where
+     * the control is (UI rule 3).
+     */
+    const box = pzRow.querySelector("input");
+    if (box) box.disabled = true;
+    pzHint.textContent =
+      "The background part of Illini Dash is still running an older version that has no " +
+      "Piazza support. Open chrome://extensions, click Reload on the Illini Dash card, " +
+      "then reopen this page.";
+  }
   if (piazza?.enabled === true && piazza.state === "needs_login") {
     const login = el("button", "Sign in", "btn btn-secondary btn-sm");
     login.addEventListener("click", () => chrome.tabs.create({ url: PIAZZA_LOGIN_URL }));

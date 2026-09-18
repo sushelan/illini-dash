@@ -270,6 +270,91 @@ pool is four (worker rule 9) and race each other's `seenPosts`. `lastAttemptAt` 
 stamped when a run **starts**, which is what `piazzaNeedsRecheck` compares against: stamped
 at the end, every page load during a 30-second run started another whole run.
 
+### Amendment (2026-09-18): the anchor is the version that was read
+
+A split finding from the seven-segment trace, decided on the captures. `parsePostBody`
+deliberately reads `history[0]`, the **newest** version, while `withPostBody` kept the
+feed's `log[0].t` — the *create* event — as `postedAt`, which `announce.ts` calls "the
+anchor for every relative phrase and for §3.2's year inference". So version N was parsed
+against version 0's clock. The Running Post is the case: created `2026-08-28T01:32:51Z`,
+last written `2026-09-13T22:22:48Z`, and a sentence reading "due this Friday at 11:59pm"
+in its current body resolved to **28 August** instead of 18 September — three weeks in the
+past, on a post the student is reading today.
+
+The snippet is the *same* edited text (nr 28's `content_snipet` opens "[Last Updated Sep
+13.]"), so the snippet-only reading was wrong for the same reason. `postAnchor` therefore
+answers, in order: `history[0].created` when the body stage read the post, the feed's last
+`create`/`update` (the field the amendment above established) when only the snippet was
+read, and `log[0].t` when neither is readable. A post that has never been edited has all
+three equal, which is why no capture could show the difference and why
+`tests/piazza-real.test.ts` measures it with a sentence the post does not contain.
+
+### Amendment (2026-09-18): `type: "note"` is not "staff wrote it"
+
+`parsePostBody` derived `instructorNote` from two exact markers and **nothing read it**:
+`withPostBody` copied three fields and dropped it, and `postsToSend` filtered on
+`kind !== "note"`. The capture makes the gap concrete — five of its 31 entries are
+`type: "note"` posts a *classmate* wrote (nr 1, 5, 9, 19, 147: "Search for Teammates!",
+"Looking for an MP partner", "Dropping from 4cr to 3cr"), tagged `student` and not
+`instructor-note`. They were ingested exactly like an instructor's announcement, so
+"I think MP2 is due 10/3" from a classmate could move a real assignment.
+
+The marker is now read at both stages. The feed entry's own `tags[]` carries
+`instructor-note`, so a post whose body this sync never fetches is still judged by it;
+the body's two markers (`instructor-note` in `result.tags`, or `config.is_announcement`)
+overrule it when the body has been read, and `background.ts` re-runs `postsToSend` over
+the merged post, which is where that second answer lands. A classmate's note is refused
+with its reason — "a note a classmate wrote, not staff" — exactly as a question is, and
+`includeStudentNotes` is the opt-in switch beside `includeQuestions`. `tags` is a **hook**
+(house rule 1): a feed entry without it throws, because defaulting it would hold every
+announcement back silently.
+
+The corpus in `tests/piazza-real.test.ts` is therefore **20 staff notes, not 25**, and the
+five are asserted as held rather than dropped from the table.
+
+### Amendment (2026-09-18): three ways one field cost a whole class
+
+Three more from the same trace, all house rule 1 at different scales:
+
+- **An out-of-range numeric entity.** `decodeEntities` called `String.fromCodePoint`
+  with no range check, and that **throws** above `0x10FFFF`. A `RangeError` is not a
+  `ParseError`, so one `&#9999999;` in one subject escaped `parseFeed` and cost the class
+  its entire feed — on every sync, for ever, because the text is a stable property of the
+  page. An entity that names no scalar (out of range, or a lone surrogate) is now left
+  verbatim: a bad value costs its own character.
+- **HTML comments.** `ANY_TAG` cannot match `<!--`, so a commented-out line reached the
+  grammar as prose. An instructor editing the weekly post leaves the old deadline inside a
+  comment, and a Word or Google Docs paste emits `<!--[if !supportLists]-->` — the first
+  becomes a deadline the post does not state, the second becomes literal markup inside the
+  evidence span quoted back at the student. Comments are dropped with their contents, like
+  `<script>`, including an unterminated one.
+- **A `>` inside an attribute value.** Both tag regexes scanned to the first `>`, which is
+  not where a tag ends when `title="MP1 -> MP2"` is in it: the words before the tag
+  vanished and `MP2">` became prose. The tag tail now skips quoted values whole.
+
+### Amendment (2026-09-18): `lastNr` may not run past a post nobody read
+
+`bodyBatch` caps `lastNr` at the batch when bodies were deferred, and that was the only
+cap. `postsToSend` also refuses a note whose posted date is unreadable — the anchor is not
+optional — and when nothing was deferred the mark went to the top of the feed **over that
+note's head**, so it read `already read (<= 184)` on every later sync even after Piazza's
+log became readable again. The refusal is now recorded (`SendPlan.held`, which holds only
+this recoverable refusal — never a question or a classmate's note, since freezing the mark
+under one of those would re-fetch the same bodies for ever) and `bodyBatch` caps `lastNr`
+one below the lowest held post.
+
+### Amendment (2026-09-18): a cross-listed class keeps both codes all the way down
+
+`parseClassPage` runs §5.1 over `course_number` and keeps every code — the captured class
+yields `["CS425","ECE428"]` — and the poll then carried only `courseHint`, the raw name,
+from which the ingest side derives one code ("CS425"). A student whose Gradescope items
+are filed under `ECE428` matched nothing, so every announcement about them raised a
+*second* row instead of correcting the one they had. `ObservedPost` and `PostPayload` now
+carry `courseCodes` (primary first, the one `courseHint` already yields), fed from
+`FeedContext.courseCodes`. The matching side belongs to `announce.ts`/`suggest.ts`, which
+must match an item on **any** of them, as `core/dedupe.ts` already does with
+`extra.altCodes`.
+
 ## The feed's shapes, as captured
 
 - A healthy response carries **`"error": null` at the top level**. `if ("error" in json)`

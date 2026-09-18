@@ -254,14 +254,21 @@ describe("parseFeed over the real response", () => {
     expect(posts().find((post) => post.nr === 16)?.subject).toContain("& 4cr MCS-Chicago");
   });
 
-  it("sends the notes and holds the questions back", () => {
+  it("sends the staff notes and holds the questions and the classmates back", () => {
     const plan = postsToSend(posts());
-    expect(plan.payloads).toHaveLength(25);
+    // 31 entries: 6 questions, 5 pinned notes a classmate wrote, 20 staff notes.
+    expect(plan.payloads).toHaveLength(20);
     expect(plan.payloads.every((payload) => payload.source === "piazza")).toBe(true);
-    expect(plan.skipped).toHaveLength(6);
-    expect(plan.skipped.every((entry) => entry.reason.includes("not an announcement"))).toBe(true);
-    // The flag exists for the day the Attention tab has been lived with.
-    expect(postsToSend(posts(), { includeQuestions: true }).payloads).toHaveLength(31);
+    expect(plan.skipped).toHaveLength(11);
+    expect(plan.skipped.filter((entry) => entry.reason.includes("not an announcement"))).toHaveLength(
+      6,
+    );
+    expect(
+      plan.skipped.filter((entry) => entry.reason === "a note a classmate wrote, not staff"),
+    ).toHaveLength(5);
+    // Both flags exist for the day the Attention tab has been lived with.
+    expect(postsToSend(posts(), { includeQuestions: true }).payloads).toHaveLength(26);
+    expect(postsToSend(posts(), { includeStudentNotes: true }).payloads).toHaveLength(25);
   });
 
   it("skips what it has already read, by number", () => {
@@ -270,7 +277,7 @@ describe("parseFeed over the real response", () => {
       `piazza:${NID}:179`,
       `piazza:${NID}:168`,
       `piazza:${NID}:164`,
-      `piazza:${NID}:147`,
+      // 147 is a classmate's note ("Dropping from 4cr to 3cr"), held back.
       `piazza:${NID}:145`,
       `piazza:${NID}:125`,
       `piazza:${NID}:105`,
@@ -677,6 +684,55 @@ describe("htmlToText", () => {
   it("drops scripts and styles with their contents", () => {
     expect(htmlToText("<p>a</p><script>var due = '9/25';</script><p>b</p>")).toBe("a\n\nb");
   });
+
+  it("drops a comment with its contents, so a commented-out deadline is not a deadline", () => {
+    /*
+     * The trace's case: an instructor edits the weekly post and the old line is
+     * left inside a comment. `ANY_TAG` cannot match `<!--`, so the delimiters
+     * *and* the sentence used to reach the grammar, which read a date the post
+     * does not state and quoted `<!-- ... -->` back at the student as evidence.
+     */
+    expect(
+      htmlToText("<p>HW2 is out.</p><!-- old: HW1 is due 9/12 at 5pm --><p>Enjoy.</p>"),
+    ).toBe("HW2 is out.\n\nEnjoy.");
+    // A Word or Google Docs paste, which every real class has some of.
+    expect(htmlToText("<p>a<!--[if !supportLists]-->1.<!--[endif]--> MP1 due 9/25</p>")).toBe(
+      "a 1. MP1 due 9/25",
+    );
+    // Unterminated: a body cut off mid-comment must not leak what it was cut inside.
+    expect(htmlToText("<p>HW2 is out.</p><!-- HW1 is due 9/12")).toBe("HW2 is out.");
+  });
+
+  it("does not let a `>` inside an attribute value eat the words around it", () => {
+    // Real posts write arrows in link titles. `[^>]*` ended the tag inside the
+    // attribute, so `MP1 is` lost its verb and `MP2">` became prose.
+    expect(htmlToText('<p>MP1 is <a href="/hw" title="MP1 -> MP2">due</a> Friday 9/25.</p>')).toBe(
+      "MP1 is due Friday 9/25.",
+    );
+    expect(htmlToText('<p>HW3 <img alt="x > y" src="/a.png"> due 9/25 at 5pm</p>')).toBe(
+      "HW3 due 9/25 at 5pm",
+    );
+    // A block tag has the same tail, and losing it loses a sentence boundary.
+    expect(htmlToText('<div title="a > b">It is due.</div><div>Friday we review.</div>')).toBe(
+      "It is due.\n\nFriday we review.",
+    );
+  });
+
+  it("leaves an entity that names no character rather than throwing", () => {
+    /*
+     * `String.fromCodePoint` throws above 0x10FFFF, and a `RangeError` is not a
+     * `ParseError`: one such entity in one subject cost the whole class's feed
+     * on every sync. House rule 1 — a bad value costs its own field, which here
+     * is one character. Deliberately unrealistic values (house rule 10): no
+     * capture contains one, which is why nothing found this.
+     */
+    expect(htmlToText("<p>HW1 &#9999999; question</p>")).toBe("HW1 &#9999999; question");
+    expect(htmlToText("<p>HW1 &#xFFFFFF; question</p>")).toBe("HW1 &#xFFFFFF; question");
+    // A lone surrogate names no scalar either, and must not reach a span.
+    expect(htmlToText("<p>HW1 &#xD800; question</p>")).toBe("HW1 &#xD800; question");
+    // The ones that do name a character still decode, or the guard is a deletion.
+    expect(htmlToText("<p>HW1 &#x1F600; &#65; done</p>")).toBe("HW1 \u{1F600} A done");
+  });
 });
 
 describe("parsePostBody over the real content.get capture", () => {
@@ -815,7 +871,7 @@ describe("postsToSend carries the posts, not only the payloads", () => {
     // snippet, with the log still saying the feed was read.
     const plan = postsToSend(posts());
     expect(plan.sent.map((post) => post.id)).toEqual(plan.payloads.map((payload) => payload.id));
-    expect(plan.sent).toHaveLength(25);
+    expect(plan.sent).toHaveLength(20);
     expect(plan.sent.every((post) => post.cid !== "")).toBe(true);
   });
 
@@ -852,6 +908,150 @@ describe("bodyBatch", () => {
     expect(batch.batch).toHaveLength(25);
     expect(batch.deferred).toBe(5);
     expect(batch.lastNr).toBe(25);
+  });
+
+  it("does not mark the feed read over a post it refused for a bad date", () => {
+    /*
+     * The second way `lastNr` can run past a post nobody read, and the one no
+     * test connected: `postsToSend` refuses a note whose posted date is
+     * unreadable, nothing is deferred, and the mark used to go to the top of
+     * the feed — so that announcement is "already read" on every later sync,
+     * even after Piazza's log becomes readable again.
+     */
+    const batch = bodyBatch([stub(160)], [stub(150), stub(160), stub(184)], 25, [stub(150)]);
+    expect(batch.deferred).toBe(0);
+    expect(batch.lastNr).toBe(149);
+    // Without a held post the mark still goes to the top: the cap is the
+    // refusal's, not a blanket retreat.
+    expect(bodyBatch([stub(160)], [stub(150), stub(160), stub(184)], 25).lastNr).toBe(184);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* A refused post is retried, and a classmate's note is not an announcement    */
+/* -------------------------------------------------------------------------- */
+
+describe("the posts a sync refuses", () => {
+  /** The capture with note 150's date unreadable — the mutation the feed test uses. */
+  function badDateFeed(): Record<string, unknown> {
+    const json = feed();
+    entries(json)[19] = { ...entries(json)[19]!, log: [{ t: "8/28/2026", n: "create" }] };
+    return json;
+  }
+
+  it("holds a note with an unreadable date, and keeps `lastNr` below it", () => {
+    const parsed = parseFeed(badDateFeed(), PAGE);
+    const broken = parsed[19]!;
+    expect(broken.postedAt).toBeUndefined();
+    const plan = postsToSend(parsed);
+    expect(plan.held.map((post) => post.nr)).toEqual([broken.nr]);
+    const batch = bodyBatch(plan.sent, parsed, MAX_BODIES_PER_SYNC, plan.held);
+    expect(batch.deferred).toBe(0);
+    expect(batch.lastNr).toBe(broken.nr - 1);
+    /*
+     * The whole point: next sync it is offered again rather than classified
+     * "already read". With the uncapped mark (`highestNr` = 184) it never was.
+     */
+    const again = postsToSend(parseFeed(feed(), PAGE), { sinceNr: batch.lastNr! });
+    expect(again.payloads.some((payload) => payload.id === broken.id)).toBe(true);
+  });
+
+  it("does not hold a question or a classmate's note, which no sync will send", () => {
+    // Holding one of those would freeze `lastNr` under the lowest of them for
+    // ever, re-fetching the same bodies on every sync.
+    const plan = postsToSend(posts());
+    expect(plan.held).toEqual([]);
+    expect(bodyBatch(plan.sent, posts(), MAX_BODIES_PER_SYNC, plan.held).lastNr).toBe(184);
+  });
+
+  it("reads staff-ness off the feed's own tag, and refuses the feed without it", () => {
+    const parsed = posts();
+    // 28 is tagged `instructor-note`; 5 ("Search for Teammates!") is `student`.
+    expect(parsed.find((post) => post.nr === 28)!.instructorNote).toBe(true);
+    expect(parsed.find((post) => post.nr === 5)!.instructorNote).toBe(false);
+    // A hook, not a value (house rule 1): without `tags` every announcement
+    // would be held back silently, which is worse than the post being lost.
+    const noTags = feed();
+    entries(noTags)[0] = { ...entries(noTags)[0]!, tags: undefined };
+    expect(() => parseFeed(noTags, PAGE)).toThrow(ParseError);
+    expect(() => parseFeed(noTags, PAGE)).toThrow(/tags/);
+  });
+
+  it("keeps a classmate's deadline out of the pipeline", () => {
+    /*
+     * Deliberately unrealistic (house rule 10): the capture's four student
+     * notes state no deadline, so a build that sent them and one that refuses
+     * them produce the same suggestions over it. Given a sentence, they do not.
+     */
+    const json = feed();
+    const student = entries(json).findIndex((entry) => entry["nr"] === 5);
+    entries(json)[student] = {
+      ...entries(json)[student]!,
+      content_snipet: "I think MP2 is due 10/3 at 11:59pm.",
+    };
+    const parsed = parseFeed(json, PAGE);
+    const plan = postsToSend(parsed);
+    expect(plan.payloads.some((payload) => payload.id === `piazza:${NID}:5`)).toBe(false);
+    expect(plan.skipped).toContainEqual({ nr: 5, reason: "a note a classmate wrote, not staff" });
+    // And the body's own markers say the same thing, for the post the body
+    // stage does fetch: `config.is_announcement` is only in the full post.
+    const withStudentNotes = postsToSend(parsed, { includeStudentNotes: true });
+    const sent = withStudentNotes.sent.find((post) => post.nr === 5)!;
+    const merged = withPostBody(sent, {
+      ...parsePostBody(post(), CTX),
+      nr: 5,
+      instructorNote: false,
+      subject: "Search for Teammates!",
+      text: "Search for Teammates!\nI think MP2 is due 10/3 at 11:59pm.",
+    });
+    expect(merged.instructorNote).toBe(false);
+    expect(postsToSend([merged]).payloads).toEqual([]);
+  });
+
+  it("lets the body's own markers overrule the feed's tag", () => {
+    /*
+     * The body is the fuller evidence and it is read second: `config.is_announcement`
+     * exists only in the full post. A post the feed tagged `instructor-note`
+     * whose body carries neither marker is refused at the second pass —
+     * `background.ts` re-runs `postsToSend` over the post as it now reads, so
+     * this is the filter that sees the body at all.
+     *
+     * Deliberately unrealistic (house rule 10): in both captures the two agree,
+     * so a `withPostBody` that dropped the body's answer is indistinguishable
+     * from one that keeps it unless they are made to disagree.
+     */
+    const feedPost = posts().find((entry) => entry.nr === 179)!;
+    expect(feedPost.instructorNote).toBe(true);
+    const demoted = post();
+    result(demoted)["tags"] = ["mp_oncampus_1", "pin"];
+    result(demoted)["config"] = { is_announcement: 0 };
+    const merged = withPostBody(feedPost, parsePostBody(demoted, CTX));
+    expect(merged.instructorNote).toBe(false);
+    expect(postsToSend([merged]).skipped).toEqual([
+      { nr: 179, reason: "a note a classmate wrote, not staff" },
+    ]);
+    // And the way round the capture does show: both say staff, and it is sent.
+    expect(postsToSend([withPostBody(feedPost, parsePostBody(post(), CTX))]).payloads).toHaveLength(
+      1,
+    );
+  });
+
+  it("carries every code of a cross-listed class onto the payload", () => {
+    /*
+     * `courseHint` is the class's raw name, and the ingest side derives one
+     * code from it — "CS425" — so a post from this class matched no ECE 428
+     * item and every announcement duplicated the student's assignments instead
+     * of correcting them. The codes travel beside the hint, primary first.
+     */
+    const codes = ["CS425", "ECE428"];
+    const parsed = parseFeed(feed(), { ...PAGE, courseCodes: codes });
+    expect(parsed[0]!.courseCodes).toEqual(codes);
+    const payload = postsToSend(parsed).payloads[0]!;
+    expect(payload.courseCodes).toEqual(codes);
+    expect(payload.courseHint).toBe(PAGE.courseHint);
+    // A class with one code is not made to look cross-listed, and a class page
+    // that named none leaves the field off rather than sending [].
+    expect(postsToSend(posts()).payloads[0]!.courseCodes).toBeUndefined();
   });
 });
 
@@ -945,7 +1145,7 @@ function ingestAll(json: unknown = feed()): {
 }
 
 describe("the real feed through ingestPost", () => {
-  it("reads all 25 notes, and finds the one deadline their snippets state", () => {
+  it("reads all 20 staff notes, and finds the one deadline their snippets state", () => {
     /*
      * The scorecard, recorded rather than assumed away
      * (docs/piazza-findings.md). It was **zero** until 2026-09-18, when
@@ -963,7 +1163,9 @@ describe("the real feed through ingestPost", () => {
      * floor rather than a finding about the class.
      */
     const { suggestions, seen } = ingestAll();
-    expect(Object.keys(seen)).toHaveLength(25);
+    // 20, not 25: the five pinned notes a classmate wrote are held back before
+    // they reach the grammar (`tests/piazza-real.test.ts` names them).
+    expect(Object.keys(seen)).toHaveLength(20);
     expect(suggestions).toHaveLength(1);
     expect(suggestions[0]).toEqual({
       title: "MP Group",
