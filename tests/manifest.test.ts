@@ -96,9 +96,48 @@ describe("every origin the extension fetches is granted", () => {
   });
 });
 
-describe("the permission list and its justifications", () => {
-  const listing = readFileSync(new URL("../docs/store/listing.md", import.meta.url), "utf8");
+const listing = readFileSync(new URL("../docs/store/listing.md", import.meta.url), "utf8");
 
+/**
+ * The rows of listing.md's permission-justification table, and nothing else.
+ *
+ * The check this replaces asked whether `` `scripting` `` appeared *anywhere*
+ * in listing.md. It does — the pre-submit checklist at the bottom of the file
+ * mentions it — so renaming the table row it was meant to be guarding left the
+ * suite green with the justification gone. A justification is a row in that
+ * table or it does not exist, so the anchor is the row.
+ */
+const justifications: string[][] = (() => {
+  const lines = listing.split("\n");
+  const start = lines.indexOf("## Permission justifications");
+  expect(start, "listing.md has no Permission justifications section").toBeGreaterThanOrEqual(0);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith("## "));
+  return rest
+    .slice(0, end === -1 ? rest.length : end)
+    .filter((line) => line.startsWith("|") && !/^\|[\s|-]*\|$/.test(line))
+    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()));
+})();
+
+/** A row whose first cell names exactly this, in backticks. */
+function hasRowFor(label: string): boolean {
+  return justifications.some((cells) => cells[0] === `\`${label}\``);
+}
+
+/** A row — any cell of one — that names this host. */
+function namedInTable(host: string): boolean {
+  return justifications.some((cells) => cells.join(" ").includes(host));
+}
+
+/** The hostname a `https://host/*` match pattern grants. */
+function hostOf(pattern: string): string {
+  return pattern
+    .replace(/^https:\/\//, "")
+    .replace(/\/\*$/, "")
+    .replace(/^\*\./, "");
+}
+
+describe("the permission list and its justifications", () => {
   for (const permission of [
     "storage",
     "alarms",
@@ -114,18 +153,126 @@ describe("the permission list and its justifications", () => {
       // permission is a rejection. `contextMenus` was added for the
       // report-this-page item and never written down.
       expect(manifest.permissions).toContain(permission);
-      expect(listing.includes(`\`${permission}\``), `${permission} missing from listing.md`).toBe(
-        true,
-      );
+      expect(hasRowFor(permission), `${permission} has no row in listing.md's table`).toBe(true);
     });
   }
 
   it("claims no permission it does not justify", () => {
     for (const permission of manifest.permissions) {
-      expect(listing.includes(`\`${permission}\``), `${permission} missing from listing.md`).toBe(
-        true,
-      );
+      expect(hasRowFor(permission), `${permission} has no row in listing.md's table`).toBe(true);
     }
+  });
+
+  it("justifies every host it is granted at install", () => {
+    /*
+     * `raw.githubusercontent.com` sat in `host_permissions` with no row in the
+     * table: a reviewer reading the justifications would have been told about
+     * five sites while the prompt beside them asked for six. Derive the list
+     * from the manifest rather than from a second copy written by hand.
+     */
+    for (const pattern of manifest.host_permissions) {
+      const host = hostOf(pattern);
+      expect(namedInTable(host), `${host} is granted but no row names it`).toBe(true);
+    }
+  });
+
+  it("justifies every host it asks for at runtime", () => {
+    /*
+     * `optional_host_permissions` is one `https://*` entry, so the manifest
+     * names none of the hosts that will actually be requested. What is
+     * requested is what `chrome.permissions.request` is called with in `src/`:
+     * today the Campuswire origin, spelled out in `src/ui/options.ts`, and each
+     * adapter's own `hostPattern`, which comes from the registry and cannot be
+     * spelled out anywhere. The literal one gets a host check; the derived one
+     * gets its row.
+     */
+    const host = new URL(CAMPUSWIRE_ORIGIN).hostname;
+    expect(namedInTable(host), `${host} is requested at runtime but no row names it`).toBe(true);
+    expect(hasRowFor("optional_host_permissions"), "adapter hosts have no row").toBe(true);
+  });
+});
+
+/**
+ * The store documents against the limits they state about themselves.
+ *
+ * Each of these is a field with a character cap on the other side of a form,
+ * and a document that runs over it is not discovered until someone is pasting
+ * at 1am on the night of the submission. A 1455-character block sat in
+ * `privacy-practices.txt` under a header promising 1000 until a human counted
+ * it. The header states the limit, so the header is what the test reads — a
+ * number written twice drifts, and the copy in the test is the one nobody
+ * looks at.
+ */
+describe("the store documents fit the fields they are pasted into", () => {
+  const practices = readFileSync(
+    new URL("../docs/store/privacy-practices.txt", import.meta.url),
+    "utf8",
+  );
+
+  // "All are plain text, all under 1000." — the file's own header.
+  const limit = Number(/all under (\d+)\b/.exec(practices)?.[1]);
+  const blocks = practices.split(/^-+ \[(\d+) of (\d+)\] --$/m);
+
+  it("is a file of numbered blocks, all of them found", () => {
+    // Silent empty, one document over: a marker line that stopped matching
+    // would leave the loop below with nothing to assert and the suite green.
+    expect(limit).toBeGreaterThan(0);
+    expect(blocks.length).toBeGreaterThan(1);
+    const total = Number(blocks[2]);
+    expect((blocks.length - 1) / 3, `[n of ${total}] markers found`).toBe(total);
+  });
+
+  for (let i = 1; i < blocks.length; i += 3) {
+    const n = blocks[i];
+    const of = blocks[i + 1];
+    // The block runs to the next marker or to the `====` rule that ends the
+    // numbered section; its first two lines are the title and its underline.
+    const lines = (blocks[i + 2] ?? "").split(/\n={10,}/)[0]!.split("\n");
+    const title = lines[1];
+    const body = lines.slice(3).join("\n").trim();
+
+    it(`[${n} of ${of}] ${title} fits ${limit} characters`, () => {
+      expect(body.length, `${title} is ${body.length} characters`).toBeLessThanOrEqual(limit);
+      expect(body.length, `${title} is empty`).toBeGreaterThan(0);
+    });
+  }
+
+  it("the store's test instructions fit their field", () => {
+    const text = readFileSync(
+      new URL("../docs/store/test-instructions.txt", import.meta.url),
+      "utf8",
+    );
+    // "(Access tab, 500-character field)" — the file's own header. The block
+    // between the two dashed rules is the text that gets pasted.
+    const cap = Number(/(\d+)-character field/.exec(text)?.[1]);
+    const parts = text.split(/^-{40,}$/m);
+    expect(cap).toBeGreaterThan(0);
+    expect(parts.length, "test-instructions.txt has no block between two rules").toBe(3);
+    const body = (parts[1] ?? "").trim();
+    expect(body.length, `the block is ${body.length} characters`).toBeLessThanOrEqual(cap);
+    expect(body.length, "the block is empty").toBeGreaterThan(0);
+  });
+
+  it("the description fits the store's cap and is the plain text it claims to be", () => {
+    /*
+     * listing.md: "The store's Description field is **plain text** — it
+     * preserves line breaks and nothing else — so the Markdown that made this
+     * document readable would ship as literal asterisks and hyphens in the
+     * listing." The cap the store enforces on that field is 16000.
+     */
+    const description = readFileSync(
+      new URL("../docs/store/description.txt", import.meta.url),
+      "utf8",
+    );
+    expect(description.length).toBeLessThanOrEqual(16000);
+    expect(description.length).toBeGreaterThan(0);
+    // A Markdown link ships as `[text](url)`, with the address hidden from the
+    // one reader who might have followed it.
+    expect(description, "a Markdown link would ship literally").not.toMatch(
+      /\[[^\]\n]*\]\([^)\n]*\)/,
+    );
+    // A leading `#` ships as a `#`, not as a heading.
+    expect(description.split("\n").filter((line) => line.startsWith("#"))).toEqual([]);
   });
 });
 
