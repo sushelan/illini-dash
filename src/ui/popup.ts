@@ -46,6 +46,7 @@ import {
   MONTH_CELL_ROWS,
   monthCells,
   quietDay,
+  spanMinutes,
   startOfDay,
   visibleItems,
   weekContents,
@@ -71,6 +72,12 @@ import {
   type NavigatedAt,
 } from "../core/health.js";
 import { downloadIcs } from "./download.js";
+import {
+  type Editor,
+  type EditorValues,
+  EDITOR_SELECTOR,
+  createEditor,
+} from "./editor.js";
 import { type IconName, icon, iconButton } from "./icons.js";
 import {
   courseLabel,
@@ -377,6 +384,22 @@ function renderWordmark(): HTMLElement {
 function renderActions(): void {
   actionsEl.replaceChildren();
 
+  /*
+   * The "+", first, because adding is now something this window does.
+   *
+   * Sushi: "maybe also just a + icon as well for a general event addition."
+   * It prefills the day being *viewed* rather than today — pressing it while
+   * looking at next Tuesday and getting a form dated today is the same class of
+   * surprise as a calendar that jumps back to now when you scroll it.
+   */
+  const addButton = iconButton("plus", "Add a deadline");
+  addButton.addEventListener("click", (event) => {
+    // Otherwise `document`'s own click listener closes the panel this opens.
+    event.stopPropagation();
+    openAddEditor();
+  });
+  actionsEl.append(addButton);
+
   syncButton = iconButton("sync", "Sync now");
   syncButton.addEventListener("click", () => void runSync());
   actionsEl.append(syncButton);
@@ -489,6 +512,22 @@ function renderBanners(state: {
       ...(stale.needsLogin && login
         ? { action: { label: "Sign in", run: () => chrome.tabs.create({ url: login }) } }
         : {}),
+    });
+  }
+
+  /*
+   * "Deleted … · Undo", for ten seconds.
+   *
+   * In `#banners` rather than in the status line at the foot of the document:
+   * the week view is about 1100px in a 600px window, so a message down there is
+   * one nobody sees (UI house rule 3) — and this one has a *deadline* on it.
+   */
+  if (pendingUndo && Date.now() < pendingUndo.until) {
+    banners.push({
+      tone: "info",
+      glyph: "info",
+      text: `Deleted \u201c${pendingUndo.title}\u201d`,
+      action: { label: "Undo", run: () => undoDelete() },
     });
   }
 
@@ -843,6 +882,35 @@ const MENU_CLASS = MENU_SELECTOR.slice(1);
  * that finds a menu open is deferred, and `closeMenus` runs it.
  */
 let redrawAfterMenu = false;
+
+/**
+ * Whether a redraw may run, and the note that it is owed if not.
+ *
+ * Two things on this page hold a draw off: an open row menu (see
+ * `redrawAfterMenu`) and an open editor, which is the same argument one step
+ * further — a redraw calls `viewEl.replaceChildren()`, so a student half way
+ * through typing a title would watch the form vanish mid-word. Six things
+ * redraw this page and none of them is the student.
+ *
+ * Deferred, never skipped: the list is stale until whichever panel is open
+ * closes, and then it catches up. Both closers run the deferred draw.
+ *
+ * Any open editor blocks, not only a dirty one. The rule was written as
+ * "an editor with unsaved input", and a clean editor is one whose date was
+ * prefilled by the drag that opened it — losing that is losing the gesture.
+ * `isDirty` is still read, for the confirmation on Escape.
+ */
+function drawIsHeld(): boolean {
+  if (document.querySelector(MENU_SELECTOR)) {
+    redrawAfterMenu = true;
+    return true;
+  }
+  if (editor) {
+    redrawAfterEditor = true;
+    return true;
+  }
+  return false;
+}
 
 function closeMenus(): void {
   const open = [...document.querySelectorAll(MENU_SELECTOR)];
@@ -1222,6 +1290,23 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   const calendar = googleCalendarUrl(item);
   if (calendar) {
     add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
+  }
+
+  /*
+   * A row the student typed is the only row they may rewrite or remove.
+   *
+   * Appended after the existing entries rather than led with: everything above
+   * works the same way on every row, and a menu whose first two items move
+   * about depending on where a deadline came from is one that has to be read
+   * every time.
+   */
+  const mine = soleManualMember(item);
+  if (mine) {
+    add("Edit", "settings", () => {
+      closeMenus();
+      openEditEditor(item, mine);
+    });
+    add("Delete", "close", (entry) => deleteManual(item, mine, entry));
   }
 
   document.body.append(menu);
@@ -1898,6 +1983,266 @@ function renderUntimedBand(items: Item[], now: Date, colours: Map<string, number
 }
 
 /* -------------------------------------------------------------------------- */
+/* Typing a deadline in                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one editor that may be open, and the redraw it is holding off.
+ *
+ * One at a time by construction: a second "+" pressed while a form is open
+ * closes the first. Two forms on screen would each claim the draft box on the
+ * day grid, and only one of them could be right about it.
+ */
+let editor: { handle: Editor; el: HTMLElement } | undefined;
+let redrawAfterEditor = false;
+
+/** How long "Deleted … · Undo" stays on screen. */
+const UNDO_MS = 10_000;
+
+/**
+ * A deletion that can still be taken back, and the fields to rebuild it from.
+ *
+ * Held here rather than in the banner element, because `renderBanners` replaces
+ * its children on every draw — and a sync landing two seconds after a delete
+ * would otherwise take the Undo away with it. The banner is re-derived from
+ * this on each draw, so it survives every redraw until it expires.
+ *
+ * The new row gets a new `sourceId`: the delete pruned the old key's overrides
+ * (a hide, a tick), and reusing the id would re-arm them against a row the
+ * student has just re-created. Undo means "put the deadline back", not "put the
+ * corrections back".
+ */
+let pendingUndo: { title: string; values: EditorValues; until: number } | undefined;
+let undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+/** `HH:MM` on a 24-hour clock — what `<input type="time">` and §3 both use. */
+function timeValue(when: Date): string {
+  return `${pad2(when.getHours())}:${pad2(when.getMinutes())}`;
+}
+
+/**
+ * The fields of a manual row, as the editor's strings.
+ *
+ * Read from the *member*, not from the merged `Item`: a manual row can be
+ * merged with a Gradescope one, and then `item.title` and `item.url` are
+ * whichever member §5.3 ranked highest. Editing would silently rewrite the
+ * student's own row to say what Gradescope says.
+ *
+ * A time the extension invented comes back blank. `extra.timeAssumed` is the
+ * mark worker rule 3 exists for, and pre-filling 23:59 from it would turn an
+ * invention into a value the student had apparently stated the moment they
+ * opened the form to fix a typo in the title.
+ */
+function valuesOfMember(member: Item["members"][number]): EditorValues {
+  const due = member.dueAt ? new Date(member.dueAt) : undefined;
+  const assumed = member.extra?.["timeAssumed"] === "true";
+  const endRaw = member.extra?.["endAt"];
+  const end = endRaw ? new Date(endRaw) : undefined;
+  const dated = due !== undefined && !Number.isNaN(due.getTime());
+  return {
+    title: member.title,
+    courseRaw: member.courseRaw,
+    date: dated ? dayKey(due!) : viewedDate(),
+    time: dated && !assumed ? timeValue(due!) : "",
+    endTime: end !== undefined && !Number.isNaN(end.getTime()) ? timeValue(end) : "",
+    kind: member.kind,
+    url: member.url ?? "",
+  };
+}
+
+/** The course labels on screen, offered as suggestions and not as a closed list. */
+function courseChoices(): string[] {
+  return coursesIn(currentItems).map((course) => courseLabel(course, courseNames));
+}
+
+/**
+ * Hand the fields to the worker, and turn a refusal into something to read.
+ *
+ * `core/manual.ts` is the only thing that judges these, so this does no
+ * checking of its own — it forwards strings and rethrows the sentence. The
+ * `.catch` lives in the editor, which is the surface that has somewhere to put
+ * it (UI house rule 2: a `send` without one is silent in the page *and* in the
+ * worker's console).
+ */
+async function saveManual(values: EditorValues, sourceId?: string): Promise<void> {
+  const input = {
+    title: values.title,
+    courseRaw: values.courseRaw,
+    date: values.date,
+    time: values.time,
+    endTime: values.endTime,
+    kind: values.kind,
+    url: values.url,
+  };
+  const response = await send(
+    sourceId === undefined
+      ? { type: "add-manual-item", input }
+      : { type: "edit-manual-item", sourceId, input },
+  );
+  if (response.type === "error") throw new Error(response.message);
+}
+
+interface EditorRequest {
+  /** Where the form goes. In the popup this is always a node already in flow. */
+  container: HTMLElement;
+  where?: "start" | "end";
+  heading: string;
+  submitLabel: string;
+  values: Partial<EditorValues>;
+  /** Present when this is an edit rather than a new row. */
+  sourceId?: string;
+  /** Follows the clock fields; the day grid uses it to move the draft box. */
+  onChange?: (values: EditorValues) => void;
+  /** Run when the form goes away, however it goes away. */
+  onClose?: () => void;
+}
+
+let editorOnClose: (() => void) | undefined;
+
+function closeEditor(): void {
+  if (!editor) return;
+  const el = editor.el;
+  editor = undefined;
+  el.remove();
+  const after = editorOnClose;
+  editorOnClose = undefined;
+  after?.();
+  if (redrawAfterEditor) {
+    redrawAfterEditor = false;
+    void refresh();
+  }
+}
+
+function openEditor(request: EditorRequest): void {
+  closeMenus();
+  closeEditor();
+  const handle = createEditor({
+    heading: request.heading,
+    submitLabel: request.submitLabel,
+    courses: courseChoices(),
+    values: request.values,
+    ...(request.onChange ? { onChange: request.onChange } : {}),
+    onSave: async (values) => {
+      await saveManual(values, request.sourceId);
+      closeEditor();
+      // Not deferred: the form is gone, and the row it just created is the
+      // whole point of having pressed Save.
+      await refresh();
+    },
+    onCancel: () => closeEditor(),
+  });
+  editor = { handle, el: handle.el };
+  editorOnClose = request.onClose;
+  if (request.where === "end") request.container.append(handle.el);
+  else request.container.prepend(handle.el);
+  handle.focus();
+  // The form is taller than most rows, and in the week and month views it opens
+  // well down a document that may be scrolled. `nearest`, so a form already in
+  // view does not move the page under the pointer that opened it.
+  handle.el.scrollIntoView({ block: "nearest" });
+}
+
+/** The day currently being looked at, as `YYYY-MM-DD`. */
+function viewedDate(): string {
+  return dayKey(anchorDate(new Date()));
+}
+
+/** The bar's "+", and the week and month "+"s, all end up here. */
+function openAddEditor(request: Partial<EditorRequest> = {}): void {
+  openEditor({
+    container: viewEl,
+    where: "start",
+    heading: "Add a deadline",
+    submitLabel: "Add",
+    ...request,
+    values: { date: viewedDate(), kind: "assignment", ...(request.values ?? {}) },
+  });
+}
+
+function openEditEditor(item: Item, member: Item["members"][number]): void {
+  openEditor({
+    container: viewEl,
+    where: "start",
+    heading: `Edit \u201c${item.title}\u201d`,
+    submitLabel: "Save",
+    values: valuesOfMember(member),
+    sourceId: member.sourceId,
+  });
+}
+
+/**
+ * The manual member of a row, when the row is *only* that.
+ *
+ * Edit and Delete are offered on a row with one member from the `manual`
+ * source and no others. A merged row — a typed deadline the student also has on
+ * Gradescope — is deliberately left alone: deleting it would take the typed
+ * half out from under a row that stays on screen anyway, and editing it would
+ * rewrite a title Gradescope may outrank. Split first, then edit the half that
+ * is yours.
+ */
+function soleManualMember(item: Item): Item["members"][number] | undefined {
+  if (item.members.length !== 1) return undefined;
+  const member = item.members[0]!;
+  return member.source === "manual" ? member : undefined;
+}
+
+function clearUndo(): void {
+  pendingUndo = undefined;
+  if (undoTimer !== undefined) clearTimeout(undoTimer);
+  undoTimer = undefined;
+}
+
+function deleteManual(item: Item, member: Item["members"][number], entry: HTMLElement): void {
+  // Said on the control that was pressed, before anything can go wrong — the
+  // same reason `applyOverrideAction` does it (UI house rule 4).
+  entry.replaceChildren(icon("sync"), document.createTextNode("Deleting\u2026"));
+  for (const other of entry.parentElement?.querySelectorAll("button") ?? []) {
+    (other as HTMLButtonElement).disabled = true;
+  }
+  console.log(`[illini-dash] delete requested for manual:${member.sourceId}`);
+  const values = valuesOfMember(member);
+  void send({ type: "delete-manual-item", sourceId: member.sourceId })
+    .then((response) => {
+      if (response.type === "error") {
+        showStatus(response.message);
+        return;
+      }
+      clearUndo();
+      pendingUndo = { title: item.title, values, until: Date.now() + UNDO_MS };
+      undoTimer = setTimeout(() => {
+        clearUndo();
+        void refresh();
+      }, UNDO_MS);
+    })
+    .catch((err: unknown) => {
+      showStatus(
+        `Could not delete that deadline: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    })
+    .finally(() => {
+      closeMenus();
+      void refresh();
+    });
+}
+
+function undoDelete(): void {
+  const undo = pendingUndo;
+  if (!undo) return;
+  clearUndo();
+  void saveManual(undo.values)
+    .catch((err: unknown) => {
+      showStatus(
+        `Could not put that deadline back: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    })
+    .finally(() => void refresh());
+}
+
+/* -------------------------------------------------------------------------- */
 /* Day                                                                         */
 /* -------------------------------------------------------------------------- */
 
@@ -1930,8 +2275,9 @@ function renderDayGrid(
   contents: DayContents,
   now: Date,
   colours: Map<string, number>,
-): { grid: HTMLElement; fit: () => void } {
-  const { start, end } = hourRange(contents);
+  include: readonly number[] = [],
+): { grid: HTMLElement; fit: () => void; slots: HTMLElement; start: number; end: number } {
+  const { start, end } = hourRange(contents, include);
   const grid = document.createElement("div");
   grid.className = "grid";
 
@@ -1960,7 +2306,23 @@ function renderDayGrid(
     const minutes = minutesInto(new Date(stack[0]!.anchor.at));
     box.style.top = `${(minutes / 60 - start) * HOUR_PX - 2}px`;
     for (const placed of stack) {
-      box.append(renderPlaced(placed, now, colours));
+      const row = renderPlaced(placed, now, colours);
+      /*
+       * Something that lasts is a box as tall as it lasts, not a line.
+       *
+       * An exam sitting and a typed event both say how long they take —
+       * `spanMinutes` reads PrairieTest's `"50min"` and the `endAt` a student
+       * typed — and a 110-minute midterm drawn as one 26px row says nothing
+       * about the two hours it actually occupies. `min-height`, not `height`:
+       * a title still wraps to as many lines as it needs, and the row grows
+       * past its span rather than clipping it.
+       */
+      const span = spanMinutes(placed.item, placed.anchor);
+      if (span !== undefined) {
+        row.classList.add("row-span");
+        row.style.minHeight = `${Math.max(HOUR_PX, (span / 60) * HOUR_PX)}px`;
+      }
+      box.append(row);
     }
     slots.append(box);
   }
@@ -1983,6 +2345,9 @@ function renderDayGrid(
   const floor = (end - start) * HOUR_PX;
   return {
     grid,
+    slots,
+    start,
+    end,
     fit: () => {
       let lowest = floor;
       for (const box of slots.querySelectorAll<HTMLElement>(".grid--stack")) {
@@ -2098,7 +2463,21 @@ function renderAgendaRow(
   }
 }
 
-/** The full view's day, which has the height an hour axis is worth. */
+/**
+ * The full view's day, which has the height an hour axis is worth.
+ *
+ * **The empty day draws the grid too, which reverses an earlier decision.**
+ * That decision — "no grid at all rather than ten empty ruled hours, which say
+ * nothing and push what is above them off the screen" — was right while the
+ * axis was only somewhere deadlines were *shown*. It is now where they are
+ * *added*: a press on 3 PM is how a student puts something at 3 PM, and an
+ * empty day is exactly the day they are most likely to be filling in. A blank
+ * page with nothing to press is the one shape that makes the gesture
+ * undiscoverable.
+ *
+ * The "nothing due" note stays, above the grid rather than instead of it, so
+ * the day still says what it holds before it offers somewhere to write.
+ */
 function renderDayGridView(
   contents: DayContents,
   now: Date,
@@ -2110,22 +2489,275 @@ function renderDayGridView(
   if (eod) viewEl.append(eod);
 
   if (contents.timed.length === 0) {
-    // No grid at all rather than ten empty ruled hours, which say nothing and
-    // push what is above them off the screen.
     viewEl.append(
       emptyNote(
         contents.endOfDay.length + contents.untimed.length > 0
-          ? "Nothing else at a set time today."
-          : "Nothing due this day.",
+          ? "Nothing else at a set time today. Drag on the grid to add something."
+          : "Nothing due this day. Drag on the grid to add something.",
       ),
     );
-    return;
   }
 
-  const { grid, fit } = renderDayGrid(contents, now, colours);
-  viewEl.append(grid);
+  mountDayGrid(viewEl, contents, now, colours);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dragging a box onto the hour axis                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Quarter hours.
+ *
+ * A grid hour is 26px, so one pixel is a little over two minutes and an
+ * unsnapped drag would produce "4:37\u20135:09 PM" — a precision the gesture does
+ * not have and a deadline nobody meant. Fifteen minutes is 6.5px, which is
+ * still finer than the hand is.
+ */
+const SNAP_MINUTES = 15;
+
+/**
+ * How far the pointer must travel before this is a drag rather than a press.
+ *
+ * Under this, the gesture is a click: one instant, no end time. A press that
+ * wobbles two pixels and silently becomes a five-minute event is the kind of
+ * thing that makes a control feel broken.
+ */
+const DRAG_SLOP_PX = 4;
+
+interface DayGridRef {
+  host: HTMLElement;
+  el: HTMLElement;
+  slots: HTMLElement;
+  start: number;
+  end: number;
+  contents: DayContents;
+  now: Date;
+  colours: Map<string, number>;
+}
+
+/** The grid currently on screen, so the draft box can be re-placed on it. */
+let dayGrid: DayGridRef | undefined;
+
+/** Where the student is putting something, in minutes from local midnight. */
+let draft: { startMin: number; endMin?: number } | undefined;
+
+/**
+ * The hours the axis must cover because of the draft, on top of the day's own.
+ *
+ * Both ends: a box dragged from 9 PM to 10:30 needs the axis to reach 10:30, or
+ * the ghost is drawn past the bottom of the grid it is supposed to be inside.
+ */
+function draftHours(): number[] {
+  if (!draft) return [];
+  const hours = [draft.startMin / 60];
+  if (draft.endMin !== undefined) hours.push(draft.endMin / 60);
+  return hours;
+}
+
+function mountDayGrid(
+  host: HTMLElement,
+  contents: DayContents,
+  now: Date,
+  colours: Map<string, number>,
+): void {
+  const built = renderDayGrid(contents, now, colours, draftHours());
+  host.append(built.grid);
   // Only measurable once it is in the document.
-  fit();
+  built.fit();
+  dayGrid = {
+    host,
+    el: built.grid,
+    slots: built.slots,
+    start: built.start,
+    end: built.end,
+    contents,
+    now,
+    colours,
+  };
+  wireDayDrag(dayGrid);
+  paintDraft();
+}
+
+/**
+ * Rebuild only the grid, leaving everything else in `#view` alone.
+ *
+ * A typed time outside the current axis has to widen it, and the obvious way to
+ * widen it is a redraw — which would take the editor that is being typed into
+ * with it. So the grid element is replaced in place and the form above it never
+ * moves.
+ */
+function rebuildDayGrid(): void {
+  const current = dayGrid;
+  if (!current || !current.el.isConnected) return;
+  const built = renderDayGrid(current.contents, current.now, current.colours, draftHours());
+  current.el.replaceWith(built.grid);
+  built.fit();
+  dayGrid = { ...current, el: built.grid, slots: built.slots, start: built.start, end: built.end };
+  wireDayDrag(dayGrid);
+  paintDraft();
+}
+
+function clockAt(minutes: number): string {
+  const when = anchorDate(new Date());
+  when.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * "3:00\u20134:30 PM", with the meridiem written once when it is the same one.
+ *
+ * Not a cosmetic saving: the label sits inside a box that can be 13px tall at
+ * the narrow end of a quarter-hour drag, and "3:00 PM\u20134:30 PM" is what makes
+ * it wrap out of its own box.
+ */
+function draftLabel(startMin: number, endMin?: number): string {
+  const from = clockAt(startMin);
+  if (endMin === undefined) return from;
+  const to = clockAt(endMin);
+  const suffix = / (AM|PM)$/.exec(to)?.[1];
+  const trimmed = suffix && from.endsWith(` ${suffix}`) ? from.slice(0, -suffix.length - 1) : from;
+  return `${trimmed}\u2013${to}`;
+}
+
+function paintDraft(): void {
+  const grid = dayGrid;
+  if (!grid) return;
+  for (const old of grid.slots.querySelectorAll(".grid--draft")) old.remove();
+  if (!draft) return;
+
+  const box = document.createElement("div");
+  box.className = "grid--draft";
+  const top = (draft.startMin / 60 - grid.start) * HOUR_PX;
+  const minutes = draft.endMin === undefined ? SNAP_MINUTES : draft.endMin - draft.startMin;
+  box.style.top = `${top}px`;
+  box.style.height = `${Math.max(12, (minutes / 60) * HOUR_PX)}px`;
+
+  const label = document.createElement("span");
+  label.className = "grid--draft-label";
+  label.textContent = draftLabel(draft.startMin, draft.endMin);
+  box.append(label);
+  grid.slots.append(box);
+}
+
+/** Put the draft here, widening the axis first when it no longer fits on it. */
+function setDraft(startMin: number, endMin?: number): void {
+  draft = endMin === undefined ? { startMin } : { startMin, endMin };
+  const grid = dayGrid;
+  const covered =
+    grid !== undefined &&
+    startMin >= grid.start * 60 &&
+    (endMin ?? startMin) <= grid.end * 60;
+  if (covered) paintDraft();
+  else rebuildDayGrid();
+}
+
+function clearDraft(): void {
+  if (!draft) return;
+  draft = undefined;
+  // Rebuilt rather than only repainted, so the axis gives back the hours it
+  // widened by. A grid left stretched to 11 PM after a cancelled drag is a day
+  // that quietly looks different from every other day.
+  rebuildDayGrid();
+}
+
+/** `HH:MM` back to minutes, for a time the student typed into the editor. */
+function minutesOfClock(value: string): number | undefined {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  // Deliberately not a refusal: `core/manual.ts` is what judges this string.
+  // All this decides is whether the ghost can be drawn, and a half-typed time
+  // simply leaves it where it was.
+  if (!match) return undefined;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function wireDayDrag(ref: DayGridRef): void {
+  const minutesAt = (clientY: number): number => {
+    const rect = ref.slots.getBoundingClientRect();
+    const raw = ref.start * 60 + ((clientY - rect.top) / HOUR_PX) * 60;
+    const snapped = Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES;
+    return Math.min(ref.end * 60, Math.max(ref.start * 60, snapped));
+  };
+
+  ref.slots.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const target = event.target;
+    // A press on a deadline is a press on that deadline. `.grid--line` and
+    // `.grid--now` are decoration stretched across the whole width, so they are
+    // deliberately *not* excluded — a student aiming at 4 PM will land on the
+    // 4 PM rule about half the time.
+    if (target instanceof Element && target.closest(".row, .grid--stack, .editor")) return;
+    event.preventDefault();
+
+    const anchorMin = minutesAt(event.clientY);
+    const fromY = event.clientY;
+    let moved = false;
+    setDraft(anchorMin);
+    // Capture, so a drag that leaves the grid — upward past the banners, or out
+    // of the window — still reports its moves and its release here.
+    ref.slots.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent: PointerEvent): void => {
+      if (Math.abs(moveEvent.clientY - fromY) >= DRAG_SLOP_PX) moved = true;
+      const other = minutesAt(moveEvent.clientY);
+      const from = Math.min(anchorMin, other);
+      const to = Math.max(anchorMin, other);
+      setDraft(from, moved && to > from ? to : undefined);
+    };
+
+    const finish = (upEvent: PointerEvent, cancelled: boolean): void => {
+      ref.slots.removeEventListener("pointermove", move);
+      ref.slots.removeEventListener("pointerup", up);
+      ref.slots.removeEventListener("pointercancel", cancel);
+      if (ref.slots.hasPointerCapture(upEvent.pointerId)) {
+        ref.slots.releasePointerCapture(upEvent.pointerId);
+      }
+      if (cancelled) {
+        clearDraft();
+        return;
+      }
+      const current = draft;
+      if (!current) return;
+      openDraftEditor(current.startMin, current.endMin);
+    };
+    const up = (upEvent: PointerEvent): void => finish(upEvent, false);
+    const cancel = (cancelEvent: PointerEvent): void => finish(cancelEvent, true);
+
+    ref.slots.addEventListener("pointermove", move);
+    ref.slots.addEventListener("pointerup", up);
+    ref.slots.addEventListener("pointercancel", cancel);
+  });
+}
+
+/**
+ * The form for a box just dragged onto the axis.
+ *
+ * A dragged *span* opens as an Event, not a deadline: the student said when it
+ * starts and when it ends, and the end time field only exists for the kinds
+ * that have one — opening it as a deadline would throw away half of what the
+ * gesture stated. A press with no drag stays a deadline, which is what the
+ * other 95% of this list is.
+ */
+function openDraftEditor(startMin: number, endMin?: number): void {
+  const time = `${pad2(Math.floor(startMin / 60))}:${pad2(startMin % 60)}`;
+  const endTime =
+    endMin === undefined ? "" : `${pad2(Math.floor(endMin / 60))}:${pad2(endMin % 60)}`;
+  openAddEditor({
+    values: {
+      date: viewedDate(),
+      time,
+      endTime,
+      kind: endMin === undefined ? "assignment" : "event",
+    },
+    onChange: (values) => {
+      // The ghost follows what is typed, so the two controls for one fact — the
+      // box and the clock fields — cannot disagree about where it is.
+      const from = minutesOfClock(values.time);
+      if (from === undefined) return;
+      const to = minutesOfClock(values.endTime);
+      setDraft(from, to !== undefined && to > from ? to : undefined);
+    },
+    onClose: () => clearDraft(),
+  });
 }
 
 function emptyNote(text: string): HTMLElement {
@@ -2177,6 +2809,27 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
 
     const box = document.createElement("div");
     box.className = "witems";
+    /*
+     * Anywhere in the row that is not a deadline is somewhere to add one.
+     *
+     * A week row has no hour axis to aim at, so there is nothing to drag — but
+     * "press the empty part of Tuesday" is the same gesture every calendar
+     * answers, and the day is already written on the left of it.
+     */
+    box.addEventListener("click", (event) => {
+      if (event.target !== box) return;
+      openAddEditor({ container: box, where: "end", values: { date: dayKey(day.date) } });
+    });
+    const addHere = iconButton("plus", `Add something on ${
+      day.date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+    }`);
+    // Visible on hover and whenever it has focus: a control that only exists
+    // under a pointer is one no keyboard can ever reach.
+    addHere.classList.add("btn-sm", "wadd");
+    addHere.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openAddEditor({ container: box, where: "end", values: { date: dayKey(day.date) } });
+    });
     const timed = allTimed(day.contents);
     // A day nobody owes anything on gets the tight header, whether it is empty
     // or holds four things already handed in. The decision is `quietDay`'s;
@@ -2202,6 +2855,7 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
       }
     }
 
+    box.append(addHere);
     row.append(head, box);
     viewEl.append(row);
   }
@@ -2234,7 +2888,33 @@ function renderMonthView(items: Item[], now: Date, colours: Map<string, number>)
     const num = document.createElement("div");
     num.className = "mnum";
     num.textContent = String(cell.date.getDate());
-    box.append(num);
+
+    /*
+     * The "+" at the head of the cell, and a press on the empty part of it.
+     *
+     * Positioned rather than placed inside `.mnum`: today's number is a 24px
+     * circle with `place-items: center`, and a second child in it would push
+     * the date out of its own ring.
+     *
+     * The form itself opens at the top of the view rather than inside the cell.
+     * A month cell is about 100px tall and a seventh of the window wide, so a
+     * form in it would push six other weeks off the screen to show three
+     * truncated fields.
+     */
+    const addDay = iconButton("plus", `Add something on ${
+      cell.date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+    }`);
+    addDay.classList.add("btn-sm", "madd");
+    const addOnThisDay = (): void => openAddEditor({ values: { date: dayKey(cell.date) } });
+    addDay.addEventListener("click", (event) => {
+      event.stopPropagation();
+      addOnThisDay();
+    });
+    box.addEventListener("click", (event) => {
+      if (event.target !== box) return;
+      addOnThisDay();
+    });
+    box.append(num, addDay);
 
     for (const placed of cell.items.slice(0, MONTH_CELL_ROWS)) {
       box.append(renderMonthPill(placed, now, colours));
@@ -2520,12 +3200,14 @@ function render(
   // is the common case, not a corner one — the redraw waits for the menu to
   // close. Checked here, after the awaits in `draw`, and not only in `refresh`:
   // a menu can open while the state is in flight.
-  if (document.querySelector(MENU_SELECTOR)) {
-    redrawAfterMenu = true;
-    return;
-  }
+  if (drawIsHeld()) return;
   currentItems = items;
   viewEl.replaceChildren();
+  // The grid that was on screen is gone with those children, and so is anything
+  // that was being dragged onto it. A draw only ever happens with no editor
+  // open (see `drawIsHeld`), so nothing is being typed that this discards.
+  dayGrid = undefined;
+  draft = undefined;
   delete viewEl.dataset["shape"];
   // What the full view's width cap keys off. A month may use 1400px; a list of
   // rows stops at 1100 so the clock does not end up a foot from the title. Set
@@ -2613,10 +3295,7 @@ function render(
  * channel this surface has, so everything ends up there.
  */
 async function refresh(): Promise<void> {
-  if (document.querySelector(MENU_SELECTOR)) {
-    redrawAfterMenu = true;
-    return;
-  }
+  if (drawIsHeld()) return;
   try {
     await draw();
   } catch (err) {

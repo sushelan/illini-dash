@@ -73,7 +73,23 @@ const pageBuild =
   /BUILD_ID = [^;]*?"(\d{8}T\d{6})"/.exec(readFileSync(join(dist, "options.js"), "utf8"))?.[1] ??
   "dev";
 
-const stub = readFileSync(stubOut, "utf8");
+/*
+ * Wrapped in an IIFE, because the stub and the page bundle share one scope.
+ *
+ * They are concatenated into a single classic script (see below), so a name
+ * declared at the top level of both collides and the *whole page* dies with
+ * `Identifier 'instantOf' has already been declared` — before a single element
+ * is drawn, with only a console nobody has open to say so. That became
+ * reachable the moment the stub started importing `core/manual.ts` to answer
+ * `add-manual-item` with the real refusals: the popup already pulls the same
+ * module in through `core/sync.ts`.
+ *
+ * Everything the page needs from the stub it takes off `globalThis` —
+ * `chrome`, and `fireStorageChange` — so nothing is lost by giving it a scope
+ * of its own, and a harness that dies on load is the one failure a harness may
+ * never have.
+ */
+const stub = `;(() => {\n${readFileSync(stubOut, "utf8")}\n})();`;
 const prelude = `globalThis.__PREVIEW_BUILD__ = ${JSON.stringify(pageBuild)};\n`;
 
 // The stub must define `chrome` before the page bundle runs, so they are
@@ -93,10 +109,21 @@ const prelude = `globalThis.__PREVIEW_BUILD__ = ${JSON.stringify(pageBuild)};\n`
  */
 const epilogue = `
 ;(() => {
-  if (new URLSearchParams(location.search).get("open") !== "health") return;
+  const q = new URLSearchParams(location.search);
+  // \`?editor=1\` opens the add form on load. Same argument as \`?open=health\`:
+  // a state that needs a click is a state \`npm run shots\` can never see, and
+  // the editor is now the tallest thing this document can grow by. It is a
+  // synthetic click and proves nothing about *pressing* the button (UI house
+  // rule 5) — it only gets the harness into the state.
+  const target = q.get("open") === "health"
+    ? ".pill"
+    : q.has("editor")
+      ? '#actions button[aria-label="Add a deadline"]'
+      : undefined;
+  if (!target) return;
   const open = () => {
-    const pill = document.querySelector(".pill");
-    if (pill) pill.click();
+    const el = document.querySelector(target);
+    if (el) el.click();
     else setTimeout(open, 120);
   };
   // After the popup's own open-sync has landed and redrawn: a render calls
@@ -224,4 +251,4 @@ console.log("  dist/shot.html               seeds view/theme, then redirects —
 console.log("");
 console.log("  npx http-server dist -p 8731   (or any static server)");
 console.log("  then open http://localhost:8731/preview-popup.html");
-console.log("  ?view=full for the tab, ?setup=1 for the first-run screen");
+console.log("  ?view=full for the tab, ?setup=1 for the first-run screen, ?editor=1 for the add form");
