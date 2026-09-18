@@ -30,7 +30,17 @@ function current(): Record<string, unknown> {
     doneItems: [],
     setAsideCourses: [{ id: "1", name: "Old course", reason: "not in the current term" }],
     courseNames: { CS424: "Distributed Systems" },
-    observers: { campuswire: { enabled: true, postsSeen: 3 } },
+    /*
+     * Both keys, because both rows index into this map by name and "a current
+     * worker" is what the same-build case means: a page that reads
+     * `observers.piazza` off a worker that has never heard of Piazza gets
+     * `undefined`, which renders as "Off" — the student's own switch — with no
+     * banner to say the worker is the stale half.
+     */
+    observers: {
+      campuswire: { enabled: true, postsSeen: 3 },
+      piazza: { enabled: false },
+    },
     /*
      * Added when Google Calendar landed, in the same change as the field.
      *
@@ -52,8 +62,34 @@ describe("normalizeOptionsState", () => {
     const old = current();
     delete old["observers"];
     const { state, missing } = normalizeOptionsState<Record<string, unknown>>(old);
+    // Once, not three times: the keys inside it are filled in under a parent
+    // the notice already names.
     expect(missing).toEqual(["observers"]);
-    expect(state["observers"]).toEqual({});
+    expect(state["observers"]).toEqual({ campuswire: {}, piazza: {} });
+  });
+
+  it("names the observer key an older worker does not know about", () => {
+    /*
+     * The trace's case, and the reason a top-level "map" is not enough: a
+     * pre-Piazza worker sends `observers: {campuswire: {…}}`, which is a
+     * perfectly good record. Nothing was reported missing, the row read
+     * `observers.piazza` as undefined and said "Off" — the student's own
+     * switch — and the click that followed granted the host permission and
+     * *then* reached a worker with no such observer, which put
+     * "Cannot set properties of undefined" in the row hint instead of the one
+     * sentence that ends the investigation.
+     */
+    const old = current();
+    old["observers"] = { campuswire: { enabled: true, postsSeen: 3 } };
+    const { state, missing } = normalizeOptionsState<Record<string, unknown>>(old);
+    expect(missing).toEqual(["observers.piazza"]);
+    expect(staleWorkerNotice(missing)).toContain("observers.piazza");
+    const observers = state["observers"] as Record<string, unknown>;
+    expect(observers["piazza"]).toEqual({});
+    // What the worker did send is left exactly as it was.
+    expect(observers["campuswire"]).toEqual({ enabled: true, postsSeen: 3 });
+    // And the message it was given is not written into (`does not mutate`).
+    expect((old["observers"] as Record<string, unknown>)["piazza"]).toBeUndefined();
   });
 
   it("reports nothing missing, and changes nothing, for a same-build message", () => {

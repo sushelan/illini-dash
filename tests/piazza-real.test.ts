@@ -6,10 +6,17 @@
  * "extend the final deadline of CNN project to"). That corpus is what the
  * grammar's trigger table was written from, and it is why the table had no verb
  * for *registering* for anything: `announce.ts` read zero deadlines out of all
- * 25 instructor notes on this CS 425 / ECE 428 page (docs/piazza-findings.md).
+ * the notes on this CS 425 / ECE 428 page (docs/piazza-findings.md).
  *
- * So this file is the scorecard, asserted note by note: what each of the 25
- * real notes yields, and — where it yields nothing — *which* nothing, because
+ * **20, not 25** since 2026-09-18: five of the feed's `type: "note"` entries are
+ * pinned posts a *classmate* wrote (1, 5, 9, 19, 147 — "Search for Teammates!",
+ * "Looking for an MP partner"), and `postsToSend` now holds those back the way
+ * it holds questions back, because the grammar cannot tell an instructor's
+ * sentence from a classmate's guess. They are asserted below as held, with
+ * their reason, so the corpus stays exhaustive over the feed.
+ *
+ * So this file is the scorecard, asserted note by note: what each of the staff
+ * notes yields, and — where it yields nothing — *which* nothing, because
  * "the post states no deadline" and "the grammar failed on one" want opposite
  * fixes (parser rule 2, `describeEmpty`).
  *
@@ -31,6 +38,7 @@ import {
   parseFeed,
   parsePostBody,
   postsToSend,
+  withPostBody,
   type PostBody,
   type PostPayload,
 } from "../src/core/piazza.js";
@@ -96,7 +104,6 @@ const EXPECTED: Record<number, EmptyReason | "read"> = {
   179: "trigger-without-date-words",
   168: "date-words-without-trigger",
   164: "trigger-without-date-words",
-  147: "no-date-words",
   145: "date-words-without-trigger",
   125: "no-date-words",
   105: "no-date-words",
@@ -115,18 +122,42 @@ const EXPECTED: Record<number, EmptyReason | "read"> = {
   28: "trigger-and-date-words-unmatched",
   26: "trigger-without-date-words",
   24: "no-date-words",
-  19: "no-date-words",
   16: "no-date-words",
   15: "no-date-words",
   11: "date-words-without-trigger",
   10: "no-date-words",
-  9: "no-date-words",
   6: "no-date-words",
-  5: "no-date-words",
-  1: "no-date-words",
 };
 
-describe("the 25 real instructor notes", () => {
+/**
+ * The five pinned notes a classmate wrote, and the reason they are held back.
+ *
+ * `tags` on each of these has `student` and not `instructor-note`, and the body
+ * confirms it (`config.is_announcement` is 0). Before 2026-09-18 they were sent
+ * with the staff notes: a classmate's "I think MP2 is due 10/3" was ingested as
+ * an announcement and could move a real assignment.
+ */
+const STUDENT_NOTES = [1, 5, 9, 19, 147];
+
+describe("the 20 real instructor notes", () => {
+  it("holds the five classmate notes back, and says which and why", () => {
+    const plan = postsToSend(parseFeed(FEED, PAGE));
+    const held = plan.skipped
+      .filter((entry) => entry.reason === "a note a classmate wrote, not staff")
+      .map((entry) => entry.nr)
+      .sort((a, b) => a - b);
+    expect(held).toEqual(STUDENT_NOTES);
+    // And they really are notes: without the staff marker they would sail past
+    // the `kind !== "note"` filter, which is the defect this replaced.
+    const posts = parseFeed(FEED, PAGE);
+    for (const nr of STUDENT_NOTES) {
+      expect(posts.find((post) => post.nr === nr)!.kind).toBe("note");
+    }
+    // The opt-in exists, so the refusal is a policy and not a deletion.
+    const withThem = postsToSend(posts, { includeStudentNotes: true });
+    expect(withThem.payloads).toHaveLength(plan.payloads.length + STUDENT_NOTES.length);
+  });
+
   it("is the whole feed, and nothing else", () => {
     expect([...NOTES.keys()].sort((a, b) => a - b)).toEqual(
       Object.keys(EXPECTED)
@@ -186,6 +217,15 @@ const RUNNING: unknown = JSON.parse(
 const NOW_28 = "2026-09-14T09:00:00-05:00";
 /** The feed's `log[0].t` for note 28: when it was written, not when it was edited. */
 const POSTED_28 = "2026-08-28T01:32:51Z";
+/**
+ * When the body this test reads was actually written — the anchor.
+ *
+ * The feed's last `update` for note 28 and `history[0].created` in
+ * `post-running.json` are the same instant to the second, sixteen days after
+ * the create event above. Anchoring the newest body at `POSTED_28` put every
+ * relative phrase in it sixteen days early, which is why `postAnchor` exists.
+ */
+const EDITED_28 = "2026-09-13T22:22:48Z";
 const ID_28 = `piazza:${PAGE.nid}:28`;
 
 const NO_OVERRIDES: Overrides = {
@@ -203,14 +243,16 @@ function runningBody(): PostBody {
   return parsePostBody(RUNNING, { nid: PAGE.nid, cid: "post-28" });
 }
 
+/**
+ * The payload as the worker builds it: the feed entry, the body merged in, the
+ * send plan. Built through the real seams rather than by hand, so the anchor
+ * this corpus measures against is the one a sync would use.
+ */
 function runningPayload(): PostPayload {
-  return {
-    id: ID_28,
-    source: "piazza",
-    courseHint: PAGE.courseHint,
-    postedAt: POSTED_28,
-    text: runningBody().text,
-  };
+  const entry = parseFeed(FEED, PAGE).find((post) => post.nr === 28)!;
+  const plan = postsToSend([withPostBody(entry, runningBody())]);
+  expect(plan.skipped).toEqual([]);
+  return plan.payloads[0]!;
 }
 
 function ingest(items: Item[], suggestions: Suggestion[] = []) {
@@ -250,6 +292,45 @@ function gradescopeHw1(dueAt: string): Item {
 }
 
 describe("note 28, the Running Post, read in full", () => {
+  it("is anchored at the version it read, not at the day it was created", () => {
+    /*
+     * The trace's split finding, decided on the evidence both captures give:
+     * `parsePostBody` deliberately reads `history[0]`, the **newest** version,
+     * and `withPostBody` used to keep the feed's create instant as the anchor —
+     * so version N was parsed against version 0's clock. The Running Post is
+     * the case: created 2026-08-28, last written 2026-09-13, and its own first
+     * line says "[Last Updated Sep 13.]".
+     *
+     * The snippet is the edited text too, so the snippet-only reading is
+     * anchored at the feed's last content edit — the same instant — and only a
+     * post whose log names no readable edit falls back to the create instant.
+     */
+    const body = runningBody();
+    const entry = parseFeed(FEED, PAGE).find((post) => post.nr === 28)!;
+    expect(entry.postedAt).toBe(POSTED_28);
+    expect(entry.editedAt).toBe(EDITED_28);
+    expect(body.versionAt).toBe(EDITED_28);
+    expect(withPostBody(entry, body).versionAt).toBe(EDITED_28);
+    expect(runningPayload().postedAt).toBe(EDITED_28);
+    // Snippet-only: the same instant, because "[Last Updated Sep 13.]" is what
+    // `content_snipet` holds.
+    expect(postsToSend([entry]).payloads[0]!.postedAt).toBe(EDITED_28);
+
+    /*
+     * What the wrong anchor costs, made visible with a sentence the post does
+     * not contain (house rule 10): the capture's own deadline is an absolute
+     * date, so it reads the same against either instant and cannot tell a
+     * right implementation from a wrong one.
+     */
+    const relative = "HW9 is due this Friday at 11:59pm.";
+    expect(extractDeadlineMentions(relative, EDITED_28)[0]!.at).toBe(
+      "2026-09-18T23:59:00-05:00",
+    );
+    expect(extractDeadlineMentions(relative, POSTED_28)[0]!.at).toBe(
+      "2026-08-28T23:59:00-05:00",
+    );
+  });
+
   it("reads the newest version and not the one pasted from last year", () => {
     /*
      * `history` is trimmed to two versions on purpose (fixtures/piazza/README.md):

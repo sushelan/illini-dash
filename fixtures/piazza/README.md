@@ -51,6 +51,19 @@ What a feed entry carries, and what it does not:
   fits in a subject and its first line.
 - Dates are real instants with a zone (`2026-09-18T09:09:00Z`), unlike Campuswire's
   date-only previews.
+- **`type: "note"` does not mean staff wrote it.** Five of the 25 are pinned posts by a
+  classmate (nr 1, 5, 9, 19, 147), tagged `student` and not `instructor-note`. That tag is
+  the marker `postsToSend` reads, and the five are held back with their reason rather than
+  ingested as announcements — `tests/piazza-real.test.ts` asserts all 31 entries either
+  way, so the table stays exhaustive over the file.
+- **Nothing in the file is out of the ordinary, which is the problem.** Every entity in
+  it is well formed, every tag closes where its first `>` is, no body contains a comment,
+  and every note the two captures share was written once and edited by its author — so a
+  parser that throws on a bad entity, eats the words around `title="a > b"`, reads a
+  commented-out deadline, or anchors an edited body at its creation instant passes every
+  assertion this file can make. Each of those is pinned by a deliberately unrealistic
+  input in `tests/piazza.test.ts` and `tests/piazza-real.test.ts`, which say so where they
+  stand (house rule 10).
 
 **The scrub was broken and has been repaired (2026-09-18).** It replaced the empty string
 as well as the names, so every `subject` and `content_snipet` came back with `STAFF-36`
