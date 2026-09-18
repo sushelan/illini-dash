@@ -1119,7 +1119,21 @@ const NO_OVERRIDES: Overrides = {
   dueOverrides: {},
 };
 
-function ingestAll(json: unknown = feed()): {
+/**
+ * When a student would have read note 42, which is the only note in the capture
+ * whose snippet states a deadline: the morning it was posted.
+ *
+ * It was `NOW_ISO` (2026-09-18, the capture's own date) until `ingestPost`
+ * learned G1 — "a mention whose instant is earlier than the moment it was read
+ * is not something to ADD", from the first live sync, where three of seven
+ * suggestions were for deadlines already past. Note 42 states 31 August, so at
+ * `NOW_ISO` it is history and is now recorded and skipped rather than offered.
+ * These tests measure the *wiring* — subject, snippet, anchor, id — so they
+ * read the feed at a moment when its one deadline is still ahead.
+ */
+const READ_AT = "2026-08-31T11:00:00-05:00";
+
+function ingestAll(json: unknown = feed(), now: string = READ_AT): {
   suggestions: { title: string; at: string; span: string }[];
   seen: Record<string, string>;
 } {
@@ -1130,7 +1144,7 @@ function ingestAll(json: unknown = feed()): {
     const out = ingestPost(
       { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: seen },
       payload,
-      NOW_ISO,
+      now,
     );
     Object.assign(seen, out.seenPosts);
     for (const suggestion of out.suggestions) {
@@ -1468,7 +1482,7 @@ describe("a re-read post through ingestPost", () => {
     const out = ingestPost(
       { items: [item], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
       note42(),
-      NOW_ISO,
+      READ_AT,
     );
     expect(out.dueOverrides).toEqual({});
     expect(out.suggestions.map((suggestion) => suggestion.at)).toEqual([
@@ -1499,25 +1513,27 @@ describe("a re-read post through ingestPost", () => {
     const first = ingestPost(
       { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
       note42(),
-      NOW_ISO,
+      READ_AT,
     );
     expect(first.suggestions).toHaveLength(1);
+    // Still ahead of the 31st's 23:59, so it is `alreadySuggested` that has to
+    // refuse the second reading and not G1's "already past when read".
     const again = ingestPost(
       {
         items: [],
         overrides: NO_OVERRIDES,
         suggestions: first.suggestions,
-        seenPosts: { [note42().id]: NOW_ISO },
+        seenPosts: { [note42().id]: READ_AT },
       },
       note42(),
-      "2026-09-19T12:00:00-05:00",
+      "2026-08-31T16:00:00-05:00",
       undefined,
       { reread: true },
     );
     expect(again.suggestions).toEqual([]);
     // The seen mark still moves, so one edit costs one re-reading and not one
     // per sync for ever.
-    expect(again.seenPosts).toEqual({ [note42().id]: "2026-09-19T12:00:00-05:00" });
+    expect(again.seenPosts).toEqual({ [note42().id]: "2026-08-31T16:00:00-05:00" });
   });
 
   it("offers the corrected deadline when the edit moved it", () => {
@@ -1532,17 +1548,17 @@ describe("a re-read post through ingestPost", () => {
     const first = ingestPost(
       { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
       note42(),
-      NOW_ISO,
+      READ_AT,
     );
     const again = ingestPost(
       {
         items: [],
         overrides: NO_OVERRIDES,
         suggestions: first.suggestions,
-        seenPosts: { [note42().id]: NOW_ISO },
+        seenPosts: { [note42().id]: READ_AT },
       },
       note42(corrected),
-      "2026-09-19T12:00:00-05:00",
+      "2026-09-01T12:00:00-05:00",
       undefined,
       { reread: true },
     );

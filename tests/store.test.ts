@@ -306,12 +306,21 @@ describe("suggestions and the posts they came from", () => {
           { ...suggestion, id: "s3", at: "2026-10-12" },
           { ...suggestion, id: "s4", source: "reddit" },
           { ...suggestion, id: "s5", kind: "move" },
+          // `postSubject` is optional and, when present, a real string: an
+          // empty one passes `typeof` and draws `the Piazza post ""` — a row
+          // claiming to name the post it came from and naming nothing.
+          { ...suggestion, id: "s6", postSubject: "" },
           "not an object",
         ],
       },
       NOW,
     );
     expect(store.suggestions.map((entry) => entry.id)).toEqual(["s1"]);
+    // …and a stated one survives, so the rule is "non-empty", not "absent".
+    expect(
+      migrate({ suggestions: [{ ...suggestion, postSubject: "MP1 Demo" }] }, NOW).suggestions[0]
+        ?.postSubject,
+    ).toBe("MP1 Demo");
   });
 
   it("forgets a suggestion nobody answered in thirty days", () => {

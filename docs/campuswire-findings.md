@@ -114,6 +114,13 @@ two dateless posts (#640, #638) explain themselves through `describeEmpty`, and 
 list holding "CNN Project Milestone 3" two posts (#645, #534) produce automatic moves onto
 it — Sushi's "moves auto-apply" half is reachable from Campuswire.
 
+**The scorecard is a reading of the grammar, not of the pipeline.** This feed is from May
+2026; `tests/campuswire.test.ts` reads it through `ingestPost` at 2026-04-24, the week
+before its earliest post. Read at the capture's own date (18 September) the same nine posts
+now produce **nothing at all**, and correctly: every deadline in them is months gone, and
+`ingestPost` records "had already passed when this post was read" rather than offering a
+row a student has to dismiss (G1, below).
+
 Still open, recorded rather than worked around:
 
 - **#597's exam sitting does not join the student's "Exam 2" row.** §5.2 fuses a numbered
@@ -123,8 +130,41 @@ Still open, recorded rather than worked around:
 - The review session and the office-hours sitting in #597 are deliberately not read (one
   announcement should not become three rows); if they should be, that is a new trigger for
   "This <date> is the <event>".
-- A subject carried from the previous sentence is the loosest rule: "HW3 is due Friday.
-  Grades are posted Monday." would file the release under HW3. One line to remove if it
-  misfires.
+- **A subject carried from the previous sentence is bounded to that sentence** — it was
+  the loosest rule here, this bullet said one line would remove it if it misfired, and it
+  misfired (2026-09-18, trace finding #21). Unbounded, `carried` held the last
+  subject named *anywhere* in the post, so "Office hours are moved to 9/24 at 3:00 pm."
+  three paragraphs below "HW1 is due 9/20" resolved as a 0.95 `moved` against the
+  student's real HW1 — an auto-move, onto the office-hours time, with an undo naming a
+  post that never said it. The carry now reaches **the next sentence only** and never
+  across a paragraph, a list item or the post's title line, and the sentence this bullet
+  was written about ("Grades are posted Monday") cannot file anything under anything: a
+  `released` mention no longer produces a move at all (#20).
 - An `event` mention becomes a plain suggestion; whether it should produce
   `Item.kind: "exam"` (and an `extra.endAt` from the range) is `suggest.ts`'s decision.
+
+## What the first live sync taught the grammar (2026-09-18, Piazza — same module)
+
+The four rules below were found on Piazza and fixed in `core/announce.ts` and
+`core/suggest.ts`, so they change what this feed produces too. They are recorded here as
+well as in `docs/piazza-findings.md` because this is the corpus the grammar was written
+from, and three of the four are about the *title* a suggestion carries, which is where
+this capture had nothing to say: every ECE 408 post has a clean phrase subject.
+
+1. **A deadline already past when it was read is recorded, not offered.** A fresh
+   install's first sync reads a busy class's whole history at once; three of the seven
+   rows Sushi's first Piazza sync produced were for 11, 13 and 14 September, read on the
+   18th. This holds for moves as well as new rows — an old post dragging a live row
+   backwards is worse, because there is no click in that branch.
+2. **A title never carries Markdown, and is never a whole sentence.** Masking keeps every
+   *span* grounded in the original text, which is right and stays; a span is evidence and
+   a title is a label. When the sentence names no assignment the title is the post's own
+   subject line, and only when the post has neither is it the sentence.
+3. **A generic phrase subject loses to the post's subject.** "See Demo", "Google Form" —
+   the object of the verb, not the assignment. "MP2", "MP1 Report", "CNN Project Milestone
+   3" and this capture's "Subjective Evaluation Form" are all kept; the test is a bare
+   vehicle noun, or one behind nothing but the platform hosting it.
+4. **The row names the post.** `Suggestion.postSubject` is additive, so a suggestion
+   written by an earlier build keeps "from a Campuswire post"; one written since reads
+   "from the Campuswire post “…”". Seven rows all saying "from a post" is seven rows
+   with no way to tell which is the one you were looking for.

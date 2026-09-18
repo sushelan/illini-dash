@@ -113,6 +113,13 @@ since `fixtures/announcements/eod-friday.txt`, and the abbreviation follows the 
 convention rather than introducing a second one. It keeps the reading below
 `AUTO_MOVE_CONFIDENCE`, so it is offered and never applied silently.
 
+**The scorecard above measures what the grammar reads, not what a student is offered.**
+Note 42's deadline is 31 August and the capture is from 18 September, so an install
+reading this feed today is offered *nothing at all* — `ingestPost` records "had already
+passed when this post was read" and stops there (G1, below). `tests/piazza.test.ts` reads
+the feed at 2026-08-31T11:00 for that reason, and note 28's body test already reads at the
+14th. Neither number in the scorecard changes; the row count a student sees does.
+
 ### Amendment (2026-09-18): a weekday in brackets between the date and the clock
 
 The Running Post writes its deadline as **"HW1 is due 9/20 (Sun) 11:59 pm US Central
@@ -414,3 +421,70 @@ script that produced it is not in the repo, so nothing regenerates it.
 
 Never paste cookie or token **values** into chat or files; the header/cookie equality was
 established by comparing eight characters.
+
+### Amendment (2026-09-18): "EOD" in front of a calendar date read as nothing at all
+
+`eod` was spelled inside `CAL_REL`, the relative-day pattern, so it could only ever be
+followed by a weekday word. **"Please submit HW2 by EOD 9/25." returned `[]`** — not a
+deadline, not even the 0.55 `other` that parser rule 1 exists for — because `CAL_MONTH`,
+`CAL_NUM` and `DATE_LIKE` are all anchored with `^` and the leading "EOD " blocked every
+one of them. The same sentence written "by EOD Friday" read perfectly, which is what made
+it look like a data difference rather than a grammar gap. House rule 2 at the mention
+level: the post states a hard deadline and the grammar goes silent.
+
+The lead-in is now stripped in one place (`EOD_LEAD`) ahead of all four patterns and ahead
+of `DATE_LIKE`, with its length added back so the span still quotes the instructor's own
+"EOD 9/25". `CAL_REL`'s own `eod` arm is **deleted** rather than kept beside it (mutation
+house rule 2, the redundant case): two copies of one decision is what lets loosening
+either go unnoticed.
+
+Separately, `describeEmpty` — written in wave 4 precisely to tell "this post states no
+deadline" from "this grammar failed on one it states" — had **no caller in `src/`** at
+all. `ingestPost` now records it in `result.skipped` whenever a post yields no mention,
+which is the console line the next gap of this kind will be found by (worker rule 5).
+
+### Amendment (2026-09-18): a cross-listed class matched none of the student's rows
+
+This class is named **"CS 425 / ECE 428: Distributed Systems"**, and `resolveMentions`
+reduced that hint with `extractCourseCode` — the **first** code — and demanded
+`item.courseCode === code`. A student registered under ECE 428 has Gradescope and Canvas
+rows filed as `ECE428`, so the candidate pool was empty for every mention in every post:
+**no announcement could ever move a deadline**, and every one arrived as a new suggestion
+beside the identical row it should have corrected, labelled with a course the student is
+not in. Cross-listed CS/ECE numbering is the norm at UIUC, and this is Sushi's own class.
+
+The rule is now `dedupe.ts`'s `sameCourse`: **any code in common**, between every code the
+post's class carries and every code the item carries (its own, its members', and each
+member's `extra.altCodes`). `ObservedPost.courseCodes` is additive and primary-first, so
+Piazza's stored `PiazzaClass.courseCodes` is used when the observer supplies it and both
+codes are read out of the hint when it does not.
+
+### Amendment (2026-09-18): what the first seven live suggestions said
+
+The first real sync on Sushi's install showed **"Found in a post (7)"**, and four of the
+seven were wrong in ways a student notices first. Read as evidence (worker rule 7):
+
+- **Three had already passed when they were found** (11, 13 and 14 September, read on the
+  18th). A fresh install's first sync reads a month of history. `ingestPost` now records
+  such a mention and offers nothing — for moves as well as for new rows, because an old
+  post dragging a live row backwards is the branch with no click in it.
+- **One title was a whole sentence with its Markdown intact**: *"Note that the \*\*demo
+  slot (signup) is due by this Friday at 11:59 pm."* Two defects in one row — a title must
+  never carry the markers, and a sentence-length title means the subject rule found
+  nothing and the fall-back to the post's subject never fired. Both are fixed;
+  `fixtures/announcements/demo-signup-live.txt` is that post, transcribed.
+- **Two titles were generic phrase subjects** — "See Demo", "Google Form" (from "fill out
+  the Google Form by 9/20"). They are the object of the verb, not the assignment. A bare
+  vehicle noun, or one behind nothing but its platform, now loses to the post's subject;
+  "MP2", "MP1 Report (4cr only, EXCEPT Coursera)" and "CNN Project Milestone 3" are kept.
+- **Every row said "from a Piazza post"**, which is true of all seven and therefore useless
+  for telling them apart. `Suggestion.postSubject` is additive — older suggestions keep the
+  old wording — and the popup draws "from the Piazza post “MP1 Demo Sign-up Sheet”",
+  clipped to one line so a long subject cannot grow the row (UI rule 8).
+
+And one more, found by the trace rather than by the sync: **`alreadySuggested` ignored the
+course**, so two classes announcing "HW2 is due Friday" in one sync collided —
+`background.ts` ingests every class's payloads through one `mutate` and feeds the growing
+list back in, so the second class's deadline was dropped as a duplicate and, its post
+stamped read on the same pass, never offered again. The comparison is now keyed on the
+course as well, and the skipped reason names it.

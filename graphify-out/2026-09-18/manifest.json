@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "public/manifest.json": {
-    "mtime": 1789767123.502695,
-    "seen": 1789767291.689194,
-    "ast_hash": "441e0f0c3c8ce8e6a7f71124aae41ae1",
+    "mtime": 1789769367.1373467,
+    "seen": 1789770131.403659,
+    "ast_hash": "f17c5795de0de323a003a682def7f606",
     "semantic_hash": ""
   },
   "scripts/components.ts": {
@@ -378,9 +378,9 @@
     "semantic_hash": "9646539899c2dce29262c590fd651b29"
   },
   "src/ui/options.ts": {
-    "mtime": 1789768820.393647,
-    "seen": 1789768937.266324,
-    "ast_hash": "a5fe24aa27034556dd1972ca85b9117a",
+    "mtime": 1789770118.0185523,
+    "seen": 1789770131.4046059,
+    "ast_hash": "f76d587840ef8c149e822edfbbe8fd40",
     "semantic_hash": ""
   },
   "src/ui/popup.ts": {
@@ -612,15 +612,15 @@
     "semantic_hash": "452cd8c98ca97078b899e204706ef12e"
   },
   "CLAUDE.md": {
-    "mtime": 1789768901.9872136,
-    "seen": 1789768937.266368,
-    "ast_hash": "6f9a3e7f90ebbb456cb9182d441aae9b",
+    "mtime": 1789769972.092095,
+    "seen": 1789770131.405536,
+    "ast_hash": "2b7758ff2c88de4b9ec02e6d721e4790",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1789768933.3343985,
-    "seen": 1789768937.266369,
-    "ast_hash": "41c6e06f6c0cdfbd2d21d1364a04be84",
+    "mtime": 1789770126.8928154,
+    "seen": 1789770131.4055371,
+    "ast_hash": "9593272690b40a2aea552cb1a98ae2b3",
     "semantic_hash": ""
   },
   "README.md": {
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "src/core/author.ts": {
-    "mtime": 1789768820.3916354,
-    "seen": 1789768937.266289,
-    "ast_hash": "77cea62be1e1937bdceeef4b1827610f",
+    "mtime": 1789770118.016737,
+    "seen": 1789770131.4038389,
+    "ast_hash": "941affc20d2ed92be0a7d5adebf044d9",
     "semantic_hash": ""
   },
   "src/core/manual.ts": {
@@ -810,9 +810,9 @@
     "semantic_hash": ""
   },
   "src/types/language-model.d.ts": {
-    "mtime": 1789713342.2393162,
-    "seen": 1789713384.820539,
-    "ast_hash": "55872528b95f2632c4d9593fa2985d32",
+    "mtime": 1789770118.0174553,
+    "seen": 1789770131.4045599,
+    "ast_hash": "922beb0fac13d3d6cf9ce75f92477e45",
     "semantic_hash": ""
   },
   "tests/announce.test.ts": {
@@ -822,9 +822,9 @@
     "semantic_hash": ""
   },
   "tests/author.test.ts": {
-    "mtime": 1789768820.3945284,
-    "seen": 1789768937.266328,
-    "ast_hash": "ef834f3cd197a0606af607db01c27daa",
+    "mtime": 1789770118.0193887,
+    "seen": 1789770131.404663,
+    "ast_hash": "ab1689344637b9591e4be1a2ea89fe14",
     "semantic_hash": ""
   },
   "tests/manual.test.ts": {
@@ -948,9 +948,9 @@
     "semantic_hash": ""
   },
   "docs/adapter-author.md": {
-    "mtime": 1789768820.3909597,
-    "seen": 1789768937.266371,
-    "ast_hash": "2bcb038158507d5471a280834878bbe6",
+    "mtime": 1789770118.015969,
+    "seen": 1789770131.405561,
+    "ast_hash": "cf5b536d892211cedab463d5bcd0a2e2",
     "semantic_hash": ""
   },
   "docs/calendar-mockup.html": {
@@ -1698,9 +1698,9 @@
     "semantic_hash": ""
   },
   "docs/gcal.md": {
-    "mtime": 1789766310.7365146,
-    "seen": 1789766350.244672,
-    "ast_hash": "79859dd31d12dc1acae3fe7165b53c76",
+    "mtime": 1789769972.092467,
+    "seen": 1789770131.4056902,
+    "ast_hash": "a36bb60b50d236e3e990bfd7a4e881f4",
     "semantic_hash": ""
   },
   "docs/piazza-findings.md": {
