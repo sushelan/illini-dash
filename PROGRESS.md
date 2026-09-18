@@ -7,6 +7,21 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## The store documents are measured, not trusted — 2026-09-18
+
+The wave-4 store-copy worker showed a 1455-character justification had sat in a
+1000-character field with nothing to say so, and that `manifest.test.ts` accepted a
+permission named *anywhere* in listing.md — renaming the `scripting` table row left the
+suite green because the pre-submit prose at the bottom still said the word. Fourteen tests
+now pin the store documents to what they claim: every numbered block of
+`privacy-practices.txt` under the limit its own header states (the limit is read from the
+file, never re-typed), the marker count matching the "of 9" the markers print, the
+reviewer instructions under 500, the description plain text and under 16000, and every
+permission, up-front host and runtime-requested origin with its own table row — the
+substring check is rewritten, not duplicated. Each pinned by mutating the document.
+
+1515 tests.
+
 ## Wave 4: the grammar reads the posts instructors write — 2026-09-18
 
 Two workers. **1460 → 1501 tests.**

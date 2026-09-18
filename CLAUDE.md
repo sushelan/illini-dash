@@ -359,9 +359,10 @@ privacy-form answer measured against its 1000-character limit in
 
 Outstanding, all in the developer console: re-upload the current zip (the manifest has
 changed since the first upload), replace the host-permission justification, tick **Website
-content** and nothing else under Data usage, write the Test instructions (500 chars; **not
-yet written** — a reviewer has no UIUC account, so they must be told what is verifiable
-without one; see `docs/pre-submit.md`), set Visibility to **Unlisted**, submit.
+content** and nothing else under Data usage, paste the Test instructions (500 chars;
+drafted in `docs/store/test-instructions.txt` around the public ECE 411 page, since a
+reviewer has no UIUC account — Sushi to approve the wording), set Visibility to
+**Unlisted**, submit.
 
 §9 still gates G5 behind G4. The beta has one tester and found six real defects in a day,
 which is the argument for the gate rather than against it.
