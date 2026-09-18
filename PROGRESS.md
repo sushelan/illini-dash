@@ -7,6 +7,39 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Live: the calendar delete path, and Piazza's first seven suggestions — 2026-09-18 evening
+
+Two more results from Sushi's fresh install, read as evidence (worker rule 7).
+
+**Google Calendar, the delete path:** a deadline ticked done in the popup vanished from
+the "Illini Dash" calendar within the minute. Connect, push, and delete have now all run
+for real.
+
+**Piazza, the body stage, unprompted:** because the install was fresh, the wave-6 build
+ran its first sync with no seen posts, so the body stage read the CS 425 feed in full on
+the first pass. The Attention tab showed **"Found in a post (7)"**: MP2 (Sun 27 Sep), a
+Google Form (Sun 20 Sep), MP1 Report (Mon 14 Sep), Code Submission Instructions (Sun 13
+Sep), and three for the demo sign-up on Fri 11 Sep. What that list says, before any
+console line is read:
+
+- **Three of the seven had already passed when they were found** (11, 13, 14 Sep, read on
+  the 18th). A suggestion to *add* a deadline that is already over is noise a student
+  has to dismiss; the first sync of a busy class will always surface a month of history.
+  A mention whose instant precedes the moment it was read should be recorded and skipped,
+  not offered.
+- **Titles.** One title is a whole sentence with its Markdown intact ("Note that the
+  \*\*demo slot (signup) is due by this Friday at 11:59 pm.") — the masking keeps spans
+  grounded in the original text, which is right, but a title must never carry the
+  markers, and a sentence-length title means the subject rule found nothing and the
+  fallback to the post's subject did not fire. "See Demo" and "Google Form" are phrase
+  subjects that are technically the object of the verb and useless as a row: when the
+  phrase is generic (form, sheet, link, "see …"), the post's subject is the better title,
+  and the "from a Piazza post" line should carry the post's subject in every case.
+- **HW1 (due 20 Sep, in the running post's body) is not among the seven.** Either it was
+  matched to the Gradescope HW1 already in the list and became a zero-distance move (the
+  right outcome), or its body was not read. The `[piazza]` console lines decide which;
+  asked for.
+
 ## The author gets a fresh session per attempt — 2026-09-18 evening
 
 Live evidence, second ECE 411 run on the grounded author: "tried 2 attempts and its last
