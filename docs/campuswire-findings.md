@@ -94,31 +94,37 @@ fallback behind it accepted exactly the same inputs, in both shapes. Mutation ho
 — delete a guard that duplicates a reachable one — so it is gone, and what is left is one
 regex.
 
-## Open: the grammar reads these posts, but cannot aim them
+## What the feed taught the grammar (found here, fixed the same night in `core/announce.ts`)
 
-Run over this feed, `core/announce.ts` finds two deadlines in nine announcements:
+The first run of `core/announce.ts` over this feed found two deadlines in nine
+announcements, both without a subject, and read #682's "due **tomorrow**, **5/18 at 12:00
+PM**" as an assumed 23:59 — the grammar had been built against constructed posts (worker
+rule 7). Six rules came out of the real ones, all in `core/announce.ts` and pinned by
+`tests/announce-real.test.ts`, which runs this capture end to end: Markdown markers are
+masked with spaces (not stripped) so every span still grounds in the original text; a
+clock stated beside a relative day beats the invented 23:59 when both name the same day;
+"available until", "complete … by", "extend the deadline of X to" and an exam sitting
+("Your exam is on Tuesday, May 5th, from 7:00 PM") are triggers; subjects may be phrases
+("CNN project", "Regrade requests", "Subjective Evaluation Form"), carried to a following
+sentence that names none, and fall back to the post's title; "the final deadline" is not
+a deadline for something called *final*.
 
-| Post | Sentence | Read as |
-|---|---|---|
-| #682 | "Regrade requests are due **tomorrow**, **5/18 at 12:00 PM** (noon) CDT" | `tomorrow` → 2026-05-18T23:59, confidence 0.65 |
-| #567 | "CNN competition deadline has been extended to **May 11**" | `May 11` → 2026-05-11T23:59, confidence 0.85 |
+Now, over the same nine posts: seven yield a deadline, every mention has a subject, the
+two dateless posts (#640, #638) explain themselves through `describeEmpty`, and against a
+list holding "CNN Project Milestone 3" two posts (#645, #534) produce automatic moves onto
+it — Sushi's "moves auto-apply" half is reachable from Campuswire.
 
-and nothing at all in the other seven, including #645's "We'll extend the final deadline of
-CNN project to **11:59pm today**" (`describeEmpty` → `trigger-and-date-words-unmatched`)
-and #534's "due on **May 1** … the final deadline is **May 4**".
+Still open, recorded rather than worked around:
 
-Two things follow, and neither is this change's to fix (`core/announce.ts` is owned
-elsewhere):
-
-1. **The `subject` is empty for every mention on this page**, so `resolveMentions` can
-   never match an existing item and every reading becomes a *new* suggestion. Nothing on
-   this feed can be auto-moved, whatever the student's list holds. Sushi's decision was
-   "moves auto-apply, new ones become suggestions"; as things stand the first half is
-   unreachable from Campuswire.
-2. **#682's stated clock is dropped.** The sentence says both "tomorrow" and "5/18 at
-   12:00 PM"; the grammar takes the weaker of the two, lands on 23:59 with `timeAssumed`,
-   and scores it 0.65 — below `AUTO_MOVE_CONFIDENCE`. The stated time is right there in
-   the same clause.
-
-`tests/campuswire.test.ts` pins this behaviour as it is rather than weakening the
-expectation, so teaching the grammar to read these will fail that test and say so.
+- **#597's exam sitting does not join the student's "Exam 2" row.** §5.2 fuses a numbered
+  badge into one token (`exam2`), so a bare "exam" is not a subset of it. The post's title
+  says "Exam 2 Resources", so the information is on the page; joining them needs either a
+  looser §5.2 or a title-aware subject rule (`normalize.ts`, dedupe territory).
+- The review session and the office-hours sitting in #597 are deliberately not read (one
+  announcement should not become three rows); if they should be, that is a new trigger for
+  "This <date> is the <event>".
+- A subject carried from the previous sentence is the loosest rule: "HW3 is due Friday.
+  Grades are posted Monday." would file the release under HW3. One line to remove if it
+  misfires.
+- An `event` mention becomes a plain suggestion; whether it should produce
+  `Item.kind: "exam"` (and an `extra.endAt` from the range) is `suggest.ts`'s decision.

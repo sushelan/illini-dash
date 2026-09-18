@@ -7,6 +7,45 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 4: the grammar reads the posts instructors write — 2026-09-18
+
+Two workers. **1460 → 1501 tests.**
+
+1. **The announcement grammar against the real feed.** Built against sixteen constructed
+   posts, `extractDeadlineMentions` read two of the nine real ECE 408 announcements, with
+   no subject on either. Six rules, each one documented decision in `core/announce.ts`:
+   Markdown markers are *masked* with spaces rather than stripped, so the masked copy is
+   the same length as the input and every span still grounds in the original (three posts
+   were unreadable only because `**` came first and every pattern is anchored); a clock
+   stated beside a relative day beats the invented 23:59 when both name the same day, and
+   a disagreement is left alone; four new triggers ("available until", "complete … by",
+   "extend the deadline of X to", and an exam sitting read as `kind: "event"` at its start
+   clock, not as a due); phrase subjects found in reader order (the trigger's object, a
+   badge before it, a capitalised phrase before it, then after the date), carried to a
+   following sentence that names none, with the post's title as the subject of last
+   resort; a first line with no sentence punctuation followed by a capital is a title, not
+   a hard wrap; "the final deadline" is not a deadline for something called *final*. One
+   survivor indicted the design rather than the suite (mutation rule 3): the title rule
+   was spelled twice, in the sentence boundary and in the title pattern, so loosening
+   either was masked by the other — they now come from one pair of constants. Scorecard:
+   seven of nine posts yield a deadline (was two), nine of nine mentions carry a subject
+   (was none), two automatic moves onto rows the student already has (was none). Still
+   open: a bare "exam" cannot join "Exam 2" because §5.2 fuses the badge into one token.
+2. **The store's host-permission justification fits its field again.** It had grown to
+   1455 characters by accretion against a 1000-character limit the file itself states; it
+   is 991 now, every host still named with its reason, and `listing.md`'s table gains the
+   two rows it lacked (raw.githubusercontent.com, and Campuswire's opt-in origin). Two
+   findings for the tests: nothing measures the character limits, and `manifest.test.ts`
+   checks that a permission is mentioned *anywhere* in listing.md, so renaming the
+   `scripting` table row left the suite green. And one for this file's own handoff: the
+   Test instructions were never written; CLAUDE.md said they were in
+   `privacy-practices.txt`, which was false when written and is rewritten.
+
+**Amendment recorded:** §3.2 for announcements — a relative day restated in the same
+clause as an explicit calendar date with a clock takes that clock.
+
+1501 tests.
+
 ## Wave 3: the Campuswire observer, and the author learns the list page — 2026-09-18
 
 Two workers from the wave-2 merge. **1360 → 1460 tests.** Both built on evidence Sushi
@@ -51,7 +90,7 @@ generic no-table text.
    page file exams. `?model=ok|fail|absent` makes all three states reachable in the
    harness.
 
-**What the real feed taught the grammar, not yet fixed:** over the nine announcements in
+**What the real feed taught the grammar (fixed the same night; see Wave 4 above):** over the nine announcements in
 the capture, `extractDeadlineMentions` finds a subject for none of them (so no "move" can
 ever resolve and every reading becomes a new suggestion), reads #682's "due tomorrow,
 **5/18 at 12:00 PM** (noon) CDT" as an assumed 23:59 (the clock in the same clause is
