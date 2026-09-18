@@ -2,10 +2,25 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1742 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1753 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## The author gets a fresh session per attempt — 2026-09-18 evening
+
+Live evidence, second ECE 411 run on the grounded author: "tried 2 attempts and its last
+proposal read no deadlines: An unknown error occurred: kErrorUnknown". Two defects, both
+certain from the code: one model session was reused across attempts, so the retry's prompt
+(the whole skeleton and inventory again) sat on top of the first exchange in a window the
+budget had sized as empty; and a thrown prompt came back as `{ok:false, failed}` with no
+`reason`, which the page mapped to "rejected" — the "failed" state and its sentence had
+never been reachable from that path. Now every attempt runs in `pristine.clone()` (a
+fresh session per attempt where `clone` is missing, logged once), `AuthorOutcome` carries
+`kind: "threw" | "rejected"` as a discriminant, `modelOutcomeFor` in core does the mapping
+the page used to do, every attempt is logged as `[author] attempt N: …` with the input
+usage, and the retry's quoted reason is capped so it cannot push a retry over the window.
+**1742 → 1753 tests.** The one that matters restores the live defect and fails.
 
 ## Google Calendar sync, live — 2026-09-18 evening
 
