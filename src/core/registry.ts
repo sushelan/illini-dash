@@ -150,6 +150,22 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
     }
   }
 
+  /*
+   * The list-shaped page's three fields. Remote data that decides which line of
+   * a list is a deadline, what it is called and what hour it lands at, so each
+   * is bounded and each is checked positively — `typeof x === "string"` passes
+   * `""`, and an empty label would match every unlabelled line on the page.
+   */
+  for (const field of ["titleFrom", "time"] as const) {
+    if (a[field] !== undefined && !isPlainString(a[field], 200)) return fail(`bad ${field}`);
+  }
+  const dueLabel = a["dueLabel"];
+  if (dueLabel !== undefined) {
+    if (!isPlainString(dueLabel, 200)) return fail("bad dueLabel");
+    const labels = dueLabel.split("|");
+    if (labels.some((label) => label.trim() === "")) return fail("dueLabel has an empty label");
+  }
+
   const filter = a["filter"];
   if (filter !== undefined) {
     if (typeof filter !== "object" || filter === null) return fail("bad filter");

@@ -83,21 +83,26 @@ import { ALL_SOURCES, DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
 import { SYNC_SPINNER_CAP_MS } from "../core/sync.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
-const ALLOWED_HOSTS = new Set([
-  "canvas.illinois.edu",
-  "www.gradescope.com",
-  "us.prairielearn.com",
-  "us.prairietest.com",
-]);
-
-/** §8.1: only render a URL that is https on a known host. */
+/**
+ * §8.1: only render a URL that is https.
+ *
+ * **AMENDED (2026-09-18).** This used to require `.illinois.edu` or one of the
+ * four hosted sources, which was a copy of a rule `validateAdapter` had already
+ * dropped: the CS department's course sites are their own domains — cs124.org,
+ * cs128.org, cs225.org — and `optional_host_permissions` covers every https
+ * host. So an adapter the registry accepts, whose permission the student granted
+ * in Chrome's own prompt, produced rows that rendered as unclickable divs. Two
+ * copies of one decision, and the stricter copy was the one with no test
+ * reaching it (mutation house rule 3).
+ *
+ * The check that remains is the one that matters: `RawItem.url` is already
+ * pinned to its source's origin by `sameOriginHttpsUrl`, so this refuses
+ * `javascript:` and `http:` and nothing else needs refusing here.
+ */
 function safeUrl(raw: string): string | undefined {
   try {
     const url = new URL(raw);
-    if (url.protocol !== "https:") return undefined;
-    if (ALLOWED_HOSTS.has(url.hostname) || url.hostname.endsWith(".illinois.edu")) {
-      return url.toString();
-    }
+    if (url.protocol === "https:") return url.toString();
   } catch {
     /* fall through */
   }

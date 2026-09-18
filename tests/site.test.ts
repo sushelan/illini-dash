@@ -9,11 +9,15 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
+  clockFromText,
+  matchDueLabel,
   parseAdapterDate,
   parseAdapterDateParts,
+  resolveTitleFrom,
   runAdapter,
   statedTimeInText,
   supportedDateFormats,
+  titleWithLabel,
 } from "../src/sources/site.js";
 import {
   currentTermCode,
@@ -802,5 +806,361 @@ describe("statedTimeInText", () => {
     );
     expect(guessed?.iso).toMatch(/T23:59/);
     expect(guessed?.timeAssumed).toBe(true);
+  });
+});
+
+/**
+ * ECE 411 — §4.5's third page shape, and a course split over two pages.
+ *
+ * Neither of the first two shapes fits. CS 424's rowspan grid and ECE 310's
+ * header table are tables; this is a Sphinx page whose deadlines are
+ * `Due: 9/7` lines in a `<ul>` under an `<h3>`, and whose exam dates are on a
+ * different page from its assignments — "an adapter is one fixed URL", so the
+ * course is two registry entries rather than one adapter that can only ever
+ * read half of it.
+ *
+ * Both fixtures are unmodified `curl` captures of the public pages (no login),
+ * taken 2026-09-18.
+ */
+describe("ECE 411: a list-shaped page, and a course on two pages", () => {
+  const registryText = readFileSync(
+    new URL("../adapters/registry.json", import.meta.url),
+    "utf8",
+  );
+  const shipped = (id: string): Adapter => {
+    const found = validateRegistry(registryText).adapters.find((a) => a.id === id);
+    if (!found) throw new Error(`no adapter ${id} in the bundled registry`);
+    return found;
+  };
+  const load = (name: string) =>
+    doc(readFileSync(new URL(`../fixtures/sites/${name}`, import.meta.url), "utf8"));
+
+  // A Friday in the middle of the term, so §3.2's year inference resolves both
+  // "9/7" (just behind it) and "September 29" (just ahead) to 2026.
+  const fa26: PageCtx = {
+    url: "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html",
+    fetchedAt: "2026-09-18T12:00:00.000Z",
+  };
+
+  describe("the MP page", () => {
+    const items = runAdapter(shipped("ece411-fa26-mp"), load("ece411-fa2026-assignments.html"), fa26);
+
+    it("reads the two MPs that have a date, and titles them from their heading", () => {
+      // The `<li>` says only "Due: 9/7". The name is the `<h3>` above the list,
+      // which no row-relative selector can reach — that is what `titleFrom` is.
+      expect(items.map((i) => i.title).sort()).toEqual(["mp_setup", "mp_verif"]);
+      for (const item of items) expect(item.dueAt).toBe("2026-09-07T23:59:00-05:00");
+    });
+
+    it("says the 23:59 is its own invention", () => {
+      // Worker rule 3: the page states a date and no clock. §5.3 ranks `site`
+      // above `canvas`, so an unmarked invention would overwrite a real
+      // instructor-set deadline and look authoritative doing it.
+      for (const item of items) expect(item.extra?.["timeAssumed"]).toBe("true");
+    });
+
+    it("emits nothing at all for a TBD line — not even an undated row", () => {
+      // mp_cache, and every checkpoint of mp_pipeline and mp_ooo, read "TBD".
+      // An undated row for each would be eleven items claiming to be deadlines
+      // whose date this parser merely failed to read, which is the opposite of
+      // what the page says.
+      expect(items).toHaveLength(2);
+      expect(items.some((i) => i.dueAt === undefined)).toBe(false);
+      expect(items.some((i) => i.extra?.["unparsedDate"] !== undefined)).toBe(false);
+    });
+
+    it("ignores a line whose label it was not told about", () => {
+      // "Release: 8/25" is the same `<li>` shape as "Due: 9/7" and parses just
+      // as cleanly. Nothing but the label says it is not a deadline.
+      expect(items.some((i) => i.dueAt?.startsWith("2026-08-25"))).toBe(false);
+    });
+
+    it("gives every row a url on the source origin", () => {
+      for (const item of items) expect(item.url).toBe(fa26.url);
+    });
+  });
+
+  /**
+   * The live page has every checkpoint at "TBD", so it cannot show what happens
+   * when they are dated — parser rule 10's case exactly. The dated fixture is
+   * derived from it and is deliberately unrealistic; its own banner says how.
+   */
+  describe("the MP page with its checkpoints dated (adversarial fixture)", () => {
+    const items = runAdapter(
+      shipped("ece411-fa26-mp"),
+      load("ece411-fa2026-assignments-dated.html"),
+      fa26,
+    );
+
+    it("titles each checkpoint with its MP and its label", () => {
+      expect(items.map((i) => i.title)).toContain("mp_pipeline CP1");
+      expect(items.map((i) => i.title)).toContain("mp_pipeline CP2");
+      expect(items.map((i) => i.title)).toContain("mp_pipeline CP3");
+      expect(items.find((i) => i.title === "mp_pipeline CP1")!.dueAt).toBe(
+        "2026-09-22T23:59:00-05:00",
+      );
+    });
+
+    it("gives the three checkpoints three sourceIds", () => {
+      // §3.1 hashes the title, and §3's `raw` is keyed by memberKey, so three
+      // rows titled "mp_pipeline" would silently collapse into one (house rule
+      // 4). The label suffix is the only thing preventing that.
+      const cps = items.filter((i) => i.title.startsWith("mp_pipeline"));
+      expect(new Set(cps.map((i) => i.sourceId)).size).toBe(cps.length);
+      expect(cps).toHaveLength(3);
+    });
+
+    it("does not read 'Due Date: 11/3' as the 'Due' label", () => {
+      // House rule 6. "Due Date" contains "Due"; a substring match dates
+      // mp_pipeline from a line the adapter never asked for, and nothing on the
+      // page would look wrong.
+      expect(items.some((i) => i.dueAt?.startsWith("2026-11-03"))).toBe(false);
+      expect(items.some((i) => i.title === "mp_pipeline")).toBe(false);
+    });
+
+    it("drops an N/A line the same way it drops TBD", () => {
+      expect(items.some((i) => i.title === "mp_pipeline Advance Features")).toBe(false);
+    });
+
+    it("keeps 'Due' out of the title it builds", () => {
+      // Every deadline line on the page carries it, so it names nothing:
+      // "mp_setup Due" is noise, "mp_pipeline CP1 Due" doubly so.
+      for (const item of items) expect(item.title).not.toMatch(/\bDue\b/);
+    });
+  });
+
+  describe("the syllabus page, where the exams live", () => {
+    const items = runAdapter(
+      shipped("ece411-fa26-exams"),
+      load("ece411-fa2026-syllabus.html"),
+      { ...fa26, url: "https://courses.grainger.illinois.edu/ece411/fa2026/syllabus.html" },
+    );
+
+    it("puts Midterm 1 at the hour the sibling bullet states", () => {
+      // "Midterm 1: September 29" states no clock; "Time: 7-9PM" is in a
+      // different `<li>`. Without `time` this lands at 23:59 — four and a half
+      // hours after the exam ended, and a two-hour reminder for it would fire
+      // at 21:59, after it ended too.
+      const mt1 = items.find((i) => i.title === "Midterm 1")!;
+      expect(mt1.dueAt).toBe("2026-09-29T19:00:00-05:00");
+      expect(mt1.extra?.["timeAssumed"]).toBeUndefined();
+    });
+
+    it("reads Midterm 2 across the DST boundary", () => {
+      const mt2 = items.find((i) => i.title === "Midterm 2")!;
+      expect(mt2.dueAt).toBe("2026-11-10T19:00:00-06:00");
+      expect(mt2.extra?.["timeAssumed"]).toBeUndefined();
+    });
+
+    it("excludes the final, which is TBD in both fields", () => {
+      expect(items.map((i) => i.title)).toEqual(["Midterm 1", "Midterm 2"]);
+    });
+
+    it("titles the exam from the label, not from the whole due line", () => {
+      // Here the title cell *is* the due line — "Midterm 1: September 29" — so
+      // the cell carries no name beyond the label.
+      expect(items.some((i) => i.title.includes("September"))).toBe(false);
+    });
+  });
+
+  describe("the registry entries", () => {
+    it("ships two ids under one courseCode", () => {
+      // The whole point: an adapter has one fixed `url`, and this course keeps
+      // assignments and exams on different pages, so half of it could never be
+      // read by a single entry. Only `id` has to be unique.
+      const { adapters, rejected } = validateRegistry(registryText);
+      expect(rejected).toEqual([]);
+      const ece411 = adapters.filter((a) => a.courseCode === "ECE411");
+      expect(ece411.map((a) => a.id)).toEqual(["ece411-fa26-mp", "ece411-fa26-exams"]);
+      expect(new Set(ece411.map((a) => a.url)).size).toBe(2);
+    });
+  });
+});
+
+describe("the list-shaped page's three fields, in isolation", () => {
+  const rowsOf = (html: string, selector: string) =>
+    Array.from(doc(html).querySelectorAll(selector));
+
+  describe("matchDueLabel", () => {
+    it("matches a declared label exactly, after normalising space and case", () => {
+      expect(matchDueLabel("  CP1   due :  9/22 ", "Due|CP1 Due")).toEqual({
+        label: "CP1 Due",
+        rest: "9/22",
+      });
+    });
+
+    it("refuses a label that merely contains a declared one", () => {
+      // House rule 6, and the reason the adversarial fixture exists.
+      expect(matchDueLabel("Due Date: 9/7", "Due")).toBeUndefined();
+      expect(matchDueLabel("Soft Due: 9/7", "Due")).toBeUndefined();
+    });
+
+    it("returns the registry's spelling, not the page's", () => {
+      // The title is built from it, so a page that reworded its own label must
+      // not rename the item under it — §3.1 hashes the title.
+      expect(matchDueLabel("cp1 DUE: 9/22", "CP1 Due")?.label).toBe("CP1 Due");
+    });
+
+    it("refuses a line with no colon, and one with nothing after it", () => {
+      expect(matchDueLabel("Due 9/7", "Due")).toBeUndefined();
+      expect(matchDueLabel("Due:   ", "Due")).toBeUndefined();
+    });
+  });
+
+  describe("titleWithLabel", () => {
+    it("appends what is left of the label after 'Due'", () => {
+      expect(titleWithLabel("mp_pipeline", "CP1 Due")).toBe("mp_pipeline CP1");
+      expect(titleWithLabel("mp_ooo", "Advance Features Due")).toBe("mp_ooo Advance Features");
+    });
+
+    it("appends nothing for a bare 'Due'", () => {
+      expect(titleWithLabel("mp_setup", "Due")).toBe("mp_setup");
+    });
+
+    it("drops a title cell that is itself the due line", () => {
+      expect(titleWithLabel("Midterm 1: September 29", "Midterm 1")).toBe("Midterm 1");
+    });
+
+    it("never produces an empty title", () => {
+      // A `dueLabel: "Due"` adapter with no `titleFrom` is misconfigured; a
+      // visibly wrong title is recoverable, a blank row is not.
+      expect(titleWithLabel("Due: 9/7", "Due")).toBe("Due: 9/7");
+    });
+  });
+
+  describe("clockFromText", () => {
+    it("takes the start of a range that carries one meridiem at the end", () => {
+      // "7-9PM" means 7 PM to 9 PM, and the start is when a student has to be
+      // in the room.
+      expect(clockFromText("Location: ECEB 1002 Time: 7-9PM")).toEqual({ hour: 19, minute: 0 });
+      expect(clockFromText("Time: 6:30 - 8:30 pm")).toEqual({ hour: 18, minute: 30 });
+    });
+
+    it("does not read a room number as an hour", () => {
+      // Anchored on the word that makes a number a clock, exactly as
+      // statedTimeInText is anchored on the word that makes one a deadline.
+      expect(clockFromText("Location: ECEB 1002")).toBeUndefined();
+    });
+
+    it("refuses a bare hour with no meridiem", () => {
+      // Reading "7-9" as 07:00 moves a 7 PM exam twelve hours while looking
+      // like something the page stated.
+      expect(clockFromText("Time: 7-9")).toBeUndefined();
+      expect(clockFromText("Time: TBD")).toBeUndefined();
+    });
+
+    it("reads a 24-hour clock that cannot mean anything else", () => {
+      expect(clockFromText("Time: 19:00")).toEqual({ hour: 19, minute: 0 });
+      expect(clockFromText("18:00")).toEqual({ hour: 18, minute: 0 });
+    });
+  });
+
+  describe("resolveTitleFrom", () => {
+    const page = `<section id="a"><h3>mp_one</h3><ul><li>Due: 9/7</li></ul></section>
+      <section id="b"><h3>mp_two</h3><ul><li>Due: 9/8</li></ul></section>`;
+
+    it("climbs to the scope and reads the heading inside it", () => {
+      const rows = rowsOf(page, "li");
+      expect(resolveTitleFrom(rows[0]!, "section >> h3")).toBe("mp_one");
+      expect(resolveTitleFrom(rows[1]!, "section >> h3")).toBe("mp_two");
+    });
+
+    it("falls back to the nearest heading that precedes the row", () => {
+      // For a page that puts a heading and its list side by side with no
+      // wrapper to climb to. "Nearest preceding", not "first" and not "any":
+      // the second row must not inherit the first section's name.
+      const flat = `<h3>alpha</h3><ul><li>Due: 9/7</li></ul><h3>beta</h3><ul><li>Due: 9/8</li></ul>`;
+      const rows = rowsOf(flat, "li");
+      expect(resolveTitleFrom(rows[0]!, "h3")).toBe("alpha");
+      expect(resolveTitleFrom(rows[1]!, "h3")).toBe("beta");
+    });
+
+    it("is undefined when the scope is not there", () => {
+      expect(resolveTitleFrom(rowsOf(page, "li")[0]!, "table >> h3")).toBeUndefined();
+    });
+  });
+
+  describe("the page-level guards", () => {
+    const listAdapter: Adapter = {
+      ...ADAPTER,
+      id: "list-99",
+      rows: "li",
+      title: "p",
+      due: "p",
+      titleFrom: "section >> h3",
+      dueLabel: "Due|CP1 Due",
+      dateFormat: "M/d",
+      filter: undefined,
+    };
+    const listPage = `<section><h3>mp_one</h3><ul><li><p>Due: 9/7</p></li></ul></section>`;
+
+    it("parses the healthy page (so the guards below mean something)", () => {
+      expect(runAdapter(listAdapter, doc(listPage), page)).toHaveLength(1);
+    });
+
+    it("throws, naming the labels, when the page reworded every one of them", () => {
+      // House rule 2 one field over. Rows still match and still have titles, so
+      // neither existing guard fires — and silently returning [] would freeze
+      // the course's list at whatever it last held.
+      const reworded = `<section><h3>mp_one</h3><ul><li><p>Deadline: 9/7</p></li></ul></section>`;
+      expect(() => runAdapter(listAdapter, doc(reworded), page)).toThrow(ParseError);
+      expect(() => runAdapter(listAdapter, doc(reworded), page)).toThrow(/due label.*CP1 Due/);
+    });
+
+    it("returns nothing, without throwing, when the filter excludes every row", () => {
+      // A term where nothing is dated yet is a normal week, not a redesign, so
+      // the label guard is keyed on labels the page *has* rather than on items
+      // that survived the filter — the same reason `sawTitledRow` is keyed on
+      // titles and not on `items.length`. Getting this backwards turns the
+      // first three weeks of every course into a red source.
+      const filtered = { ...listAdapter, filter: { exclude: "\\bTBD\\b" } };
+      const allTbd = `<section><h3>mp_one</h3><ul>
+        <li><p>Due: TBD</p></li><li><p>CP1 Due: TBD</p></li></ul></section>`;
+      expect(runAdapter(filtered, doc(allTbd), page)).toEqual([]);
+    });
+
+    it("throws, naming the selector, when no row can reach a title any more", () => {
+      const headless = `<section><ul><li><p>Due: 9/7</p></li></ul></section>`;
+      expect(() => runAdapter(listAdapter, doc(headless), page)).toThrow(/section >> h3/);
+    });
+  });
+});
+
+describe("registry validation of the list-shaped fields", () => {
+  it("accepts all three", () => {
+    expect(
+      validateAdapter({
+        ...ADAPTER,
+        dueLabel: "Due|CP1 Due",
+        titleFrom: "section >> h3",
+        time: "ul",
+      }).adapter,
+    ).toBeDefined();
+  });
+
+  it("refuses an empty label inside dueLabel", () => {
+    // `"Due|"` splits to an empty string, and an empty label matches the empty
+    // prefix of every line on the page — house rule 5's "" passing a typeof
+    // check, one field over.
+    expect(validateAdapter({ ...ADAPTER, dueLabel: "Due|" }).reason).toMatch(/empty label/);
+    expect(validateAdapter({ ...ADAPTER, dueLabel: " | Due" }).reason).toMatch(/empty label/);
+  });
+
+  it("refuses an empty or oversized field", () => {
+    expect(validateAdapter({ ...ADAPTER, dueLabel: "" }).reason).toMatch(/bad dueLabel/);
+    expect(validateAdapter({ ...ADAPTER, titleFrom: "" }).reason).toMatch(/bad titleFrom/);
+    expect(validateAdapter({ ...ADAPTER, time: "" }).reason).toMatch(/bad time/);
+    expect(validateAdapter({ ...ADAPTER, titleFrom: "x".repeat(201) }).reason).toMatch(
+      /bad titleFrom/,
+    );
+    expect(validateAdapter({ ...ADAPTER, time: "x".repeat(201) }).reason).toMatch(/bad time/);
+    expect(validateAdapter({ ...ADAPTER, dueLabel: "x".repeat(201) }).reason).toMatch(
+      /bad dueLabel/,
+    );
+  });
+
+  it("refuses a non-string", () => {
+    expect(validateAdapter({ ...ADAPTER, dueLabel: ["Due"] }).reason).toMatch(/bad dueLabel/);
+    expect(validateAdapter({ ...ADAPTER, time: 7 }).reason).toMatch(/bad time/);
   });
 });
