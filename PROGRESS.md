@@ -7,6 +7,23 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Google Calendar sync, live — 2026-09-18 evening
+
+First real push, read as evidence (worker rule 7): with the real `key` and OAuth client id
+in the manifest, on a fresh install under `mimgaiaicopabbiabakmknkcbfekplei`, Sushi switched
+the sync on, Chrome asked for the googleapis host, Google's consent window named the one
+app-created-calendars permission, and the row read **"Pushed 26 events · 05:18 PM"**. No
+tenant block, no Testing-mode refusal, no "Connected · nothing pushed yet". Still to see:
+the calendar itself in calendar.google.com, and a finished deadline disappearing from it.
+
+**What the ID change cost, and the rule.** Adding `key` to the manifest of an unpacked
+extension that is *already loaded* does not change that install's ID: a Reload on the old
+card (`ipbd…`) went into a reload loop with an Errors button, and Load unpacked from the
+same `dist/` folder created a **second** card under the key's ID. The old card had to be
+removed, and its local state (hidden rows, ticks, switches, manual entries) went with it —
+a one-time cost that also means the Piazza and Campuswire switches are off again on the
+new install. Recorded in `docs/gcal.md` and the dev-loop note in CLAUDE.md.
+
 ## Wave 6: Piazza reads whole posts; the author proposes from the page — 2026-09-18
 
 Two workers in parallel; **1659 → 1742 tests.** Pushed to GitHub the same evening (Sushi's

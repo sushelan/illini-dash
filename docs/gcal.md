@@ -9,7 +9,11 @@ nothing here happens until a student presses **Connect** in Settings.
 
 **Done, 2026-09-18:** both values below are in `public/manifest.json`. The key was
 verified to derive the store's extension id before it was pasted (SHA-256 of the DER,
-first 32 hex digits mapped a–p). The section stays as the record of where they came from.
+first 32 hex digits mapped a–p). The section stays as the record of where they came from. **Live on 2026-09-18:** the
+first push wrote 26 events ("Pushed 26 events · 05:18 PM"). Note for the next person who
+changes the key: an already-loaded unpacked install keeps its old ID, loops on Reload,
+and must be removed; Load unpacked from the same folder then creates the install under the
+key's ID, with fresh local state.
 
 Two values have to exist, and only Sushi can create them. Until they do, the Settings
 section draws itself and says *"Google Calendar is not set up in this build yet: the OAuth

@@ -417,7 +417,10 @@ which is the argument for the gate rather than against it.
 
 `dist/` is a loadable unpacked extension. Load it once from `chrome://extensions`, then
 `npm run build` (or `npm run watch`) and click reload on the card — no zip, no unzip. Zips
-are only for sending to testers.
+are only for sending to testers. The manifest carries a `key` since 2026-09-18, so every
+fresh load gets the store's ID; an install from *before* the key keeps its old ID, loops
+on Reload, and has to be removed (its local state goes with it) — do not change the key
+again without expecting that.
 
 ## Review policy
 
