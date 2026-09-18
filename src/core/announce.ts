@@ -317,16 +317,35 @@ const TIME_PART =
 
 const WEEKDAY_PREFIX = `(?:(?<weekday>${WEEKDAY_NAME})\\.?,?\\s+)?`;
 
+/**
+ * The weekday written *after* the date, in brackets: "9/20 (Sun) 11:59 pm".
+ *
+ * Real evidence, from the CS 425 "Running Post" (fixtures/piazza/post-running.json):
+ * the clock is stated and `PROSE_SEP` stopped dead at the "(", so the whole
+ * "11:59 pm US Central Time" was dropped and the reading fell back to this
+ * grammar's own 23:59 with `timeAssumed: true`. The two instants happened to
+ * be equal, which is the dangerous half: worker rule 3 says a value this code
+ * invented must never be ranked as a value the source stated, and §5.3 would
+ * have ranked a *stated* 11:59 pm below a real Canvas deadline on the strength
+ * of a flag that was wrong.
+ *
+ * Its group is `weekdayAfter` rather than `weekday` because a regex cannot
+ * carry two copies of one name, and it feeds §3.2's year cross-check exactly as
+ * the prefix does — "(Sun)" against 9/20 confirms 2026.
+ */
+const WEEKDAY_BRACKETED = `(?:\\s*\\((?<weekdayAfter>${WEEKDAY_NAME})\\.?\\))?`;
+
 /** "Friday, October 3 at 11:59 PM" · "Oct. 10" · "November 3, 2026 at 18:00" */
 const CAL_MONTH = new RegExp(
   `^${WEEKDAY_PREFIX}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
-    `(?:,?\\s*(?<year>\\d{4}))?${TIME_PART}`,
+    `(?:,?\\s*(?<year>\\d{4}))?${WEEKDAY_BRACKETED}${TIME_PART}`,
   "i",
 );
 
-/** "Fri 10/3 at 11:59pm" · "10/12" · "9/4/26" */
+/** "Fri 10/3 at 11:59pm" · "10/12" · "9/4/26" · "9/20 (Sun) 11:59 pm" */
 const CAL_NUM = new RegExp(
-  `^${WEEKDAY_PREFIX}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?${TIME_PART}`,
+  `^${WEEKDAY_PREFIX}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+    `${WEEKDAY_BRACKETED}${TIME_PART}`,
   "i",
 );
 
@@ -683,7 +702,9 @@ function readDatePhrase(
     if (year === undefined) {
       // §3.2's inference, with the stated weekday as the cross-check it was
       // written for — prose states one far more often than a course page does.
-      const weekdayWord = g["weekday"]?.toLowerCase();
+      // Either spelling of the stated weekday: "Fri 10/3" and "10/3 (Fri)" are
+      // the same cross-check, and one of them must not be worth less.
+      const weekdayWord = (g["weekday"] ?? g["weekdayAfter"])?.toLowerCase();
       const known = weekdayWord !== undefined && WEEKDAY_WORDS[weekdayWord] !== undefined;
       year = inferYear(
         parts,

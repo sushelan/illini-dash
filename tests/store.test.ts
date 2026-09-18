@@ -472,6 +472,27 @@ describe("page observers", () => {
     });
   });
 
+  it("keeps a reader version only when it is a positive integer", () => {
+    /*
+     * The field that decides whether every Piazza post gets read again. A store
+     * written before it existed carries nothing, which must mean **reader 1**
+     * (the snippet-only reader) and therefore an upgrade — that is the case
+     * Sushi's install is in. A half-written `0`, `-1` or `"2"` must not be
+     * mistaken for a reader, in the direction that skips the upgrade: an
+     * unreadable value is dropped here and read as 1 by `readerVersionOf`.
+     */
+    const piazza = (readerVersion: unknown) =>
+      migrate({ observers: { piazza: { enabled: true, readerVersion } } }, NOW).observers.piazza;
+    expect(piazza(2).readerVersion).toBe(2);
+    expect(piazza(1).readerVersion).toBe(1);
+    for (const bad of [0, -1, 1.5, "2", null, true, Number.NaN]) {
+      expect(piazza(bad).readerVersion, JSON.stringify(bad)).toBeUndefined();
+    }
+    expect(
+      migrate({ observers: { piazza: { enabled: true } } }, NOW).observers.piazza.readerVersion,
+    ).toBeUndefined();
+  });
+
   it("refuses a stored state word this build does not know", () => {
     // It is printed on the row. "green", "healthy" or a half-written value
     // would reach `describePiazza`, which answers for the words it knows and

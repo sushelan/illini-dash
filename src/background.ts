@@ -73,6 +73,7 @@ import {
   applyPiazzaResult,
   bodyBatch,
   classifyClassPage,
+  classesToPoll,
   classifyPiazzaResponse,
   classPageUrl,
   feedRequest,
@@ -83,9 +84,12 @@ import {
   planPiazza,
   postBodyRequest,
   postsToSend,
+  readerUpgrade,
+  readerVersionOf,
   withPostBody,
   MAX_BODIES_PER_SYNC,
   PIAZZA_CSRF_HEADER,
+  PIAZZA_READER_VERSION,
   PIAZZA_MATCH,
   PIAZZA_ORIGIN,
   PIAZZA_SESSION_COOKIE,
@@ -1321,6 +1325,8 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
   }
 
   let result: PiazzaResult;
+  /** The upgrade's own line, logged outside `mutate` so the queue is not held. */
+  let upgraded: string | undefined;
   let read = 0;
   let moved = 0;
   let suggested = 0;
@@ -1337,16 +1343,14 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       let poll: PiazzaPoll[] = plan.poll;
       if (plan.refreshClasses) {
         classes = await piazzaClasses(facts?.classes?.[0]?.nid);
-        poll = classes
-          .filter((entry) => entry.active)
-          .map((entry) => {
-            const since = facts?.lastNr?.[entry.nid];
-            return {
-              nid: entry.nid,
-              courseHint: entry.courseRaw,
-              ...(typeof since === "number" ? { sinceNr: since } : {}),
-            };
-          });
+        /*
+         * `classesToPoll`, not a second copy of it. The list the plan was made
+         * with was the stored one; this is the list that just arrived — but
+         * "which classes, and from which post number" is one decision, and it
+         * now has a second clause (the reader upgrade drops `sinceNr`) that a
+         * copy here would silently not have (mutation rule 3).
+         */
+        poll = classesToPoll(classes, plan.rereadAll ? undefined : facts?.lastNr);
         console.log(
           `[piazza] class list: ${classes.length} enrolment(s), ${poll.length} in this term ` +
             `(${classes.map((entry) => `${entry.courseRaw}${entry.active ? "" : " — other term"}`).join("; ")})`,
@@ -1355,7 +1359,11 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       classCount = poll.length;
 
       const lastNr: Record<string, number> = {};
-      const payloads: { nid: string; payload: ReturnType<typeof postsToSend>["payloads"][number] }[] = [];
+      const payloads: {
+        nid: string;
+        payload: ReturnType<typeof postsToSend>["payloads"][number];
+        reread?: true;
+      }[] = [];
 
       const failures: string[] = [];
       /** Every new note from every class, for one bounded pool of body fetches. */
@@ -1384,7 +1392,18 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
             courseHint: entry.courseHint,
             fetchedAt: new Date().toISOString(),
           });
-          const send = postsToSend(posts, { sinceNr: entry.sinceNr });
+          /*
+           * `seenPosts` is handed over so a post *below* `sinceNr` that has
+           * been edited since it was read can come back: the "Running Post" is
+           * edited weekly and a corrected deadline in an edit is otherwise
+           * something this source cannot see. The evidence is the feed entry's
+           * own log, already fetched — no second request, and an unedited post
+           * stays skipped.
+           */
+          const send = postsToSend(posts, {
+            sinceNr: entry.sinceNr,
+            seenPosts: store.seenPosts,
+          });
           /*
            * The bodies are **not** fetched here. `content_snipet` is the first
            * 120 characters and every deadline this class states is past them,
@@ -1442,7 +1461,14 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
       // these have already passed every filter in it.
       for (const [index, post] of bodies.entries()) {
         for (const payload of postsToSend([post]).payloads) {
-          payloads.push({ nid: queued[index]!.entry.nid, payload });
+          // `reread` travels on the post, not in the payload: a `PostPayload`
+          // is what every surface hands `ingestPost`, and only this source can
+          // know that a post it has already read has been rewritten since.
+          payloads.push({
+            nid: queued[index]!.entry.nid,
+            payload,
+            ...(post.reread === true ? { reread: true as const } : {}),
+          });
         }
       }
       const full = bodies.filter((post) => post.bodyRead === true).length;
@@ -1459,9 +1485,29 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
        * read by the Campuswire observer cannot disagree about what a post does
        * (worker rules 1 and 4).
        */
-      if (payloads.length > 0) {
+      if (payloads.length > 0 || plan.rereadAll === true) {
         await mutate((fresh) => {
-          for (const { payload } of payloads) {
+          /*
+           * The reader upgrade, in the write that carries what the new reader
+           * read — never before the fetch (`applyPiazzaResult` is later, but
+           * every request is already done by here). A crash anywhere above
+           * leaves the stored version alone, so the next sync runs the upgrade
+           * again rather than skipping it, and the upgrade is idempotent: the
+           * second sync's plan no longer asks for it.
+           */
+          if (plan.rereadAll === true) {
+            const upgrade = readerUpgrade(fresh.seenPosts, readerVersionOf(fresh.observers.piazza));
+            fresh.seenPosts = upgrade.seenPosts;
+            fresh.observers.piazza = {
+              ...fresh.observers.piazza,
+              // Every class starts again from the bottom of its feed; the
+              // results below merge this sync's capped `lastNr` onto it.
+              lastNr: {},
+              readerVersion: PIAZZA_READER_VERSION,
+            };
+            upgraded = upgrade.message;
+          }
+          for (const { payload, reread } of payloads) {
             const outcome = ingestPost(
               {
                 items: fresh.items,
@@ -1472,6 +1518,7 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
               payload,
               new Date().toISOString(),
               SITE_TIMEZONE,
+              { ...(reread === true ? { reread: true } : {}) },
             );
             fresh.overrides = {
               ...fresh.overrides,
@@ -1487,6 +1534,7 @@ async function runPiazza(trigger: SyncTrigger): Promise<void> {
           }
         });
       }
+      if (upgraded !== undefined) console.log(`[piazza] ${upgraded}`);
 
       if (failures.length > 0 && failures.length === poll.length) {
         throw new Error(failures.join("; "));

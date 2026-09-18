@@ -47,6 +47,26 @@ export const PIAZZA_SESSION_COOKIE = "session_id";
 export const PIAZZA_CSRF_HEADER = "CSRF-Token";
 /** `limit` in the feed request. One page of posts per class, as the site asks. */
 export const FEED_LIMIT = 150;
+/**
+ * How much of a post this build reads. Bumped when that answer changes.
+ *
+ * Version 1 read the feed's `content_snipet` — the first 120 characters — and
+ * marked every post read at it. Version 2 fetches the whole body. The two are
+ * not the same reading, and on an install that already ran version 1 the
+ * difference is invisible without this number: `seenPosts` and `lastNr` both
+ * say "dealt with", so the 29 notes Sushi's first live sync marked read at
+ * their snippets would never be fetched again, and the HW1 deadline in the body
+ * of note 28 would never reach him (PROGRESS.md, wave 6).
+ *
+ * So the version is stored with the posts it was read by, and a store written
+ * by an older reader is re-read **once** — bounded by `MAX_BODIES_PER_SYNC` and
+ * the `lastNr` cap, so a 106-post class costs 25 bodies a sync until it catches
+ * up rather than 106 at once. Absent in the store means 1: the field was added
+ * after the reader it names.
+ */
+export const PIAZZA_READER_VERSION = 2;
+/** Every `seenPosts` key this source owns. `piazza:<nid>:<nr>`, from `parseFeed`. */
+export const PIAZZA_POST_PREFIX = "piazza:";
 /** How long a fetched class list is trusted before it is read again. */
 export const CLASS_LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -580,8 +600,27 @@ export interface ObservedPost {
   bodyRead?: boolean;
   /** A real instant Piazza stated (`log[0].t`). Never invented here. */
   postedAt?: string;
+  /**
+   * When the **body** was last written — the newest content edit, from the feed.
+   *
+   * Not `modified`, and that is the finding: `modified` (and its epoch twin
+   * `m`) is the last *activity* of any kind, so a classmate's follow-up moves
+   * it and re-reading on it would fetch bodies nobody has touched. The entry's
+   * own `log[]` names each event, and the last one whose `n` is `update` (or
+   * `create`, for a post never edited) is the edit itself. Both captures agree
+   * to the second: nr 28's last `update` is `2026-09-13T22:22:48Z` and nr 179's
+   * is `2026-09-18T03:12:18Z`, which are exactly the `history[0].created` of
+   * `post-running.json` and `post.json` (fixtures/piazza/README.md).
+   *
+   * Absent when the value does not read as an instant — a bad value costs its
+   * own field (house rule 1) — and an absent one means "not known to have been
+   * edited", which skips a re-read rather than forcing one.
+   */
+  editedAt?: string;
+  /** True when this post is being read again because it was edited since. */
+  reread?: boolean;
   courseHint?: string;
-  extra: { unparsedPostedAt?: string; unparsedType?: string };
+  extra: { unparsedPostedAt?: string; unparsedType?: string; unparsedEditedAt?: string };
 }
 
 /** The page facts the response does not carry. */
@@ -617,6 +656,45 @@ function decodeEntities(raw: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The `log[]` events that mean "the body now reads differently".
+ *
+ * Exact values, never a substring (house rule 6): the captured feed uses
+ * `create`, `update`, `followup`, `feedback`, `s_answer`, `i_answer` and
+ * `i_answer_update` — and `i_answer_update` **contains** `update` while being a
+ * TA editing their own answer, which is a child and not the post. Matching
+ * loosely would re-fetch a body on every answer edit for ever.
+ */
+const CONTENT_EDIT = new Set(["create", "update"]);
+
+/** The last content edit in one feed entry's `log[]`, unvalidated. */
+function lastContentEdit(log: readonly unknown[]): unknown {
+  let found: unknown;
+  for (const event of log) {
+    if (!isRecord(event)) continue;
+    if (typeof event["n"] === "string" && CONTENT_EDIT.has(event["n"])) found = event["t"];
+  }
+  return found;
+}
+
+/**
+ * Whether a post that was already read has been edited since it was read.
+ *
+ * The whole point of the re-read, and the whole bound on it: the "Running Post"
+ * is edited weekly and its deadline sentence changes with it, but a feed of 106
+ * posts must not be re-fetched every half hour to find that out. Both instants
+ * are compared numerically after `isInstant` has accepted them (house rule 5:
+ * `Date.parse` takes a bare date, and two strings compared as strings put
+ * `2026-09-9` after `2026-09-13`).
+ *
+ * Unknown either way is **false**: a post with no readable edit instant, or one
+ * this store has never seen, is not evidence of a change.
+ */
+export function editedSinceSeen(post: ObservedPost, seenAt: string | undefined): boolean {
+  if (!isInstant(post.editedAt) || !isInstant(seenAt)) return false;
+  return Date.parse(post.editedAt) > Date.parse(seenAt);
 }
 
 /**
@@ -717,6 +795,11 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
     const at: unknown = (log[0] as Record<string, unknown>)["t"];
     const postedAt = isInstant(at) ? at : undefined;
 
+    // The newest content edit, read off the log the feed already carries: no
+    // second request, and never `modified`, which a follow-up moves.
+    const editedRaw = lastContentEdit(log);
+    const editedAt = isInstant(editedRaw) ? editedRaw : undefined;
+
     posts.push({
       id: `piazza:${page.nid}:${nr}`,
       nr,
@@ -730,10 +813,14 @@ export function parseFeed(json: unknown, page: FeedContext): ObservedPost[] {
       // stops the grammar running it into the first sentence of the body.
       text: snippet === "" ? subject : `${subject}\n${snippet}`,
       ...(postedAt === undefined ? {} : { postedAt }),
+      ...(editedAt === undefined ? {} : { editedAt }),
       ...(page.courseHint ? { courseHint: page.courseHint } : {}),
       extra: {
         ...(postedAt === undefined ? { unparsedPostedAt: String(at).slice(0, 120) } : {}),
         ...(kind === "other" ? { unparsedType: type.slice(0, 40) } : {}),
+        ...(editedAt === undefined && editedRaw !== undefined
+          ? { unparsedEditedAt: String(editedRaw).slice(0, 120) }
+          : {}),
       },
     });
   }
@@ -751,6 +838,14 @@ export interface SendOptions {
   includeQuestions?: boolean;
   /** Skip posts at or below this number — the last one already read for this class. */
   sinceNr?: number;
+  /**
+   * `seenPosts` from the store: post id → when it was read.
+   *
+   * Only ever used to let an *edited* post past `sinceNr`. Omitted, nothing
+   * below `sinceNr` is ever fetched again, which is what every sync before this
+   * one did.
+   */
+  seenPosts?: Record<string, string>;
 }
 
 /** What `post-observed`'s handler path takes. `core/suggest.ts` owns this shape. */
@@ -785,13 +880,30 @@ export interface SendPlan {
  */
 export function postsToSend(posts: readonly ObservedPost[], options: SendOptions = {}): SendPlan {
   const plan: SendPlan = { payloads: [], sent: [], skipped: [] };
-  for (const post of posts) {
+  for (const original of posts) {
+    let post = original;
     if (options.sinceNr !== undefined && post.nr <= options.sinceNr) {
-      // Not a failure: a 150-post feed re-read every half hour would otherwise
-      // print 150 "already read" lines per class per poll, which is a log
-      // nobody can read a real failure out of.
-      plan.skipped.push({ nr: post.nr, reason: `already read (<= ${options.sinceNr})` });
-      continue;
+      /*
+       * Already read — unless the instructor has written it again since.
+       *
+       * The "Running Post" is edited weekly and its deadline sentence changes
+       * with it, while `seenPosts` is keyed by the post and says nothing about
+       * *which version* was read. Without this, a correction in an edit is
+       * something this source structurally cannot see. The test is the feed
+       * entry's own edit instant against the instant this store read it: no
+       * extra request, and an unedited post stays skipped.
+       */
+      if (!editedSinceSeen(post, options.seenPosts?.[post.id])) {
+        // Not a failure: a 150-post feed re-read every half hour would otherwise
+        // print 150 "already read" lines per class per poll, which is a log
+        // nobody can read a real failure out of.
+        plan.skipped.push({ nr: post.nr, reason: `already read (<= ${options.sinceNr})` });
+        continue;
+      }
+      // Carried on the post rather than decided again downstream: `ingestPost`
+      // refuses a post it has already seen, and this flag is the one thing that
+      // may overrule it (mutation rule 3 — one spelling of one decision).
+      post = { ...post, reread: true };
     }
     if (post.kind !== "note" && options.includeQuestions !== true) {
       plan.skipped.push({ nr: post.nr, reason: `a ${post.kind}, not an announcement` });
@@ -951,6 +1063,14 @@ export interface PiazzaFacts {
   classesFetchedAt?: string;
   /** nid → the highest post number already read for that class. */
   lastNr?: Record<string, number>;
+  /**
+   * Which reader read those posts. Absent means 1, the snippet-only reader.
+   *
+   * Stamped only by a run that actually fetched, and in the same write as what
+   * that run produced: a crash between the upgrade and the results must re-run
+   * the upgrade next sync, not skip it.
+   */
+  readerVersion?: number;
   /** §6's ladder, one level down: the earliest next attempt after a failure. */
   nextAttemptAt?: string;
   failures?: number;
@@ -972,6 +1092,16 @@ export interface PiazzaPlan {
   poll: PiazzaPoll[];
   /** The sentence the worker logs, for both branches (worker rule 5). */
   reason: string;
+  /**
+   * Every post this source has read was read by an older reader: read them all
+   * again.
+   *
+   * The plan says so rather than the worker working it out, because it is a
+   * decision (worker rule 1) and because it has two halves that must agree —
+   * the poll below already has its `sinceNr` dropped, and the worker's write
+   * drops the matching `seenPosts` keys.
+   */
+  rereadAll?: true;
   /**
    * The state to record when `fetch` is false and the reason is not "off".
    *
@@ -1010,7 +1140,11 @@ export function planPiazza(
   facts: PiazzaFacts | undefined,
   ctx: { granted: boolean; now: Date; trigger?: "manual" | "scheduled" },
 ): PiazzaPlan {
-  const poll = classesToPoll(facts?.classes, facts?.lastNr);
+  const rereadAll = readerVersionOf(facts) < PIAZZA_READER_VERSION;
+  // The upgrade's first half: with `lastNr` ignored, the feed offers every post
+  // again. Its second half — dropping the `seenPosts` marks so `ingestPost`
+  // will look at them — is a write, and belongs to the worker.
+  const poll = classesToPoll(facts?.classes, rereadAll ? undefined : facts?.lastNr);
 
   if (facts?.enabled !== true) {
     return { fetch: false, refreshClasses: false, poll: [], reason: "off" };
@@ -1049,13 +1183,71 @@ export function planPiazza(
     !isInstant(fetchedAt) || ctx.now.getTime() - Date.parse(fetchedAt) >= CLASS_LIST_MAX_AGE_MS;
   const refreshClasses = facts.classes === undefined || facts.classes.length === 0 || stale;
 
+  const polling = refreshClasses
+    ? `reading the class list (${facts.classes === undefined ? "none stored" : "stale"}), then polling`
+    : `polling ${poll.length} class${poll.length === 1 ? "" : "es"}`;
+
   return {
     fetch: true,
     refreshClasses,
     poll,
-    reason: refreshClasses
-      ? `reading the class list (${facts.classes === undefined ? "none stored" : "stale"}), then polling`
-      : `polling ${poll.length} class${poll.length === 1 ? "" : "es"}`,
+    ...(rereadAll ? { rereadAll: true as const } : {}),
+    reason: rereadAll
+      ? `${polling} — every post here was read by reader ${readerVersionOf(facts)}, ` +
+        `and this build is reader ${PIAZZA_READER_VERSION}: re-reading them in full`
+      : polling,
+  };
+}
+
+/**
+ * Which reader last read this class's posts. `1` for anything unreadable.
+ *
+ * `typeof x === "number"` is not validation (house rule 5): this comes off
+ * disk, and `0`, `-3`, `NaN` and `"2"` would each mean something different and
+ * wrong. Anything that is not a positive integer is treated as the oldest
+ * reader, which costs one re-read and never skips one.
+ */
+export function readerVersionOf(facts: PiazzaFacts | undefined): number {
+  const stored = facts?.readerVersion;
+  return typeof stored === "number" && Number.isInteger(stored) && stored > 0 ? stored : 1;
+}
+
+/** What the upgrade does to `seenPosts`, and the line the worker logs about it. */
+export interface ReaderUpgrade {
+  seenPosts: Record<string, string>;
+  dropped: number;
+  message: string;
+}
+
+/**
+ * Forget that this source ever read a post, so the new reader can read it again.
+ *
+ * Only the keys this source owns: `seenPosts` is shared with the Campuswire
+ * observer and the paste box, and an upgrade to the Piazza reader has nothing
+ * to say about a Campuswire thread — dropping one would re-offer a correction
+ * the student has already seen, from a source that did not change. Prefix
+ * matched on `parseFeed`'s own id shape, through the one constant both spell.
+ *
+ * Pure, and it returns the sentence as well as the map, because "the upgrade
+ * ran and there was nothing to drop" and "the upgrade never ran" are the same
+ * silence otherwise (worker rule 5).
+ */
+export function readerUpgrade(
+  seenPosts: Record<string, string> | undefined,
+  from: number,
+): ReaderUpgrade {
+  const kept: Record<string, string> = {};
+  let dropped = 0;
+  for (const [key, at] of Object.entries(seenPosts ?? {})) {
+    if (key.startsWith(PIAZZA_POST_PREFIX)) dropped += 1;
+    else kept[key] = at;
+  }
+  return {
+    seenPosts: kept,
+    dropped,
+    message:
+      `reader upgraded ${from} → ${PIAZZA_READER_VERSION}: ` +
+      `re-reading ${dropped} post${dropped === 1 ? "" : "s"} in full`,
   };
 }
 

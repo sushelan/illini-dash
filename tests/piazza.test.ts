@@ -30,16 +30,20 @@ import {
   planPiazza,
   postBodyRequest,
   postsToSend,
+  readerUpgrade,
+  readerVersionOf,
   withPostBody,
+  editedSinceSeen,
   MAX_BODIES_PER_SYNC,
   PIAZZA_MATCH,
+  PIAZZA_READER_VERSION,
   type ObservedPost,
   type PiazzaClass,
   type PiazzaFacts,
 } from "../src/core/piazza.js";
 import { describeEmpty, extractDeadlineMentions } from "../src/core/announce.js";
 import { ingestPost } from "../src/core/suggest.js";
-import { ParseError, type Overrides } from "../src/sources/types.js";
+import { ParseError, type Item, type Overrides, type RawItem } from "../src/sources/types.js";
 
 const HTML = readFileSync(new URL("../fixtures/piazza/class-page.html", import.meta.url), "utf8");
 const SIGNED_OUT = readFileSync(
@@ -980,5 +984,346 @@ describe("the real feed through ingestPost", () => {
     );
     expect(again.suggestions).toEqual([]);
     expect(again.skipped[0]?.reason).toContain("already read");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The reader version: an install that already read every post at its snippet  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Sushi's first live sync marked all 29 notes read with the snippet reader, so
+ * the body stage would never have fetched one of them — including note 28,
+ * whose body is the HW1 deadline (PROGRESS.md, wave 6). "Read" is a claim about
+ * a *reader*, and the store has to say which one made it.
+ */
+describe("the reader version", () => {
+  const stored = (extra: Partial<PiazzaFacts> = {}): PiazzaFacts => ({
+    enabled: true,
+    classes: [CS425],
+    classesFetchedAt: NOW_ISO,
+    lastNr: { [NID]: 184 },
+    ...extra,
+  });
+
+  it("reads an absent, zero or fractional version as the oldest reader", () => {
+    // House rule 5, on a field off disk: `typeof x === "number"` passes `0` and
+    // `NaN`, and each of them would mean "some reader" while naming none. The
+    // fallback is 1, which costs one re-read and can never skip one.
+    expect(readerVersionOf(undefined)).toBe(1);
+    expect(readerVersionOf({ enabled: true })).toBe(1);
+    expect(readerVersionOf({ enabled: true, readerVersion: 0 })).toBe(1);
+    expect(readerVersionOf({ enabled: true, readerVersion: -2 })).toBe(1);
+    expect(readerVersionOf({ enabled: true, readerVersion: 1.5 })).toBe(1);
+    expect(readerVersionOf({ enabled: true, readerVersion: Number.NaN })).toBe(1);
+    expect(readerVersionOf({ enabled: true, readerVersion: 2 })).toBe(2);
+  });
+
+  it("this build is reader 2, the one that reads whole bodies", () => {
+    expect(PIAZZA_READER_VERSION).toBe(2);
+  });
+
+  it("plans a re-read of everything when the store was written by reader 1", () => {
+    const plan = planPiazza(stored(), { granted: true, now: NOW });
+    expect(plan.rereadAll).toBe(true);
+    // The first half of the upgrade: with `lastNr` ignored, the feed offers
+    // every post again. Leaving `sinceNr` on would re-read nothing at all.
+    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw }]);
+    expect(plan.reason).toContain("reader 1");
+    expect(plan.reason).toContain(`reader ${PIAZZA_READER_VERSION}`);
+  });
+
+  it("plans nothing extra once the store says reader 2", () => {
+    // Idempotence: the second sync after an upgrade is an ordinary sync, and a
+    // `rereadAll` that stayed on would re-read 25 bodies every half hour for ever.
+    const plan = planPiazza(stored({ readerVersion: 2 }), { granted: true, now: NOW });
+    expect(plan.rereadAll).toBeUndefined();
+    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw, sinceNr: 184 }]);
+    expect(plan.reason).not.toContain("reader");
+  });
+
+  it("drops this source's seen marks and nothing else", () => {
+    /*
+     * `seenPosts` is shared with the Campuswire observer and the paste box. An
+     * upgrade to *this* reader says nothing about a Campuswire thread, and
+     * dropping one would re-offer a correction the student has already seen —
+     * from a source that did not change.
+     */
+    const upgrade = readerUpgrade(
+      {
+        [`piazza:${NID}:28`]: "2026-09-17T10:00:00-05:00",
+        [`piazza:${NID}:42`]: "2026-09-17T10:00:00-05:00",
+        "campuswire:cs357:9": "2026-09-17T10:00:00-05:00",
+        "paste:abc": "2026-09-17T10:00:00-05:00",
+      },
+      1,
+    );
+    expect(Object.keys(upgrade.seenPosts).sort()).toEqual(["campuswire:cs357:9", "paste:abc"]);
+    expect(upgrade.dropped).toBe(2);
+    expect(upgrade.message).toBe("reader upgraded 1 → 2: re-reading 2 posts in full");
+  });
+
+  it("says so even when there was nothing to drop", () => {
+    // Worker rule 5: "the upgrade ran and the store was empty" and "the upgrade
+    // never ran" are the same silence otherwise, and they want opposite fixes.
+    expect(readerUpgrade({}, 1).message).toBe("reader upgraded 1 → 2: re-reading 0 posts in full");
+    expect(readerUpgrade(undefined, 1).dropped).toBe(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Edited posts: the Running Post is rewritten every week                     */
+/* -------------------------------------------------------------------------- */
+
+describe("the feed's own modification signal", () => {
+  it("is the last content edit in `log[]`, not `modified`", () => {
+    /*
+     * The evidence, and it is exact: nr 28's last `update` entry is
+     * `2026-09-13T22:22:48Z` and nr 179's is `2026-09-18T03:12:18Z`, which are
+     * precisely the `history[0].created` of `post-running.json` and
+     * `post.json`. `modified` (and its epoch twin `m`) is **later than both** —
+     * it moves on any activity, including a classmate's follow-up, so re-reading
+     * on it would fetch bodies nobody has touched.
+     */
+    const byNr = new Map(posts().map((post) => [post.nr, post]));
+    expect(byNr.get(28)?.editedAt).toBe("2026-09-13T22:22:48Z");
+    expect(byNr.get(179)?.editedAt).toBe("2026-09-18T03:12:18Z");
+    const raw = entries(feed()).find((entry) => entry["nr"] === 28)!;
+    expect(raw["modified"]).toBe("2026-09-17T03:20:42Z");
+    expect(byNr.get(28)?.editedAt).not.toBe(raw["modified"]);
+  });
+
+  it("falls back to the creation entry for a post never edited", () => {
+    const byNr = new Map(posts().map((post) => [post.nr, post]));
+    // nr 184's log has no `update` at all; "created and never rewritten" is a
+    // real edit instant, not a missing one.
+    expect(byNr.get(184)?.editedAt).toBe("2026-09-18T09:09:00Z");
+    expect(byNr.get(184)?.postedAt).toBe("2026-09-18T09:09:00Z");
+  });
+
+  it("does not count a TA editing their own answer", () => {
+    /*
+     * Deliberately unrealistic, and this is house rule 6's trap in the file:
+     * `i_answer_update` **contains** `update`, and the capture happens to hold
+     * no post where the two disagree — so a substring match would pass against
+     * it unchanged and then re-read a body on every answer edit for ever. The
+     * entry below is appended with a later instant than the real edit, so a
+     * loose match is visible as a moved `editedAt`.
+     */
+    const edited = feed();
+    const entry = entries(edited).find((item) => item["nr"] === 28)!;
+    entry["log"] = [
+      ...(entry["log"] as unknown[]),
+      { t: "2026-09-16T12:00:00Z", u: "uid-2", n: "i_answer_update" },
+    ];
+    const post = parseFeed(edited, PAGE).find((item) => item.nr === 28)!;
+    expect(post.editedAt).toBe("2026-09-13T22:22:48Z");
+  });
+
+  it("costs its own field when the instant does not read", () => {
+    // House rule 1: the hook (`log[]`) is there and the value is not, so the
+    // post keeps every other field — and an absent `editedAt` simply means "not
+    // known to have been edited", which skips a re-read rather than forcing one.
+    const broken = feed();
+    const entry = entries(broken).find((item) => item["nr"] === 28)!;
+    entry["log"] = [
+      { t: "2026-08-28T01:32:51Z", u: "uid-8", n: "create" },
+      { t: "13 September", u: "uid-8", n: "update" },
+    ];
+    const post = parseFeed(broken, PAGE).find((item) => item.nr === 28)!;
+    expect(post.editedAt).toBeUndefined();
+    expect(post.extra.unparsedEditedAt).toBe("13 September");
+    expect(post.postedAt).toBe("2026-08-28T01:32:51Z");
+    expect(editedSinceSeen(post, "2026-09-01T00:00:00Z")).toBe(false);
+  });
+
+  it("compares the two instants, and answers false for either unknown", () => {
+    const post = { editedAt: "2026-09-13T22:22:48Z" } as ObservedPost;
+    expect(editedSinceSeen(post, "2026-09-09T00:00:00Z")).toBe(true);
+    expect(editedSinceSeen(post, "2026-09-14T00:00:00Z")).toBe(false);
+    // Equal is not later: a post read at the instant of its edit was read as it
+    // now reads, and re-reading it would be a request for nothing.
+    expect(editedSinceSeen(post, "2026-09-13T22:22:48Z")).toBe(false);
+    /*
+     * Neither a bare date nor an absence is evidence of a change (house rule
+     * 5). The date below is deliberately *before* the edit: a `typeof seenAt
+     * === "string"` here would parse it, find the edit later, and re-read the
+     * post — and a bare date a day the *other* side of the edit produces the
+     * right answer for the wrong reason, which is how this mutation first
+     * survived (mutation rule 4).
+     */
+    expect(editedSinceSeen(post, "2026-09-12")).toBe(false);
+    expect(editedSinceSeen(post, undefined)).toBe(false);
+    expect(editedSinceSeen({} as ObservedPost, "2026-09-09T00:00:00Z")).toBe(false);
+  });
+});
+
+describe("postsToSend and a post that was edited after it was read", () => {
+  /** After every edit in the capture — the newest is 2026-09-18T03:12:18Z. */
+  const seenAt = "2026-09-19T09:00:00-05:00";
+
+  it("skips an already-read post that has not been rewritten", () => {
+    /*
+     * The bound on the whole feature. Every post in the capture was last
+     * edited before this store read it, so there is nothing new in any of them;
+     * a build that re-read them anyway would fetch 106 bodies every half hour.
+     */
+    const plan = postsToSend(posts(), {
+      sinceNr: 184,
+      seenPosts: Object.fromEntries(posts().map((post) => [post.id, seenAt])),
+    });
+    expect(plan.sent).toEqual([]);
+    expect(plan.skipped.some((entry) => entry.nr === 28)).toBe(true);
+  });
+
+  it("sends one that was, and marks it as a re-reading", () => {
+    // Read on the 9th, edited on the 13th: the version this store read is not
+    // the version on the page, which is the only thing `seenPosts` cannot say.
+    const plan = postsToSend(posts(), {
+      sinceNr: 184,
+      seenPosts: Object.fromEntries(posts().map((post) => [post.id, "2026-09-09T09:00:00-05:00"])),
+    });
+    expect(plan.sent.map((post) => post.nr)).toContain(28);
+    expect(plan.sent.every((post) => post.reread === true)).toBe(true);
+    // `cid` and `nr` survive, because the body stage fetches with them.
+    expect(plan.sent.find((post) => post.nr === 28)?.cid).toBe("mtca1sh8pfk6ze");
+  });
+
+  it("re-reads nothing at all when the caller hands over no seen marks", () => {
+    // Which is every sync before this wave: without the marks there is no
+    // "since when", and guessing one would re-read the feed on every poll.
+    const plan = postsToSend(posts(), { sinceNr: 184 });
+    expect(plan.sent).toEqual([]);
+  });
+
+  it("leaves a post above the mark alone: it is new, not re-read", () => {
+    const plan = postsToSend(posts(), { sinceNr: 100, seenPosts: {} });
+    expect(plan.sent.every((post) => post.nr > 100)).toBe(true);
+    expect(plan.sent.every((post) => post.reread === undefined)).toBe(true);
+  });
+});
+
+describe("a re-read post through ingestPost", () => {
+  /** Note 42's payload — the one post in the capture whose snippet states a date. */
+  function note42(json: unknown = feed()): (typeof NOTE42_HOLDER)[number] {
+    return postsToSend(posts(json)).payloads.find((payload) => payload.id.endsWith(":42"))!;
+  }
+  const NOTE42_HOLDER = postsToSend(posts()).payloads;
+
+  it("offers a row one suggestion when one post states its deadline twice", () => {
+    /*
+     * Note 42 says "Register Your MP Group by EOD Today 8/31" in its subject
+     * and again in its snippet, and both readings resolve to the same row. The
+     * reading is 0.65 — a relative day with a clock this code invented — so it
+     * is offered rather than applied, twice, unless the offer made a moment ago
+     * in *this* post counts. It does.
+     */
+    const member: RawItem = {
+      source: "gradescope",
+      sourceId: "mp-group",
+      courseRaw: "CS 425 / ECE 428: Distributed Systems",
+      courseCode: "CS425",
+      title: "MP Group",
+      kind: "assignment",
+      status: "not_submitted",
+      dueAt: "2026-09-05T23:59:00-05:00",
+      fetchedAt: NOW_ISO,
+    };
+    const item: Item = {
+      id: "mp-group",
+      members: [member],
+      courseCode: "CS425",
+      courseLabel: "CS425",
+      title: "MP Group",
+      kind: "assignment",
+      dueAt: "2026-09-05T23:59:00-05:00",
+      status: "not_submitted",
+      hidden: false,
+      done: false,
+      notified: {},
+    };
+    const out = ingestPost(
+      { items: [item], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
+      note42(),
+      NOW_ISO,
+    );
+    expect(out.dueOverrides).toEqual({});
+    expect(out.suggestions.map((suggestion) => suggestion.at)).toEqual([
+      "2026-08-31T23:59:00-05:00",
+    ]);
+  });
+
+  it("refuses a second reading unless the caller says it was edited", () => {
+    // The guard that stops every poll re-applying the same correction stays
+    // exactly as strict; `reread` is the one thing that may overrule it.
+    const seen = { [note42().id]: "2026-09-01T10:00:00-05:00" };
+    const out = ingestPost(
+      { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: seen },
+      note42(),
+      NOW_ISO,
+    );
+    expect(out.suggestions).toEqual([]);
+    expect(out.skipped[0]?.reason).toContain("already read");
+  });
+
+  it("does not offer the same deadline twice when the edit did not change it", () => {
+    /*
+     * The commonest re-read by far: the "Running Post" is edited weekly and
+     * most edits are clarifications. Two rows in the Attention tab for one
+     * deadline is the noise that makes a student stop reading the section, so
+     * `alreadySuggested` — same title, same stated day — is what has to hold.
+     */
+    const first = ingestPost(
+      { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
+      note42(),
+      NOW_ISO,
+    );
+    expect(first.suggestions).toHaveLength(1);
+    const again = ingestPost(
+      {
+        items: [],
+        overrides: NO_OVERRIDES,
+        suggestions: first.suggestions,
+        seenPosts: { [note42().id]: NOW_ISO },
+      },
+      note42(),
+      "2026-09-19T12:00:00-05:00",
+      undefined,
+      { reread: true },
+    );
+    expect(again.suggestions).toEqual([]);
+    // The seen mark still moves, so one edit costs one re-reading and not one
+    // per sync for ever.
+    expect(again.seenPosts).toEqual({ [note42().id]: "2026-09-19T12:00:00-05:00" });
+  });
+
+  it("offers the corrected deadline when the edit moved it", () => {
+    /*
+     * Deliberately unrealistic (house rule 10): the capture cannot hold two
+     * versions of one feed entry, and a build that re-read the post but ignored
+     * what it now says would pass every assertion above.
+     */
+    const corrected = feed();
+    const entry = entries(corrected).find((item) => item["nr"] === 42)!;
+    entry["content_snipet"] = "Correction: register your MP group by 9/3 at 5pm instead.";
+    const first = ingestPost(
+      { items: [], overrides: NO_OVERRIDES, suggestions: [], seenPosts: {} },
+      note42(),
+      NOW_ISO,
+    );
+    const again = ingestPost(
+      {
+        items: [],
+        overrides: NO_OVERRIDES,
+        suggestions: first.suggestions,
+        seenPosts: { [note42().id]: NOW_ISO },
+      },
+      note42(corrected),
+      "2026-09-19T12:00:00-05:00",
+      undefined,
+      { reread: true },
+    );
+    expect(again.suggestions).toHaveLength(1);
+    expect(again.suggestions[0]?.at).toBe("2026-09-03T17:00:00-05:00");
   });
 });
