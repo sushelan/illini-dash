@@ -43,7 +43,9 @@ import {
   dayKey,
   hourRange,
   minutesInto,
+  MONTH_CELL_ROWS,
   monthCells,
+  quietDay,
   startOfDay,
   visibleItems,
   weekContents,
@@ -2123,11 +2125,14 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
     const box = document.createElement("div");
     box.className = "witems";
     const timed = allTimed(day.contents);
+    // A day nobody owes anything on gets the tight header, whether it is empty
+    // or holds four things already handed in. The decision is `quietDay`'s;
+    // this only draws it.
+    if (quietDay(day.contents, now)) row.classList.add("wrow--quiet");
     if (timed.length === 0 && day.contents.untimed.length === 0) {
       // A 22px row rather than a full-height one. An empty day is worth a line
       // saying it is empty and nothing more — seven of them at full height is
       // the whole popup.
-      row.classList.add("wrow--quiet");
       box.classList.add("witems--empty");
       box.textContent = "—";
     } else {
@@ -2152,9 +2157,6 @@ function renderWeekView(items: Item[], now: Date, colours: Map<string, number>):
 /* -------------------------------------------------------------------------- */
 /* Month                                                                       */
 /* -------------------------------------------------------------------------- */
-
-/** How many rows fit a month cell before it has to say "+N more". */
-const MONTH_CELL_ROWS = 3;
 
 function renderMonthView(items: Item[], now: Date, colours: Map<string, number>): void {
   const anchor = anchorDate(now);
@@ -2473,12 +2475,17 @@ function render(
   // document out to decide the popup's width and a width rule can feed itself.
   document.body.dataset["view"] = view;
 
+  // Two lists, because the calendar and the Attention tab are asking different
+  // questions. A grid says what was on a day, so finished work belongs on it,
+  // struck through (Sushi, 2026-09-18). Attention is a list of what is still
+  // owed, so it keeps `dropFinished` and keeps behaving exactly as before.
   const onGrid = visibleItems(items, settings, hidden, now);
+  const owed = visibleItems(items, settings, hidden, now, { dropFinished: true });
   const colours = courseColours(coursesIn(visibleItems(items, settings, new Set(), now)));
 
   renderTabs({
     exams: examCount(items, now),
-    attention: attentionCount(onGrid, now),
+    attention: attentionCount(owed, now),
   });
   // The header bar is sticky, so without this the tabs slide under it and
   // switching views means scrolling back to the top of the list. Measured
@@ -2491,7 +2498,7 @@ function render(
   renderDateNav(nav.label, nav.step);
 
   if (view === "attention") {
-    renderAttentionView(onGrid, now, colours);
+    renderAttentionView(owed, now, colours);
     makeRowsNavigable();
     return;
   }

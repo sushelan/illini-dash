@@ -28,7 +28,9 @@ import {
   isActionable,
   itemTone,
   minutesInto,
+  MONTH_CELL_ROWS,
   monthCells,
+  quietDay,
   visibleItems,
   weekContents,
   weekDays,
@@ -388,24 +390,37 @@ describe("monthCells", () => {
 describe("visibleItems", () => {
   const settings: Settings = { ...DEFAULT_SETTINGS, hideSubmitted: true };
 
-  it("drops hidden rows, ticked rows and submitted work that is still ahead", () => {
-    const kept = visibleItems(
-      [
-        item({ title: "keep", dueAt: at(2026, 8, 11, 12) }),
-        item({ title: "hidden", hidden: true }),
-        item({ title: "ticked", done: true, dueAt: at(2026, 8, 11, 12) }),
-        item({
-          title: "submitted",
-          status: "graded",
-          dueAt: at(2026, 8, 11, 12),
-          members: [member(undefined, "graded")],
-        }),
-      ],
-      settings,
-      new Set(),
-      NOW,
-    );
+  const mixed = () => [
+    item({ title: "keep", dueAt: at(2026, 8, 11, 12) }),
+    item({ title: "hidden", hidden: true }),
+    item({ title: "ticked", done: true, dueAt: at(2026, 8, 11, 12) }),
+    item({
+      title: "submitted",
+      status: "graded",
+      dueAt: at(2026, 8, 11, 12),
+      members: [member(undefined, "graded")],
+    }),
+  ];
+
+  it("with dropFinished, drops hidden rows, ticked rows and submitted work still ahead", () => {
+    // What the Attention tab, the badge and §7's reminders still want: a list
+    // of what is owed. It was the *default* until 2026-09-18, and the calendar
+    // was the caller it was wrong for.
+    const kept = visibleItems(mixed(), settings, new Set(), NOW, { dropFinished: true });
     expect(kept.map((i) => i.title)).toEqual(["keep"]);
+  });
+
+  it("by default keeps finished work, because a calendar draws it struck through", () => {
+    /*
+     * Sushi, 2026-09-18: "Show it struck through, including hand-ticked rows."
+     * The beta report it answers: "completed assignments from PrairieLearn
+     * don't show up in the calendar."
+     *
+     * Hidden is still hidden — that is the student having asked for the row to
+     * go, not a report about whether it is finished.
+     */
+    const kept = visibleItems(mixed(), settings, new Set(), NOW);
+    expect(kept.map((i) => i.title)).toEqual(["keep", "ticked", "submitted"]);
   });
 
   it("keeps finished work whose deadline has already gone", () => {
@@ -430,11 +445,14 @@ describe("visibleItems", () => {
       settings,
       new Set(),
       NOW,
+      // Even the caller that asked to drop finished work keeps the past: this
+      // is the `!isPast` half of the clause, and nothing else pins it.
+      { dropFinished: true },
     );
     expect(kept.map((i) => i.title)).toEqual(["handed in", "ticked off"]);
   });
 
-  it("still hides finished work that is ahead, which is what the setting is for", () => {
+  it("with dropFinished, still hides finished work that is ahead", () => {
     const kept = visibleItems(
       [
         item({
@@ -447,18 +465,33 @@ describe("visibleItems", () => {
       settings,
       new Set(),
       NOW,
+      { dropFinished: true },
     );
     expect(kept).toEqual([]);
   });
 
-  it("hides finished undated work, which has no past to belong to", () => {
+  it("with dropFinished, hides finished undated work, which has no past to belong to", () => {
+    const kept = visibleItems(
+      [item({ title: "done", status: "graded", members: [member(undefined, "graded")] })],
+      settings,
+      new Set(),
+      NOW,
+      { dropFinished: true },
+    );
+    expect(kept).toEqual([]);
+  });
+
+  it("by default keeps finished undated work, which used to vanish for good", () => {
+    // The worst case of the old default: no deadline means `isPast` can never
+    // become true, so a finished undated row was dropped on every day there
+    // is. It belongs in the untimed band, like any other undated row.
     const kept = visibleItems(
       [item({ title: "done", status: "graded", members: [member(undefined, "graded")] })],
       settings,
       new Set(),
       NOW,
     );
-    expect(kept).toEqual([]);
+    expect(kept.map((i) => i.title)).toEqual(["done"]);
   });
 
   it("keeps submitted work when the setting is off", () => {
@@ -478,7 +511,7 @@ describe("visibleItems", () => {
     expect(kept).toHaveLength(1);
   });
 
-  it("hides a ticked row whatever the setting says, while it is still ahead", () => {
+  it("with dropFinished, hides a ticked row whatever the setting says", () => {
     // The tick is the student's own statement, not a report from a source, so
     // `hideSubmitted` — which is about trusting sources — does not govern it.
     const kept = visibleItems(
@@ -486,6 +519,7 @@ describe("visibleItems", () => {
       { ...settings, hideSubmitted: false },
       new Set(),
       NOW,
+      { dropFinished: true },
     );
     expect(kept).toEqual([]);
   });
@@ -1000,16 +1034,20 @@ describe("finished work with a late window still open", () => {
     expect(allTimed(sep16)).toEqual([]);
   });
 
-  it("keeps hiding finished work that is still ahead", () => {
+  it("keeps hiding finished work that is still ahead, for the callers that ask", () => {
     // What `hideSubmitted` is actually for: something handed in early should
-    // not sit on a future day as clutter.
+    // not sit in a *list of what is owed*. On the calendar it is drawn struck
+    // through instead (Sushi, 2026-09-18), so only `dropFinished` drops it.
     const early = item({
       title: "handed in early",
       status: "submitted",
       dueAt: at(2026, 8, 14, 17),
       members: [member(undefined, "submitted")],
     });
-    expect(visibleItems([early], DEFAULT_SETTINGS, new Set(), NOW)).toEqual([]);
+    expect(
+      visibleItems([early], DEFAULT_SETTINGS, new Set(), NOW, { dropFinished: true }),
+    ).toEqual([]);
+    expect(visibleItems([early], DEFAULT_SETTINGS, new Set(), NOW)).toHaveLength(1);
   });
 
   it("leaves unfinished late work where the late window puts it", () => {
@@ -1023,6 +1061,164 @@ describe("finished work with a late window still open", () => {
     const sep16 = dayContents([unfinished], new Date(2026, 8, 16), NOW);
     expect(allTimed(sep16).map((p) => p.item.title)).toEqual(["not handed in"]);
     expect(attentionGroups([unfinished], NOW)).toEqual([]);
+  });
+});
+
+/*
+ * Sushi, 2026-09-18: "Show it struck through, including hand-ticked rows."
+ *
+ * The beta report: "completed assignments from PrairieLearn don't show up in
+ * the calendar." They did not, on today or on any future day, because
+ * `visibleItems` dropped finished work that was not yet past — so handing
+ * something in at 2pm deleted it from a day it was still due on, and a finished
+ * undated row had no past to fall into and was deleted from every day there is.
+ */
+describe("finished work is drawn, struck through", () => {
+  const handedIn = (partial: Partial<Item> = {}) =>
+    item({
+      status: "submitted",
+      members: [member(undefined, "submitted")],
+      ...partial,
+    });
+
+  it("draws work handed in this afternoon on today, where it is still due", () => {
+    const today = handedIn({ title: "PL homework", dueAt: at(2026, 8, 10, 23, 59) });
+    const visible = visibleItems([today], DEFAULT_SETTINGS, new Set(), NOW);
+    const contents = dayContents(visible, SEP10, NOW);
+    // 11:59 PM is a default, so it is hoisted out of the hour axis — but it is
+    // on the day, which is the whole report.
+    expect(contents.endOfDay.map((p) => p.item.title)).toEqual(["PL homework"]);
+    expect(itemTone(today, NOW)).toBe("done");
+  });
+
+  it("draws a finished undated row in the untimed band", () => {
+    const undated = handedIn({ title: "no date", dueAt: at(2026, 8, 12), timeAssumed: true });
+    const visible = visibleItems([undated], DEFAULT_SETTINGS, new Set(), NOW);
+    const contents = dayContents(visible, new Date(2026, 8, 12), NOW);
+    expect(contents.untimed.map((i) => i.title)).toEqual(["no date"]);
+    expect(allTimed(contents)).toEqual([]);
+  });
+
+  it("draws a hand-ticked row struck through, on a future day", () => {
+    // The hand tick is the only way a course-website row is ever finished:
+    // those sources never report a submission.
+    const ticked = item({ title: "ticked", done: true, dueAt: at(2026, 8, 12, 17) });
+    const visible = visibleItems([ticked], DEFAULT_SETTINGS, new Set(), NOW);
+    const contents = dayContents(visible, new Date(2026, 8, 12), NOW);
+    expect(allTimed(contents).map((p) => p.item.title)).toEqual(["ticked"]);
+    // `.row-done` / `.mpill--done` in the popup key off exactly this.
+    expect(itemTone(ticked, NOW)).toBe("done");
+  });
+
+  it("keeps a booking off the grid, finished or not", () => {
+    expect(
+      visibleItems([item({ kind: "booking", dueAt: at(2026, 8, 12, 9) })], DEFAULT_SETTINGS),
+    ).toEqual([]);
+  });
+
+  it("leaves the Attention tab alone: it asks for what is owed", () => {
+    const owed = (items: Item[]) =>
+      visibleItems(items, DEFAULT_SETTINGS, new Set(), NOW, { dropFinished: true });
+    const done = handedIn({ title: "done", dueAt: at(2026, 8, 12, 17) });
+    const undatedDone = handedIn({ title: "undated done" });
+    expect(attentionCount(owed([done, undatedDone]), NOW)).toBe(0);
+    expect(attentionGroups(owed([done, undatedDone]), NOW)).toEqual([]);
+  });
+});
+
+describe("a month cell puts finished pills last (sinkDone)", () => {
+  const donePill = (title: string, hour: number) =>
+    item({
+      title,
+      status: "graded",
+      dueAt: at(2026, 8, 12, hour),
+      members: [member(undefined, "graded")],
+    });
+
+  const cellFor = (items: Item[], day: number) =>
+    monthCells(items, SEP10, NOW).find((c) => dayKey(c.date) === `2026-09-${day}`)!;
+
+  it("shows the one thing still owed when three finished rows would fill the cell", () => {
+    // The cell draws MONTH_CELL_ROWS and then "+N more". Ordered by time, the
+    // open row is fourth and invisible — and "which days are still heavy" is
+    // the only question a month answers.
+    const cell = cellFor(
+      [
+        donePill("done 9am", 9),
+        donePill("done 10am", 10),
+        donePill("done 11am", 11),
+        item({ title: "still owed", dueAt: at(2026, 8, 12, 12) }),
+      ],
+      12,
+    );
+    expect(cell.items.slice(0, MONTH_CELL_ROWS).map((p) => p.item.title)).toContain(
+      "still owed",
+    );
+    expect(cell.items.map((p) => p.item.title)).toEqual([
+      "still owed",
+      "done 9am",
+      "done 10am",
+      "done 11am",
+    ]);
+  });
+
+  it("keeps timed before untimed inside each group", () => {
+    // `sinkDone` is a stable partition, not a sort: the reason untimed comes
+    // last is unchanged, and it has to survive the new rule.
+    const cell = cellFor(
+      [
+        donePill("done timed", 9),
+        item({ title: "open timed", dueAt: at(2026, 8, 12, 10) }),
+        item({ title: "open untimed", dueAt: at(2026, 8, 12), timeAssumed: true }),
+      ],
+      12,
+    );
+    expect(cell.items.map((p) => p.item.title)).toEqual([
+      "open timed",
+      "open untimed",
+      "done timed",
+    ]);
+  });
+});
+
+describe("quietDay (the week's 22px row)", () => {
+  const done = (title: string) =>
+    item({
+      title,
+      status: "graded",
+      dueAt: at(2026, 8, 12, 9),
+      members: [member(undefined, "graded")],
+    });
+
+  it("calls a day of nothing but finished work quiet", () => {
+    // It used to be "no items", which was the same question only while
+    // finished work never reached a view. A day whose four assignments are all
+    // handed in is a day with four rows and nothing to do.
+    const contents = dayContents([done("a"), done("b")], new Date(2026, 8, 12), NOW);
+    expect(quietDay(contents, NOW)).toBe(true);
+  });
+
+  it("is not quiet when one row is still owed", () => {
+    const contents = dayContents(
+      [done("a"), item({ title: "owed", dueAt: at(2026, 8, 12, 10) })],
+      new Date(2026, 8, 12),
+      NOW,
+    );
+    expect(quietDay(contents, NOW)).toBe(false);
+  });
+
+  it("counts an untimed row, which is not on the hour axis to be counted", () => {
+    const contents = dayContents(
+      [item({ title: "owed", dueAt: at(2026, 8, 12), timeAssumed: true })],
+      new Date(2026, 8, 12),
+      NOW,
+    );
+    expect(contents.untimed).toHaveLength(1);
+    expect(quietDay(contents, NOW)).toBe(false);
+  });
+
+  it("calls an empty day quiet, as it always has", () => {
+    expect(quietDay(dayContents([], new Date(2026, 8, 12), NOW), NOW)).toBe(true);
   });
 });
 

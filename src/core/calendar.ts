@@ -84,22 +84,47 @@ export function anchorOf(item: Item, now: Date): Anchor | undefined {
 /**
  * The items a view should draw at all.
  *
- * The same filter the list used, plus the course strip's. Hidden rows, ticked
- * rows and — when the setting is on — work a source reports finished. Bookings
- * are excluded here because they are not drawn on the grid: they live in the
- * strip above the tabs, where the point is that the window closes whether or
- * not the student has looked.
+ * Hidden rows and rows whose course is switched off, always. Bookings are
+ * excluded here because they are not drawn on the grid: they live in the strip
+ * above the tabs, where the point is that the window closes whether or not the
+ * student has looked.
+ *
+ * **Finished work is drawn, struck through.** It used to be dropped — finished
+ * and not yet past — which is right for a *list* of what is next and wrong for
+ * a calendar, where a square with nothing in it asserts that nothing was due. A
+ * beta report put it plainly: "completed assignments from PrairieLearn don't
+ * show up in the calendar". And because the test was a clock comparison, work
+ * handed in at 2pm and due at 11:59pm vanished from today and reappeared at
+ * midnight, while a finished undated row vanished for good.
+ *
+ * Sushi's decision, 2026-09-18: "Show it struck through, including hand-ticked
+ * rows." So the drop is an opt-in the calendar never asks for, and the surfaces
+ * that answer "what do I still owe" — the Attention tab, the toolbar badge
+ * (`grouping.ts`), §7's reminders (`schedule.ts`) — keep asking for it.
  */
+export interface VisibleOptions {
+  /**
+   * Drop work that is finished and not yet past.
+   *
+   * Past finished work stays either way: hiding what you handed in turns last
+   * week — a week you know you worked through — into an empty grid.
+   */
+  dropFinished?: boolean;
+}
+
 export function visibleItems(
   items: Item[],
   settings: Settings,
   hiddenCourses: ReadonlySet<string> = new Set(),
   now: Date = new Date(),
+  options: VisibleOptions = {},
 ): Item[] {
   return items.filter((item) => {
     if (item.hidden) return false;
     if (item.kind === "booking") return false;
-    if (isFinished(item, settings) && !isPast(item, now)) return false;
+    if (options.dropFinished === true && isFinished(item, settings) && !isPast(item, now)) {
+      return false;
+    }
     return !hiddenCourses.has(item.courseLabel);
   });
 }
@@ -168,6 +193,51 @@ export const END_OF_DAY_MINUTES = 23 * 60;
 /** Everything with a clock, in order, for views that have no hour axis. */
 export function allTimed(contents: DayContents): PlacedItem[] {
   return [...contents.timed.flat(), ...contents.endOfDay];
+}
+
+/** Every item on a day, timed and untimed, for a view that counts them. */
+function itemsOn(contents: DayContents): Item[] {
+  return [...allTimed(contents).map((placed) => placed.item), ...contents.untimed];
+}
+
+/**
+ * Whether a day is asking for anything.
+ *
+ * The week draws a 22px row for a day with nothing on it, because seven
+ * full-height rows is the whole popup. That test used to be "no items", which
+ * was the same question while finished work was dropped before it ever reached
+ * a view. It is not the same question any more: a day whose four assignments
+ * are all handed in is a day with four rows and nothing to do.
+ *
+ * Empty counts as quiet, which is what it has always been.
+ */
+export function quietDay(contents: DayContents, now: Date): boolean {
+  return itemsOn(contents).every((item) => itemTone(item, now) === "done");
+}
+
+/**
+ * How many rows fit a month cell before it has to say "+N more".
+ *
+ * Here rather than in the popup because `sinkDone` is only worth anything on
+ * account of it: the cap is what turns an ordering into a row a student never
+ * sees. A test can quote the same number the grid draws.
+ */
+export const MONTH_CELL_ROWS = 3;
+
+/**
+ * Finished pills sink below open ones, inside one day.
+ *
+ * A month cell draws three rows and then "+N more". Before finished work was
+ * drawn, that cap only ever hid work that was still owed behind other work
+ * still owed. Now three struck-through pills can push the one thing left to do
+ * out of the cell entirely — and "which days are still heavy" is the only
+ * question a month view answers.
+ *
+ * Stable within each group, so the timed-before-untimed order is kept.
+ */
+export function sinkDone(placed: PlacedItem[], now: Date): PlacedItem[] {
+  const done = (one: PlacedItem) => itemTone(one.item, now) === "done";
+  return [...placed.filter((one) => !done(one)), ...placed.filter(done)];
 }
 
 /**
@@ -448,14 +518,17 @@ export function monthCells(items: Item[], anchor: Date, now: Date): MonthCell[] 
       inMonth: at.getMonth() === anchor.getMonth(),
       isToday: dayKey(at) === todayKey,
       // Untimed last: a stated time is the more useful thing to fit in a cell
-      // that only holds three rows.
-      items: [
-        ...allTimed(contents),
-        ...contents.untimed.map((item) => ({
-          item,
-          anchor: { at: Date.parse(item.dueAt ?? ""), assumed: true, opening: false },
-        })),
-      ],
+      // that only holds three rows. Finished work last of all — see `sinkDone`.
+      items: sinkDone(
+        [
+          ...allTimed(contents),
+          ...contents.untimed.map((item) => ({
+            item,
+            anchor: { at: Date.parse(item.dueAt ?? ""), assumed: true, opening: false },
+          })),
+        ],
+        now,
+      ),
     });
   }
   return cells;
