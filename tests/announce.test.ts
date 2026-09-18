@@ -405,6 +405,337 @@ describe("resolveMentions", () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* The seven-segment trace, findings #20 #21 #22 #24                           */
+/* -------------------------------------------------------------------------- */
+
+describe("a release is not a deadline (#20)", () => {
+  const hw1 = [
+    item({ id: "i-hw1", title: "HW1", courseCode: "CS425", dueAt: "2026-09-20T23:59:00-05:00" }),
+  ];
+  const POSTED_21 = "2026-09-21T14:00:00Z";
+
+  /*
+   * The finding's own three sentences, verbatim. "solutions posted", "grades
+   * released" and "X is available" are the commonest things an instructor
+   * writes; every one of them used to reach the same move decision as "is due",
+   * score 0.95 off its stated clock, clear `AUTO_MOVE_CONFIDENCE` and rewrite a
+   * real deadline to the date the solutions come out.
+   */
+  const RELEASES = [
+    ["HW1 solutions will be posted 9/23 at 3:00 pm.", "2026-09-23T15:00:00-05:00"],
+    ["HW1 grades are released 9/24 at 9:00 am.", "2026-09-24T09:00:00-05:00"],
+    ["HW1 is available 9/22 at 8:00 am.", "2026-09-22T08:00:00-05:00"],
+  ] as const;
+
+  for (const [text, at] of RELEASES) {
+    it(`reads ${JSON.stringify(text)} as a release and refuses to move HW1`, () => {
+      // The grammar still reads it — the mention is a fact about the post and
+      // stays visible. It is the *resolution* that refuses.
+      const mention = extractDeadlineMentions(text, POSTED_21)[0] as ReadMention;
+      expect(mention).toMatchObject({ kind: "released", subject: "HW1", at, confidence: 0.95 });
+
+      const resolved = resolveMentions([mention], hw1, "CS 425");
+      expect(resolved).toHaveLength(1);
+      expect(resolved[0]!.kind).toBe("drop");
+      expect((resolved[0] as { reason: string }).reason).toContain("not a deadline");
+    });
+  }
+
+  it("still moves the same item off a sentence that says it is due", () => {
+    // The other half, so the guard cannot be "never move anything".
+    const mentions = extractDeadlineMentions("HW1 is now due 9/23 at 3:00 pm.", POSTED_21);
+    expect(resolveMentions(mentions, hw1, "CS 425")[0]).toMatchObject({
+      kind: "move",
+      itemId: "i-hw1",
+      to: "2026-09-23T15:00:00-05:00",
+    });
+  });
+
+  it("leaves an exam sitting alone — an event is not a release", () => {
+    // `event` deliberately keeps its move: a sitting a student has to be at is
+    // a real thing to correct, and only `released` names the course's own work.
+    const mentions = extractDeadlineMentions(
+      "Exam 2 is on Tuesday, October 6, from 7:00 PM to 10:00 PM.",
+      POSTED_21,
+    );
+    expect(mentions[0]).toMatchObject({ kind: "event" });
+    expect(resolveMentions(mentions, [], "CS 425")[0]).toMatchObject({ kind: "new" });
+  });
+});
+
+describe("the carried subject's scope (#21)", () => {
+  /*
+   * The finding's input, verbatim. Unbounded, `carried` held "HW1" across a
+   * blank line into a sentence about office hours, which then resolved as a
+   * 0.95 `moved` against the student's real HW1 — the office-hours time, with
+   * an undo naming a post that never said it.
+   */
+  const OFFICE_HOURS =
+    "HW1 Released\nHW1 is due 9/20 at 11:59 pm.\n\nOffice hours are moved to 9/24 at 3:00 pm.";
+  const POSTED_13 = "2026-09-13T22:00:00Z";
+
+  it("does not carry a subject across a paragraph", () => {
+    const mentions = extractDeadlineMentions(OFFICE_HOURS, POSTED_13) as ReadMention[];
+    expect(mentions).toHaveLength(2);
+    expect(mentions[0]!.subject).toBe("HW1");
+    expect(mentions[1]!.subject).not.toBe("HW1");
+  });
+
+  it("does not move HW1 to the office-hours time", () => {
+    const hw1 = [
+      item({ id: "i-hw1", title: "HW1", courseCode: "CS425", dueAt: "2026-09-20T23:59:00-05:00" }),
+    ];
+    const resolved = resolveMentions(
+      extractDeadlineMentions(OFFICE_HOURS, POSTED_13),
+      hw1,
+      "CS 425",
+    );
+    // The post's *own* sentence about HW1 still resolves to a move (onto the
+    // date it already holds, which `ingestPost` then declines as "already due
+    // then"). What must not exist is a move onto the office-hours time.
+    const moves = resolved.filter((entry) => entry.kind === "move") as { to: string }[];
+    expect(moves.map((move) => move.to)).toEqual(["2026-09-20T23:59:00-05:00"]);
+  });
+
+  it("does not carry a subject across a list item", () => {
+    const text = "MP4 is due 10/2 at 11:59 pm.\n- Review session moved to 10/5 at 4:00 pm.";
+    const mentions = extractDeadlineMentions(text, POSTED) as ReadMention[];
+    expect(mentions).toHaveLength(2);
+    expect(mentions[1]!.subject).not.toBe("MP4");
+  });
+
+  it("does not carry a subject two sentences on", () => {
+    // One sentence of reach, and no more: by the third sentence the post has
+    // moved on, and a subject from the first is a guess.
+    const text =
+      "MP4 is due 10/2 at 11:59 pm. Bring your laptop. The room is open until 10/5 at 4:00 pm.";
+    const mentions = extractDeadlineMentions(text, POSTED) as ReadMention[];
+    expect(mentions).toHaveLength(2);
+    expect(mentions[1]!.subject).not.toBe("MP4");
+  });
+
+  it("still carries it to the very next sentence, which is what it is for", () => {
+    // `tests/announce-real.test.ts` #534, in miniature: two deadlines for one
+    // assignment, the second sentence naming nothing.
+    const mentions = extractDeadlineMentions(
+      "Milestone 3 is due on Oct 1. With the extension, the final deadline is Oct 4.",
+      POSTED,
+    ) as ReadMention[];
+    expect(mentions.map((m) => m.subject)).toEqual(["Milestone 3", "Milestone 3"]);
+  });
+});
+
+describe("a cross-listed class (#22)", () => {
+  /*
+   * The captured Piazza class is named `"CS 425 / ECE 428: Distributed
+   * Systems"`, and a student registered under ECE 428 has Gradescope rows filed
+   * as ECE428. Reducing the hint to its *first* code and demanding equality
+   * left the pool empty for every mention, so no announcement could ever move
+   * anything and every one arrived as a new row beside the identical one it
+   * should have corrected. Cross-listed CS/ECE numbering is the norm at UIUC.
+   */
+  const HINT = "CS 425 / ECE 428: Distributed Systems";
+  const ece428 = [
+    item({ id: "i-hw1", title: "HW1", courseCode: "ECE428", dueAt: "2026-09-20T23:59:00-05:00" }),
+  ];
+  const mentions = () =>
+    extractDeadlineMentions("HW1 is now due 9/25 at 11:59 pm.", "2026-09-18T10:00:00-05:00");
+
+  it("matches an item filed under the hint's second code", () => {
+    expect(resolveMentions(mentions(), ece428, HINT)[0]).toMatchObject({
+      kind: "move",
+      itemId: "i-hw1",
+      from: "2026-09-20T23:59:00-05:00",
+      to: "2026-09-25T23:59:00-05:00",
+    });
+  });
+
+  it("matches on the codes the caller supplies, whatever the hint says", () => {
+    // Piazza stores `PiazzaClass.courseCodes`, which is a better answer than
+    // any spelling of the class's display name.
+    expect(
+      resolveMentions(mentions(), ece428, "Distributed Systems", {
+        courseCodes: ["CS425", "ECE428"],
+      })[0],
+    ).toMatchObject({ kind: "move", itemId: "i-hw1" });
+  });
+
+  it("matches a code a member carries in `extra.altCodes`", () => {
+    const cross = [
+      item({
+        id: "i-hw1",
+        title: "HW1",
+        courseCode: "CS425",
+        dueAt: "2026-09-20T23:59:00-05:00",
+        members: [
+          {
+            source: "gradescope",
+            sourceId: "g1",
+            title: "HW1",
+            courseRaw: "CS 425",
+            courseCode: "CS425",
+            kind: "assignment",
+            status: "not_submitted",
+            fetchedAt: POSTED,
+            extra: { altCodes: "ECE428" },
+          },
+        ],
+      }),
+    ];
+    expect(resolveMentions(mentions(), cross, "ECE 428")[0]).toMatchObject({ kind: "move" });
+  });
+
+  it("still refuses an item from a course the post is not about", () => {
+    // The guard stays a guard: any-code overlap, not no check at all.
+    const elsewhere = [
+      item({ id: "i-x", title: "HW1", courseCode: "PHYS211", dueAt: "2026-09-20T23:59:00-05:00" }),
+    ];
+    expect(resolveMentions(mentions(), elsewhere, HINT)[0]).toMatchObject({ kind: "new" });
+  });
+});
+
+describe("\"EOD\" in front of a calendar date (#24)", () => {
+  /*
+   * `eod` used to live inside `CAL_REL`, so it only ever reached a relative
+   * day. "by EOD Friday" read; "by EOD 9/25" returned nothing at all — not a
+   * deadline, not even a 0.55 `other` — because every other pattern is anchored
+   * with `^` and the leading "EOD " blocked all of them. The post states a hard
+   * deadline and the grammar goes silent, which is house rule 2 at the mention
+   * level.
+   */
+  const POSTED_22 = "2026-09-22T14:00:00Z";
+  const EOD = [
+    "Please submit HW2 by EOD 9/25.",
+    "HW2 is due end of day 9/25.",
+    "HW2 is due EOD September 25.",
+    "HW2 is due by EOD 9/25.",
+  ];
+
+  for (const text of EOD) {
+    it(`reads ${JSON.stringify(text)}`, () => {
+      const mention = extractDeadlineMentions(text, POSTED_22)[0] as ReadMention;
+      expect(mention).toBeDefined();
+      expect(mention.at).toBe("2026-09-25T23:59:00-05:00");
+      // 23:59 is this grammar's reading of the abbreviation, not a clock the
+      // instructor typed — `fixtures/announcements/eod-friday.txt` has said so
+      // since wave 2, and the flag has to travel with the value (worker rule 3).
+      expect(mention.timeAssumed).toBe(true);
+      // Grounded: the span quotes the instructor's own words, "EOD" included.
+      expect(text).toContain(mention.span);
+      expect(mention.span).toMatch(/^(?:EOD|end of day)/i);
+    });
+  }
+
+  it("still reads the relative form the arm was written for", () => {
+    expect(extractDeadlineMentions("Please submit HW2 by EOD Friday.", POSTED_22)[0]).toMatchObject(
+      { at: "2026-09-25T23:59:00-05:00", confidence: 0.65 },
+    );
+  });
+
+  it("reports an EOD date it cannot read rather than dropping it", () => {
+    // Parser rule 1 through the same lead-in: date-shaped and unreadable is the
+    // caller's problem to show, not this function's to swallow.
+    const mention = extractDeadlineMentions("HW2 is due EOD sometime next week.", POSTED_22)[0];
+    expect(mention).toMatchObject({ kind: "other", confidence: 0.55 });
+  });
+});
+
+describe("the title a new suggestion is filed under (G2, G3)", () => {
+  /*
+   * From the first live Piazza sync, where four of seven suggestions were wrong
+   * in ways a student notices first (PROGRESS.md, 2026-09-18 evening).
+   */
+  const POSTED_9 = "2026-09-09T10:00:00-05:00";
+
+  it("never puts Markdown in a title", () => {
+    // The live row read: Note that the **demo slot (signup) is due by this
+    // Friday at 11:59 pm. Masking keeps the *span* grounded in the original
+    // text, which is right; a title is a label and must not carry the markers.
+    const text =
+      "MP1 Demo Sign-up Sheet\nNote that the **demo slot (signup) is due by this Friday at 11:59 pm.";
+    const suggestion = resolveMentions(extractDeadlineMentions(text, POSTED_9), [], "CS 425", {
+      postSubject: "MP1 Demo Sign-up Sheet",
+    })[0]!;
+    expect(suggestion.kind).toBe("new");
+    const title = (suggestion as { title: string }).title;
+    expect(title).not.toContain("*");
+    // …and a whole sentence is not a title either: the post's subject is.
+    expect(title).toBe("MP1 Demo Sign-up Sheet");
+  });
+
+  it("falls back to the post's subject when the sentence names nothing", () => {
+    const suggestion = resolveMentions(
+      extractDeadlineMentions("It is due 10/2 at 5:00 pm.", POSTED_9),
+      [],
+      "CS 425",
+      { postSubject: "Project checkpoint" },
+    )[0];
+    expect(suggestion).toMatchObject({ kind: "new", title: "Project checkpoint" });
+  });
+
+  it("prefers the post's subject to a generic phrase subject", () => {
+    // "fill out the Google Form by 9/20" — the form is the object of the verb,
+    // not the assignment, and "Google Form" tells a student nothing.
+    const suggestion = resolveMentions(
+      extractDeadlineMentions("Please fill out the Google Form by 9/20.", POSTED_9),
+      [],
+      "CS 425",
+      { postSubject: "MP1 Demo Signups" },
+    )[0]!;
+    expect(suggestion).toMatchObject({ kind: "new", title: "MP1 Demo Signups" });
+  });
+
+  it("strips Markdown from inside a subject the sentence did name", () => {
+    /*
+     * The other half of G2, and the one the live row could not reach: the
+     * instructor bolds part of the name, so the grounded subject runs across
+     * the asterisks — "CNN Project** Milestone 3". The span keeps them, because
+     * a span is quoted back at the post; the title must not.
+     */
+    const text = "The **CNN Project** Milestone 3 is due 10/2 at 11:59 pm.";
+    const mention = extractDeadlineMentions(text, POSTED_9)[0] as ReadMention;
+    expect(mention.subject).toContain("*");
+    const suggestion = resolveMentions([mention], [], "CS 425", {
+      postSubject: "A post about something else entirely",
+    })[0];
+    expect(suggestion).toMatchObject({ kind: "new", title: "CNN Project Milestone 3" });
+  });
+
+  it("keeps a subject that names the assignment", () => {
+    // The keeps are the specification: a rule that swallowed these would file
+    // every deadline in a class under the same title.
+    const keeps: [text: string, title: string][] = [
+      ["MP2 is due 10/2 at 11:59 pm.", "MP2"],
+      ["HW1 is due 10/2 at 11:59 pm.", "HW1"],
+      ["The CNN Project Milestone 3 is due 10/2 at 11:59 pm.", "CNN Project Milestone 3"],
+      [
+        "Please complete the Subjective Evaluation Form by 10/2 at 11:59 pm.",
+        "Subjective Evaluation Form",
+      ],
+    ];
+    for (const [text, title] of keeps) {
+      const suggestion = resolveMentions(extractDeadlineMentions(text, POSTED_9), [], "CS 425", {
+        postSubject: "A post about something else entirely",
+      })[0]!;
+      expect(suggestion, text).toMatchObject({ kind: "new", title });
+    }
+  });
+
+  it("names the sentence only when the post has no subject at all", () => {
+    // The last resort stays: a deadline with no name is worse than a long one.
+    const suggestion = resolveMentions(
+      extractDeadlineMentions("It is due 10/2 at 5:00 pm.", POSTED_9),
+      [],
+      "CS 425",
+    )[0];
+    expect(suggestion).toMatchObject({
+      kind: "new",
+      title: "It is due 10/2 at 5:00 pm.",
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /* Fixtures                                                                    */
 /* -------------------------------------------------------------------------- */
 

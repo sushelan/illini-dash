@@ -22,7 +22,7 @@
  */
 
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "./dates.js";
-import { extractCourseCode, isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
+import { extractCourseCodes, isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
 import { isInstant } from "./parsing.js";
 import { MONTHS, SEP, TIME, WEEKDAY_NAME } from "../sources/site.js";
 import { ParseError } from "../sources/types.js";
@@ -119,7 +119,21 @@ export interface NewSuggestion {
   mention: ReadMention;
 }
 
-export type Suggestion = MoveSuggestion | NewSuggestion;
+/**
+ * A mention this grammar read and will not act on, with the reason (#20).
+ *
+ * `resolveMentions` used to return only the two outcomes it could *do*
+ * something with, so a refusal was indistinguishable from a mention that was
+ * never read — worker rule 5, one module down. `ingestPost` puts every one of
+ * these into `IngestResult.skipped`, which is the line the console prints.
+ */
+export interface DropSuggestion {
+  kind: "drop";
+  reason: string;
+  mention: ReadMention;
+}
+
+export type Suggestion = MoveSuggestion | NewSuggestion | DropSuggestion;
 
 /* -------------------------------------------------------------------------- */
 /* Vocabulary                                                                  */
@@ -362,13 +376,31 @@ const CAL_TIME_FIRST = new RegExp(
   "i",
 );
 
-/** "next Friday 11:59pm" · "Tuesday" · "tonight" · "end of day Friday" */
+/** "next Friday 11:59pm" · "Tuesday" · "tonight" */
 const CAL_REL = new RegExp(
-  `^(?:(?<eod>end\\s+of\\s+(?:the\\s+)?day|eod)\\s+(?:on\\s+)?)?` +
-    `(?:(?<qual>next|this|coming)\\s+)?` +
+  `^(?:(?<qual>next|this|coming)\\s+)?` +
     `(?<rel>${WEEKDAY_NAME}|tonight|tomorrow|today)${TIME_PART}`,
   "i",
 );
+
+/**
+ * "EOD", "end of day", "end of the day" — a lead-in, not a date (finding #24).
+ *
+ * It used to sit inside `CAL_REL`, which meant it only ever reached a *relative*
+ * day: "by EOD Friday" read, and "by EOD 9/25" returned nothing at all — not a
+ * deadline, not even an unreadable `other`, because `CAL_MONTH`, `CAL_NUM` and
+ * `DATE_LIKE` are all anchored with `^` and the leading "EOD " blocked every
+ * one of them. The post states a deadline and the grammar goes silent, which is
+ * house rule 2 at the mention level.
+ *
+ * Stripped in one place ahead of all four patterns instead, with its length
+ * added back so the span still quotes the instructor's own "EOD 9/25". The
+ * clock it implies is 23:59 — which is `ASSUMED_CLOCK` and is marked assumed,
+ * because that is this code's reading of an abbreviation rather than a time the
+ * instructor typed (`fixtures/announcements/eod-friday.txt` has said so since
+ * wave 2).
+ */
+const EOD_LEAD = /^(?:end\s+of\s+(?:the\s+)?day|eod)\b[\s,]*(?:on\s+)?/i;
 
 /**
  * Date-shaped text this grammar could not read.
@@ -498,7 +530,21 @@ interface Sentence {
   masked: string;
   /** Offset of `masked[0]` in the whole text; the two are the same length. */
   start: number;
+  /**
+   * This sentence opens a new *block* — a paragraph, a list item, or the body
+   * under the post's title line.
+   *
+   * Only the carried subject reads it, and it is the whole of that carry's
+   * scope (see `extractDeadlineMentions`). Deliberately **not** a sentence
+   * boundary: an announcement is hard-wrapped, and a rule that treated every
+   * newline as a break would cut "HW 2 is\nextended to Friday" in half, which
+   * is the defect `BOUNDARY`'s comment above already records.
+   */
+  block: boolean;
 }
+
+/** "- ", "* " (masked to a space), "• ", "1. ", "2) " — a list item's lead. */
+const LIST_LEAD = /^[ \t]*(?:[-–—•+]\s|\(?\d{1,2}[.)]\s)/;
 
 /**
  * Sentences with their offsets into the original text.
@@ -508,15 +554,32 @@ interface Sentence {
  * sentence, with nothing but whitespace between them.
  */
 function sentences(masked: string): Sentence[] {
-  const out: Sentence[] = [];
+  const titleEnd = TITLE_LINE.exec(masked)?.[0].length ?? -1;
+  const pieces: { masked: string; start: number; gap: string }[] = [];
   let last = 0;
   for (const match of masked.matchAll(BOUNDARY)) {
     const index = match.index ?? 0;
-    if (index > last) out.push({ masked: masked.slice(last, index), start: last });
+    if (index > last) pieces.push({ masked: masked.slice(last, index), start: last, gap: match[0] });
     last = index + match[0].length;
   }
-  if (last < masked.length) out.push({ masked: masked.slice(last), start: last });
-  return out.filter((s) => s.masked.trim() !== "");
+  if (last < masked.length) pieces.push({ masked: masked.slice(last), start: last, gap: "" });
+
+  const out: Sentence[] = [];
+  // The gap belongs to the sentence *before* it, so a block opens on the
+  // sentence that follows a blank line — never on the one that precedes it.
+  let openBlock = true;
+  for (const piece of pieces) {
+    const block: boolean = openBlock || piece.start === titleEnd || LIST_LEAD.test(piece.masked);
+    openBlock = /\n[ \t]*\n/.test(piece.gap);
+    if (piece.masked.trim() === "") {
+      // An all-whitespace piece is not a sentence, but a blank line it carried
+      // still opens the next one's block.
+      openBlock = openBlock || block;
+      continue;
+    }
+    out.push({ masked: piece.masked, start: piece.start, block });
+  }
+  return out;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -641,6 +704,18 @@ interface DateReading {
 }
 
 function readDatePhrase(
+  rest: string,
+  posted: LocalDay,
+  postedAt: string,
+  zone: string,
+): DateReading | undefined {
+  const lead = EOD_LEAD.exec(rest)?.[0].length ?? 0;
+  const reading = readDateBody(rest.slice(lead), posted, postedAt, zone);
+  if (reading === undefined || lead === 0) return reading;
+  return { ...reading, length: lead + reading.length };
+}
+
+function readDateBody(
   rest: string,
   posted: LocalDay,
   postedAt: string,
@@ -987,8 +1062,28 @@ export function extractDeadlineMentions(
    * when the sentence itself yielded nothing.
    */
   let carried = "";
+  /** The index of the sentence that set `carried`; `-Infinity` when none has. */
+  let carriedFrom = Number.NEGATIVE_INFINITY;
 
-  for (const sentence of sentences(masked)) {
+  const all = sentences(masked);
+  for (const [index, sentence] of all.entries()) {
+    /*
+     * The carry's scope, and the whole of it (trace finding #21).
+     *
+     * Unbounded, it held the last subject named *anywhere* in the post, so
+     * "Office hours are moved to 9/24 at 3:00 pm." three paragraphs below
+     * "HW1 is due 9/20" moved HW1 to the office-hours time at 0.95 — an
+     * auto-move, with an undo naming a post that never said it. Two bounds,
+     * both from the sentence that reaches for it rather than from the one that
+     * set it: the **next sentence only**, and never across a paragraph, a list
+     * item or the post's title line.
+     *
+     * "Milestone 3 … is due on May 1. With the 3-day extension, the final
+     * deadline is May 4." — the shape the carry exists for — is the adjacent
+     * case inside one paragraph, and still reads.
+     */
+    if (sentence.block || index - carriedFrom > 1) carried = "";
+
     TRIGGER.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = TRIGGER.exec(sentence.masked)) !== null) {
@@ -1015,7 +1110,10 @@ export function extractDeadlineMentions(
           found === undefined
             ? carried || title
             : ground(text, sentence.start + found.start, sentence.start + found.end);
-        if (subject !== "") carried = subject;
+        if (subject !== "") {
+          carried = subject;
+          carriedFrom = index;
+        }
         return subject;
       };
 
@@ -1050,17 +1148,22 @@ export function extractDeadlineMentions(
 
       // Parser rule 1: a phrase that is clearly a date and clearly unreadable is
       // the caller's problem to show, not this function's to drop.
-      const vague = DATE_LIKE.exec(phrase);
+      // The same lead-in `readDatePhrase` strips, for the same reason: "EOD"
+      // in front of a date-shaped phrase must not turn parser rule 1's report
+      // into silence either.
+      const lead = EOD_LEAD.exec(phrase)?.[0].length ?? 0;
+      const vagueMatch = DATE_LIKE.exec(phrase.slice(lead));
+      const vague = vagueMatch === null ? null : { length: lead + vagueMatch[0].length };
       if (vague) {
         mentions.push({
-          span: ground(text, phraseStart, phraseStart + trimmedLength(phrase, vague[0].length)),
+          span: ground(text, phraseStart, phraseStart + trimmedLength(phrase, vague.length)),
           context,
-          subject: describe(vague[0].length),
+          subject: describe(vague.length),
           kind: "other",
           confidence: 0.55,
           reason: "date-like phrase this grammar cannot read",
         });
-        TRIGGER.lastIndex = afterTrigger + gap + vague[0].length;
+        TRIGGER.lastIndex = afterTrigger + gap + vague.length;
       }
     }
   }
@@ -1125,9 +1228,127 @@ export function describeEmpty(text: string): EmptyReason {
 /* Resolution against the store                                                */
 /* -------------------------------------------------------------------------- */
 
-function courseMatches(item: Item, code: string | undefined): boolean {
-  if (code === undefined) return true;
-  return item.courseCode === code;
+/* -------------------------------------------------------------------------- */
+/* The title a new suggestion is filed under                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A title with no Markdown in it, on one line.
+ *
+ * The first live Piazza sync put *"Note that the \*\*demo slot (signup) is due
+ * by this Friday at 11:59 pm."* in the Attention tab — a whole sentence, with
+ * the instructor's asterisks. Masking keeps every *span* grounded in the
+ * original text, which is right and stays; but a span is evidence and a title
+ * is a label, and a label carrying `**` is this extension's own rendering
+ * escaping into a row, an `.ics` SUMMARY and a notification.
+ *
+ * `mention.subject` stays verbatim — `announce-real.test.ts` asserts the post
+ * contains it — so the cleaning happens here, where the title is built.
+ */
+function cleanTitle(text: string): string {
+  return text.replace(MARKUP, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Nouns that name the *vehicle* rather than the assignment (G3).
+ *
+ * "fill out the Google Form by 9/20" is a deadline for whatever the form is
+ * for; the form is the object of the verb and the phrase scan picks it up
+ * because `form` is a `PHRASE_NOUN` — which it has to be, since "Subjective
+ * Evaluation Form" is a real assignment name. So the test is not the word but
+ * the *whole* phrase: a bare vehicle, or a vehicle behind nothing but the
+ * platform that hosts it.
+ */
+const VEHICLE_NOUNS = new Set([
+  "form", "forms", "sheet", "sheets", "link", "links", "doc", "docs", "document",
+  "page", "survey", "spreadsheet", "folder", "thread", "post", "slot",
+]);
+
+/** Words that say *where* a vehicle lives, never what it is for. */
+const PLATFORM_WORDS = new Set([
+  "google", "microsoft", "ms", "canvas", "piazza", "campuswire", "gradescope",
+  "online", "web", "shared", "sign-up", "signup", "sign",
+]);
+
+/**
+ * Whether a phrase subject is too generic to be a row's name (G3).
+ *
+ * From the live feed: "See Demo", "Google Form", "this". Each is grammatically
+ * the object of the sentence's verb and none of them tells a student which
+ * assignment they are looking at, while the post's own subject line does.
+ *
+ * Deliberately narrow, and the keeps are the specification: "MP2", "HW1",
+ * "MP1 Report (4cr only, EXCEPT Coursera)", "CNN Project Milestone 3" and
+ * "Subjective Evaluation Form" are all real titles and all stay.
+ */
+function isGenericSubject(title: string): boolean {
+  const trimmed = title.trim();
+  if (trimmed.length < 3) return true;
+  // A badge is never generic: "MP2" is three characters of pure identity.
+  BADGE.lastIndex = 0;
+  if (BADGE.test(trimmed)) {
+    BADGE.lastIndex = 0;
+    return false;
+  }
+  BADGE.lastIndex = 0;
+  // "See Demo", "see the sign-up sheet" — an instruction, not a name.
+  if (/^see\b/i.test(trimmed)) return true;
+  const words = trimmed.toLowerCase().split(/[^a-z0-9'’-]+/).filter((w) => w !== "");
+  if (words.length === 0) return true;
+  const head = words[words.length - 1]!;
+  if (!VEHICLE_NOUNS.has(head)) return false;
+  // A vehicle with a real modifier in front of it is a name ("Subjective
+  // Evaluation Form"); a vehicle with nothing, or with only its platform, is
+  // not ("Google Form", "the link").
+  return words.slice(0, -1).every((word) => PLATFORM_WORDS.has(word));
+}
+
+/**
+ * What a new suggestion is called.
+ *
+ * Three readings, in the order a student would trust them: the assignment the
+ * sentence named, the post's own subject line, and — only when the post has
+ * neither — the sentence itself, collapsed onto one line. The middle rung is
+ * the one the live sync was missing: `subjectFor` found nothing, and the
+ * fallback ran straight past the subject to the sentence.
+ */
+function titleFor(mention: ReadMention, postSubject: string): string {
+  const subject = cleanTitle(mention.subject);
+  if (subject !== "" && !isGenericSubject(subject)) return subject;
+  if (postSubject !== "") return postSubject;
+  return cleanTitle(mention.context).slice(0, 80);
+}
+
+/**
+ * Any code on the post against any code on the item (#22).
+ *
+ * A UIUC class is routinely cross-listed, and Piazza names it with both codes
+ * at once: the captured class is `"CS 425 / ECE 428: Distributed Systems"`.
+ * Reducing that to its *first* code and demanding equality meant a student
+ * registered as ECE 428 — whose Gradescope rows say `ECE428` — matched nothing,
+ * so no announcement could ever move a deadline and every one of them arrived
+ * as a new suggestion beside the identical row it should have corrected.
+ *
+ * The rule is `dedupe.ts`'s `sameCourse`: **any** code in common. An item's
+ * codes are its own plus every one its members carry, including the
+ * `extra.altCodes` a cross-listed source writes.
+ */
+function itemCodes(item: Item): string[] {
+  const codes = new Set<string>();
+  if (item.courseCode) codes.add(item.courseCode);
+  for (const member of item.members ?? []) {
+    if (member.courseCode) codes.add(member.courseCode);
+    const alt = member.extra?.["altCodes"];
+    if (typeof alt === "string") for (const code of extractCourseCodes(alt)) codes.add(code);
+  }
+  return [...codes];
+}
+
+function courseMatches(item: Item, codes: readonly string[]): boolean {
+  if (codes.length === 0) return true;
+  const mine = itemCodes(item);
+  if (mine.length === 0) return false;
+  return mine.some((code) => codes.includes(code));
 }
 
 /** Tie-break only: dated before undated, earlier before later, then by id. */
@@ -1159,17 +1380,64 @@ function earlier(candidate: Item, incumbent: Item): boolean {
  * Errors and Big-O"), then the best Jaccard. Ties are broken by the earlier
  * `dueAt` and then by id, so the same post always produces the same suggestion.
  */
+export interface ResolveOptions {
+  /**
+   * Every code the post's class carries, primary first.
+   *
+   * Supplied by the caller when it knows better than the hint's spelling does
+   * (Piazza stores `PiazzaClass.courseCodes`); otherwise both codes of
+   * `"CS 425 / ECE 428"` are read out of the hint here.
+   */
+  courseCodes?: string[];
+  /**
+   * The post's own subject line — the title of last resort for a deadline
+   * whose sentence names no assignment (G2/G3).
+   */
+  postSubject?: string;
+}
+
 export function resolveMentions(
   mentions: Mention[],
   items: Item[],
   courseHint?: string,
+  options: ResolveOptions = {},
 ): Suggestion[] {
-  const code = courseHint === undefined ? undefined : extractCourseCode(courseHint);
-  const pool = items.filter((item) => courseMatches(item, code));
+  const codes =
+    options.courseCodes && options.courseCodes.length > 0
+      ? options.courseCodes
+      : courseHint === undefined
+        ? []
+        : extractCourseCodes(courseHint);
+  const pool = items.filter((item) => courseMatches(item, codes));
+  const postSubject = cleanTitle(options.postSubject ?? "");
   const out: Suggestion[] = [];
 
   for (const mention of mentions) {
     if (mention.kind === "other") continue;
+    /*
+     * A release is never a deadline (#20).
+     *
+     * "solutions will be posted 9/23", "grades are released 9/24", "HW2 is
+     * available 9/22" are the commonest sentences an instructor writes, and
+     * every one of them used to fall through to the same move/new decision as
+     * "is due": a stated clock scores 0.95, clears `AUTO_MOVE_CONFIDENCE`, and
+     * the student's real HW1 deadline was silently rewritten to the date the
+     * solutions come out — with the row claiming the post said so.
+     *
+     * `event` is deliberately *not* here: a sitting is something a student has
+     * to be at, and an exam that moves is a move. Only `released` is a date
+     * about the *course's* work rather than the student's.
+     */
+    if (mention.kind === "released") {
+      out.push({
+        kind: "drop",
+        reason:
+          `${JSON.stringify(mention.span)} says something was released, not that anything is due` +
+          ` — not a deadline`,
+        mention,
+      });
+      continue;
+    }
     const subjectTokens = normalizeTitle(mention.subject);
 
     let best: { item: Item; score: number } | undefined;
@@ -1199,15 +1467,7 @@ export function resolveMentions(
     } else {
       out.push({
         kind: "new",
-        // A subjectless mention still has to be nameable, and the sentence is
-        // the only thing left that says what the deadline is for. Wrapping
-        // whitespace is collapsed here and only here: `context` stays verbatim
-        // so it can be shown beside the post, but a title with a newline in it
-        // lands in a row, an `.ics` SUMMARY and a notification.
-        title:
-          mention.subject !== ""
-            ? mention.subject
-            : mention.context.replace(/\s+/g, " ").slice(0, 80),
+        title: titleFor(mention, postSubject),
         at: mention.at,
         timeAssumed: mention.timeAssumed,
         mention,

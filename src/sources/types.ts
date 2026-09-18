@@ -347,6 +347,16 @@ export interface Suggestion {
   context: string;
   source: "piazza" | "campuswire" | "paste";
   postId: string;
+  /**
+   * The subject line of the post this was read out of.
+   *
+   * Additive, and optional because it has to be: a suggestion written by an
+   * earlier build does not carry it, and the row draws today's wording ("from a
+   * Piazza post") for those rather than an empty pair of quotes. "Found in a
+   * post" is only actionable if the student can tell *which* post, and the
+   * subject is the one string that says so without a round trip to the site.
+   */
+  postSubject?: string;
   postedAt: string;
   createdAt: string;
 }

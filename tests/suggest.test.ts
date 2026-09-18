@@ -438,3 +438,261 @@ describe("movedByText", () => {
     expect(movedByText(item("MP3", "2026-10-05T23:59:00-05:00", []))).toBeUndefined();
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Piazza's first seven suggestions, read as evidence (2026-09-18)             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The live post, transcribed from the Attention tab of Sushi's own install.
+ *
+ * Posted on Monday 7 September, stating "this Friday" — 11 September — and read
+ * on the 18th, because a fresh install's first sync reads a busy class's whole
+ * history at once. Three of the seven rows it produced were like this one:
+ * deadlines that were already over when they were found.
+ */
+const DEMO_POSTED = "2026-09-07T09:00:00-05:00";
+
+function demoPost(partial: Partial<ObservedPost> = {}): ObservedPost {
+  return {
+    id: "pz-demo",
+    source: "piazza",
+    courseHint: "CS 425 / ECE 428: Distributed Systems",
+    postedAt: DEMO_POSTED,
+    text: fixture("demo-signup-live"),
+    ...partial,
+  };
+}
+
+describe("a deadline that had already passed when it was read (G1)", () => {
+  it("offers nothing for the 11 September demo sign-up read on the 18th", () => {
+    const result = ingestPost(input({ items: [] }), demoPost(), "2026-09-18T12:00:00-05:00");
+    expect(result.suggestions).toEqual([]);
+    expect(result.dueOverrides).toEqual({});
+    // Recorded, not silently dropped: worker rule 5, and the console line is
+    // the only thing that tells "read and past" from "never read".
+    expect(result.skipped.map((entry) => entry.reason).join(" ")).toContain(
+      "had already passed when this post was read",
+    );
+    // Still stamped read, or the same month of history comes back every sync.
+    expect(result.seenPosts).toEqual({ "pz-demo": "2026-09-18T12:00:00-05:00" });
+  });
+
+  it("offers it to a student reading the same post on the 9th", () => {
+    /*
+     * The other half, and the one that makes the guard a *time* rule rather
+     * than a ban on this post: nothing about the text changes between the two
+     * readings. The title is the post's subject, with no Markdown in it (G2).
+     */
+    const result = ingestPost(input({ items: [] }), demoPost(), "2026-09-09T12:00:00-05:00");
+    expect(result.suggestions).toHaveLength(1);
+    const only = result.suggestions[0]!;
+    expect(only.at).toBe("2026-09-11T23:59:00-05:00");
+    expect(only.title).toBe("MP1 Demo Sign-up Sheet");
+    expect(only.title).not.toContain("*");
+    expect(only.span).toBe("this Friday at 11:59 pm");
+    expect(fixture("demo-signup-live")).toContain(only.span);
+  });
+
+  /** The same week's other post, naming a row the student already has. */
+  function mp1Post(): ObservedPost {
+    return {
+      id: "pz-mp1",
+      source: "piazza",
+      courseHint: "CS 357",
+      postedAt: DEMO_POSTED,
+      text: "MP1 sign-ups\nMP1 is due this Friday at 11:59 pm.",
+    };
+  }
+
+  function mp1Row(): Item[] {
+    return [
+      item("MP1", "2026-09-30T23:59:00-05:00", [
+        member({ source: "gradescope", sourceId: "mp1", title: "MP1" }),
+      ]),
+    ];
+  }
+
+  it("does not move a known row backwards onto a past date either", () => {
+    /*
+     * Moving is the branch with no click in it, so an old post dragging a live
+     * row into the past is worse than an ignorable suggestion: the row's date
+     * changes under the student with an undo they have to find.
+     */
+    const result = ingestPost(
+      input({ items: mp1Row() }),
+      mp1Post(),
+      "2026-09-18T12:00:00-05:00",
+    );
+    expect(result.dueOverrides).toEqual({});
+    expect(result.movedItems).toBe(0);
+    expect(result.skipped.map((entry) => entry.reason).join(" ")).toContain("already passed");
+  });
+
+  it("moves the same row when the post is read before the deadline", () => {
+    // So the guard cannot be "never move off this post".
+    const result = ingestPost(
+      input({ items: mp1Row() }),
+      mp1Post(),
+      "2026-09-09T12:00:00-05:00",
+    );
+    // 0.75 — a relative day with a stated clock — which is exactly the bar.
+    expect(result.movedItems).toBe(1);
+    expect(result.dueOverrides["gradescope:mp1"]?.at).toBe("2026-09-11T23:59:00-05:00");
+  });
+});
+
+describe("the row says which post (G4)", () => {
+  it("carries the post's subject on the suggestion", () => {
+    const result = ingestPost(input({ items: [] }), demoPost(), "2026-09-09T12:00:00-05:00");
+    expect(result.suggestions[0]!.postSubject).toBe("MP1 Demo Sign-up Sheet");
+  });
+
+  it("prefers the subject the observer states to the first line of the text", () => {
+    const result = ingestPost(
+      input({ items: [] }),
+      demoPost({ subject: "MP1 Demo Sign-up Sheet (updated)" }),
+      "2026-09-09T12:00:00-05:00",
+    );
+    expect(result.suggestions[0]!.postSubject).toBe("MP1 Demo Sign-up Sheet (updated)");
+  });
+
+  it("leaves it off when the post is one line with no subject", () => {
+    // Absent, never `""` (house rule 5): the row then draws the wording it drew
+    // before this field existed rather than an empty pair of quotes.
+    const result = ingestPost(
+      input({ items: [] }),
+      post({ text: "Quiz 9 is due 10/12 at 5:00 pm." }),
+      NOW,
+    );
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]!.postSubject).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The seven-segment trace, through the pipeline                               */
+/* -------------------------------------------------------------------------- */
+
+describe("what the trace findings do to the list", () => {
+  it("does not move a deadline off a sentence about a release (#20)", () => {
+    const known = [
+      item("HW3 Errors and Big-O", "2026-09-22T23:59:00-05:00", [
+        member({ source: "prairielearn", sourceId: "hw3", title: "HW3 Errors and Big-O" }),
+      ]),
+    ];
+    const result = ingestPost(
+      input({ items: known }),
+      post({ text: "HW3 solutions will be posted 9/23 at 3:00 pm." }),
+      NOW,
+    );
+    expect(result.dueOverrides).toEqual({});
+    expect(result.movedItems).toBe(0);
+    // …and it does not become a new row either: a release is not a deadline.
+    expect(result.suggestions).toEqual([]);
+    expect(result.skipped.map((entry) => entry.reason).join(" ")).toContain("not a deadline");
+  });
+
+  it("does not move a deadline off a sentence about office hours (#21)", () => {
+    const known = [
+      item("HW3 Errors and Big-O", "2026-09-22T23:59:00-05:00", [
+        member({ source: "prairielearn", sourceId: "hw3", title: "HW3 Errors and Big-O" }),
+      ]),
+    ];
+    const result = ingestPost(
+      input({ items: known }),
+      post({
+        text:
+          "HW3 Released\nHW3 is due 9/22 at 11:59 pm.\n\n" +
+          "Office hours are moved to 9/24 at 3:00 pm.",
+      }),
+      NOW,
+    );
+    // The one thing that must not happen: HW3 landing on the office-hours time.
+    expect(Object.values(result.dueOverrides).map((entry) => entry.at)).not.toContain(
+      "2026-09-24T15:00:00-05:00",
+    );
+  });
+
+  it("moves a cross-listed class's item, and files a new row under it (#22)", () => {
+    const ece = item("HW1", "2026-09-20T23:59:00-05:00", [
+      member({ source: "gradescope", sourceId: "g1", title: "HW1", courseCode: "ECE428" }),
+    ]);
+    ece.courseCode = "ECE428";
+    ece.courseLabel = "ECE428";
+    const result = ingestPost(
+      input({ items: [ece] }),
+      post({
+        source: "piazza",
+        courseHint: "CS 425 / ECE 428: Distributed Systems",
+        text: "HW1 is now due 9/25 at 11:59 pm.",
+      }),
+      NOW,
+    );
+    expect(result.movedItems).toBe(1);
+    expect(result.dueOverrides["gradescope:g1"]?.at).toBe("2026-09-25T23:59:00-05:00");
+    expect(result.suggestions).toEqual([]);
+  });
+
+  it("says why it read no deadline at all (#24)", () => {
+    // `describeEmpty` has distinguished "no dates" from "dates this grammar
+    // failed on" since wave 4, and nothing in `src/` was calling it.
+    const result = ingestPost(input(), post({ text: fixture("no-dates") }), NOW);
+    expect(result.skipped.map((entry) => entry.reason).join(" ")).toContain(
+      "no deadline read: no-date-words",
+    );
+  });
+
+  it("reads an EOD deadline stated as a calendar date (#24)", () => {
+    const result = ingestPost(
+      input(),
+      post({ text: "Quiz 9 logistics\nPlease submit Quiz 9 by EOD 10/12." }),
+      NOW,
+    );
+    expect(result.suggestions.map((entry) => entry.at)).toEqual(["2026-10-12T23:59:00-05:00"]);
+  });
+
+  it("offers two classes the same badge on the same day (#25)", () => {
+    /*
+     * `background.ts` ingests every class's payloads in one `mutate`, feeding
+     * the growing list back in, so without the course in the comparison the
+     * second class's HW2 was dropped as a duplicate — and, its post stamped
+     * read on the same pass, never offered again. Badges are course-local and a
+     * UIUC week puts "HW2" on the same Friday in two classes routinely.
+     */
+    const text = "HW2 is due 10/2 at 11:59 pm.";
+    const first = ingestPost(
+      input({ items: [] }),
+      post({ id: "pz-1", source: "piazza", courseHint: "CS 425", text }),
+      NOW,
+    );
+    expect(first.suggestions).toHaveLength(1);
+    const second = ingestPost(
+      input({ items: [], suggestions: first.suggestions }),
+      post({ id: "pz-2", source: "piazza", courseHint: "ECE 411", text }),
+      NOW,
+    );
+    expect(second.suggestions).toHaveLength(1);
+    expect(second.suggestions[0]!.courseCode).toBe("ECE411");
+  });
+
+  it("still refuses the same class's deadline twice, and names the course (#25)", () => {
+    const text = "HW2 is due 10/2 at 11:59 pm.";
+    const first = ingestPost(
+      input({ items: [] }),
+      post({ id: "pz-1", source: "piazza", courseHint: "CS 425", text }),
+      NOW,
+    );
+    const again = ingestPost(
+      input({ items: [], suggestions: first.suggestions }),
+      post({ id: "pz-3", source: "piazza", courseHint: "CS 425", text }),
+      NOW,
+    );
+    expect(again.suggestions).toEqual([]);
+    const reason = again.skipped.map((entry) => entry.reason).join(" ");
+    expect(reason).toContain("already suggested");
+    // Without the course, this sentence cannot tell a real repeat from a
+    // collision between two classes — which is what cost the ECE 411 deadline.
+    expect(reason).toContain("CS425");
+  });
+});

@@ -669,6 +669,11 @@ const PREVIEW_SUGGESTIONS = [
     at: at(9, 23, 59), timeAssumed: true,
     span: "10/12", context: "Quiz 1 is due 10/12. It opens on PrairieLearn the morning of.",
     source: "piazza", postId: "pz-2", postedAt: at(-2, 9, 0), createdAt: at(-2, 9, 1),
+    // Only one of the two carries `postSubject`, because that is the pair the
+    // row has to draw: a suggestion written by this build names its post, and
+    // one written before the field existed keeps the old wording (worker rule
+    // 8). `s1` above deliberately has none.
+    postSubject: "Quiz 1 logistics and the PrairieLearn window",
   },
 ];
 

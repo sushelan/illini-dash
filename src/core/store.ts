@@ -477,6 +477,14 @@ function isUsableSuggestion(value: unknown): value is Suggestion {
   if (value["kind"] !== "new") return false;
   if (!isInstant(value["at"] as string)) return false;
   if (!["piazza", "campuswire", "paste"].includes(value["source"] as string)) return false;
+  /*
+   * `postSubject` is optional and, when present, a real string (house rule 5).
+   *
+   * An empty one would pass `typeof` and render as `the Piazza post ""` — a row
+   * claiming to name the post it came from and naming nothing. Absent is a
+   * value this shape has ("an older build wrote me"); empty is not.
+   */
+  if (value["postSubject"] !== undefined && !text("postSubject")) return false;
   return (
     text("id") && text("title") && text("span") && text("postId") && text("createdAt")
   );

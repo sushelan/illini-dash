@@ -3250,10 +3250,40 @@ function renderSuggestions(suggestions: readonly Suggestion[]): void {
     actions.style.gap = "6px";
     const provenance = document.createElement("span");
     provenance.className = "muted";
-    provenance.textContent = `from a ${SUGGESTION_SOURCE[suggestion.source]}`;
+    /*
+     * Name the post when the suggestion knows it.
+     *
+     * "from a Piazza post" is true of all seven rows the first live sync
+     * produced, which makes it useless for deciding whether any one of them is
+     * the deadline you were looking for. The subject is what the student saw on
+     * Piazza. Older suggestions have no `postSubject` — worker rule 8's shape,
+     * one store version down — and keep the original sentence rather than
+     * drawing empty quotes.
+     */
+    const postSubject = typeof suggestion.postSubject === "string" ? suggestion.postSubject : "";
+    provenance.textContent =
+      postSubject === ""
+        ? `from a ${SUGGESTION_SOURCE[suggestion.source]}`
+        : `from the ${SUGGESTION_SOURCE[suggestion.source]} \u201C${postSubject}\u201D`;
+    /*
+     * One line, clipped — UI rule 8, and the reason the span is a tooltip
+     * rather than a label.
+     *
+     * A post's subject is as long as the instructor felt like making it, and
+     * without this the provenance wrapped onto a second line, grew the row, and
+     * pushed Add and Ignore down. Every height bug in this popup is the same
+     * 600px ceiling in a different costume, and a suggestion whose buttons are
+     * below the fold is one nobody answers.
+     */
+    provenance.style.flex = "1 1 auto";
+    provenance.style.minWidth = "0";
+    provenance.style.overflow = "hidden";
+    provenance.style.textOverflow = "ellipsis";
+    provenance.style.whiteSpace = "nowrap";
     // The instructor's own words, as text. §8.1's rendering rule: a post is
     // remote content and never becomes markup here.
-    provenance.title = suggestion.span;
+    provenance.title =
+      postSubject === "" ? suggestion.span : `${postSubject}\n\n${suggestion.span}`;
     actions.append(provenance);
 
     const add = document.createElement("button");

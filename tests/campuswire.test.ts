@@ -420,7 +420,19 @@ function items(): Item[] {
 }
 
 describe("the feed, end to end, through core/suggest.ts", () => {
-  const NOW = "2026-09-18T12:00:00-05:00";
+  /*
+   * When a student reading this class would have seen these posts.
+   *
+   * It was 2026-09-18 — the day the page was captured — until `ingestPost`
+   * learned that "a mention whose instant is earlier than the moment it was
+   * read is not something to ADD" (G1, from the first live Piazza sync, where
+   * three of seven suggestions were for deadlines already gone). This feed is
+   * from *May*, so read on 18 September every one of its deadlines is history
+   * and the pipeline below correctly produces nothing at all. The date moves to
+   * the week before the earliest post (#534, 04/24) so the file goes on
+   * measuring what it was written to measure.
+   */
+  const NOW = "2026-04-24T09:00:00-05:00";
 
   function ingestAll() {
     const plan = postsToSend(posts());

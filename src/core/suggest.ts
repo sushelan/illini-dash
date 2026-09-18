@@ -19,7 +19,12 @@
  * goes through the queue (worker rule 4).
  */
 
-import { extractDeadlineMentions, resolveMentions, type ReadMention } from "./announce.js";
+import {
+  describeEmpty,
+  extractDeadlineMentions,
+  resolveMentions,
+  type ReadMention,
+} from "./announce.js";
 import { itemId } from "./dedupe.js";
 import { extractCourseCode, normalizeTitle } from "./normalize.js";
 import { isInstant } from "./parsing.js";
@@ -43,6 +48,26 @@ export interface ObservedPost {
   source: PostSource;
   /** The course the post was in, as the site names it. */
   courseHint?: string;
+  /**
+   * Every course code the class carries, primary first.
+   *
+   * Piazza names a cross-listed class with both codes at once — the captured
+   * one is `"CS 425 / ECE 428: Distributed Systems"` — and a student registered
+   * under the second code has rows filed under it. Optional because only the
+   * observer knows: absent, the codes are read out of `courseHint`, which gets
+   * the same answer for that spelling and a worse one for any other.
+   */
+  courseCodes?: string[];
+  /**
+   * The post's own subject line.
+   *
+   * The title of last resort for a deadline whose sentence names no assignment
+   * (G2) or names only the form it was filled in on (G3). Optional, and the
+   * first line of `text` is used when it is missing — every observer sends the
+   * subject on its own line ahead of the body, so the fallback is the same
+   * string by another route.
+   */
+  subject?: string;
   /** ISO 8601 with offset. The anchor for every relative phrase in the text. */
   postedAt: string;
   text: string;
@@ -160,11 +185,42 @@ function sameTitle(a: string, b: string): boolean {
  * rows in the Attention tab for one deadline is the noise that makes a student
  * stop reading the section.
  */
-function alreadySuggested(existing: readonly Suggestion[], title: string, at: string): boolean {
+function alreadySuggested(
+  existing: readonly Suggestion[],
+  title: string,
+  at: string,
+  course: string,
+): boolean {
   return existing.some(
     (suggestion) =>
-      statedDay(suggestion.at) === statedDay(at) && sameTitle(suggestion.title, title),
+      courseOf(suggestion) === course &&
+      statedDay(suggestion.at) === statedDay(at) &&
+      sameTitle(suggestion.title, title),
   );
+}
+
+/**
+ * The course a suggestion belongs to, for the comparison above (#25).
+ *
+ * Without it, two classes announcing "HW2 is due 9/25" in one sync collided:
+ * `background.ts` ingests every class's payloads through one `mutate` and feeds
+ * the growing list back in, so the second class's deadline was dropped as a
+ * duplicate — and, its post being stamped read on the same pass, never offered
+ * again. Badges are course-local by design and a UIUC week puts "HW2", "MP1"
+ * and "Quiz 2" on the same Friday routinely.
+ *
+ * `courseCode` first, because two spellings of one class ("CS 425" and
+ * "CS 425 / ECE 428") must not read as two courses; the raw name normalised is
+ * the fallback for a class no code could be read out of.
+ */
+function courseOf(suggestion: { courseCode?: string; courseRaw?: string }): string {
+  const raw = suggestion.courseRaw ?? "";
+  // `courseCode` is what §5.1 files a row under; reading the same code back out
+  // of the raw name is what keeps a suggestion written before that field
+  // existed — or by a source that never sets it — from reading as a second
+  // course. The upper-cased raw name is the last resort, for a class whose name
+  // holds no code at all ("Distributed Systems Lab").
+  return suggestion.courseCode ?? extractCourseCode(raw) ?? raw.trim().toUpperCase();
 }
 
 function newSuggestion(
@@ -174,13 +230,20 @@ function newSuggestion(
   now: string,
 ): Suggestion {
   const courseRaw = post.courseHint ?? "";
-  const courseCode = extractCourseCode(courseRaw);
+  // The primary code the class is filed under, which is `courseCodes[0]` when
+  // the observer knows and the hint's first code otherwise.
+  const courseCode = post.courseCodes?.[0] ?? extractCourseCode(courseRaw);
+  const subject = postSubjectOf(post);
   return {
     id: suggestionId(post.id, title, mention.at),
     kind: "new",
     title,
     courseRaw,
     ...(courseCode ? { courseCode } : {}),
+    // Additive, and absent rather than empty: a suggestion written by an older
+    // build has no subject, and the row keeps today's wording for it instead of
+    // drawing an empty pair of quotes (parser rule 5 — `""` is not a value).
+    ...(subject ? { postSubject: subject } : {}),
     at: mention.at,
     timeAssumed: mention.timeAssumed,
     // Verbatim, both of them. The span is the student's entire evidence that
@@ -193,6 +256,23 @@ function newSuggestion(
     postedAt: post.postedAt,
     createdAt: now,
   };
+}
+
+/**
+ * The post's subject line, from the observer or from the text it sent.
+ *
+ * Every observer builds `text` as the subject, a newline, then the body
+ * (`postsToSend`), so the first line is the subject whether or not the field
+ * came through. Read positively: a first line that is the whole post — no
+ * newline after it — is a body, not a subject, and naming a row after it would
+ * be the sentence-length title G2 exists to stop.
+ */
+export function postSubjectOf(post: ObservedPost): string {
+  const stated = post.subject?.replace(/\s+/g, " ").trim() ?? "";
+  if (stated !== "") return stated;
+  const newline = post.text.indexOf("\n");
+  if (newline <= 0) return "";
+  return post.text.slice(0, newline).replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -238,9 +318,26 @@ export function ingestPost(
   result.seenPosts[post.id] = now;
 
   const mentions = extractDeadlineMentions(post.text, post.postedAt, zone);
-  const resolutions = resolveMentions(mentions, input.items, post.courseHint);
+  if (mentions.length === 0) {
+    // Worker rule 5, and parser rule 2 one level up: "the post states no
+    // deadline" and "the grammar failed on one it states" are the same silence
+    // otherwise, and they want opposite fixes. `describeEmpty` has said which
+    // since wave 4 and nothing in `src/` was calling it.
+    result.skipped.push({ reason: `no deadline read: ${describeEmpty(post.text)}` });
+  }
+  const resolutions = resolveMentions(mentions, input.items, post.courseHint, {
+    ...(post.courseCodes ? { courseCodes: post.courseCodes } : {}),
+    postSubject: postSubjectOf(post),
+  });
   const byId = new Map(input.items.map((item) => [item.id, item]));
   const reason = describePost(post);
+  /** The course every suggestion from this post is filed under (#25). */
+  const code = post.courseCodes?.[0];
+  const course = courseOf({
+    ...(code ? { courseCode: code } : {}),
+    courseRaw: post.courseHint ?? "",
+  });
+  const readAt = Date.parse(now);
   /** Items this post has already moved, so a second sentence cannot re-move them. */
   const movedHere = new Set<string>();
 
@@ -265,8 +362,8 @@ export function ingestPost(
       return;
     }
     if (
-      alreadySuggested(input.suggestions, title, mention.at) ||
-      alreadySuggested(result.suggestions, title, mention.at)
+      alreadySuggested(input.suggestions, title, mention.at, course) ||
+      alreadySuggested(result.suggestions, title, mention.at, course)
     ) {
       return;
     }
@@ -276,13 +373,45 @@ export function ingestPost(
   for (const resolution of resolutions) {
     const mention = resolution.mention;
 
+    if (resolution.kind === "drop") {
+      result.skipped.push({ reason: resolution.reason });
+      continue;
+    }
+
+    /*
+     * A deadline that had already passed when it was read (G1).
+     *
+     * The first sync of a busy class reads a month of history at once: three of
+     * the seven suggestions on Sushi's first real Piazza sync were for 11, 13
+     * and 14 September, read on the 18th. A row telling a student to add a
+     * deadline that is over is noise they have to dismiss, and moving a *known*
+     * item back onto a past date from an old post is worse — it drags a row out
+     * of the list's past and offers an undo for a change nothing asked for.
+     *
+     * Measured against `now`, the moment the post was read, rather than against
+     * `postedAt`: an old post stating a future deadline is exactly what a
+     * first sync should surface.
+     */
+    if (Date.parse(mention.at) < readAt) {
+      const name =
+        resolution.kind === "new" ? resolution.title : byId.get(resolution.itemId)?.title ?? "";
+      result.skipped.push({
+        reason:
+          `${JSON.stringify(name)} at ${mention.at} had already passed when this post` +
+          ` was read — nothing to add or move`,
+      });
+      continue;
+    }
+
     if (resolution.kind === "new") {
       if (
-        alreadySuggested(input.suggestions, resolution.title, resolution.at) ||
-        alreadySuggested(result.suggestions, resolution.title, resolution.at)
+        alreadySuggested(input.suggestions, resolution.title, resolution.at, course) ||
+        alreadySuggested(result.suggestions, resolution.title, resolution.at, course)
       ) {
         result.skipped.push({
-          reason: `"${resolution.title}" on ${statedDay(resolution.at)} is already suggested`,
+          reason:
+            `"${resolution.title}" on ${statedDay(resolution.at)} is already suggested` +
+            ` for ${course || "this class"}`,
         });
         continue;
       }
