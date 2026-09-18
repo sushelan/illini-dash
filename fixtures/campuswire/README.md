@@ -7,7 +7,7 @@ The **rendered** DOM of a class feed — `<main id="main-content">` on
 DevTools. There is no server HTML to capture: the page is a shell that loads posts with a
 bearer token, which is why this source is a page **observer** and not a fetched source.
 
-Trimmed from 54 previews to nine, scrubbed by hand: staff and student names are
+Trimmed from 54 previews to **ten** (seven in the dated list, three in the glance view, ten distinct post numbers — so the pinned-block repetition the live page shows is NOT in this file; the observer's dedupe-by-number rule is pinned by a constructed duplicate in tests/campuswire.test.ts instead), scrubbed by hand: staff and student names are
 `STAFF-N` / `STUDENT`, the one email is `staff@illinois.edu`, attachment and form URLs are
 `PLACEHOLDER`. Structure, class names, nesting and markers are verbatim.
 
@@ -22,8 +22,9 @@ What it pins:
 - **The class** is named in `.sidebartitle-wrap h6` (`ECE 408: Applied Parallel
   Programming`); its code is in the URL path (`/c/G794D32E4/feed`), which the fixture
   cannot carry — a test must supply it.
-- **The pinned block** (`.pinned-post-wrap`) repeats posts that also appear lower down or
-  on later loads: the post number, not the DOM node, is the identity.
+- **The pinned block** (`.pinned-post-wrap`) repeats posts on the live page that also
+  appear lower down or on later loads (not reproduced here): the post number, not the DOM
+  node, is the identity.
 - **The "glance" view** (`.left-col-3`, hidden by default) renders the same posts in a
   second shape: `.glance-post-preview-wrapper` with `Posted on MM/DD/YY <strong>Name</strong>`
   in `.author-name` and the category in `span.category-N`. An observer must not read the
@@ -36,5 +37,9 @@ What it pins:
   final deadline is **May 4**" (#534), "Your exam is on **Tuesday, May 5th, from 7:00 PM
   to 10:00 PM**" (#597). "Good luck on your midterms!" (#638) states no deadline.
 - Posts are unread or not (`.unread` on the wrapper); irrelevant to deadlines.
+
+Also on the live page and worth knowing: `.post-time`'s text collapses to `005/17/26`
+because the like count runs straight into the date past an empty clock icon; the date is
+read end-anchored for that reason.
 
 Deliberately unrealistic: nothing. Everything here was on the page.

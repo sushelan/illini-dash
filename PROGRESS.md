@@ -7,6 +7,66 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 3: the Campuswire observer, and the author learns the list page — 2026-09-18
+
+Two workers from the wave-2 merge. **1360 → 1460 tests.** Both built on evidence Sushi
+sent the same evening: the rendered DOM of an ECE 408 class feed (now
+`fixtures/campuswire/feed-ece408-sp26.html`, trimmed and scrubbed), and a run of Add a
+course site on his own machine that printed "Asking the on-device model…" and then the
+generic no-table text.
+
+1. **Campuswire is a page observer.** There is nothing to fetch — the page is a shell that
+   loads posts with a bearer token — so `src/observers/campuswire.ts`, a self-contained
+   content script registered with `chrome.scripting` only after the student switches
+   Campuswire on in Settings (the origin is requested inside the click), reads the feed the
+   student already has open and sends each announcement to the wave-2 pipeline as
+   `post-observed`. The pure half, `src/core/campuswire.ts`, keys posts by their class-local
+   **number**, because the live page renders one post in the pinned block, the dated list
+   and the hidden glance column and a node-keyed parser would report it three times; one
+   number wearing two titles throws (house rule 4). A feed container with no previews
+   throws; a missing note-or-question marker throws too, deliberately stricter than the
+   brief, because defaulting it either drops every announcement or feeds the grammar every
+   classmate's guess. A preview states a date and no clock, so `postedAt` is noon in
+   America/Chicago with `extra.timeAssumed` — the one hour a zone step cannot push across a
+   day boundary, which matters because "tomorrow" resolves against it. Questions are parsed
+   but not sent, behind a flag. The Settings row derives its words from evidence ("On ·
+   nothing read yet" until a post reaches the worker — worker rule 2). The capture
+   contradicted two of my own fixture notes, both corrected rather than annotated, and
+   found one shape no reading would have guessed: `.post-time` collapses to `005/17/26`
+   because the like count runs into the date past an empty icon, so the date is read
+   end-anchored. `docs/campuswire-findings.md`, the privacy policy and the store copy say
+   what is read and what is not.
+2. **The on-device author can propose the list-shaped page, and says what it did.** The
+   model's proposal is now one of three named shapes — table, list (with `dueLabel`,
+   `titleFrom`, `time`) and bare rows — plus `kind` and `filter.exclude`, each validated by
+   `validateAdapter` rather than a second copy of its rules; a positional selector is a
+   rejection, not only a line in the prompt. The skeleton makes labelled lists peers of
+   tables in one budget. `buildAdapter` moved into core as `adapterFromCandidate` because
+   the options page's copy wrote `columns` and nothing else, so a validated `dueLabel` was
+   dropped on the way to the store — the round trip (propose, validate, build, validate,
+   run) is pinned now. The status line is derived in core from a `ModelOutcome`: "proposed
+   an entry (N attempts)", "tried N attempts and its last proposal read no deadlines:
+   <reason>", or "not available on this computer", with the deterministic search's own
+   reason underneath rather than instead. A Kind picker beside the preview lets a syllabus
+   page file exams. `?model=ok|fail|absent` makes all three states reachable in the
+   harness.
+
+**What the real feed taught the grammar, not yet fixed:** over the nine announcements in
+the capture, `extractDeadlineMentions` finds a subject for none of them (so no "move" can
+ever resolve and every reading becomes a new suggestion), reads #682's "due tomorrow,
+**5/18 at 12:00 PM** (noon) CDT" as an assumed 23:59 (the clock in the same clause is
+dropped), and yields nothing at all for seven of the nine, including "extend the final
+deadline of CNN project to 11:59pm today" and "due on May 1 … the final deadline is
+May 4". The fixtures the grammar was built against were constructed; this is worker rule
+7 in its plainest form, and it is wave 4's job.
+
+**Amendments recorded:** Campuswire is a source read from the page, not fetched (§1's
+out-of-scope row is retired; §2.3 gains `scripting` and an opt-in `campuswire.com`
+origin); §4.5's "those need a hand-written entry" for lists is false since `dueLabel` and
+is rewritten in `noCandidateReason`.
+
+1460 tests.
+
 ## Wave 2: the editor, the announcement wiring, and five fixes — 2026-09-18
 
 Four workers, same method as wave 1, branched from the wave-1 merge. **1268 → 1360
