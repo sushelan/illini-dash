@@ -2063,13 +2063,18 @@ async function proposeWithModel(
   // how long the rejection will be (`MAX_RETRY_REASON_CHARS` bounds it).
   const overhead = empty.system.length + empty.user.length + RETRY_SUFFIX_CHARS;
 
-  let pristine: LanguageModelSession | undefined;
-  try {
-    pristine = await LanguageModel.create({
+  const create = (): Promise<LanguageModelSession> =>
+    LanguageModel.create({
       initialPrompts: [{ role: "system", content: empty.system }],
       expectedInputs: [{ type: "text", languages: ["en"] }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
+
+  let pristine: LanguageModelSession | undefined;
+  /** Said once, not once per attempt. */
+  let logged = false;
+  try {
+    pristine = await create();
     const skeleton = skeletonise(doc, skeletonBudgetChars(pristine.contextWindow, overhead));
     const outcome = await authorAdapter(
       // The schema `authorAdapter` hands in, not one built here: it carries the
@@ -2094,7 +2099,24 @@ async function proposeWithModel(
          * when what it was asked for is a different answer. `clone()` copies
          * the initial prompts — the system half — and nothing else.
          */
-        const session = await pristine!.clone();
+        /*
+         * `clone()` where Chrome has it, a whole new session where it does not.
+         *
+         * Both branches logged (worker rule 5): the two are the same *prompt*
+         * and a different cost, and if a build turns up without `clone` the
+         * console says so in the same place as everything else — rather than
+         * spending a round trip of Sushi's time on "clone is not a function".
+         */
+        const cloneable = typeof pristine!.clone === "function";
+        if (!logged) {
+          console.info(
+            cloneable
+              ? "[author] fresh session per attempt via clone()"
+              : "[author] this build has no clone(); creating a session per attempt instead",
+          );
+          logged = true;
+        }
+        const session = cloneable ? await pristine!.clone() : await create();
         try {
           return await session.prompt(text, { responseConstraint: schema });
         } finally {
