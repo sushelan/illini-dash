@@ -88,15 +88,17 @@ Store review asks for a sentence per permission. Keep them literal.
 | `offscreen` | A Manifest V3 service worker has no DOM parser. Fetched course pages are parsed in an offscreen document using the browser's own inert HTML parser, which runs no scripts and loads no resources. |
 | `contextMenus` | Adds one right-click item, "Report this page to Illini Dash", so a user can report a course page whose deadlines are not being read. It opens the extension's own settings page with the address filled in; nothing is sent anywhere without the user pressing a button. |
 | `scripting` | Registers one content script, on `https://campuswire.com/*` only, and only after the user switches Campuswire on in the extension's settings and grants that host. The script reads the posts a class feed has already rendered, to find deadlines stated in them; it makes no request to Campuswire, reads no cookie, token or storage, and modifies nothing on the page. Switching Campuswire off unregisters it. Nothing is registered on install. |
-| `host_permissions` for the five sites | The extension reads the user's own assignment and exam pages from these five sites using the session already present in the browser. It requests only pages the user's account can already see. |
-| `optional_host_permissions` | Some courses publish their schedule on their own website, and many UIUC course sites are their own domains (cs124.org, cs225.org) rather than university subdomains, so the host cannot be known in advance. Nothing is granted at install: a single host is requested at runtime, only when the user turns that course's site on, and Chrome's prompt names it. An adapter may not name a host already granted above. |
+| `host_permissions` for the five sites | The extension reads the user's own assignment and exam pages from canvas.illinois.edu, www.gradescope.com, us.prairielearn.com, us.prairietest.com and smart.physics.illinois.edu, using the session already present in the browser. It requests only pages the user's account can already see, and never writes to them. |
+| `host_permissions` for `raw.githubusercontent.com` | One public JSON file, read once a day, listing which UIUC course websites are supported. It is fetched without cookies and carries nothing about the user. It is data, not code — see Remote code below. |
+| `optional_host_permissions` | Some courses publish their schedule on their own website, and many UIUC course sites are their own domains (cs124.org, cs225.org) rather than university subdomains, so the host cannot be known in advance. Nothing is granted at install: a single host is requested at runtime, read-only, only when the user turns that course's site on, and Chrome's prompt names it. An adapter may not name a host already granted above. |
+| `optional_host_permissions` for `campuswire.com` | Covered by the same `https://*/*` entry and opt-in the same way: nothing at install, and the origin is requested from the click on the Campuswire switch in Settings. It is read-only, and it is the one host read from a class feed the user already has open rather than fetched. See `scripting` above. |
 | `commands` | One suggested keyboard shortcut (Alt+Shift+D) that opens the extension's own popup. It is the standard `_execute_action` command and does nothing else. |
 
 **Single purpose:** collecting the user's own coursework deadlines from their university
 accounts into one list.
 
-**Why not `<all_urls>`, `tabs` or `webRequest`:** none is requested. The extension reads
-six specific origins and nothing else.
+**Why not `<all_urls>`, `tabs` or `webRequest`:** none is requested. Six origins are
+granted up front; everything else is one host at a time, from a click, and read-only.
 
 ## Remote code
 
