@@ -315,6 +315,14 @@ export interface ObserverState {
   classesFetchedAt?: string;
   /** nid -> the highest post number already read, so a 150-post feed is read once. */
   lastNr?: Record<string, number>;
+  /**
+   * Which reader read them (`PIAZZA_READER_VERSION`). Absent means 1.
+   *
+   * "Read" is a claim about a *reader*, not about a post: version 1 read the
+   * first 120 characters. Without this, an install that ran the snippet reader
+   * would never look at those posts again.
+   */
+  readerVersion?: number;
   /** §6's ladder: the earliest next attempt after a failure. */
   nextAttemptAt?: string;
   failures?: number;
@@ -393,6 +401,18 @@ function migrateObservers(stored: unknown): Record<ObserverId, ObserverState> {
       ...(Array.isArray(from["classes"]) ? { classes: from["classes"].filter(isUsableClass) } : {}),
       ...(isInstant(from["classesFetchedAt"]) ? { classesFetchedAt: from["classesFetchedAt"] } : {}),
       ...(isRecord(from["lastNr"]) ? { lastNr: usableLastNr(from["lastNr"]) } : {}),
+      /*
+       * A positive integer or nothing. `0` and `-1` are not "an older reader",
+       * they are a half-written field, and the difference matters in one
+       * direction only: an unreadable value falls back to 1 and costs one
+       * re-read of the class, where accepting a bogus large number would skip
+       * the upgrade for ever (`readerVersionOf`).
+       */
+      ...(typeof from["readerVersion"] === "number" &&
+      Number.isInteger(from["readerVersion"]) &&
+      from["readerVersion"] > 0
+        ? { readerVersion: from["readerVersion"] }
+        : {}),
       ...(isInstant(from["nextAttemptAt"]) ? { nextAttemptAt: from["nextAttemptAt"] } : {}),
       ...(typeof from["failures"] === "number" && Number.isInteger(from["failures"]) && from["failures"] >= 0
         ? { failures: from["failures"] }

@@ -48,6 +48,24 @@ export interface ObservedPost {
   text: string;
 }
 
+/** The one thing that may overrule the `seenPosts` guard. */
+export interface IngestOptions {
+  /**
+   * This post has been edited since it was read, so read it again.
+   *
+   * `seenPosts` is keyed by the post and remembers nothing about *which
+   * version* was read, so on its own it makes a corrected deadline in an edit
+   * invisible — which is the shape the Piazza "Running Post" actually has (it
+   * is edited weekly). The caller is the one holding the evidence: Piazza's
+   * feed states when the body was last written (`editedSinceSeen`), and nothing
+   * in here can tell an edit from a second sighting.
+   *
+   * The seen mark is still stamped at `now`, so one edit costs one re-reading
+   * and not one per sync for ever.
+   */
+  reread?: boolean;
+}
+
 /** The store-shaped facts `ingestPost` reads. Deliberately not the whole store. */
 export interface IngestInput {
   items: Item[];
@@ -190,6 +208,7 @@ export function ingestPost(
   post: ObservedPost,
   now: string,
   zone = "America/Chicago",
+  options: IngestOptions = {},
 ): IngestResult {
   if (typeof post?.id !== "string" || post.id === "") {
     // A missing hook, not a bad value (house rule 1): without an id there is no
@@ -207,7 +226,7 @@ export function ingestPost(
     movedItems: 0,
   };
 
-  if (input.seenPosts[post.id] !== undefined) {
+  if (input.seenPosts[post.id] !== undefined && options.reread !== true) {
     result.skipped.push({
       reason: `post ${post.id} was already read at ${input.seenPosts[post.id]}`,
     });
@@ -224,6 +243,35 @@ export function ingestPost(
   const reason = describePost(post);
   /** Items this post has already moved, so a second sentence cannot re-move them. */
   const movedHere = new Set<string>();
+
+  /**
+   * Offer a row the post talked about but may not move, once.
+   *
+   * One spelling of the two branches that end in a suggestion (a row the
+   * student typed, and a reading too weak to apply), because a second copy of
+   * "when may this be offered" is mutation rule 3's case — loosen either and
+   * the other masks it.
+   *
+   * The `dueAt` clause is what makes a re-read safe. Accepting a suggestion
+   * turns it into a `manual` item and removes the suggestion, so the next
+   * reading of the same post — which an edit now causes — would land in the
+   * manual branch, find nothing in `suggestions`, and offer the student the
+   * deadline they already added. A row that is already due then has nothing to
+   * be told.
+   */
+  const offer = (title: string, mention: ReadMention, dueAt: string | undefined): void => {
+    if (dueAt === mention.at) {
+      result.skipped.push({ reason: `"${title}" is already due then` });
+      return;
+    }
+    if (
+      alreadySuggested(input.suggestions, title, mention.at) ||
+      alreadySuggested(result.suggestions, title, mention.at)
+    ) {
+      return;
+    }
+    result.suggestions.push(newSuggestion(post, title, mention, now));
+  };
 
   for (const resolution of resolutions) {
     const mention = resolution.mention;
@@ -265,10 +313,7 @@ export function ingestPost(
       result.skipped.push({
         reason: `"${item.title}" is your own row — suggesting instead of moving it`,
       });
-      if (!alreadySuggested(input.suggestions, item.title, mention.at) &&
-        !alreadySuggested(result.suggestions, item.title, mention.at)) {
-        result.suggestions.push(newSuggestion(post, item.title, mention, now));
-      }
+      offer(item.title, mention, item.dueAt);
       continue;
     }
 
@@ -278,10 +323,7 @@ export function ingestPost(
           `"${item.title}": ${JSON.stringify(mention.span)} is a ${mention.confidence} reading ` +
           `— suggesting instead of moving it`,
       });
-      if (!alreadySuggested(input.suggestions, item.title, mention.at) &&
-        !alreadySuggested(result.suggestions, item.title, mention.at)) {
-        result.suggestions.push(newSuggestion(post, item.title, mention, now));
-      }
+      offer(item.title, mention, item.dueAt);
       continue;
     }
 

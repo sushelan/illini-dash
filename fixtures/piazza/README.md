@@ -148,3 +148,25 @@ snippet, which is the whole case for the post-body stage.
   (parser rule 14): the deadline sentence survives intact.
 
 Deliberately unrealistic: nothing in the file itself; the trim is the only edit.
+
+**What it is asserted to produce** (`tests/piazza-real.test.ts`, "note 28, the Running
+Post, read in full"): one suggestion, titled `HW1`, at `2026-09-20T23:59:00-05:00`, with
+`timeAssumed: false` — the post types the clock — and the span `9/20 (Sun) 11:59 pm`. The
+old version's `9/18 (Thu) 2 pm` and `9/14`, the `9/5:` / `9/10:` / `9/13:` clarification
+markers and the follow-ups' text appear in **no** suggestion, and each of those is asserted
+rather than assumed: they are the ways this fixture can go wrong quietly. Against a list
+that already holds a Gradescope `HW1` due the 20th it produces nothing at all; against one
+due the 18th it moves the row without asking, because a stated date with a stated clock is
+the 0.95 rung.
+
+Reading that bracketed weekday is new (docs/piazza-findings.md, amendment 2026-09-18), and
+the case its *absence* would break is not in this file: "(Sun)" agrees with 9/20/2026, so
+dropping it from the year cross-check changes nothing here. The contradicting case —
+`10/3 (Fri)`, where 10/3/2026 is a Saturday — is written out in the test instead, and
+said so here (house rule 10).
+
+The feed entry for this post is the other half of the pair: its `log[]`'s last `update` is
+`2026-09-13T22:22:48Z`, which is exactly this file's `history[0].created`, while its
+`modified` is `2026-09-17T03:20:42Z` (a follow-up). That is the evidence for reading the
+log rather than `modified` when deciding whether a post has been rewritten since it was
+read.

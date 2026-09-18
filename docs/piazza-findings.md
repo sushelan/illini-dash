@@ -73,13 +73,19 @@ whole post, `parsePostBody` reads `result.history[0]` (newest version first), an
 class per sync, each failure isolated to its own post, which falls back to its snippet and
 says so in the log.
 
-**The feed alone yields exactly one deadline over the 25 real notes** (it yielded zero until
-2026-09-18), and `tests/piazza-real.test.ts` asserts that note by note rather than in
-aggregate:
+**The feed alone yields exactly one deadline over the 25 real notes; the first post body
+read in full yields a second, and it is the one a student actually needs.** The scorecard
+is therefore two numbers, not one: 1 from 25 snippets, and 1 more from the single
+`content.get` response captured so far (`post-running.json`, note 28 — HW1, due
+`2026-09-20T23:59:00-05:00`, clock stated). That is the whole case for the body stage
+stated as a measurement: the deadline the feed cannot see is worth as much as everything
+the feed can. Both halves are asserted note by note in `tests/piazza-real.test.ts` rather
+than in aggregate:
 
 | note | subject | reading |
 | --- | --- | --- |
 | 42 | *Reminder: Register Your MP Group by EOD Today 8/31!* | due `2026-08-31T23:59:00-05:00`, `timeAssumed`, confidence 0.65, span `EOD Today`, subject `MP Group` — **one suggestion**, though the snippet restates it |
+| 28, body | *HW1 (All students) Released … (Running Post)* | due `2026-09-20T23:59:00-05:00`, **not** `timeAssumed`, confidence 0.95, span `9/20 (Sun) 11:59 pm`, subject `HW1` — one suggestion, and an auto-move when a Gradescope HW1 says another day. Its *snippet* reads `trigger-and-date-words-unmatched`, below |
 
 The other 24 read nothing, and the file records *which* nothing each of them is
 (`describeEmpty`): 14 have no date words at all, 4 say a date with no trigger, 4 say a
@@ -106,6 +112,74 @@ Two corrections to what this document said before, both load-bearing:
 since `fixtures/announcements/eod-friday.txt`, and the abbreviation follows the same
 convention rather than introducing a second one. It keeps the reading below
 `AUTO_MOVE_CONFIDENCE`, so it is offered and never applied silently.
+
+### Amendment (2026-09-18): a weekday in brackets between the date and the clock
+
+The Running Post writes its deadline as **"HW1 is due 9/20 (Sun) 11:59 pm US Central
+Time"**, and `announce.ts` read it as *9/20 at an assumed 23:59*. `PROSE_SEP` — the
+separator between a calendar date and its time — accepts whitespace, commas, "at", "@",
+"from" and so on, and stops dead at the "(" of "(Sun)", so the stated clock was dropped
+and §4.5's invented 23:59 took its place.
+
+The two instants are **equal**, which is exactly what makes it a defect rather than a
+visible bug: `timeAssumed: true` says "this extension chose this hour", §5.3 ranks an
+assumed instant below a stated one, and `AUTO_MOVE_CONFIDENCE` sees 0.85 where the post
+earns 0.95. A real Canvas date would have outranked an instructor sentence saying the same
+thing (worker rule 3).
+
+`CAL_MONTH` and `CAL_NUM` now take an optional bracketed weekday between the date and the
+time part, captured as `weekdayAfter` — a regex cannot carry two groups of one name — and
+it feeds §3.2's year cross-check exactly as the `Fri 10/3` prefix spelling does: "(Sun)"
+confirms 9/20/2026, and a contradicting "10/3 (Fri)" is refused as a 0.55 `other` with the
+same reason the prefix produces. Both halves are pinned in `tests/piazza-real.test.ts`; the
+whole 1,742-test suite was green before and after, so no existing reading changed.
+
+### Amendment (2026-09-18): the reader version, and posts read at their snippets
+
+Sushi's first live sync marked all 29 notes read with the **snippet** reader: `seenPosts`
+holds a key per post and `lastNr` holds the top of each class's feed, and neither says
+*how much of the post was read*. The body stage would therefore never have fetched one of
+them, and the HW1 deadline above would never have arrived.
+
+So `PIAZZA_READER_VERSION` (2 — whole bodies; 1 — `content_snipet`) is stored beside the
+posts it read, absent meaning 1. When the stored version is older, `planPiazza` says so,
+drops every `sinceNr`, and carries `rereadAll`; the worker then, once and inside the write
+that carries what it read, drops every `seenPosts` key starting `piazza:` (and no other —
+the map is shared with Campuswire and the paste box), resets `lastNr`, logs
+`reader upgraded 1 → 2: re-reading N posts in full`, and stamps the new version. The stamp
+is never written before the fetch succeeds, so a crash mid-way re-runs the upgrade rather
+than skipping it, and `MAX_BODIES_PER_SYNC` still bounds it: a 106-post class re-reads 25
+bodies a sync until it catches up.
+
+### Amendment (2026-09-18): which feed field says a post was edited
+
+The "Running Post" is edited weekly — that is what "Running" means — and `seenPosts` is
+keyed by the post and remembers nothing about which *version* was read, so a corrected
+deadline in an edit was something this source structurally could not see.
+
+The feed already carries the answer, so the check costs no request. It is **not**
+`modified` (nor its epoch twin `m`): those move on any activity, including a classmate's
+follow-up, and 28's `modified` is `2026-09-17T03:20:42Z` when its body was last written on
+the 13th. It is the entry's own `log[]`, whose last entry with `n` of `update` (or
+`create`, for a post never edited) is the edit itself. The evidence is exact and the two
+captures agree to the second:
+
+| post | last `create`/`update` in the feed's `log[]` | `history[0].created` in the `content.get` |
+| --- | --- | --- |
+| nr 28 (`post-running.json`) | `2026-09-13T22:22:48Z` | `2026-09-13T22:22:48Z` |
+| nr 179 (`post.json`) | `2026-09-18T03:12:18Z` | `2026-09-18T03:12:18Z` |
+
+A seen post whose edit instant is later than its seen-at instant is fetched and ingested
+again (`editedSinceSeen`, `postsToSend`'s `seenPosts` option, `ingestPost`'s `reread`);
+everything else below `sinceNr` stays skipped, so this is not a re-read of the feed every
+half hour. `i_answer_update` is a TA editing an *answer* and **contains** the word
+`update`, so the match is on exact values (house rule 6) and the capture cannot show the
+difference — `tests/piazza.test.ts` appends such an entry deliberately.
+
+One consequence, recorded rather than fixed: a suggestion the student **dismissed** is
+simply removed from the list, and nothing remembers the dismissal, so an edit to the post
+that stated it will offer it again. An *accepted* one does not come back — the row it
+became is already due then, and `suggest.ts` now says so instead of re-offering it.
 
 The wiring of each stage is pinned by a deliberately edited copy of its own capture
 (house rule 10) — a feed entry whose snippet states a deadline, and a `content.get` body

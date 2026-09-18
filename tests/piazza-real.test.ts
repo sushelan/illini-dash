@@ -27,8 +27,22 @@
 
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { parseFeed, postsToSend, type PostPayload } from "../src/core/piazza.js";
+import {
+  parseFeed,
+  parsePostBody,
+  postsToSend,
+  type PostBody,
+  type PostPayload,
+} from "../src/core/piazza.js";
 import { describeEmpty, extractDeadlineMentions, type EmptyReason } from "../src/core/announce.js";
+import { ingestPost } from "../src/core/suggest.js";
+import {
+  memberKey,
+  type Item,
+  type Overrides,
+  type RawItem,
+  type Suggestion,
+} from "../src/sources/types.js";
 
 const FEED: unknown = JSON.parse(
   readFileSync(new URL("../fixtures/piazza/feed.json", import.meta.url), "utf8"),
@@ -145,4 +159,272 @@ describe("the 25 real instructor notes", () => {
       expect(describeEmpty(payload.text)).toBe(outcome);
     });
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/* The Running Post, read in full                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The deadline that made the body stage necessary — the whole way through.
+ *
+ * `fixtures/piazza/post-running.json` is the real `content.get` for note 28,
+ * *"HW1 (All students) Released - And Clarifications (Running Post)"*, and its
+ * newest version states **"HW1 is due 9/20 (Sun) 11:59 pm US Central Time.
+ * This is a hard deadline"** some 1,800 characters into the body. The same post
+ * reads `trigger-and-date-words-unmatched` in the table above: its snippet is
+ * the *"[Last Updated Sep 13.]"* line, and no grammar can reach past it.
+ *
+ * What this section measures is therefore not the grammar but the delivery:
+ * from the captured response to the one row a student sees.
+ */
+const RUNNING: unknown = JSON.parse(
+  readFileSync(new URL("../fixtures/piazza/post-running.json", import.meta.url), "utf8"),
+);
+
+/** Six days before the deadline, one day after the newest version was written. */
+const NOW_28 = "2026-09-14T09:00:00-05:00";
+/** The feed's `log[0].t` for note 28: when it was written, not when it was edited. */
+const POSTED_28 = "2026-08-28T01:32:51Z";
+const ID_28 = `piazza:${PAGE.nid}:28`;
+
+const NO_OVERRIDES: Overrides = {
+  mergeGroups: [],
+  splitKeys: [],
+  hiddenKeys: [],
+  disabledCourses: [],
+  doneKeys: [],
+  keptCourses: [],
+  courseNames: {},
+  dueOverrides: {},
+};
+
+function runningBody(): PostBody {
+  return parsePostBody(RUNNING, { nid: PAGE.nid, cid: "post-28" });
+}
+
+function runningPayload(): PostPayload {
+  return {
+    id: ID_28,
+    source: "piazza",
+    courseHint: PAGE.courseHint,
+    postedAt: POSTED_28,
+    text: runningBody().text,
+  };
+}
+
+function ingest(items: Item[], suggestions: Suggestion[] = []) {
+  return ingestPost(
+    { items, overrides: NO_OVERRIDES, suggestions, seenPosts: {} },
+    runningPayload(),
+    NOW_28,
+  );
+}
+
+/** A Gradescope "HW1" for this class, due whenever the argument says. */
+function gradescopeHw1(dueAt: string): Item {
+  const member: RawItem = {
+    source: "gradescope",
+    sourceId: "hw1-425",
+    courseRaw: "CS 425 / ECE 428: Distributed Systems",
+    courseCode: "CS425",
+    title: "HW1",
+    kind: "assignment",
+    status: "not_submitted",
+    dueAt,
+    fetchedAt: NOW_28,
+  };
+  return {
+    id: "hw1",
+    members: [member],
+    courseCode: "CS425",
+    courseLabel: "CS425",
+    title: "HW1",
+    kind: "assignment",
+    dueAt,
+    status: "not_submitted",
+    hidden: false,
+    done: false,
+    notified: {},
+  };
+}
+
+describe("note 28, the Running Post, read in full", () => {
+  it("reads the newest version and not the one pasted from last year", () => {
+    /*
+     * `history` is trimmed to two versions on purpose (fixtures/piazza/README.md):
+     * `history[0]` is 2026-09-13, `history[1]` is 2026-08-28 and was pasted
+     * from the previous year with *different* deadlines. Reading the wrong one,
+     * or reading both, produces a wrong deadline rather than none — which is
+     * the failure a student cannot detect.
+     */
+    const body = runningBody();
+    expect(body.versionAt).toBe("2026-09-13T22:22:48Z");
+    expect(body.text).toContain("HW1 is due 9/20 (Sun) 11:59 pm US Central Time");
+    expect(body.text).not.toContain("9/18 (Thu) 2 pm");
+    expect(body.text).not.toContain("MP1 is due 9/14");
+    expect(body.instructorNote).toBe(true);
+    expect(body.nr).toBe(28);
+  });
+
+  it("does not read the follow-ups underneath it", () => {
+    // A TA's answer says "the deadline"; both it and the student question above
+    // it are `children[]`, which is student text this stage never reads. Either
+    // reaching the grammar would put a classmate's guess in the list under an
+    // instructor's name.
+    const body = runningBody();
+    const children = (RUNNING as { result: { children: { subject?: string }[] } }).result.children;
+    expect(children.length).toBeGreaterThan(0);
+    for (const child of children) {
+      const subject = child.subject?.trim() ?? "";
+      if (subject !== "") expect(body.text).not.toContain(subject.slice(0, 40));
+    }
+  });
+
+  it("produces exactly one suggestion: HW1, Sunday 20 September, 11:59 pm", () => {
+    const out = ingest([]);
+    expect(out.suggestions).toHaveLength(1);
+    const only = out.suggestions[0]!;
+    expect(only.title).toBe("HW1");
+    expect(only.at).toBe("2026-09-20T23:59:00-05:00");
+    /*
+     * **Stated, not assumed.** The post types the clock — "11:59 pm US Central
+     * Time" — and until this wave the grammar dropped it: `PROSE_SEP` stopped
+     * at the "(" of "(Sun)", so the reading fell back to §4.5's invented 23:59
+     * with `timeAssumed: true`. The two instants are equal, which is what makes
+     * it dangerous rather than visible: §5.3 ranks an assumed time below a
+     * stated one, so a Canvas date would have outranked an instructor sentence
+     * saying the same thing (worker rule 3). `announce.ts` now reads a
+     * bracketed weekday between the date and the clock (docs/piazza-findings.md).
+     */
+    expect(only.timeAssumed).toBe(false);
+    // The student's whole evidence, and it has to be quotable back at the post.
+    expect(only.span).toBe("9/20 (Sun) 11:59 pm");
+    expect(runningPayload().text).toContain(only.span);
+    // The sentence, which is where the span sits — the next sentence ("This is
+    // a hard deadline") is the instructor's emphasis and belongs to the post,
+    // not to this reading.
+    expect(only.context).toBe("HW1 is due 9/20 (Sun) 11:59 pm US Central Time.");
+    expect(only.source).toBe("piazza");
+    expect(only.courseCode).toBe("CS425");
+    expect(out.seenPosts).toEqual({ [ID_28]: NOW_28 });
+  });
+
+  it("reads none of the other dates in it as a deadline", () => {
+    /*
+     * The post is a clarifications list: "9/5:", "9/10:", "9/13: Q1b." are
+     * update markers an instructor writes in front of a note, not deadlines,
+     * and each one becoming a row is the failure this fixture makes visible. So
+     * the assertion is the whole set rather than the one we wanted — a grammar
+     * that starts reading "9/13: Q1b." has to come here and say so.
+     */
+    const at = ingest([]).suggestions.map((suggestion) => suggestion.at);
+    expect(at).toEqual(["2026-09-20T23:59:00-05:00"]);
+    const mentions = extractDeadlineMentions(runningPayload().text, POSTED_28);
+    expect(mentions.map((mention) => mention.span)).toEqual(["9/20 (Sun) 11:59 pm"]);
+  });
+
+  it("does not offer a second row for a deadline the list already shows", () => {
+    // The commonest real case: Gradescope already lists HW1 at the instant the
+    // post states. Nothing to move and nothing to say — a row repeating what is
+    // already on screen is the noise that makes the Attention tab stop being read.
+    const out = ingest([gradescopeHw1("2026-09-20T23:59:00-05:00")]);
+    expect(out.suggestions).toEqual([]);
+    expect(out.dueOverrides).toEqual({});
+    expect(out.movedItems).toBe(0);
+    expect(out.skipped.map((entry) => entry.reason).join(" ")).toContain("already due then");
+  });
+
+  it("does not re-offer a deadline the student has already added", () => {
+    /*
+     * The case a re-read creates. Accepting a suggestion turns it into a
+     * `manual` item and *removes* the suggestion, so the next reading of this
+     * post — which an edit now causes, weekly — finds a row it may not move (a
+     * row the student typed is theirs) and an empty suggestion list, and would
+     * offer them the deadline they just added. A row already due then has
+     * nothing to be told.
+     */
+    const own = gradescopeHw1("2026-09-20T23:59:00-05:00");
+    own.members = [{ ...own.members[0]!, source: "manual", sourceId: "own-hw1" }];
+    const out = ingest([own]);
+    expect(out.suggestions).toEqual([]);
+    expect(out.dueOverrides).toEqual({});
+    const reasons = out.skipped.map((entry) => entry.reason).join(" ");
+    expect(reasons).toContain("your own row");
+    expect(reasons).toContain("already due then");
+  });
+
+  it("still offers a student's own row the deadline when it disagrees", () => {
+    // The other half, so the guard above cannot be "never offer a manual row".
+    const own = gradescopeHw1("2026-09-18T23:59:00-05:00");
+    own.members = [{ ...own.members[0]!, source: "manual", sourceId: "own-hw1" }];
+    const out = ingest([own]);
+    expect(out.suggestions.map((suggestion) => suggestion.at)).toEqual([
+      "2026-09-20T23:59:00-05:00",
+    ]);
+    expect(out.dueOverrides).toEqual({});
+  });
+
+  it("offers a student's own row the same correction only once", () => {
+    // The re-read's other half: the post is read again a week later, the row
+    // still disagrees, and the offer from the first reading is still sitting in
+    // the Attention tab. Two rows for one deadline is what makes that tab stop
+    // being read.
+    const own = gradescopeHw1("2026-09-18T23:59:00-05:00");
+    own.members = [{ ...own.members[0]!, source: "manual", sourceId: "own-hw1" }];
+    const first = ingest([own]);
+    expect(first.suggestions).toHaveLength(1);
+    const again = ingestPost(
+      { items: [own], overrides: NO_OVERRIDES, suggestions: first.suggestions, seenPosts: {} },
+      runningPayload(),
+      "2026-09-16T09:00:00-05:00",
+    );
+    expect(again.suggestions).toEqual([]);
+  });
+
+  it("reads a bracketed weekday as the year cross-check it is", () => {
+    /*
+     * The second half of the amendment, and the half the Running Post cannot
+     * exercise: "(Sun)" agrees with 9/20/2026, so dropping it from §3.2's
+     * cross-check changes no answer there. A *contradicting* one must be
+     * refused exactly as the prefix spelling is — 10/3/2026 is a Saturday, and
+     * the only year where "Fri 10/3" holds is 2025, which is before the post.
+     * Reading it anyway would put a year-old deadline in the list looking as
+     * confident as any other.
+     */
+    const posted = "2026-09-14T09:00:00-05:00";
+    const bracketed = extractDeadlineMentions("HW9 is due 10/3 (Fri) 11:59 pm.", posted);
+    const prefixed = extractDeadlineMentions("HW9 is due Fri 10/3 11:59 pm.", posted);
+    for (const [mention] of [bracketed, prefixed]) {
+      expect(mention).toBeDefined();
+      expect(mention).toMatchObject({ kind: "other", confidence: 0.55 });
+      expect("at" in mention!).toBe(false);
+      expect((mention as { reason?: string }).reason).toContain("contradict");
+    }
+    // And an agreeing one still reads, so this is a cross-check and not a ban.
+    expect(
+      extractDeadlineMentions("HW9 is due 10/3 (Sat) 11:59 pm.", posted)[0],
+    ).toMatchObject({ at: "2026-10-03T23:59:00-05:00", timeAssumed: false });
+  });
+
+  it("moves a Gradescope HW1 that still says the 18th, without asking", () => {
+    /*
+     * Applied rather than offered, and `suggest.ts`'s ladder is why: the post
+     * states a calendar date *and* a clock, which is the 0.95 rung, above
+     * `AUTO_MOVE_CONFIDENCE`. A move is reversible, self-evidencing and carries
+     * an undo; inventing a row is none of those.
+     */
+    const out = ingest([gradescopeHw1("2026-09-18T23:59:00-05:00")]);
+    expect(out.suggestions).toEqual([]);
+    expect(out.movedItems).toBe(1);
+    const override = out.dueOverrides[memberKey("gradescope", "hw1-425")];
+    expect(override).toMatchObject({
+      at: "2026-09-20T23:59:00-05:00",
+      from: "2026-09-18T23:59:00-05:00",
+      postId: ID_28,
+    });
+    // Worker rule 3: absent, because the clock is the instructor's. A
+    // `timeAssumed: true` here would derank a deadline the source stated.
+    expect(override?.timeAssumed).toBeUndefined();
+  });
 });
