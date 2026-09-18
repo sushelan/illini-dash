@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Illini Dash",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2D5aXptwVGktkGjmZ96oSZsTg5vq72z+xvJVPAkAcYbDKHG1liocG1HKazFyfAR5upjdH8Vsr9ZpivhdtPAIyi5Q4yCGm6FEUg4wfkXwABVWfTC40cUtOeDlZ+zl7FzNXtuEufvhCq30It5a/Zge8ZEvp37glkYohxbbla3REsRAiEq2fcjixP7XAYl9M1g+Z8ScL+jihv0Ue801lPL3hw6pdlzHiGXxmcjf7ti9SwuGqnzEE8xL/xyMchm5RdPFmYEh5ZlqEUW4MPmqhZAUvk0RM6YSt126hRt3hbHydSpN+ksGzV6Mv/xk76S6+uFheteMbf2UqhwYgJyHEsCXDwIDAQAB",
   "description": "Every UIUC deadline from Canvas, Gradescope, PrairieLearn, PrairieTest, smartPhysics and course sites in one list.",
   "minimum_chrome_version": "116",
   "homepage_url": "https://github.com/sushelan/illini-dash",
@@ -21,7 +22,9 @@
   },
   "commands": {
     "_execute_action": {
-      "suggested_key": { "default": "Alt+Shift+D" },
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
       "description": "Open Illini Dash"
     }
   },
@@ -37,8 +40,10 @@
     "cookies"
   ],
   "oauth2": {
-    "client_id": "REPLACE_ME.apps.googleusercontent.com",
-    "scopes": ["https://www.googleapis.com/auth/calendar.app.created"]
+    "client_id": "56830223805-vb18i137icv8g26rouu86vc9qifghh91.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.app.created"
+    ]
   },
   "host_permissions": [
     "https://canvas.illinois.edu/*",

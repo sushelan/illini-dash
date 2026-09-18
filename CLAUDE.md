@@ -405,9 +405,10 @@ says so.
 Outstanding, all in the developer console: re-upload the current zip, replace every
 justification from `privacy-practices.txt` (all eleven), tick **Website content** and nothing
 else under Data usage, paste the Test instructions (500 chars), set Visibility to
-**Unlisted**, submit. Before that, `public/manifest.json` needs the real `key` (Package
-tab → View public key) and the OAuth `client_id` (`docs/gcal.md`); a test currently
-asserts `key` is absent as a tripwire and must flip to "is base64" when it is pasted.
+**Unlisted**, submit. `public/manifest.json` carries the real `key` and the OAuth
+`client_id` since 2026-09-18 (both public; the Chrome Extension client type has no
+secret); the key was checked to derive `mimgaiaicopabbiabakmknkcbfekplei` before it went
+in, and `tests/manifest.test.ts` pins its shape.
 
 §9 still gates G5 behind G4. The beta has one tester and found six real defects in a day,
 which is the argument for the gate rather than against it.
