@@ -15,19 +15,36 @@
 
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   authorAdapter,
   buildPrompt,
+  CHARS_PER_TOKEN,
+  groundingSelector,
   htmlForAuthoring,
   MAX_AUTHOR_HTML,
   modelStatusLine,
+  OUTPUT_RESERVE,
   proposalSchema,
   skeletonBudgetChars,
   validateProposal,
 } from "../src/core/author.js";
-import { skeletonise } from "../src/core/skeleton.js";
-import { supportedDateFormats } from "../src/sources/site.js";
+import { repeatedStructures, skeletonise } from "../src/core/skeleton.js";
+import { runAdapter, supportedDateFormats } from "../src/sources/site.js";
+
+/*
+ * The real runner, counted.
+ *
+ * The defect this file grew for is about *how many round trips a bad selector
+ * costs*, so the assertion has to be that `runAdapter` was not called — the
+ * reason string alone cannot tell "refused before the parse" from "refused
+ * after it". The mock delegates to the real implementation, so every other test
+ * in this file runs against the same code it always did.
+ */
+vi.mock("../src/sources/site.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/sources/site.js")>();
+  return { ...actual, runAdapter: vi.fn(actual.runAdapter) };
+});
 
 const URL_ECE310 = "https://courses.grainger.illinois.edu/ece310/fa2026/";
 const REFERENCE = "2026-09-11T05:00:00.000Z";
@@ -178,11 +195,13 @@ describe("a proposal that is right", () => {
 describe("a proposal that is wrong", () => {
   it("is refused when its selector matches nothing", () => {
     // §4.5: zero rows on a fetched page is the adapter's error. A model that
-    // invented `#assignments` produces this and never reaches anybody.
+    // invented `#assignments` produces this and never reaches anybody — and
+    // now without the runner being asked, with the page's own groups named.
     const outcome = check({ ...GOOD, rows: "#assignments tr" });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("no rows matched");
+    expect(outcome.reason).toContain('no element matches rows "#assignments tr"');
+    expect(outcome.reason).toContain("#homework table tbody tr (\u00d713)");
   });
 
   it("is refused when the header is a substring of the real one", () => {
@@ -373,7 +392,7 @@ describe("the retry loop", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.failed).toContain("gave up after 3 attempts");
-    expect(outcome.failed).toContain("no rows matched");
+    expect(outcome.failed).toContain('no element matches rows "#nope tr"');
   });
 
   it("honours a lower cap and refuses an absurd one", async () => {
@@ -417,7 +436,14 @@ describe("the retry loop", () => {
       REFERENCE,
       "PAGE TITLE: ECE 310",
     );
-    expect(schema).toEqual(proposalSchema());
+    // The *grounded* schema, not the generic one: what makes a constrained
+    // decode unable to invent `#schedule .event` is the enum of this page's own
+    // row selectors, and a caller that rebuilt the schema itself would send the
+    // unconstrained one while believing otherwise.
+    expect(schema).toEqual(proposalSchema(supportedDateFormats(), repeatedStructures(ece310())));
+    expect((schema as { properties: { rows: { enum?: string[] } } }).properties.rows.enum).toContain(
+      "#homework table tbody tr",
+    );
   });
 });
 
@@ -582,7 +608,7 @@ describe("a list-shaped proposal that is wrong", () => {
     );
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("no rows matched");
+    expect(outcome.reason).toContain('no element matches rows "#homework ul > li"');
   });
 
   it("is refused when its titleFrom reaches no heading", () => {
@@ -598,7 +624,7 @@ describe("a list-shaped proposal that is wrong", () => {
     );
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("no row reached a title");
+    expect(outcome.reason).toContain('no element matches titleFrom "section >> h5"');
   });
 });
 
@@ -812,9 +838,284 @@ describe("the retry loop over the list shape", () => {
     );
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("no rows matched");
+    expect(outcome.reason).toContain('no element matches rows "#nope > li"');
     expect(
       modelStatusLine({ state: "rejected", attempts: outcome.attempts, reason: outcome.reason }),
-    ).toContain("no rows matched");
+    ).toContain('named parts of the page that do not exist (last: "#nope > li")');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The invented selector: ECE 411, end to end, with no model                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The run this was written for, reproduced offline.
+ *
+ * 2026-09-18, Sushi's machine, the real page: "Chrome's built-in model tried 3
+ * attempts and its last proposal read no deadlines: adapter proposed: no rows
+ * matched \"#schedule .event\"". Nothing on that page is called `#schedule` or
+ * `.event` — it was the example selector in this file's own system prompt, for
+ * a different course. Three ten-second round trips were spent on it.
+ *
+ * The fake model below answers exactly that, then answers from the inventory,
+ * which is the least a real model has to do for the fix to be the fix.
+ */
+describe("a proposal that names elements the page has not got", () => {
+  const INVENTED = { ...ECE411_PROPOSAL, rows: "#schedule .event" };
+
+  it("is rejected without asking the runner, and the retry names what the page does have", async () => {
+    const doc = ece411();
+    const skeleton = skeletonise(doc, 30_000);
+    const seen: string[] = [];
+    const runner = vi.mocked(runAdapter);
+    runner.mockClear();
+    let runsBeforeTheSecondAttempt = -1;
+
+    const outcome = await authorAdapter(
+      async (text) => {
+        seen.push(text);
+        if (seen.length === 1) return JSON.stringify(INVENTED);
+        runsBeforeTheSecondAttempt = runner.mock.calls.length;
+        // Answered *out of the retry prompt*, not out of this file: if the
+        // inventory were dropped from the retry this regex finds nothing and
+        // the test fails on the line below rather than quietly passing with a
+        // selector the test knew all along.
+        const offered = /\n {2}(#mp-information \S+ > li)\s+×/.exec(text);
+        expect(offered).not.toBeNull();
+        return JSON.stringify({ ...ECE411_PROPOSAL, rows: offered![1]! });
+      },
+      doc,
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      skeleton,
+    );
+
+    // The whole point: attempt 1 cost a `querySelectorAll`, not a parse of the
+    // page. `runAdapter` is the expensive half and it was never reached.
+    expect(runsBeforeTheSecondAttempt).toBe(0);
+    // And the spy is wired to the real thing, so that zero is a fact rather
+    // than a mock that never attached: attempt 2 did reach the runner.
+    expect(runner.mock.calls.length).toBeGreaterThan(0);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toContain("REPEATED STRUCTURES ON THIS PAGE");
+    expect(seen[1]).toContain('#schedule .event');
+    expect(seen[1]).toContain("#mp-information ul.simple > li");
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.attempts).toBe(2);
+    expect(outcome.candidate.dated).toBeGreaterThanOrEqual(1);
+    expect(outcome.candidate.sample.map((row) => row.title).sort()).toEqual([
+      "mp_setup",
+      "mp_verif",
+    ]);
+  });
+
+  it("gives up after three inventions, naming the page's own groups", async () => {
+    const doc = ece411();
+    const outcome = await authorAdapter(
+      async (_text, _schema) => JSON.stringify(INVENTED),
+      doc,
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      skeletonise(doc, 30_000),
+    );
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.attempts).toBe(3);
+    expect(outcome.reason).toContain('no element matches rows "#schedule .event"');
+    expect(outcome.reason).toContain("#mp-information ul.simple > li (×16)");
+  });
+
+  it("tells the student the selector was invented, not that the page held no deadlines", () => {
+    // Two different next steps. "read no deadlines" sends a person to the page
+    // to look for the deadlines it says were not read; on this page there was
+    // never a `#schedule` to read them out of.
+    const doc = ece411();
+    const reason = validateProposal(INVENTED, doc, URL_ECE411, ZONE, REFERENCE);
+    expect(reason.ok).toBe(false);
+    if (reason.ok) return;
+    const line = modelStatusLine({ state: "rejected", attempts: 3, reason: reason.reason });
+    expect(line).toContain("named parts of the page that do not exist");
+    expect(line).toContain('(last: "#schedule .event")');
+    expect(line).toContain("A hand-written entry can still be written for it.");
+    expect(line).not.toContain("read no deadlines");
+  });
+
+  it("still says 'read no deadlines' when the model found the page and read it wrong", () => {
+    // The other branch, and the reason `groundingSelector` is an anchored match
+    // on a sentinel rather than a search for the word "matches": a proposal
+    // that named the right list and the wrong label *did* read no deadlines,
+    // and that sentence is the true one for it.
+    const wrongLabel = { ...ECE411_PROPOSAL, dueLabel: "Deadline" };
+    const outcome = validateProposal(wrongLabel, ece411(), URL_ECE411, ZONE, REFERENCE);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(groundingSelector(outcome.reason)).toBeUndefined();
+    expect(modelStatusLine({ state: "rejected", attempts: 1, reason: outcome.reason })).toContain(
+      "read no deadlines",
+    );
+  });
+
+  it("reads the grounding marker only at the start of the reason", () => {
+    // Rule 12's "a marker must be absent from the healthy page", from the
+    // direction a course could actually reach. `runAdapter`'s rejections quote
+    // the row title, so this is the reason produced by an assignment *called*
+    // `no element matches rows "#homework tbody tr"` — deliberately absurd,
+    // because a realistic title cannot test this at all. The quotes arrive
+    // escaped, the capture group needs a bare one, and the student gets the
+    // sentence about the column rather than the one about the selector.
+    const rowTitled =
+      'row "no element matches rows \\"#homework tbody tr\\"" has a date this could not fully read (9/7 @ 5)';
+    expect(groundingSelector(rowTitled)).toBeUndefined();
+    expect(modelStatusLine({ state: "rejected", attempts: 2, reason: rowTitled })).toContain(
+      "read no deadlines",
+    );
+  });
+
+  it("refuses a per-row selector no row on the page contains", () => {
+    // `rows` matching is not enough: a `due` of `.deadline` inside sixteen
+    // `<li>`s that have no such element is the same invention one level down,
+    // and the runner would have to parse every row to say so.
+    const outcome = validateProposal(
+      { ...ECE411_PROPOSAL, due: "span.deadline" },
+      ece411(),
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+    );
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain('no element matches due "span.deadline"');
+    expect(outcome.reason).toContain("#mp-information ul.simple > li");
+  });
+
+  it("grounds the one selector a table proposal may carry", () => {
+    // `time` is not in the table shape's refused list, so it is the one field
+    // whose selector a table proposal chooses. An early return on
+    // `shape === "table"` would have left it the only selector in the file
+    // reaching the runner ungrounded.
+    const outcome = check({ ...GOOD, time: "span.cutoff" });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain('no element matches time "span.cutoff"');
+  });
+
+  it("does not refuse a per-row selector that only some rows carry", () => {
+    // A labelled list is rows-per-*line*: `time` reaches a sibling bullet that
+    // most lines have not got, and demanding every row would refuse the shipped
+    // `ece411-fa26-exams` entry. One row reaching it is the test.
+    const doc = fixture("ece411-fa2026-syllabus.html");
+    const outcome = validateProposal(
+      {
+        shape: "list",
+        rows: "#schedule > ul.simple > li",
+        title: "p",
+        due: "p",
+        dueLabel: "Midterm 1|Midterm 2|Final",
+        time: "ul",
+        kind: "exam",
+        filter: { exclude: "\\bTB[DA]\\b|\\bN/?A\\b" },
+        dateFormat: "MMM d, h:mm a",
+      },
+      doc,
+      "https://courses.grainger.illinois.edu/ece411/fa2026/syllabus.html",
+      ZONE,
+      REFERENCE,
+    );
+    expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("the schema a grounded page produces", () => {
+  it("closes rows over the page's own groups, and leaves the per-row selectors open", () => {
+    // (3): a constrained decode cannot emit `#schedule .event` if it is not in
+    // the enum. `title` and `due` stay free text because their right answer is
+    // any tag, class or `tag@attribute` inside one row — an enum guessed for
+    // them would exclude correct answers, which costs the page rather than an
+    // attempt.
+    const doc = ece411();
+    const structures = repeatedStructures(doc);
+    const schema = proposalSchema(supportedDateFormats(), structures) as {
+      properties: Record<string, { enum?: string[]; maxLength?: number }>;
+    };
+    expect(schema.properties["rows"]!.enum).toEqual(structures.map((s) => s.selector));
+    expect(schema.properties["rows"]!.enum).not.toContain("#schedule .event");
+    expect(schema.properties["rows"]!.enum).toContain("#mp-information ul.simple > li");
+    expect(schema.properties["title"]!.enum).toBeUndefined();
+    expect(schema.properties["due"]!.enum).toBeUndefined();
+  });
+
+  it("falls back to a free string when the page has no repeated group", () => {
+    // An empty `enum` is not a schema a decode can satisfy — it would turn "we
+    // found nothing to offer" into "the model produced no output at all", which
+    // is `failed` rather than `rejected` and says nothing a student can act on.
+    const schema = proposalSchema(supportedDateFormats(), []) as {
+      properties: Record<string, { enum?: string[]; maxLength?: number }>;
+    };
+    expect(schema.properties["rows"]!.enum).toBeUndefined();
+    expect(schema.properties["rows"]!.maxLength).toBe(200);
+  });
+});
+
+describe("the prompt carries the page's groups and nobody else's selectors", () => {
+  it("names no real selector from another course", () => {
+    // The example that produced the live defect. Every `rows` in the system
+    // half is now the placeholder ROWS, because an example selector beside a
+    // page summary is an invitation to copy it.
+    const { system } = buildPrompt("", URL_ECE411);
+    expect(system).not.toContain("#schedule .event");
+    expect(system).not.toContain("#mp-information ul.simple > li");
+    expect(system).not.toContain("#homework table tbody tr");
+    expect(system).toContain('"rows": "ROWS"');
+    expect(system).toContain("REPEATED STRUCTURES");
+  });
+
+  it("puts the inventory in the half that is rebuilt per page", () => {
+    // `proposeWithModel` creates one session with the system half in
+    // `initialPrompts` before it has seen a page, so a page-derived list in the
+    // system half would be the *previous* page's list.
+    const doc = ece411();
+    const structures = repeatedStructures(doc);
+    const { system, user } = buildPrompt("PAGE TITLE: x", URL_ECE411, undefined, structures);
+    expect(user).toContain("#mp-information ul.simple > li");
+    expect(system).not.toContain("#mp-information ul.simple > li");
+  });
+
+  it("fits the window it was measured against, inventory included", () => {
+    // (2): measured, not assumed. `proposeWithModel` measures the overhead with
+    // the inventory in it and hands the rest to `skeletonise`, so the summary is
+    // what gets cut when the two together do not fit.
+    const doc = ece411();
+    const structures = repeatedStructures(doc);
+    const window = 9_216;
+    const empty = buildPrompt("", URL_ECE411, undefined, structures);
+    const overhead = empty.system.length + empty.user.length;
+    const skeleton = skeletonise(doc, skeletonBudgetChars(window, overhead));
+    const full = buildPrompt(skeleton, URL_ECE411, undefined, structures);
+    expect(full.system.length + full.user.length).toBeLessThanOrEqual(
+      Math.floor(window * (1 - OUTPUT_RESERVE) * CHARS_PER_TOKEN),
+    );
+    // And the inventory survived whole, which is the half that decides whether
+    // the answer is spellable at all.
+    expect(full.user).toContain("#mp-information ul.simple > li");
+  });
+
+  it("cuts the summary rather than the inventory when the window is tight", () => {
+    const doc = ece411();
+    const structures = repeatedStructures(doc);
+    const window = 1_400;
+    const empty = buildPrompt("", URL_ECE411, undefined, structures);
+    const budget = skeletonBudgetChars(window, empty.system.length + empty.user.length);
+    const skeleton = skeletonise(doc, budget);
+    expect(skeleton.length).toBeLessThanOrEqual(budget);
+    const full = buildPrompt(skeleton, URL_ECE411, undefined, structures);
+    expect(full.user).toContain("#mp-information ul.simple > li");
+    expect(full.system.length + full.user.length).toBeLessThanOrEqual(
+      Math.floor(window * (1 - OUTPUT_RESERVE) * CHARS_PER_TOKEN),
+    );
   });
 });

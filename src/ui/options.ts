@@ -12,11 +12,10 @@ import {
   authorAdapter,
   buildPrompt,
   modelStatusLine,
-  proposalSchema,
   skeletonBudgetChars,
   type ModelOutcome,
 } from "../core/author.js";
-import { skeletonise } from "../core/skeleton.js";
+import { repeatedStructures, skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import {
@@ -2048,9 +2047,15 @@ async function proposeWithModel(
 
   addSiteStatus.textContent = "Asking the on-device model…";
   const doc = new DOMParser().parseFromString(html, "text/html");
+  // The inventory is what the model is allowed to answer with, so it is written
+  // before the summary and measured with it: if the two together do not fit,
+  // the summary is what gets cut. A model shown a short summary and a correct
+  // list of selectors can still answer; one shown the whole page and no list
+  // invents `#schedule .event`, which is the run this came from.
+  const structures = repeatedStructures(doc);
   // The system half is fixed, so its size comes out of the same window the page
   // summary has to fit in; `buildPrompt` with an empty page measures it.
-  const empty = buildPrompt("", url);
+  const empty = buildPrompt("", url, undefined, structures);
   const overhead = empty.system.length + empty.user.length;
 
   let session: LanguageModelSession | undefined;
@@ -2061,14 +2066,18 @@ async function proposeWithModel(
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
     const skeleton = skeletonise(doc, skeletonBudgetChars(session.contextWindow, overhead));
-    const schema = proposalSchema();
     const outcome = await authorAdapter(
-      (text) => session!.prompt(text, { responseConstraint: schema }),
+      // The schema `authorAdapter` hands in, not one built here: it carries the
+      // enum of *this page's* row selectors, and a second copy built in the
+      // page would be the unconstrained one — two spellings of one decision,
+      // with the constrained decode silently switched off (mutation rule 3).
+      (text, schema) => session!.prompt(text, { responseConstraint: schema }),
       doc,
       url,
       SITE_TIMEZONE,
       new Date().toISOString(),
       skeleton,
+      { structures },
     );
     if (!outcome.ok) {
       return { state: "rejected", attempts: outcome.attempts, reason: outcome.reason ?? outcome.failed };

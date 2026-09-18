@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
-import { skeletonise } from "../src/core/skeleton.js";
+import { renderStructures, repeatedStructures, skeletonise } from "../src/core/skeleton.js";
 import { ParseError } from "../src/sources/types.js";
 
 function fixture(name: string): Document {
@@ -286,5 +286,155 @@ describe("which lists are worth a share of the budget", () => {
         "<h1>CS 999</h1>",
     );
     expect(text).not.toContain("LIST ul");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The inventory                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What the page has, as the model is told it.
+ *
+ * The invented-selector defect this was written for is a live one, from
+ * 2026-09-18: asked about ECE 411, Chrome's built-in model answered
+ * `#schedule .event` three times. Nothing on that page carries either name.
+ * These tests are about the one property that makes the list worth putting in
+ * a prompt — **every selector in it matches, on this document, the count it
+ * claims** — and about the cap not throwing the answer away.
+ */
+describe("the repeated structures a page offers", () => {
+  const PAGES = [
+    "ece310-fa2026-index.html",
+    "ece411-fa2026-assignments.html",
+    "ece411-fa2026-syllabus.html",
+  ];
+
+  for (const name of PAGES) {
+    it(`only offers selectors that really match, on ${name}`, () => {
+      const doc = fixture(name);
+      const structures = repeatedStructures(doc);
+      expect(structures.length).toBeGreaterThan(0);
+      for (const structure of structures) {
+        // The invariant the schema's `enum` and the grounding check both rest
+        // on. A single entry that matched nothing would put the model straight
+        // back where it started, with this file's blessing.
+        expect(doc.querySelectorAll(structure.selector)).toHaveLength(structure.count);
+        expect(structure.count).toBeGreaterThanOrEqual(2);
+      }
+      expect(structures.length).toBeLessThanOrEqual(12);
+    });
+  }
+
+  it("offers the group the shipped ECE 411 entry reads, by element and not by spelling", () => {
+    // `adapters/registry.json`'s `ece411-fa26-mp` uses
+    // `#mp-information ul.simple > li`. What matters is that some entry reaches
+    // the same sixteen `<li>`s — `#mp-information li` would be as good an
+    // answer and is three words shorter, so a string comparison here would pin
+    // the spelling rather than the requirement.
+    const doc = fixture("ece411-fa2026-assignments.html");
+    const shipped = [...doc.querySelectorAll("#mp-information ul.simple > li")];
+    expect(shipped.length).toBeGreaterThan(1);
+    const same = repeatedStructures(doc).filter((structure) => {
+      const matched = [...doc.querySelectorAll(structure.selector)];
+      return (
+        matched.length === shipped.length && matched.every((element, i) => element === shipped[i])
+      );
+    });
+    expect(same).not.toEqual([]);
+  });
+
+  it("offers the group the shipped ECE 310 entry reads", () => {
+    const doc = fixture("ece310-fa2026-index.html");
+    const shipped = [...doc.querySelectorAll("#homework table tbody tr")];
+    const same = repeatedStructures(doc).filter((structure) => {
+      const matched = [...doc.querySelectorAll(structure.selector)];
+      return (
+        matched.length === shipped.length && matched.every((element, i) => element === shipped[i])
+      );
+    });
+    expect(same).not.toEqual([]);
+  });
+
+  it("ranks the groups that read like rows above the ones that do not", () => {
+    // The cap is twelve and a page has dozens of repeated groups, so the order
+    // *is* the filter. Ordering by selector length alone was measured on these
+    // two captures and cut `#mp-information ul.simple > li` and
+    // `#homework table tbody tr` — both answers — in favour of `#mp-setup li`
+    // and `#staff td`.
+    const structures = repeatedStructures(fixture("ece411-fa2026-assignments.html"));
+    const firstOther = structures.findIndex((structure) => !structure.rowLike);
+    if (firstOther >= 0) {
+      expect(structures.slice(firstOther).some((structure) => structure.rowLike)).toBe(false);
+    }
+    expect(structures[0]!.rowLike).toBe(true);
+  });
+
+  it("does not offer a nav menu as a schedule", () => {
+    const doc = docFrom(
+      "<nav><ul><li>Previous: 9/7 lecture</li><li>Next: 9/9 lecture</li></ul></nav><h1>CS 999</h1>",
+    );
+    expect(repeatedStructures(doc)).toEqual([]);
+  });
+
+  it("never offers a group with one foot in the nav", () => {
+    // The dangerous case is not a page that is all nav — it is a page where a
+    // document-wide selector sweeps the nav's bullets in with the schedule's.
+    // `ul > li` here would be four items, two of them the site menu, and an
+    // adapter saved from it puts "Previous: 9/7 lecture" in a student's week.
+    const doc = docFrom(
+      "<nav><ul><li>Previous: 9/7 lecture</li><li>Next: 9/9 lecture</li></ul></nav>" +
+        "<section id='hw'><h2>Homework</h2><ul><li>HW1: 9/7</li><li>HW2: 9/14</li></ul></section>",
+    );
+    const structures = repeatedStructures(doc);
+    expect(structures).not.toEqual([]);
+    for (const structure of structures) {
+      for (const element of doc.querySelectorAll(structure.selector)) {
+        expect(element.closest("nav")).toBeNull();
+      }
+    }
+  });
+
+  it("does not call one element a repeated structure", () => {
+    // A page with a single bullet has nothing to propose `rows` against, and an
+    // entry of one is how "this needs a hand-written entry" turns into a
+    // proposal a student is asked to confirm.
+    const doc = docFrom("<h1>CS 999</h1><section id='hw'><h2>HW</h2><ul><li>Due: 9/7</li></ul></section>");
+    expect(repeatedStructures(doc).filter((structure) => structure.count < 2)).toEqual([]);
+  });
+
+  it("offers one spelling per group of elements, not three", () => {
+    // `#mp-setup li`, `#mp-setup ul.simple > li` and `#mp-information ul.simple
+    // > li:nth-of-type(-)` can all reach the same bullets. The cap is twelve, so
+    // three spellings of one answer is two answers the model never sees.
+    const doc = fixture("ece411-fa2026-assignments.html");
+    const seen = new Set<string>();
+    for (const structure of repeatedStructures(doc)) {
+      const key = [...doc.querySelectorAll(structure.selector)]
+        .map((element) => [...doc.querySelectorAll("*")].indexOf(element))
+        .join(",");
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+    }
+  });
+
+  it("says nothing at all for a page with nothing repeated", () => {
+    // Not one made-up entry, and not a sentence claiming there is a list:
+    // `author.ts` reads the empty case as "this page may need a hand-written
+    // entry", and an invented group would send a student to confirm rows that
+    // cannot exist.
+    const doc = docFrom("<h1>CS 999</h1><p>Deadlines are announced in lecture.</p>");
+    expect(repeatedStructures(doc)).toEqual([]);
+    expect(renderStructures([])).toBe("");
+  });
+
+  it("prints the count and a sample, so a nav can be told from a schedule", () => {
+    const doc = fixture("ece411-fa2026-assignments.html");
+    const text = renderStructures(repeatedStructures(doc));
+    expect(text).toContain("REPEATED STRUCTURES ON THIS PAGE");
+    for (const structure of repeatedStructures(doc)) {
+      expect(text).toContain(`${structure.selector}  ×${structure.count}`);
+    }
+    expect(text).toContain('"Release: 8/25"');
   });
 });
