@@ -40,8 +40,16 @@ import type { Item } from "../sources/types.js";
  * when a previously stated date is being replaced, and the distinction matters
  * downstream: a `moved` mention that matches an existing item is a correction
  * to show, a plain `due` one may be the first anyone has heard of it.
+ *
+ * `event` is a *sitting*, not a deadline: "Your exam is on Tuesday, May 5th,
+ * from 7:00 PM to 10:00 PM". The real feed made the distinction unavoidable
+ * (wave 4). An exam has a start a student has to be in a room for, and reading
+ * it as a "due" would put it in the list beside things you submit and, worse,
+ * would let §4.5's 23:59 invention anywhere near it. `at` is the **start** of
+ * the sitting — the moment the student has to be there — and it is always
+ * stated, because a sitting with no clock is not a sitting this grammar reads.
  */
-export type MentionKind = "due" | "extended" | "moved" | "released" | "other";
+export type MentionKind = "due" | "extended" | "moved" | "released" | "event" | "other";
 
 /** A mention this grammar could turn into an instant. */
 export interface ReadMention {
@@ -161,6 +169,74 @@ const BADGE = new RegExp(
 );
 
 /**
+ * "the final deadline is **May 4**" — `final` there is an adjective.
+ *
+ * `BADGE`'s bare-word arm exists for "the final is on Tuesday", and on the real
+ * ECE 408 feed it fired on *every* post that wrote "the final deadline",
+ * naming the deadline `final` and hiding the subject the sentence actually had
+ * ("Milestone 3", one sentence earlier). Narrow on purpose: only the one bare
+ * word that is also an ordinary English adjective, and only directly in front
+ * of the noun it modifies.
+ */
+const ADJECTIVAL_BADGE = /^final$/i;
+const MODIFIED_NOUN = /^\s+(?:deadline|due\s+date)/i;
+
+/**
+ * Words that a *phrase* subject may be built from, beyond `BADGE`.
+ *
+ * Instructors name assignments in plain English at least as often as with a
+ * badge — "CNN project", "Milestone 3", "Subjective Evaluation Form",
+ * "Regrade requests", "CNN competition" — and before wave 4 every one of those
+ * came back as `""`, which means `resolveMentions` could never find the item
+ * the post was about and every reading became a new suggestion.
+ *
+ * Deliberately *not* here: `deadline`, `date`, `grades`, `week`. They are what
+ * the sentence says *about* the subject, so including them would extend
+ * "CNN competition" into "CNN competition deadline".
+ */
+const PHRASE_NOUNS = new Set([
+  ...SUBJECT_WORDS,
+  "project", "projects", "competition", "assignment", "assignments", "homework",
+  "report", "form", "request", "requests", "survey", "evaluation", "submission",
+  "presentation", "paper", "essay", "proposal", "writeup", "write-up",
+]);
+
+/**
+ * Capitalised words that start sentences rather than name assignments.
+ *
+ * A phrase subject leans on capitalisation, so every capitalised word that is
+ * not a noun phrase has to be named. Weekdays and months are in here for the
+ * same reason and a sharper one: "Friday" is capitalised, is a date, and is
+ * never what a deadline is *for*.
+ */
+const PHRASE_STOPWORDS = new Set([
+  "a", "an", "the", "this", "that", "these", "those", "there", "here", "it",
+  "we", "i", "you", "your", "our", "my", "all", "as", "at", "in", "on", "of",
+  "for", "and", "but", "so", "also", "to", "if", "when", "while", "with",
+  "since", "after", "before", "because", "hi", "hello", "hey", "good", "best",
+  "thanks", "thank", "please", "note", "prior", "due", "extra", "now", "today",
+  "tonight", "tomorrow", "next", "last", "several", "every", "each", "both",
+  "per", "reminder", "congratulations", "let", "us", "no", "not", "is", "are",
+  "sun", "sunday", "mon", "monday", "tue", "tues", "tuesday", "wed", "weds",
+  "wednesday", "thu", "thur", "thurs", "thursday", "fri", "friday", "sat",
+  "saturday", "january", "february", "march", "april", "may", "june", "july",
+  "august", "september", "october", "november", "december",
+]);
+
+/** A run of subject words, capped: a five-word title is already a sentence. */
+const MAX_PHRASE_WORDS = 5;
+
+/**
+ * A phrase subject has to be at least two words.
+ *
+ * One capitalised word is the start of a sentence far more often than it is an
+ * assignment — "Solutions are posted Monday" would otherwise be *about*
+ * "Solutions". A single word that really is a subject is a badge, and `BADGE`
+ * has already had its turn by the time this runs.
+ */
+const MIN_PHRASE_WORDS = 2;
+
+/**
  * The words that make a date in a sentence a *deadline* rather than scenery.
  *
  * Anchored on the verb, and scoped to the sentence: an announcement is full of
@@ -170,13 +246,33 @@ const BADGE = new RegExp(
  */
 const TRIGGER = new RegExp(
   "\\b(?:" +
-    "(?<moved>(?:is\\s+|are\\s+)?now\\s+due(?:\\s+(?:on|by|at))?" +
+    // "available until Monday" is a closing time, not a release. It has to win
+    // over `released`'s bare "available", so it is spelled out first: leftmost
+    // alternative wins at a given position, and both start on the same word.
+    "(?<until>(?:available|open|accepted|accepting)\\s+(?:until|through|till))" +
+    // "please complete the Subjective Evaluation Form linked below by Friday".
+    // The verb and the "by" are the two halves of one deadline, with the thing
+    // itself between them — which is also where the subject is, so the filler
+    // is captured rather than skipped.
+    `|(?<byDo>(?:complete|submit|turn\\s+in|hand\\s+in|fill\\s+out|finish|return|upload)\\b(?<byObj>[^.;:]{0,80}?)\\s+by)` +
+    "|(?<moved>(?:is\\s+|are\\s+)?now\\s+due(?:\\s+(?:on|by|at))?" +
     "|(?:pushed\\s+back|pushed|moved|postponed|rescheduled|bumped)\\s+(?:to|until|back\\s+to))" +
-    "|(?<extended>extend(?:ed|ing|s)?\\s+(?:to|until|through)|extension\\s+(?:to|until))" +
+    // "extend the final deadline of CNN project to 11:59pm today" — the object
+    // between the verb and the preposition is the commonest shape on the real
+    // feed, and the old adjacent-only `extend(ed) to` read none of them.
+    `|(?<extended>extend(?:ed|ing|s)?\\s+(?<extObj>[^.;:]{0,60}?)\\s*\\b(?:to|until|through)` +
+    "|extension\\s+(?:to|until))" +
+    // A sitting, not a deadline: "Your exam is on Tuesday, May 5th, from 7:00
+    // PM to 10:00 PM". Anchored on the noun *before* the verb, so "this
+    // Saturday … is the review session" — a sentence about an optional extra,
+    // written the other way round — is not swept in with it.
+    `|(?<event>(?<evObj>final\\s+exam|exam|midterm|quiz|review\\s+session|lecture)\\b` +
+    "[^.;:]{0,40}?\\s+(?:is|are|will\\s+be)\\s+(?:on|at)" +
+    "|(?:is|are|will\\s+be)\\s+scheduled\\s+for)" +
     "|(?<released>(?:released|posted|available)(?:\\s+(?:on|at))?)" +
     "|(?<due>due\\s+date\\s*(?:is|:)?|due(?:\\s+(?:on|by|at))?|deadline\\s*(?:is|:)?)" +
     ")",
-  "gi",
+  "gdi",
 );
 
 /**
@@ -191,8 +287,18 @@ const TRIGGER = new RegExp(
  * grammar assigns a time to (23:59, assumed), because "Sunday night" names the
  * end of Sunday and "Sunday morning" names nothing this code can put a clock on.
  */
+/**
+ * `SEP`, plus the separators prose uses and a date cell never does.
+ *
+ * "Tuesday, May 5th, **from** 7:00 PM to 10:00 PM" is how a sitting is written
+ * and `SEP` stops at "at|@|T", so the whole clock was being dropped and the
+ * sitting landed on an invented 23:59. A strict superset of `SEP`: everything
+ * site.ts accepts still reads identically here.
+ */
+const PROSE_SEP = "[\\s,]*(?:at|@|T|from|starting(?:\\s+at)?|beginning(?:\\s+at)?)?[\\s,]*";
+
 const TIME_PART =
-  `(?:${SEP}(?:${TIME}|(?<word>noon|midnight)))?` +
+  `(?:${PROSE_SEP}(?:${TIME}|(?<word>noon|midnight)))?` +
   `(?:\\s*(?<part>night|morning|afternoon|evening))?`;
 
 const WEEKDAY_PREFIX = `(?:(?<weekday>${WEEKDAY_NAME})\\.?,?\\s+)?`;
@@ -207,6 +313,19 @@ const CAL_MONTH = new RegExp(
 /** "Fri 10/3 at 11:59pm" · "10/12" · "9/4/26" */
 const CAL_NUM = new RegExp(
   `^${WEEKDAY_PREFIX}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?${TIME_PART}`,
+  "i",
+);
+
+/**
+ * "11:59pm today" · "noon Friday" — the clock first, the day after.
+ *
+ * Its own pattern rather than another optional group on `CAL_REL`, because
+ * `TIME` names its capture groups and a regex cannot carry two copies of them.
+ * Without it, "extend the final deadline of CNN project **to 11:59pm today**"
+ * read as nothing at all: `CAL_REL` wants the day word first.
+ */
+const CAL_TIME_FIRST = new RegExp(
+  `^(?:${TIME}|(?<word>noon|midnight))\\s+(?<rel>${WEEKDAY_NAME}|tonight|tomorrow|today)\\b`,
   "i",
 );
 
@@ -271,18 +390,82 @@ function ground(text: string, start: number, end: number): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Markdown                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Markdown blanked out, **without moving a single character**.
+ *
+ * Instructors write dates in bold — "is due on `**May 1**`", "due tomorrow,
+ * `**5/18 at 12:00 PM**`" — and every pattern here is anchored, so an asterisk
+ * in front of the month made the whole phrase unreadable. Over the real ECE 408
+ * feed that alone cost three of the nine posts their deadline.
+ *
+ * Replacing each markup character with a *space* rather than deleting it is the
+ * whole trick: the masked text is the same length as the original, so every
+ * offset a match produces still points at the same character of the input and
+ * `ground()` keeps meaning what it says. Removing the characters instead would
+ * need an index map, and the first mistake in that map is a span quoting words
+ * the instructor did not write.
+ */
+const MARKUP = /[*`]/g;
+
+function maskMarkup(text: string): string {
+  return text.replace(MARKUP, " ");
+}
+
+/* -------------------------------------------------------------------------- */
 /* Sentences                                                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
- * A sentence ends at punctuation, or at a blank line — **not** at a newline.
+ * A title line: the first line, with no sentence punctuation in it, followed by
+ * a line that starts a new sentence.
+ *
+ * The observers put the post's title in front of its body (`postsToSend`), and
+ * a title is the subject of last resort — "Proj-CNN Mini Extension" over a body
+ * that only says "extend the final deadline". The capital letter after the
+ * newline is what tells a title from a hard wrap: `HW 2 is\nextended to Oct 10`
+ * continues in lower case, and must stay one sentence.
+ *
+ * Spelled **once**, in two pieces, because the rule is needed twice — as a
+ * sentence boundary and as the title's own extent — and the two spellings
+ * differ (one consumes the line, one looks behind it). Two copies is mutation
+ * house rule 3's case exactly: loosening either one alone is masked by the
+ * other staying strict, and no test can reach it.
+ */
+const TITLE_HEAD = "[^\\n.!?;]{1,120}";
+const TITLE_TAIL = "\\n(?=[A-Z])";
+const TITLE_LINE = new RegExp(`^${TITLE_HEAD}${TITLE_TAIL}`);
+
+/**
+ * A sentence ends at punctuation, at a blank line, or after a title line —
+ * **not** at every newline.
  *
  * Announcements are hard-wrapped, and a single `\n` falls wherever the editor's
  * column ran out. Treating it as a boundary cut `HW 2 is\nextended to Friday`
  * in half: the trigger and the date stayed together by luck, the subject did
  * not, and the post produced a dateless-looking suggestion titled after nothing.
+ * The third arm is `TITLE_LINE` and nothing else — one rule, spelled once, in
+ * the two places that need it.
  */
-const BOUNDARY = /(?<=[.!?;])\s+|\n\s*\n/g;
+const BOUNDARY = new RegExp(
+  `(?<=[.!?;])\\s+|\\n\\s*\\n|(?<=^${TITLE_HEAD})${TITLE_TAIL}`,
+  "g",
+);
+
+/** The post's title, or "" when the text does not start with one. */
+function titleOf(text: string): string {
+  const match = TITLE_LINE.exec(text);
+  return match === null ? "" : match[0].trim();
+}
+
+interface Sentence {
+  /** The sentence with its markup masked — what every pattern matches against. */
+  masked: string;
+  /** Offset of `masked[0]` in the whole text; the two are the same length. */
+  start: number;
+}
 
 /**
  * Sentences with their offsets into the original text.
@@ -291,16 +474,16 @@ const BOUNDARY = /(?<=[.!?;])\s+|\n\s*\n/g;
  * reading as a Friday deadline: the date must follow the trigger inside one
  * sentence, with nothing but whitespace between them.
  */
-function sentences(text: string): { text: string; start: number }[] {
-  const out: { text: string; start: number }[] = [];
+function sentences(masked: string): Sentence[] {
+  const out: Sentence[] = [];
   let last = 0;
-  for (const match of text.matchAll(BOUNDARY)) {
+  for (const match of masked.matchAll(BOUNDARY)) {
     const index = match.index ?? 0;
-    if (index > last) out.push({ text: text.slice(last, index), start: last });
+    if (index > last) out.push({ masked: masked.slice(last, index), start: last });
     last = index + match[0].length;
   }
-  if (last < text.length) out.push({ text: text.slice(last), start: last });
-  return out.filter((s) => s.text.trim() !== "");
+  if (last < masked.length) out.push({ masked: masked.slice(last), start: last });
+  return out.filter((s) => s.masked.trim() !== "");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -433,6 +616,7 @@ function readDatePhrase(
   for (const [pattern, specificity] of [
     [CAL_MONTH, "calendar"],
     [CAL_NUM, "calendar"],
+    [CAL_TIME_FIRST, "relative"],
     [CAL_REL, "relative"],
   ] as const) {
     const match = pattern.exec(rest);
@@ -460,10 +644,12 @@ function readDatePhrase(
         if (weekday === undefined) continue;
         date = nextWeekday(posted, weekday);
       }
-      return {
-        ...carry,
-        at: wallClockToIso({ ...date, hour: clock.hour, minute: clock.minute }, zone),
-      };
+      const at = wallClockToIso({ ...date, hour: clock.hour, minute: clock.minute }, zone);
+      if (clock.timeAssumed) {
+        const restated = restatedAsCalendar(rest.slice(match[0].length), at, posted, postedAt, zone);
+        if (restated) return { ...restated, length: match[0].length + restated.length };
+      }
+      return { ...carry, at };
     }
 
     const month = /^\d+$/.test(g["month"]!)
@@ -526,6 +712,50 @@ function readDatePhrase(
   return undefined;
 }
 
+/** The same calendar day in `zone`, whatever clock each instant carries. */
+function sameLocalDay(a: string, b: string, zone: string): boolean {
+  const left = localDay(a, zone);
+  const right = localDay(b, zone);
+  return left.year === right.year && left.month === right.month && left.day === right.day;
+}
+
+/**
+ * "due tomorrow, **5/18 at 12:00 PM** (noon) CDT" — the day twice, the second
+ * time with a clock.
+ *
+ * A relative day carries no time, so §4.5's 23:59 gets invented for it. When
+ * the instructor then restates the same day precisely *in the same clause*,
+ * that 23:59 is not merely unstated, it is **contradicted** — the post says
+ * noon and the list would have said midnight, twelve hours late, looking as
+ * settled as anything else in it. Worker rule 3 in reverse: a value this code
+ * invented must never outrank one the source stated.
+ *
+ * Deliberately narrow. The restatement is taken only when it is an explicit
+ * calendar date (not a second relative word), only when it states a clock, and
+ * only when it lands on the **same day** the relative phrase already resolved
+ * to. A disagreement is left alone: two different days in one clause is not
+ * something this grammar should be picking a winner in.
+ */
+function restatedAsCalendar(
+  tail: string,
+  relativeAt: string,
+  posted: LocalDay,
+  postedAt: string,
+  zone: string,
+): DateReading | undefined {
+  const skip = /^[\s,(\-–—]*/.exec(tail)![0].length;
+  const reading = readDatePhrase(tail.slice(skip), posted, postedAt, zone);
+  if (
+    reading?.at === undefined ||
+    reading.specificity !== "calendar" ||
+    reading.timeAssumed !== false ||
+    !sameLocalDay(reading.at, relativeAt, zone)
+  ) {
+    return undefined;
+  }
+  return { ...reading, length: skip + reading.length };
+}
+
 function confidenceFor(
   specificity: "calendar" | "relative",
   timeAssumed: boolean,
@@ -542,22 +772,149 @@ function confidenceFor(
  * it becomes a title the student reads and §5.2's normalisation is applied to
  * it at comparison time, never to what is displayed.
  */
-function subjectFor(sentence: string, triggerIndex: number, spanEnd: number): string {
-  let before: RegExpMatchArray | undefined;
-  let after: RegExpMatchArray | undefined;
+function badgeIn(sentence: string, from: number, to: number, pick: "first" | "last"): Span | undefined {
+  let found: Span | undefined;
   for (const match of sentence.matchAll(BADGE)) {
     const index = match.index ?? 0;
-    if (index + match[0].length <= triggerIndex) before = match;
-    else if (index >= spanEnd && after === undefined) after = match;
+    if (index < from || index + match[0].length > to) continue;
+    // "the final deadline is May 4" is not a deadline for something called
+    // "final".
+    if (
+      ADJECTIVAL_BADGE.test(match[0]) &&
+      MODIFIED_NOUN.test(sentence.slice(index + match[0].length))
+    ) {
+      continue;
+    }
+    if (pick === "first") return { start: index, end: index + match[0].length };
+    found = { start: index, end: index + match[0].length };
   }
-  return (before ?? after)?.[0] ?? "";
+  return found;
+}
+
+interface Span {
+  start: number;
+  end: number;
+}
+
+/** A word and where it sits, for the phrase scan. */
+const WORD = /[A-Za-z0-9#][A-Za-z0-9#'’-]*/g;
+
+/**
+ * The longest runs of subject-ish words in a region, in order.
+ *
+ * A word joins a run when it is capitalised and not an ordinary sentence word,
+ * or is one of `PHRASE_NOUNS`, or is a bare number directly after either. A run
+ * breaks on anything else and on any punctuation between two words, so the
+ * span stays a clean slice of the input rather than a phrase with a comma
+ * through it.
+ */
+function phraseRuns(region: string): Span[] {
+  const words = [...region.matchAll(WORD)];
+  const runs: Span[] = [];
+  let run: Span | undefined;
+  let count = 0;
+  let previousEnd = -1;
+
+  const close = () => {
+    if (run && count >= MIN_PHRASE_WORDS) runs.push(run);
+    run = undefined;
+    count = 0;
+  };
+
+  for (const word of words) {
+    const index = word.index ?? 0;
+    const text = word[0];
+    const lower = text.toLowerCase();
+    const numeric = /^#?\d{1,3}$/.test(text);
+    const adjacent = previousEnd >= 0 && /^\s+$/.test(region.slice(previousEnd, index));
+    const modifier =
+      ADJECTIVAL_BADGE.test(text) && MODIFIED_NOUN.test(region.slice(index + text.length));
+
+    const isNoun = modifier
+      ? false
+      : numeric
+        ? run !== undefined && adjacent
+        : !PHRASE_STOPWORDS.has(lower) &&
+          (PHRASE_NOUNS.has(lower) || BADGE_WORD.test(text) || /^[A-Z][A-Za-z-]*$/.test(text));
+
+    if (!isNoun || (run !== undefined && !adjacent) || count >= MAX_PHRASE_WORDS) close();
+    if (isNoun) {
+      if (run === undefined) run = { start: index, end: index + text.length };
+      else run.end = index + text.length;
+      count += 1;
+    }
+    previousEnd = index + text.length;
+  }
+  close();
+  return runs;
+}
+
+/** A badge written as one word — "HW3", "MP2" — inside a phrase run. */
+const BADGE_WORD = new RegExp(`^(?:${SUBJECT_WORDS.join("|")})#?\\d{1,2}[a-z]?$`, "i");
+
+/**
+ * The assignment a sentence is about.
+ *
+ * Four places to look, in the order a reader would:
+ *
+ * 1. **The trigger's own object**, when it has one — "extend the final deadline
+ *    of *CNN project* to", "complete the *Subjective Evaluation Form* … by".
+ *    The **last** run wins here, because the object of a preposition chain sits
+ *    at its end: "the deadline of X" is about X, not about the deadline.
+ * 2. **A badge before the trigger** — "HW3 is now due Thursday". Nearest one.
+ * 3. **A phrase before the trigger**, first run, because the subject of an
+ *    English clause comes before its verb: "*CNN competition* deadline has been
+ *    extended", "*Milestone 3* for both the CNN and GPT projects is due on".
+ * 4. **After the date**, badge then phrase — "Due Friday: HW 7, all four parts".
+ *
+ * Verbatim in every case, because it becomes a title the student reads; §5.2's
+ * normalisation is applied to it at comparison time, never to what is shown.
+ */
+function subjectFor(
+  sentence: string,
+  triggerIndex: number,
+  spanEnd: number,
+  object?: Span,
+): Span | undefined {
+  if (object && object.end > object.start) {
+    const region = sentence.slice(object.start, object.end);
+    const runs = phraseRuns(region);
+    const last = runs[runs.length - 1];
+    if (last) return { start: object.start + last.start, end: object.start + last.end };
+    const badge = badgeIn(sentence, object.start, object.end, "first");
+    if (badge) return badge;
+  }
+
+  const before = badgeIn(sentence, 0, triggerIndex, "last");
+  if (before) return before;
+
+  const beforeRuns = phraseRuns(sentence.slice(0, triggerIndex));
+  if (beforeRuns[0]) return beforeRuns[0];
+
+  const after = badgeIn(sentence, spanEnd, sentence.length, "first");
+  if (after) return after;
+
+  const afterRuns = phraseRuns(sentence.slice(spanEnd));
+  const first = afterRuns[0];
+  return first ? { start: spanEnd + first.start, end: spanEnd + first.end } : undefined;
 }
 
 function kindOf(groups: Record<string, string | undefined>): Exclude<MentionKind, "other"> {
   if (groups["moved"] !== undefined) return "moved";
   if (groups["extended"] !== undefined) return "extended";
+  if (groups["event"] !== undefined) return "event";
   if (groups["released"] !== undefined) return "released";
+  // `until` ("available until Monday") and `byDo` ("complete … by Friday") are
+  // both plain deadlines; they are separate groups only so they can be spelled
+  // ahead of `released` and `due` in the alternation.
   return "due";
+}
+
+/** Where the trigger's object sits in the sentence, when it has one. */
+function objectOf(match: RegExpExecArray): Span | undefined {
+  const groups = match.indices?.groups;
+  const range = groups?.["extObj"] ?? groups?.["byObj"] ?? groups?.["evObj"];
+  return range ? { start: range[0], end: range[1] } : undefined;
 }
 
 /**
@@ -581,25 +938,56 @@ export function extractDeadlineMentions(
     throw new ParseError(`cannot place ${JSON.stringify(postedAt)} in zone ${JSON.stringify(zone)}`);
   }
 
+  const masked = maskMarkup(text);
+  const title = titleOf(text);
   const mentions: Mention[] = [];
+  /*
+   * The subject of the last mention, for a sentence that states none.
+   *
+   * "Milestone 3 … is due on May 1. With the 3-day extension, the final
+   * deadline is May 4." The second sentence names nothing, and the student
+   * needs both dates filed under the same assignment — an announcement is
+   * about one thing, and a sentence that introduces a *different* assignment
+   * names it (every such sentence on the real feed does). Only ever consulted
+   * when the sentence itself yielded nothing.
+   */
+  let carried = "";
 
-  for (const sentence of sentences(text)) {
+  for (const sentence of sentences(masked)) {
     TRIGGER.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = TRIGGER.exec(sentence.text)) !== null) {
+    while ((match = TRIGGER.exec(sentence.masked)) !== null) {
       const triggerIndex = match.index;
       const afterTrigger = triggerIndex + match[0].length;
-      const rest = sentence.text.slice(afterTrigger);
+      const rest = sentence.masked.slice(afterTrigger);
       const gap = /^\s*/.exec(rest)![0].length;
       const phrase = rest.slice(gap);
       const phraseStart = sentence.start + afterTrigger + gap;
       const kind = kindOf(match.groups ?? {});
+      const object = objectOf(match);
+      // `context` is sliced from the input, never from the masked copy: it is
+      // shown beside the post and has to read as the instructor typed it.
+      const context = text.slice(sentence.start, sentence.start + sentence.masked.length).trim();
+
+      const describe = (spanLength: number) => {
+        const found = subjectFor(
+          sentence.masked,
+          triggerIndex,
+          afterTrigger + gap + spanLength,
+          object,
+        );
+        const subject =
+          found === undefined
+            ? carried || title
+            : ground(text, sentence.start + found.start, sentence.start + found.end);
+        if (subject !== "") carried = subject;
+        return subject;
+      };
 
       const reading = readDatePhrase(phrase, posted, postedAt, zone);
       if (reading) {
-        const span = ground(text, phraseStart, phraseStart + reading.length);
-        const context = sentence.text.trim();
-        const subject = subjectFor(sentence.text, triggerIndex, afterTrigger + gap + reading.length);
+        const span = ground(text, phraseStart, phraseStart + trimmedLength(phrase, reading.length));
+        const subject = describe(reading.length);
         if (reading.at === undefined) {
           mentions.push({
             span,
@@ -630,9 +1018,9 @@ export function extractDeadlineMentions(
       const vague = DATE_LIKE.exec(phrase);
       if (vague) {
         mentions.push({
-          span: ground(text, phraseStart, phraseStart + vague[0].trimEnd().length),
-          context: sentence.text.trim(),
-          subject: subjectFor(sentence.text, triggerIndex, afterTrigger + gap + vague[0].length),
+          span: ground(text, phraseStart, phraseStart + trimmedLength(phrase, vague[0].length)),
+          context,
+          subject: describe(vague[0].length),
           kind: "other",
           confidence: 0.55,
           reason: "date-like phrase this grammar cannot read",
@@ -643,6 +1031,20 @@ export function extractDeadlineMentions(
   }
 
   return mentions;
+}
+
+/**
+ * The matched length with masked trailing whitespace taken off.
+ *
+ * A span is cut from the *input*, so a match that ended on a masked `**` would
+ * quote the asterisks back at the student — and `DATE_LIKE`'s "the week of …"
+ * arm can end on real whitespace too. Measured against the masked copy so both
+ * cases come off in one place.
+ */
+function trimmedLength(maskedPhrase: string, length: number): number {
+  let end = length;
+  while (end > 0 && /\s/.test(maskedPhrase[end - 1]!)) end -= 1;
+  return end;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -671,10 +1073,13 @@ export type EmptyReason =
  */
 export function describeEmpty(text: string): EmptyReason {
   if (typeof text !== "string" || text.trim() === "") return "no-text";
+  // Masked, so that a bolded date is not reported as "no date words" by the
+  // one function whose job is to say why the grammar found nothing.
+  const masked = maskMarkup(text);
   TRIGGER.lastIndex = 0;
-  const hasTrigger = TRIGGER.test(text);
+  const hasTrigger = TRIGGER.test(masked);
   TRIGGER.lastIndex = 0;
-  const hasDate = DATE_WORDISH.test(text);
+  const hasDate = DATE_WORDISH.test(masked);
   if (hasTrigger && hasDate) return "trigger-and-date-words-unmatched";
   if (hasTrigger) return "trigger-without-date-words";
   if (hasDate) return "date-words-without-trigger";

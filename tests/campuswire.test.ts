@@ -448,40 +448,55 @@ describe("the feed, end to end, through core/suggest.ts", () => {
      * "tomorrow" is the 18th. At 00:00 or 23:59 the same sentence is one
      * timezone step away from landing on the 17th or the 19th.
      *
-     * A suggestion and not a move, because "tomorrow" is a 0.65 reading —
-     * below `AUTO_MOVE_CONFIDENCE`, which is the rung that is wrong in the way
-     * a student cannot detect.
+     * The sentence restates the day with a clock — "due tomorrow, **5/18 at
+     * 12:00 PM** (noon) CDT" — so the span covers both and the reading is the
+     * stated noon, not the 23:59 this code would otherwise have invented.
+     * `tests/announce-real.test.ts` works the instant out by hand.
      */
     const found = ingestAll().suggestions.find((s) => s.postId === "campuswire:G794D32E4:682");
     expect(found).toBeDefined();
-    expect(found!.span).toBe("tomorrow");
-    expect(found!.at.startsWith("2026-05-18")).toBe(true);
+    expect(found!.span).toBe("tomorrow, **5/18 at 12:00 PM");
+    expect(found!.at).toBe("2026-05-18T12:00:00-05:00");
   });
 
   it("reads #567's 'extended to May 11'", () => {
-    const found = ingestAll().suggestions.find((s) => s.postId === "campuswire:G794D32E4:567");
-    expect(found).toBeDefined();
-    expect(found!.span).toBe("May 11");
-    expect(found!.at).toBe("2026-05-11T23:59:00-05:00");
-  });
-
-  it("applies no automatic move from this feed, and that is a finding", () => {
     /*
-     * OPEN QUESTION, recorded in docs/campuswire-findings.md: `announce.ts`
-     * extracts an empty `subject` from every sentence on this page, so
-     * `resolveMentions` can never match an existing item and every reading
-     * becomes a "new" suggestion rather than a move. #645's "extend the final
-     * deadline of CNN project to 11:59pm today" produces no mention at all
-     * (`trigger-and-date-words-unmatched`).
-     *
-     * This assertion pins the behaviour as it is rather than weakening the
-     * expectation: if the grammar is taught to read these, this test fails and
-     * says so, which is the point.
+     * Wave 4 changed this from a suggestion to a move: the sentence's subject
+     * reads as "CNN competition" now instead of "", so `resolveMentions`
+     * matches the student's own "CNN Competition" row and the 0.85 reading
+     * clears `AUTO_MOVE_CONFIDENCE`.
      */
     const { moves, suggestions } = ingestAll();
-    expect(moves).toEqual({});
+    expect(suggestions.find((s) => s.postId === "campuswire:G794D32E4:567")).toBeUndefined();
+    expect(moves["gradescope:comp"]).toBe("2026-05-11T23:59:00-05:00");
+  });
+
+  it("moves the two rows this student already has, and suggests the rest", () => {
+    /*
+     * This assertion used to read `expect(moves).toEqual({})`, above a comment
+     * recording the open question: "`announce.ts` extracts an empty `subject`
+     * from every sentence on this page, so `resolveMentions` can never match an
+     * existing item … if the grammar is taught to read these, this test fails
+     * and says so, which is the point." It was taught, in wave 4, and this is
+     * what it says now.
+     *
+     * Milestone 3 lands on May 4 and not May 1: #534 states both, the later is
+     * the one it calls "the final deadline", and the last mention in a post
+     * wins. The competition moves to May 11 from #567. What is left over is
+     * genuinely new — regrade windows and a form, none of which Gradescope
+     * knows about — plus #597's exam sitting, which does not match the "Exam 2"
+     * row because §5.2 fuses a numbered badge into one token (`exam2`) and the
+     * sentence says only "exam".
+     */
+    const { moves, suggestions } = ingestAll();
+    expect(moves).toEqual({
+      "gradescope:m3": "2026-05-04T23:59:00-05:00",
+      "gradescope:comp": "2026-05-11T23:59:00-05:00",
+    });
     expect(suggestions.map((s) => s.postId).sort()).toEqual([
-      "campuswire:G794D32E4:567",
+      "campuswire:G794D32E4:597",
+      "campuswire:G794D32E4:675",
+      "campuswire:G794D32E4:680",
       "campuswire:G794D32E4:682",
     ]);
   });
