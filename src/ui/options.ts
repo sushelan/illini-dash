@@ -9,10 +9,13 @@ import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
 import { adapterFromCandidate, SITE_TIMEZONE, type Candidate } from "../core/detect.js";
 import {
+  attemptLogLine,
   authorAdapter,
   buildPrompt,
   modelOutcomeFor,
   modelStatusLine,
+  pageForAuthoring,
+  saveProposedAdapter,
   RETRY_SUFFIX_CHARS,
   skeletonBudgetChars,
   type ModelOutcome,
@@ -2019,7 +2022,7 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
      * refused, or never existed (worker rule 2: what the UI asserts has to come
      * from an attempt that happened).
      */
-    const outcome = await proposeWithModel(response.html, response.url, response.courseCodeGuess);
+    const outcome = await proposeWithModel(response, response.url, response.courseCodeGuess);
     // This page's console, not the worker's (UI rule 1): the one line that says
     // which branch ran, with the validator's reason when there was one.
     console.info("[author] on-device model:", outcome);
@@ -2054,7 +2057,8 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
  * entry. A model that invents a selector produces no rows and reaches nobody.
  */
 async function proposeWithModel(
-  html: string | undefined,
+  /** The whole `detected` message: whether it carries `html` is itself a fact. */
+  detected: unknown,
   url: string,
   codeGuess?: string,
 ): Promise<ModelOutcome> {
@@ -2074,7 +2078,11 @@ async function proposeWithModel(
   if (availability === "downloading") return { state: "downloading" };
   if (availability !== "available") return { state: "unavailable" };
 
-  if (!html) return { state: "page-too-large" };
+  // Not `if (!html)`: an absent field, a 2MB page and an empty body are three
+  // different answers and only `core/author.ts` decides which (worker rule 8).
+  const page = pageForAuthoring(detected);
+  if (!page.ok) return page.outcome;
+  const html = page.html;
 
   addSiteStatus.textContent = "Asking the on-device model…";
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -2102,9 +2110,20 @@ async function proposeWithModel(
   let pristine: LanguageModelSession | undefined;
   /** Said once, not once per attempt. */
   let logged = false;
+  /** 1-based, and the same number `onAttempt` reports (worker rule 5). */
+  let asked = 0;
   try {
     pristine = await create();
-    const skeleton = skeletonise(doc, skeletonBudgetChars(pristine.contextWindow, overhead));
+    const budget = skeletonBudgetChars(pristine.contextWindow, overhead);
+    // The summary and the inventory are the two halves of what the model is
+    // shown, and the enum size is the number that says whether the answer it
+    // was allowed to give was even on the list. Both here, before attempt 1,
+    // so the console explains an outcome without a second round trip.
+    const skeleton = skeletonise(doc, budget, structures);
+    console.info(
+      `[author] window ${pristine.contextWindow} tokens, summary ${skeleton.length}/${budget} chars, ` +
+        `rows enum ${structures.length} selectors: ${structures.map((s) => s.selector).join(" | ")}`,
+    );
     const outcome = await authorAdapter(
       // The schema `authorAdapter` hands in, not one built here: it carries the
       // enum of *this page's* row selectors, and a second copy built in the
@@ -2146,14 +2165,20 @@ async function proposeWithModel(
           logged = true;
         }
         const session = cloneable ? await pristine!.clone() : await create();
+        asked += 1;
+        const attempt = asked;
         try {
           return await session.prompt(text, { responseConstraint: schema });
         } finally {
           // Read before `destroy()`, and guarded: these are optional members of
           // the Prompt API and a build without them must not throw here, in the
-          // one path whose whole job is to explain a throw.
+          // one path whose whole job is to explain a throw. Numbered, because
+          // "which attempt overflowed the window" is the question this answers
+          // and an unnumbered line cannot.
           if (typeof session.inputUsage === "number" && typeof session.inputQuota === "number") {
-            console.info(`[author] input usage ${session.inputUsage}/${session.inputQuota} tokens`);
+            console.info(
+              `[author] attempt ${attempt} input usage ${session.inputUsage}/${session.inputQuota} tokens`,
+            );
           }
           session.destroy();
         }
@@ -2168,12 +2193,9 @@ async function proposeWithModel(
         // UI rule 1 and worker rule 5: this page's console, every attempt,
         // both branches. "Nothing happened" and "three answers were refused
         // for three different reasons" looked identical from the status line.
-        onAttempt: (info) =>
-          console.info(
-            `[author] attempt ${info.attempt}: ${info.outcome}` +
-              ` (prompt ${info.promptChars} chars, answer ${info.answerChars} chars)` +
-              (info.reason === undefined ? "" : ` — ${info.reason}`),
-          ),
+        // `attemptLogLine` decides the wording in core, where a test can pin
+        // it; this page keeps the `console` call.
+        onAttempt: (info) => console.info(attemptLogLine(info)),
       },
     );
     if (outcome.ok) renderCandidates([outcome.candidate], url, codeGuess);
@@ -2280,14 +2302,14 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
       use.disabled = true;
       status.textContent = "Saving…";
       const adapter = buildAdapter(candidate, url, courseCode, kind.value);
-      const saved = await send({ type: "add-local-adapter", adapter });
-      if (saved.type === "error") {
+      // Three sends, every failure named, and the button comes back (UI rules
+      // 2 and 4). `saveProposedAdapter` owns which of them counts as saved.
+      const saved = await saveProposedAdapter(send, adapter);
+      if (!saved.ok) {
         status.textContent = saved.message;
         use.disabled = false;
         return;
       }
-      await send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled: true });
-      await send({ type: "sync", trigger: "manual" });
       addSiteResult.replaceChildren();
       addSiteStatus.textContent = `${courseCode} added. Its deadlines appear after the next sync.`;
       await refreshOptions();

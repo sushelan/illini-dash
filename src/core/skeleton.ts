@@ -23,7 +23,12 @@
  */
 
 import { ParseError } from "../sources/types.js";
-import { rowSelectorForList, rowSelectorForTable, selectorForTable } from "./detect.js";
+import {
+  isHeaderRowOutsideTbody,
+  rowSelectorForList,
+  rowSelectorForTable,
+  selectorForTable,
+} from "./detect.js";
 
 /** Tags that are all bytes and no structure. */
 const DROPPED = new Set([
@@ -109,6 +114,64 @@ function ancestry(element: Element): string {
   return path.join(" > ");
 }
 
+/**
+ * The inventory's own spelling for a block's rows, or nothing.
+ *
+ * The summary and the schema's `rows` enum have to be one list (mutation rule
+ * 3), and the enum is the one that decides — so a block's `rows selector:` line
+ * is printed only where the inventory can answer it. The exact spelling first;
+ * failing that the first inventory entry that *covers* these rows, which is how
+ * ECE 411's `#mp-setup ul.simple > li` prints as `#mp-information ul.simple >
+ * li` — the wide selector that reads all five MPs rather than the narrow one
+ * that silently reads a sixth of the course.
+ *
+ * `undefined` where the inventory's twelve-entry cap dropped the group: a line
+ * the model cannot copy is worse than no line, because the prompt tells it to
+ * copy one character for character.
+ */
+interface Inventory {
+  doc: Document;
+  structures: readonly RepeatedStructure[];
+  /** The same selectors as a set, because membership is asked once per block. */
+  answerable: ReadonlySet<string>;
+}
+
+function answerableSelector(
+  exact: string,
+  rows: readonly Element[],
+  inv: Inventory,
+): string | undefined {
+  if (inv.answerable.has(exact)) return exact;
+  if (rows.length === 0) return undefined;
+  /*
+   * The *narrowest* group that covers this block, not the first one found.
+   *
+   * A bare `li` covers every list on the page, so "first that covers" would
+   * print the page's every bullet as this block's rows — a selector that is
+   * answerable and wrong, which is worse than no line. Narrowest keeps the
+   * meaning the line has always had: these rows, with `every list like it`
+   * below it offering the wider spelling by name.
+   */
+  let best: RepeatedStructure | undefined;
+  for (const structure of inv.structures) {
+    if (structure.count < rows.length) continue;
+    if (best) {
+      const narrower =
+        structure.count < best.count ||
+        (structure.count === best.count && structure.selector.length < best.selector.length);
+      if (!narrower) continue;
+    }
+    let matched: Set<Element>;
+    try {
+      matched = new Set(inv.doc.querySelectorAll(structure.selector));
+    } catch {
+      continue;
+    }
+    if (rows.every((row) => matched.has(row))) best = structure;
+  }
+  return best?.selector;
+}
+
 function cellsOf(row: Element): string[] {
   return [...row.querySelectorAll("th, td")].map((cell) => {
     const text = clip(squash(cell.textContent), MAX_CELL);
@@ -127,7 +190,7 @@ function cellsOf(row: Element): string[] {
  * shown" tells the model it is looking at a sample, which is the difference
  * between a selector proposed for a schedule and one proposed for a fragment.
  */
-function renderTable(table: Element, selector: string, budget: number): string {
+function renderTable(table: Element, selector: string, budget: number, inv: Inventory): string {
   const rows = [...table.querySelectorAll("tr")];
   /*
    * `tbody tr` when there is a tbody, because the header row is not a deadline.
@@ -138,9 +201,11 @@ function renderTable(table: Element, selector: string, budget: number): string {
    * Offering `table tr` here is offering the selector that does that.
    */
   const scope = table.querySelector("tbody") ? `${selector} tbody tr` : `${selector} tr`;
+  const dataRows = [...table.querySelectorAll(table.querySelector("tbody") ? "tbody tr" : "tr")];
+  const printable = answerableSelector(scope, dataRows, inv);
   const head = [
     `TABLE ${describe(table)}`,
-    `  rows selector: ${scope}`,
+    ...(printable ? [`  rows selector: ${printable}`] : []),
     `  inside: ${ancestry(table)}`,
   ];
   const lines: string[] = [...head];
@@ -312,13 +377,21 @@ function tagOf(list: Element): string {
  * the two fields a list-shaped entry needs beyond a table's are the two a model
  * has no way to guess from a flat outline.
  */
-function renderList(list: Element, doc: Document, budget: number): string {
+function renderList(list: Element, doc: Document, budget: number, inv: Inventory): string {
   const items = directItems(list);
   const heading = headingFor(list);
-  const siblings = siblingListSelector(list, doc);
+  const printable = answerableSelector(rowSelectorForList(list, doc), items, inv);
+  const wide = wideListSelector(list, doc);
+  // Only when it is a *second*, wider answer: where the narrow spelling was cut
+  // from the inventory, `printable` is already the wide one and printing it
+  // twice says a page has two groups where it has one.
+  const siblings =
+    wide && wide !== printable && inv.answerable.has(wide)
+      ? siblingListSelector(list, doc)
+      : undefined;
   const head = [
     `LIST ${describe(list)}`,
-    `  rows selector: ${rowSelectorForList(list, doc)}`,
+    ...(printable ? [`  rows selector: ${printable}`] : []),
     ...(siblings ? [`  every list like it: ${siblings}`] : []),
     ...(heading
       ? [
@@ -390,7 +463,28 @@ function renderOutline(doc: Document, budget: number, drawn: Element[]): string 
  * rule 2 one level out — an empty summary reads to the caller as "this page has
  * no structure", and the model would answer about a page it was never shown.
  */
-export function skeletonise(doc: Document, budgetChars: number): string {
+export function skeletonise(
+  doc: Document,
+  budgetChars: number,
+  /**
+   * The inventory the caller will also put in the prompt and in the schema's
+   * `rows` enum, so the summary prints no selector the model is forbidden to
+   * answer with.
+   *
+   * These were two lists built by different code: `renderTable` and
+   * `renderList` printed a `rows selector:` for every block they drew, while
+   * `proposalSchema` closes `rows` over `repeatedStructures`' top twelve. On
+   * ECE 310 six of the eight printed selectors — including the exams table and
+   * the schedule table — were absent from the enum, so the model was shown a
+   * selector directly above the deadlines, told to copy one "character for
+   * character", and then forbidden from emitting it. Two spellings of one
+   * decision (mutation rule 3); the enum is the one that decides.
+   *
+   * Defaulted rather than required so a caller that only wants a summary still
+   * gets a truthful one — it is the same list, computed here.
+   */
+  structures: RepeatedStructure[] = repeatedStructures(doc),
+): string {
   if (!Number.isFinite(budgetChars) || budgetChars < MIN_BUDGET) {
     throw new Error(`skeletonise: budget ${budgetChars} is below the ${MIN_BUDGET} minimum`);
   }
@@ -417,6 +511,11 @@ export function skeletonise(doc: Document, budgetChars: number): string {
       !(element.tagName !== "TABLE" && element.closest("table")),
   );
 
+  const inv: Inventory = {
+    doc,
+    structures,
+    answerable: new Set(structures.map((structure) => structure.selector)),
+  };
   const sections: string[] = [header];
   const drawnLists: Element[] = [];
   let remaining = budgetChars - header.length - 1;
@@ -431,8 +530,8 @@ export function skeletonise(doc: Document, budgetChars: number): string {
       if (share < 80) break;
       const text =
         block.tagName === "TABLE"
-          ? renderTable(block, selectorForTable(block, doc), share)
-          : renderList(block, doc, share);
+          ? renderTable(block, selectorForTable(block, doc), share, inv)
+          : renderList(block, doc, share, inv);
       if (text.length + 1 > remaining) break;
       sections.push(text);
       if (block.tagName !== "TABLE") drawnLists.push(block);
@@ -552,7 +651,28 @@ export function repeatedStructures(doc: Document): RepeatedStructure[] {
   for (const [i, element] of [...doc.querySelectorAll("*")].entries()) order.set(element, i);
 
   const best = new Map<string, RepeatedStructure>();
+  /*
+   * One evaluation per distinct selector string, which is what makes this
+   * linear enough to run on the options page's main thread.
+   *
+   * The general-case loop below asks about `#homework tr` once per `<tbody>`
+   * and `#schedule div.assignment` once per block: measured on the real ECE 310
+   * capture repeated 16× (518KB, 11,858 elements) it issued **2,177 `consider`
+   * calls for 15 distinct selector strings**, each one a fresh
+   * `querySelectorAll` plus `droppedAncestor` and `textContent` over every
+   * match. That is the O(elements²) the page was paying: 7.6s at 518KB and 50s
+   * at 1.28MB, synchronous, with every other control frozen behind "Asking the
+   * on-device model…" and no cancel — while `MAX_AUTHOR_HTML` admits 2MB.
+   *
+   * The answer is unchanged by construction: a repeated call on the same string
+   * matches the same elements and `best` already keeps the shortest spelling
+   * per matched set, so the second evaluation could only ever re-decide the
+   * same key the same way.
+   */
+  const evaluated = new Set<string>();
   const consider = (selector: string): void => {
+    if (evaluated.has(selector)) return;
+    evaluated.add(selector);
     let matched: Element[];
     try {
       matched = [...doc.querySelectorAll(selector)];
@@ -562,6 +682,19 @@ export function repeatedStructures(doc: Document): RepeatedStructure[] {
       return;
     }
     if (matched.length < MIN_REPEAT) return;
+    /*
+     * The header-including spelling of a table is never the answer.
+     *
+     * `#homework tr` is exactly `#homework table tbody tr` plus the `<thead>`
+     * row, and it is the selector `detect.ts` documents as a defect: read
+     * through a `columns.title` of "Exercises" it yields a row *titled*
+     * Exercises with the words "Due Date" where its date should be. The sort
+     * below is rowLike → count → length, so being one element larger put it
+     * above the right answer on every table on every page — and the rejection
+     * it earned named the row, not the header, so a retry had nothing to act
+     * on. `rowSelectorForTable` has already offered the `tbody` spelling.
+     */
+    if (matched.some(isHeaderRowOutsideTbody)) return;
     if (matched.some((element) => DROPPED.has(element.tagName) || droppedAncestor(element))) return;
     const texts = matched.map((element) => squash(element.textContent));
     const sample = clip(texts[0]!, MAX_STRUCTURE_SAMPLE);

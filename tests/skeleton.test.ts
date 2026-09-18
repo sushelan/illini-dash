@@ -162,7 +162,11 @@ describe("what it refuses to summarise", () => {
       4000,
     );
     expect(text).toContain("TABLE table.grid");
-    expect(text).toContain("rows selector: #sched table tr"); // no tbody in this markup
+    // The inventory's spelling of those same two rows, because the enum is what
+    // the model is allowed to answer with: `#sched tr` and `#sched table tr`
+    // match the same elements and `repeatedStructures` keeps the shorter one.
+    // (No tbody in this markup, so the header row is one of the rows.)
+    expect(text).toContain("rows selector: #sched tr");
   });
 
   it("truncates one enormous cell instead of spending the page on it", () => {
@@ -190,7 +194,11 @@ describe("the real ECE 411 page, which has no table on it at all", () => {
   const text = skeletonise(doc, REALISTIC);
 
   it("keeps a section, its heading and its first lines together", () => {
-    expect(text).toContain("rows selector: #mp-setup ul.simple > li");
+    // `#mp-setup li` rather than `#mp-setup ul.simple > li`: the same two
+    // bullets, in the spelling the inventory offers and the schema's enum
+    // accepts. A summary line the constrained decode cannot emit is a line the
+    // model is invited to copy and then forbidden from answering with.
+    expect(text).toContain("rows selector: #mp-setup li");
     expect(text).toContain("heading: h3 mp_setup");
     expect(text).toContain("LI | Release: 8/25");
     expect(text).toContain("LI | Due: 9/7");
@@ -225,7 +233,7 @@ describe("the real ECE 411 page, which has no table on it at all", () => {
 
   it("keeps the dated section when the page does not fit", () => {
     const cut = skeletonise(doc, 1500);
-    expect(cut).toContain("rows selector: #mp-setup ul.simple > li");
+    expect(cut).toContain("rows selector: #mp-setup li");
     expect(cut).toContain("LI | Due: 9/7");
   });
 });
@@ -251,7 +259,24 @@ describe("which lists are worth a share of the budget", () => {
       "<section id='hw'><h3>MP1</h3><ul><li>Release: 8/25</li><li>Due: 9/7</li></ul></section>",
     );
     expect(text).toContain("LIST ul");
-    expect(text).toContain("rows selector: #hw ul > li");
+    expect(text).toContain("rows selector: #hw li");
+  });
+
+  it("names this block's own rows, not every bullet on the page", () => {
+    /*
+     * The inventory's spelling has to be the *narrowest* entry covering the
+     * block, not merely one that covers it. A bare `li` here matches the
+     * reading list too, and it is a perfectly answerable selector — so
+     * printing it as this block's `rows` would hand the model a line that is
+     * in the enum, sits above the deadlines, and reads the wrong rows.
+     */
+    const text = listed(
+      "<section id='hw'><h3>MP1</h3><ul><li>Release: 8/25</li><li>Due: 9/7</li></ul></section>" +
+        "<section id='reading'><h3>Reading</h3><ul><li>chapter one</li><li>chapter two</li>" +
+        "<li>chapter three</li></ul></section>",
+    );
+    expect(text).toContain("rows selector: #hw li");
+    expect(text).not.toMatch(/^ {2}rows selector: (ul > )?li$/m);
   });
 
   it("ignores a list whose lines state no date", () => {
@@ -418,6 +443,25 @@ describe("the repeated structures a page offers", () => {
     }
   });
 
+  it("does not offer a table's rows plus its header row", () => {
+    /*
+     * `#homework tr` ×14 used to sit directly above `#homework table tbody tr`
+     * ×13 in this list, and the sort is rowLike → count → length, so being one
+     * element larger ranked the wrong spelling first on every table on every
+     * page: `#staff tr` ×55 over ×39, `#syllabus tr` ×36 over ×34. It is the
+     * selector `detect.ts` documents as a defect — "an undated item literally
+     * titled *Exercises*, with the words 'Due Date' where its date should be" —
+     * offered back to the model as a first-class choice, and the rejection it
+     * earned named the row rather than the header.
+     */
+    const doc = fixture("ece310-fa2026-index.html");
+    const offered = repeatedStructures(doc).map((structure) => structure.selector);
+    expect(offered).toContain("#homework table tbody tr");
+    for (const selector of ["#homework tr", "#staff tr", "#syllabus tr"]) {
+      expect(offered).not.toContain(selector);
+    }
+  });
+
   it("says nothing at all for a page with nothing repeated", () => {
     // Not one made-up entry, and not a sentence claiming there is a list:
     // `author.ts` reads the empty case as "this page may need a hand-written
@@ -436,5 +480,89 @@ describe("the repeated structures a page offers", () => {
       expect(text).toContain(`${structure.selector}  ×${structure.count}`);
     }
     expect(text).toContain('"Release: 8/25"');
+  });
+});
+
+/*
+ * One inventory, two readers (wave-8 trace, the split author finding).
+ *
+ * `renderTable` and `renderList` printed a `rows selector:` for every block
+ * they drew while `proposalSchema` closes `rows` over the inventory, and the
+ * two lists were built by different code. The model was shown "rows selector:
+ * X" directly above the block holding the deadlines, told "rows must be one of
+ * the REPEATED STRUCTURES lines, character for character", and then forbidden
+ * by the constrained decode from answering X — two spellings of one decision
+ * (mutation rule 3). On ECE 411 the printed `#mp-setup ul.simple > li`
+ * validates and previews 2 rows, so an unconstrained answer saves an adapter
+ * reading a sixth of the course.
+ */
+describe("the summary's rows selectors and the inventory", () => {
+  for (const name of [
+    "ece310-fa2026-index.html",
+    "ece411-fa2026-assignments.html",
+    "cs424-fa2026-schedule.html",
+  ]) {
+    it(`prints no rows selector the schema forbids (${name})`, () => {
+      const doc = fixture(name);
+      const structures = repeatedStructures(doc);
+      const text = skeletonise(doc, REALISTIC, structures);
+      const printed = [...text.matchAll(/^ {2}rows selector: (.+)$/gm)].map((match) => match[1]!);
+      const offered = new Set(structures.map((structure) => structure.selector));
+      expect(printed.length).toBeGreaterThan(0);
+      for (const selector of printed) expect(offered.has(selector)).toBe(true);
+    });
+  }
+});
+
+/*
+ * The inventory is bounded, and so is the work it costs (wave-8 trace, #33).
+ *
+ * `repeatedStructures` ran a fresh `querySelectorAll` (plus `droppedAncestor`
+ * and `textContent` over every match) per candidate group, and
+ * `proposeWithModel` calls it synchronously on the options page's main thread —
+ * so a 0.5MB department schedule, well inside `MAX_AUTHOR_HTML`, froze every
+ * control on the page for seconds with no cancel. Measured: 518KB took 7.6s
+ * under linkedom and 2.7s in Chrome, for 2,177 `consider` calls covering 15
+ * distinct selector strings.
+ */
+describe("repeatedStructures on a large page", () => {
+  /** The real capture's body, repeated — 16× is 518KB, a department schedule. */
+  function repeated(times: number): Document {
+    const raw = readFileSync(
+      new URL("../fixtures/sites/ece310-fa2026-index.html", import.meta.url),
+      "utf8",
+    );
+    const body = raw.slice(raw.indexOf("<body"), raw.lastIndexOf("</body>"));
+    return docFrom(`<html><body>${body.repeat(times)}</body></html>`);
+  }
+
+  it("answers a 12,000-element page in well under a second", () => {
+    const doc = repeated(16);
+    expect(doc.querySelectorAll("*").length).toBeGreaterThan(10_000);
+    const started = Date.now();
+    const structures = repeatedStructures(doc);
+    const took = Date.now() - started;
+    // 10.1s before the memo on this machine, 337ms after, and it is the options
+    // page's main thread that pays it — every other control frozen behind
+    // "Asking the on-device model…", with no cancel.
+    expect(took).toBeLessThan(2_000);
+    expect(structures.length).toBeGreaterThan(0);
+  });
+
+  it("answers a 5,000-element page of repeated blocks", () => {
+    const rows = Array.from(
+      { length: 1250 },
+      (_, i) =>
+        `<div class="assignment"><span>HW${i}</span>` +
+        `<span>9/${(i % 28) + 1}</span><a href="#">link</a></div>`,
+    ).join("");
+    const doc = docFrom(`<html><body><div id="schedule">${rows}</div></body></html>`);
+    expect(doc.querySelectorAll("*").length).toBeGreaterThan(5_000);
+    const started = Date.now();
+    const structures = repeatedStructures(doc);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(structures.some((structure) => structure.selector.includes("div.assignment"))).toBe(
+      true,
+    );
   });
 });
