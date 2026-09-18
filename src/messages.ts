@@ -16,6 +16,7 @@ import type { CourseSummary } from "./core/overrides.js";
 import type { SetupRow } from "./core/setup.js";
 import type { Candidate } from "./core/detect.js";
 import type { ManualInput } from "./core/manual.js";
+import type { ObservedPost } from "./core/suggest.js";
 import type {
   Adapter,
   Item,
@@ -25,6 +26,7 @@ import type {
   Settings,
   Source,
   SourceStatus,
+  Suggestion,
 } from "./sources/types.js";
 
 /** UI → service worker. */
@@ -65,6 +67,20 @@ export type Request =
   | { type: "add-manual-item"; input: ManualInput }
   | { type: "edit-manual-item"; sourceId: string; input: ManualInput }
   | { type: "delete-manual-item"; sourceId: string }
+  /*
+   * A post an observer read (§4.6, Sushi 2026-09-18: auto-move known items,
+   * suggest new ones). `core/suggest.ts` decides what it does; the worker only
+   * queues the write.
+   *
+   * `source: "paste"` is carried from the first build even though no paste box
+   * exists, because a paste fallback is then this one message with a textarea
+   * in front of it rather than a second path with its own rules.
+   */
+  | { type: "post-observed"; post: ObservedPost }
+  | { type: "accept-suggestion"; id: string }
+  | { type: "dismiss-suggestion"; id: string }
+  /** Take back a move a post applied. Keyed by item, resolved to member keys. */
+  | { type: "undo-move"; itemId: string }
   | { type: "export" }
   | { type: "reset" }
   | { type: "get-adapters" }
@@ -101,6 +117,14 @@ export type Response =
       courseNames: Record<string, string>;
       sources: Record<Source, SourceStatus>;
       settings: Settings;
+      /**
+       * Deadlines a post stated that nothing else accounts for.
+       *
+       * Sent with the state rather than fetched separately, for the same reason
+       * `courseNames` is: the Attention tab's count is drawn from both, and two
+       * round trips would paint one frame with the two out of step.
+       */
+      suggestions: Suggestion[];
       lastSyncAt?: string;
       /**
        * Chrome's own switch for this extension's notifications.

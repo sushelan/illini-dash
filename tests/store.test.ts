@@ -222,3 +222,130 @@ describe("the student's own deadlines, across a reload", () => {
     expect(migrate({ manualItems: "nope" }).manualItems).toEqual([]);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* What a post left behind                                                     */
+/* -------------------------------------------------------------------------- */
+
+describe("corrections an instructor's post applied", () => {
+  const NOW = "2026-09-18T15:30:00-05:00";
+  const entry = {
+    at: "2026-10-02T23:59:00-05:00",
+    from: "2026-09-30T23:59:00-05:00",
+    reason: "Campuswire post 2026-09-18",
+    postId: "cw-1",
+    appliedAt: "2026-09-18T15:30:00-05:00",
+  };
+
+  it("survives a reload", () => {
+    const store = migrate({ overrides: { dueOverrides: { "gradescope:mp3": entry } } }, NOW);
+    expect(store.overrides.dueOverrides["gradescope:mp3"]).toEqual(entry);
+  });
+
+  it("refuses one whose instant is not an instant", () => {
+    // House rule 5, and this is the field where it bites hardest: `buildItem`
+    // treats this value as *stated*, so a `""` or a bare `2026-10-02` — which
+    // `Date.parse` accepts and lands at 7 PM the previous day here — would win
+    // over every source and put the row on the wrong day.
+    const store = migrate(
+      {
+        overrides: {
+          dueOverrides: {
+            "gradescope:a": { ...entry, at: "" },
+            "gradescope:b": { ...entry, at: "2026-10-02" },
+            "gradescope:c": { ...entry, at: "2026-10-02T23:59:00" },
+            "gradescope:d": { ...entry, reason: "" },
+            "gradescope:e": { ...entry, postId: "" },
+            "gradescope:f": "not an object",
+            "gradescope:ok": entry,
+          },
+        },
+      },
+      NOW,
+    );
+    expect(Object.keys(store.overrides.dueOverrides)).toEqual(["gradescope:ok"]);
+  });
+
+  it("is an empty map in a store written before the field existed", () => {
+    expect(migrate(structuredClone(V1)).overrides.dueOverrides).toEqual({});
+  });
+});
+
+describe("suggestions and the posts they came from", () => {
+  const NOW = "2026-09-18T15:30:00-05:00";
+  const suggestion = {
+    id: "s1",
+    kind: "new",
+    title: "Quiz 1",
+    courseRaw: "CS 357",
+    at: "2026-10-12T23:59:00-05:00",
+    timeAssumed: true,
+    span: "10/12",
+    context: "Quiz 1 is due 10/12.",
+    source: "campuswire",
+    postId: "cw-1",
+    postedAt: "2026-09-18T15:00:00-05:00",
+    createdAt: "2026-09-18T15:30:00-05:00",
+  };
+
+  it("survives a reload", () => {
+    const store = migrate({ suggestions: [suggestion], seenPosts: { "cw-1": NOW } }, NOW);
+    expect(store.suggestions).toEqual([suggestion]);
+    expect(store.seenPosts).toEqual({ "cw-1": NOW });
+  });
+
+  it("refuses a half-written one", () => {
+    // A suggestion exists in exactly one place and its evidence *is* its
+    // fields: one with no `span` is a deadline with no words behind it, which
+    // is the one thing this feature promises never to show.
+    const store = migrate(
+      {
+        suggestions: [
+          suggestion,
+          { ...suggestion, id: "s2", span: "" },
+          { ...suggestion, id: "s3", at: "2026-10-12" },
+          { ...suggestion, id: "s4", source: "reddit" },
+          { ...suggestion, id: "s5", kind: "move" },
+          "not an object",
+        ],
+      },
+      NOW,
+    );
+    expect(store.suggestions.map((entry) => entry.id)).toEqual(["s1"]);
+  });
+
+  it("forgets a suggestion nobody answered in thirty days", () => {
+    const old = { ...suggestion, createdAt: "2026-08-01T15:30:00-05:00" };
+    expect(migrate({ suggestions: [old] }, NOW).suggestions).toEqual([]);
+  });
+
+  it("forgets a suggestion whose deadline is more than a week gone", () => {
+    // Pressing Add on one of these files a row that is already overdue, in a
+    // list whose entire job is what is still ahead.
+    const past = { ...suggestion, at: "2026-09-09T23:59:00-05:00" };
+    expect(migrate({ suggestions: [past] }, NOW).suggestions).toEqual([]);
+    // Six days past is still worth offering.
+    const recent = { ...suggestion, at: "2026-09-13T23:59:00-05:00" };
+    expect(migrate({ suggestions: [recent] }, NOW).suggestions).toHaveLength(1);
+  });
+
+  it("forgets a post it read more than sixty days ago", () => {
+    const store = migrate(
+      {
+        seenPosts: {
+          ancient: "2026-06-01T15:30:00-05:00",
+          recent: "2026-09-01T15:30:00-05:00",
+          "not a string": 7,
+        },
+      },
+      NOW,
+    );
+    expect(Object.keys(store.seenPosts)).toEqual(["recent"]);
+  });
+
+  it("is empty in a store written before the fields existed", () => {
+    const store = migrate(structuredClone(V1), NOW);
+    expect(store.suggestions).toEqual([]);
+    expect(store.seenPosts).toEqual({});
+  });
+});

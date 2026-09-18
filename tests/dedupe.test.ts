@@ -34,6 +34,7 @@ const NO_OVERRIDES: Overrides = {
   doneKeys: [],
   keptCourses: [],
   courseNames: {},
+  dueOverrides: {},
 };
 
 function raw(partial: Partial<RawItem> & Pick<RawItem, "source" | "sourceId" | "title">): RawItem {
@@ -418,6 +419,151 @@ describe("applyRetention (§5.4)", () => {
     expect(result.overrides.splitKeys).toEqual(["gradescope:recent"]);
     // A group reduced to one member is no longer a group.
     expect(result.overrides.mergeGroups).toEqual([["gradescope:recent", "site:undated"]]);
+  });
+
+  it("drops an instructor's correction when the row it corrected is purged", () => {
+    // Left behind it is an instant keyed to nothing, waiting to move whatever
+    // future row reuses the key — and `buildItem` treats it as *stated*, so it
+    // would win over the source outright.
+    const entry = {
+      at: "2026-10-02T23:59:00-05:00",
+      reason: "Campuswire post 2026-09-18",
+      postId: "cw-1",
+      appliedAt: "2026-09-18T15:30:00-05:00",
+    };
+    const overrides: Overrides = {
+      ...NO_OVERRIDES,
+      dueOverrides: { "gradescope:old": entry, "gradescope:recent": entry },
+    };
+    const result = applyRetention(stored, new Set(Object.keys(stored)), {}, overrides, now);
+    expect(Object.keys(result.overrides.dueOverrides)).toEqual(["gradescope:recent"]);
+  });
+});
+
+describe("a deadline an instructor's post moved", () => {
+  const override = (at: string, extra: Partial<Overrides["dueOverrides"][string]> = {}) => ({
+    ...NO_OVERRIDES,
+    dueOverrides: {
+      "gradescope:mp3": {
+        at,
+        from: "2026-09-30T23:59:00-05:00",
+        reason: "Campuswire post 2026-09-18",
+        postId: "cw-1",
+        appliedAt: "2026-09-18T15:30:00-05:00",
+        ...extra,
+      },
+    },
+  });
+
+  const mp3 = (dueAt = "2026-09-30T23:59:00-05:00") =>
+    raw({ source: "gradescope", sourceId: "mp3", title: "MP3", dueAt });
+
+  it("is the item's stated instant, over what the source still prints", () => {
+    // Not a second precedence rung: the instructor said it, so it *is* a stated
+    // value, and §5.3 ranks sources by whose deadline is authoritative — which
+    // is not Gradescope's cached copy of the date the course has replaced.
+    const [item] = dedupe([mp3()], override("2026-10-02T23:59:00-05:00"));
+    expect(item!.dueAt).toBe("2026-10-02T23:59:00-05:00");
+    expect(item!.timeAssumed).toBeUndefined();
+  });
+
+  it("outranks a higher-ranked source's own date on a merged row", () => {
+    const canvas = raw({
+      source: "canvas",
+      sourceId: "c-mp3",
+      title: "MP3",
+      dueAt: "2026-09-30T23:59:00-05:00",
+    });
+    const [item] = dedupe([mp3(), canvas], override("2026-10-02T23:59:00-05:00"));
+    expect(item!.members).toHaveLength(2);
+    expect(item!.dueAt).toBe("2026-10-02T23:59:00-05:00");
+  });
+
+  it("carries the post's own assumed 23:59 through as assumed", () => {
+    // Worker rule 3: a post naming a day and no clock must not end up looking
+    // like a time anybody stated.
+    const [item] = dedupe([mp3()], override("2026-10-02T23:59:00-05:00", { timeAssumed: true }));
+    expect(item!.timeAssumed).toBe(true);
+  });
+
+  it("says who moved it, so the row can offer an undo", () => {
+    const [item] = dedupe([mp3()], override("2026-10-02T23:59:00-05:00"));
+    expect(item!.movedBy).toEqual({
+      reason: "Campuswire post 2026-09-18",
+      from: "2026-09-30T23:59:00-05:00",
+      postId: "cw-1",
+    });
+  });
+
+  it("re-arms a fired 24h lead when the override lands", () => {
+    // The whole point of treating this as a move: the 24h lead was spent on
+    // 30 September, the instructor has moved the deadline to 2 October, and a
+    // surviving record would silence the reminder for the deadline that now
+    // exists — §7's record is about a moment, and that moment is gone.
+    const before = dedupe([mp3()], NO_OVERRIDES);
+    before[0]!.notified = { "24h": "2026-09-29T23:59:00-05:00", "2h": "2026-09-30T21:59:00-05:00" };
+
+    const after = dedupe([mp3()], override("2026-10-02T23:59:00-05:00"), { previous: before });
+    // Same members, so the same id — this is the *same row*, corrected.
+    expect(after[0]!.id).toBe(before[0]!.id);
+    expect(after[0]!.notified["24h"]).toBeUndefined();
+    expect(after[0]!.notified["2h"]).toBeUndefined();
+    expect(Date.parse(after[0]!.movedFrom!)).toBe(Date.parse("2026-09-30T23:59:00-05:00"));
+  });
+
+  it("leaves a row alone when the source already prints the override's instant", () => {
+    const before = dedupe([mp3("2026-10-02T23:59:00-05:00")], NO_OVERRIDES);
+    before[0]!.notified = { "24h": "2026-10-01T23:59:00-05:00" };
+    const after = dedupe([mp3("2026-10-02T23:59:00-05:00")], override("2026-10-02T23:59:00-05:00"), {
+      previous: before,
+    });
+    expect(after[0]!.notified["24h"]).toBe("2026-10-01T23:59:00-05:00");
+  });
+
+  it("takes the newest correction when a group holds two", () => {
+    const canvas = raw({
+      source: "canvas",
+      sourceId: "c-mp3",
+      title: "MP3",
+      dueAt: "2026-09-30T23:59:00-05:00",
+    });
+    const overrides: Overrides = {
+      ...NO_OVERRIDES,
+      dueOverrides: {
+        "gradescope:mp3": {
+          at: "2026-10-02T23:59:00-05:00",
+          reason: "Campuswire post 2026-09-18",
+          postId: "cw-1",
+          appliedAt: "2026-09-18T15:30:00-05:00",
+        },
+        "canvas:c-mp3": {
+          at: "2026-10-05T23:59:00-05:00",
+          reason: "Campuswire post 2026-09-19",
+          postId: "cw-2",
+          appliedAt: "2026-09-19T09:00:00-05:00",
+        },
+      },
+    };
+    const [item] = dedupe([mp3(), canvas], overrides);
+    expect(item!.dueAt).toBe("2026-10-05T23:59:00-05:00");
+    expect(item!.movedBy?.postId).toBe("cw-2");
+  });
+
+  it("gives an undated row a date, and says it moved", () => {
+    const undated = raw({ source: "gradescope", sourceId: "mp3", title: "MP3" });
+    const [item] = dedupe([undated], {
+      ...NO_OVERRIDES,
+      dueOverrides: {
+        "gradescope:mp3": {
+          at: "2026-10-02T23:59:00-05:00",
+          reason: "Piazza post 2026-09-18",
+          postId: "pz-1",
+          appliedAt: "2026-09-18T15:30:00-05:00",
+        },
+      },
+    });
+    expect(item!.dueAt).toBe("2026-10-02T23:59:00-05:00");
+    expect(item!.movedBy?.from).toBeUndefined();
   });
 });
 

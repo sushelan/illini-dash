@@ -138,7 +138,7 @@ describe("courseLabel (a name the student gave it, or the one we derived)", () =
 describe("renameCourse", () => {
   const base = {
     mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [],
-    doneKeys: [], keptCourses: [], courseNames: {},
+    doneKeys: [], keptCourses: [], courseNames: {}, dueOverrides: {},
   };
 
   it("stores a name", () => {

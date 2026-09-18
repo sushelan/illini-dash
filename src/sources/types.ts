@@ -180,6 +180,16 @@ export interface Item {
    * announcing it as "moved" would blame the course for our own placeholder.
    */
   movedFrom?: string;
+  /**
+   * Who moved it, when an instructor's post did (`Overrides.dueOverrides`).
+   *
+   * Separate from `movedFrom`, which is derived per sync and says only *that*
+   * something changed. A student who reads "moved Fri → Mon" on a row whose
+   * source still prints Friday needs to know where the Monday came from before
+   * they will believe it — and needs somewhere to press when it is wrong, which
+   * is what `postId` and the undo behind it are for.
+   */
+  movedBy?: { reason: string; from?: string; postId: string };
 }
 
 export type SourceState =
@@ -273,6 +283,72 @@ export interface Overrides {
    * reversible from the UI.
    */
   keptCourses: string[];
+  /**
+   * A deadline an instructor's post moved, keyed by memberKey like every other
+   * override here.
+   *
+   * Keyed by memberKey and written to **every** member of the item, for the
+   * reason `hiddenKeys` is: `Item.id` is a hash of the sorted member keys, so
+   * an id-keyed correction is spent the moment a second source mirrors the row
+   * — and a later merge or split would silently drop the instructor's own
+   * correction while the row went on showing the stale date.
+   *
+   * `reason` is what the row says out loud ("Campuswire post 2026-09-18") and
+   * `postId` is what stops the same post applying twice. `from` is the instant
+   * the item held when the override landed, so the row can say what it moved
+   * *from* after the fact — `Item.movedFrom` is derived per sync and is gone by
+   * the next one.
+   *
+   * `timeAssumed` travels with the value for worker rule 3's reason: a post
+   * that names a day and no clock is 23:59 by this extension's invention, and
+   * §5.3 must go on ranking a stated instant above it.
+   */
+  dueOverrides: Record<string, DueOverride>;
+}
+
+/** One instructor correction, as stored. See `Overrides.dueOverrides`. */
+export interface DueOverride {
+  /** ISO 8601 with offset — the instant the post stated. */
+  at: string;
+  /** What the item was due at when this landed, when it was dated at all. */
+  from?: string;
+  /** Human-readable provenance, shown on the row: "Campuswire post 2026-09-18". */
+  reason: string;
+  /** The post this came from, so one post can never be ingested twice. */
+  postId: string;
+  appliedAt: string;
+  /** True when the clock in `at` is this code's invention, not the post's. */
+  timeAssumed?: boolean;
+}
+
+/**
+ * A deadline a post stated that nothing in the store accounts for.
+ *
+ * Not an item, and deliberately not a `manual` row either: this extension did
+ * not invent the deadline, but it did *read* it out of prose, and prose is the
+ * one input where a confident misreading looks exactly like a fact. So it waits
+ * one click away, carrying the verbatim `span` it came from, and becomes a real
+ * row only when the student says so (`acceptSuggestion` → `newManualItem`).
+ */
+export interface Suggestion {
+  /** Deterministic in the post, the title and the instant: ingesting the same
+   * post twice can never produce two rows. */
+  id: string;
+  kind: "new";
+  title: string;
+  courseRaw: string;
+  courseCode?: string;
+  /** ISO 8601 with offset. */
+  at: string;
+  timeAssumed: boolean;
+  /** Verbatim: the words in the post that stated the date. */
+  span: string;
+  /** Verbatim: the sentence the span sits in. */
+  context: string;
+  source: "piazza" | "campuswire" | "paste";
+  postId: string;
+  postedAt: string;
+  createdAt: string;
 }
 
 export interface Settings {

@@ -36,7 +36,9 @@ import { htmlForAuthoring } from "./core/author.js";
 import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
 import { createStoreQueue } from "./core/queue.js";
 import {
+  acceptSuggestion,
   courseSummaries,
+  dismissSuggestion,
   hideItem,
   memberKeysOf,
   markDone,
@@ -45,8 +47,10 @@ import {
   renameCourse,
   setCourseDisabled,
   splitItem,
+  undoDueOverride,
   unhideItem,
 } from "./core/overrides.js";
+import { ingestPost } from "./core/suggest.js";
 import {
   loadStore,
   normalizeQuietHours,
@@ -840,6 +844,7 @@ chrome.runtime.onMessage.addListener(
               settings: store.settings,
               lastSyncAt: store.lastSyncAt,
               courseNames: store.overrides.courseNames,
+              suggestions: store.suggestions,
             }) as const,
         ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
       );
@@ -978,6 +983,111 @@ chrome.runtime.onMessage.addListener(
                 `(${before} → ${store.manualItems.length})`,
             );
           });
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    /*
+     * A post an observer read. Four handlers, no decisions: `core/suggest.ts`
+     * says what the post does, `core/overrides.ts` applies it, and `mutate`
+     * queues the write and rebuilds the list (worker rules 1 and 4).
+     */
+    if (request?.type === "post-observed") {
+      const { post } = request;
+      return answer(
+        (async () => {
+          let summary = "";
+          await mutate((store) => {
+            const outcome = ingestPost(
+              {
+                items: store.items,
+                overrides: store.overrides,
+                suggestions: store.suggestions,
+                seenPosts: store.seenPosts,
+              },
+              post,
+              new Date().toISOString(),
+              SITE_TIMEZONE,
+            );
+            store.overrides = {
+              ...store.overrides,
+              dueOverrides: { ...store.overrides.dueOverrides, ...outcome.dueOverrides },
+            };
+            store.suggestions = [...store.suggestions, ...outcome.suggestions];
+            store.seenPosts = { ...store.seenPosts, ...outcome.seenPosts };
+            // Both branches, always (worker rule 5): "the post moved nothing"
+            // and "the observer never reached the worker" are otherwise the
+            // same silence in the console, and they want opposite fixes.
+            summary =
+              `post ${post.id} (${post.source}): ` +
+              `${Object.keys(outcome.dueOverrides).length} key(s) moved, ` +
+              `${outcome.suggestions.length} suggested, ` +
+              `${outcome.skipped.length} skipped` +
+              outcome.skipped.map((entry) => `\n  - ${entry.reason}`).join("");
+          });
+          console.log(`[posts] ${summary}`);
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "accept-suggestion") {
+      const { id } = request;
+      return answer(
+        (async () => {
+          let missing = false;
+          await mutate((store) => {
+            const accepted = acceptSuggestion(store.suggestions, id, SITE_TIMEZONE);
+            if (!accepted) {
+              console.warn(
+                `[posts] accept: no suggestion ${id}; store holds ${store.suggestions.length}`,
+              );
+              missing = true;
+              return;
+            }
+            // Through `newManualItem`, never straight into `manualItems`: this
+            // is the student adding a row, and a row added this way has to
+            // clear exactly the bar a typed one does.
+            const item = newManualItem(accepted.input, new Date().toISOString(), SITE_TIMEZONE);
+            store.manualItems = [...store.manualItems, item];
+            store.suggestions = accepted.suggestions;
+            console.log(`[posts] added ${memberKey("manual", item.sourceId)} from suggestion ${id}`);
+          });
+          if (missing) {
+            throw new Error(`no such suggestion ${id} — the list changed, try again`);
+          }
+          return { type: "ok" } as const;
+        })(),
+      );
+    }
+    if (request?.type === "dismiss-suggestion") {
+      const { id } = request;
+      return answer(
+        mutate((store) => {
+          const before = store.suggestions.length;
+          store.suggestions = dismissSuggestion(store.suggestions, id);
+          console.log(`[posts] dismissed ${id} (${before} → ${store.suggestions.length})`);
+        }).then(() => ({ type: "ok" }) as const),
+      );
+    }
+    if (request?.type === "undo-move") {
+      const { itemId } = request;
+      return answer(
+        (async () => {
+          let missing = false;
+          await mutate((store) => {
+            const item = store.items.find((candidate) => candidate.id === itemId);
+            if (!item) {
+              console.warn(`[posts] undo-move: no item ${itemId}; store holds ${store.items.length}`);
+              missing = true;
+              return;
+            }
+            // The item's *current* keys: a merge since the post landed means the
+            // row in front of the student holds keys the override was written to
+            // and keys it was not, and only the row itself can say which.
+            store.overrides = undoDueOverride(store.overrides, memberKeysOf(item));
+            console.log(`[posts] undid the move on ${JSON.stringify(item.title.slice(0, 40))}`);
+          });
+          if (missing) throw new Error(`no such item ${itemId} — the list changed, try again`);
           return { type: "ok" } as const;
         })(),
       );

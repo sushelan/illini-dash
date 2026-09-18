@@ -48,6 +48,12 @@ const POPUP_STATE_FIELDS: Record<string, FieldKind> = {
   // would throw once per row rather than once. An empty map is the right
   // absence: no renames, derived labels everywhere.
   courseNames: "map",
+  // Added in the same change as the field itself (worker rule 8). The Attention
+  // tab reads `.length` on this to draw its count, so a page from after the
+  // change talking to a worker from before it would throw *after* drawing the
+  // tabs and before drawing the list — the half-painted popup this module
+  // exists for.
+  suggestions: "list",
 };
 
 export interface NormalizedOptionsState<T> {
