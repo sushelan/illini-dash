@@ -150,12 +150,12 @@ These six are up front: a background schedule has no gesture to request a
 permission from. It reads only pages the account can already see, at most
 every 15 minutes, parses them locally, never signs in, never writes to a site.
 
-Optional hosts: nothing at install. Many UIUC course sites are on their own
-domains (cs124.org), so the host is unknown in advance. One is requested at
-runtime, per site, read-only, when the user switches that course on; Chrome
-names it, and no entry may name a host granted above. Likewise campuswire.com
-and piazza.com, each from its switch, and www.googleapis.com, from Connect
-under Google Calendar.
+Optional hosts: nothing at install. UIUC course sites live on their own domains
+(cs124.org), so the host is unknown in advance; one is requested at runtime,
+per site, read-only, when the user switches that course on. Chrome names it,
+and no entry may name a host granted above. Likewise campuswire.com and
+piazza.com, each from its switch, and www.googleapis.com, from Connect under
+Google Calendar.
 
 ------------------------------------------------------------------ [10 of 11] --
 "identity" JUSTIFICATION
