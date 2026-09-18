@@ -107,3 +107,30 @@ cut to a heading each — they hold nothing a parser reads. The login form's hid
 for the form, not a session, but it does not belong in a repo either. Nothing else changed.
 
 Deliberately unrealistic: nothing.
+
+## post-running.json — `POST …?method=content.get`, a note that states a deadline
+
+Pasted by Sushi on 2026-09-18 from DevTools (the response for nr 28, the CS 425 "HW1 (All
+students) Released - And Clarifications (Running Post)"), scrubbed and trimmed here. It is
+the fixture `post.json` could not be: its newest version says **"HW1 is due 9/20 (Sun) 11:59
+pm US Central Time. This is a hard deadline"**, a sentence far past any 120-character
+snippet, which is the whole case for the post-body stage.
+
+- `history` is trimmed from 22 versions to two: **`history[0]`, the newest** (2026-09-13,
+  the sentence above), and **`history[1]`, the oldest** (2026-08-28) — which was pasted
+  from the previous year and states *different* deadlines ("HW1 is due 9/18 (Thu) 2 pm",
+  "MP1 is due 9/14 (Sun) 11.59 PM", a fa2025 assignments URL, "Fall 2025"). A parser that
+  reads any version but the first, or reads all of them, will produce a wrong or a second
+  deadline; that is why the oldest version is the one kept. `history_size` stays 22, as
+  served.
+- `change_log` is trimmed to five entries; `children` to three follow-ups (a student
+  question with a TA answer endorsed by the instructor, an anonymous one, and the
+  instructor's "make new posts" note). Follow-ups are student text and are **not read** by
+  the body stage; they are kept so a test can say so.
+- Scrubbed: every `uid` is `uid-N` (1 = the instructor, 2 = a TA, 3–4 = students — a fresh
+  map, not the one the other three files share), post and child ids are `post-28` /
+  `child-N`, endorser names are `STAFF-N`, the sign-off names in both bodies are `STAFF-N`,
+  and the two Gradescope entry codes are `SCRUBBED-CODE`. Read back as text after writing
+  (parser rule 14): the deadline sentence survives intact.
+
+Deliberately unrealistic: nothing in the file itself; the trim is the only edit.

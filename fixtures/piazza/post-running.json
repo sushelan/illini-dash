@@ -1,0 +1,235 @@
+{
+  "result": {
+    "history_size": 22,
+    "folders": [
+      "hw1"
+    ],
+    "nr": 28,
+    "data": {
+      "embed_links": []
+    },
+    "created": "2026-08-28T01:32:51Z",
+    "bucket_order": 0,
+    "no_answer_followup": 0,
+    "change_log": [
+      {
+        "anon": "no",
+        "uid": "uid-1",
+        "data": "cl-1",
+        "v": "private",
+        "type": "create",
+        "when": "2026-08-28T01:32:51Z"
+      },
+      {
+        "anon": "no",
+        "uid": "uid-1",
+        "data": "cl-2",
+        "v": "all",
+        "type": "update",
+        "when": "2026-08-28T01:42:51Z"
+      },
+      {
+        "anon": "no",
+        "uid": "uid-3",
+        "to": "post-28",
+        "type": "followup",
+        "when": "2026-08-31T17:33:14Z",
+        "cid": "child-1"
+      },
+      {
+        "anon": "no",
+        "uid": "uid-2",
+        "to": "post-28",
+        "type": "feedback",
+        "when": "2026-08-31T17:38:00Z",
+        "cid": "child-1a"
+      },
+      {
+        "anon": "no",
+        "uid": "uid-1",
+        "data": "cl-22",
+        "v": "all",
+        "type": "update",
+        "when": "2026-09-13T22:22:48Z"
+      }
+    ],
+    "bucket_name": "Pinned",
+    "history": [
+      {
+        "anon": "no",
+        "uid": "uid-1",
+        "subject": "HW1 (All students) Released - And Clarifications (Running Post)",
+        "created": "2026-09-13T22:22:48Z",
+        "content": "<p><strong>[Last Updated Sep 13.] Also, updated HW1.pdf. </strong><strong>Please pull the latest HW1.pdf from the website.</strong></p>\n<p><strong></strong></p>\n<p>Dear All,<br /><br />We have just released HW1 (All: on-campus, including Chicago and Coursera).</p>\n<p></p>\n<p>You can find the assignment on this page: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </p>\n<p><br /><strong>HW1 Clarifications List (please check often)!</strong></p>\n<ul><li><strong>9/5: Clarification on multiple datasets in MapReduce: </strong>\n<p>Note that a single map function cannot directly process two datasets with different key-value types. The recommended approach is to use two separate MapReduce jobs, one for each dataset, and have both produce outputs with the same key–value types. A third MapReduce job can then process these outputs together, since multiple input files can be specified for a single job.</p>\n</li><li><strong>9/10: MapReduce. </strong>Don&#39;t forget to look through exercises 1-4 in lecture slides (<strong>Further MapReduce Exercises pages #39--</strong>  <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/L3.FA26.pdf\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/L3.FA26.pdf)</a></li><li><strong>9/13: Q1b. </strong>We are asking for the maximum of the average load across all nodes. &#34;<b>Maximum (across all nodes) of the average load on <s>the</s> any single node.</b>&#34;</li><li><strong>9/13: Q2e. </strong>You can compare with Google Cloud preemptible instances (or the recent Google Cloud spot instances).</li><li><strong>9/13: Q4. </strong>When calculating time to shuffle the intermediate data from map tasks to a reduce task, ignore local disk read/write time and local sorting/local partitioning/CPU overhead; assume that the network transfer dominates.</li><li></li></ul>\n<p></p>\n<p>Please note the deadlines, and <strong>START EARLY!</strong><br /><br /></p>\n<ul><li>HW1 is due 9/20 (Sun) 11:59 pm US Central Time. This is a <strong>hard deadline</strong>; no extensions or grace periods!\n<ul><li>You can resubmit multiple times on Gradescope until the deadline elapses without waiting until the last minute</li><li>(We start grading only after the deadline).</li></ul>\n</li></ul>\n<p></p>\n<ul><li><strong>Coursera students</strong>: Please solve ONLY the correct homework version. <strong>The correct homework version must say at the top of the first page &#34;Fall 2026&#34;.</strong> If the homework you are solving lists any other semester at the top of the first page (e.g., Fall 2025, Fall 2024, etc.), it is an old homework and you must not solve it (instead, please refresh your page, and if you still see the old version, report the erroneous page). Please do not submit solutions to old homework, as that will immediately result in zero points for the entire homework (we cannot grade older Homework solutions).</li></ul>\n<p></p>\n<ul><li>You will be submitting your report on Gradescope.com. Please self-sign up (Entry Code: <strong>SCRUBBED-CODE</strong>)</li></ul>\n<p></p>\n<ul><li>Please don&#39;t forget to <strong>TAG your questions in the PDF (on Gradescope). </strong>\n<ul><li><strong>Without tagging, we cannot grade a question, and you may receive 0 points. </strong></li><li>How-tos on Tagging: <a href=\"https://guides.gradescope.com/hc/en-us/articles/21864315441677-Submitting-a-PDF-for-an-assignment\" target=\"_blank\" rel=\"noopener noreferrer\">https://guides.gradescope.com/hc/en-us/articles/21864315441677-Submitting-a-PDF-for-an-assignment</a> or <a href=\"https://sites.reading.ac.uk/tel-support-students/gradescope-tagging-pages-in-your-assignment/\" target=\"_blank\" rel=\"noopener noreferrer\">https://sites.reading.ac.uk/tel-support-students/gradescope-tagging-pages-in-your-assignment/</a></li></ul>\n</li></ul>\n<p></p>\n<ul><li>You should solve each HW1 problem soon after the corresponding topic is discussed in lecture/class. </li></ul>\n<p><br />STAFF-1, STAFF-2, and Course TAs<br /><br /><br /><br /></p>"
+      },
+      {
+        "anon": "no",
+        "uid": "uid-1",
+        "subject": "HW1 (All), MP1 (On-campus 4cr) Released - And Clarifications (Running Post)",
+        "created": "2026-08-28T01:32:51Z",
+        "content": "<p>(HW1 and MP1-Oncampus Clarifications last updated: 9/15)<br /><br />Dear All,<br /><br />We have just released both</p>\n<ul><li>HW1 (All: on-campus and Coursera) and</li><li>MP1 (4cr on-campus only)</li></ul>\n<p>You can find both assignments on this page: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2025/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2025/assignments.html</a> <br /><strong>HW1 Clarifications List (please check often)!</strong></p>\n<ul><li>(9/15) Q5: Each process Pijk picks its monitoring set exactly once (not periodically - this phrase about &#34;periodically picking its monitoring set&#34; has been removed from the HW1 document, please reload the HW1 doc.)</li><li>(9/14) Q4: Don&#39;t forget to account for the fact that some fraction of the shuffle traffic will not go over the network (this was discussed in lecture).</li><li>(9/14)Q4: You can assume random placement of Reduce tasks, i.e., when multiple Reduce tasks need to be scheduled on a set of available containers.</li><li>Q4: Time for a Map task to partition its data is included in the Map task execution time.</li></ul>\n<p><br /><strong>MP1 Clarifications List (please check often)!</strong></p>\n<ul><li>(9/14) Please read \"(All Students) A Few Announcements (Important, Time-Sensitive)\" and \"Your MP1 Demo Signups May have moved Location (&#43;Reminder to TAG your MP1 report on gradescope).\" carefully and follow instructions </li><li>(9/12) For the report, generally a good idea to run queries for infrequent patterns, frequent patterns, etc. (spanning the spectrum of number of responses)</li><li>(9/11) In the MP1 Demo \"MP1 Demo Instructions (4cr only, EXCEPT Coursera)\": Please note that the <strong>TA may ALSO ask you to display the output lines from a few select VMs</strong>, so don&#39;t just use a grep -c command; instead, execute a grep command, fetch the files from each VM, and calculate the linecounts locally at the client.</li><li>(9/9 and 9/10) Demo instructions, Demo signup sheet, and Code/Report instructions posted. Read \"MP1 Demo Instructions (4cr only, EXCEPT Coursera)\" and \"Demo Sign-up Sheet (Due this Friday) &#43; Submission Instructions [4cr students, EXCEPT Coursera 4cr]\" carefully!</li></ul>\n<p><br />Please note the deadlines, and <strong>START EARLY!</strong><br /><br /></p>\n<ul><li>HW1 is due 9/18 (Thu) 2 pm US Central time. This is a <strong>hard deadline</strong>, no extensions or grace periods! Please submit before the deadline, and you can keep resubmitting until the deadline elapses.</li><li>MP1 is due 9/14 (Sun) 11.59 PM US Central time (demos on 9/15 Monday afternoon - demo instructions will be posted closer to the deadline). Again, a hard deadline!</li><li><strong>Coursera students</strong> - Please solve ONLY the correct homework version. <strong>The correct homework version must say at the top of the first page &#34;Fall 2025&#34;.</strong> if the homework you are solving lists any other semester at the top of the first page (e.g., Fall 2024, Fall 2023, Fall 2022, etc.), it is an old homework and you must not solve it (instead, please refresh your page, and if you still see the old version, report the erroneous page). Please do not submit solutions to old homeworks, as that will immediately result in zero points for the entire homework (we cannot grade older Homework solutions).</li></ul>\n<p><br />Did we remind you -- <strong>START EARLY!</strong> Do not leave things to the last minute. If you start your HW1 or MP1 one week before the deadline, that may be too late! <br /><br />Please don&#39;t forget to <strong>TAG your questions in the pdf (on gradescope). Without tagging, your solution will receive zero points. \"Please TAG! HW submission (all students) and MP-report (on-campus): Instructions for Gradescope\" </strong></p>\n<p>How-tos on Tagging: <a href=\"https://guides.gradescope.com/hc/en-us/articles/21864315441677-Submitting-a-PDF-for-an-assignment\" target=\"_blank\" rel=\"noopener noreferrer\">https://guides.gradescope.com/hc/en-us/articles/21864315441677-Submitting-a-PDF-for-an-assignment</a> or <a href=\"https://sites.reading.ac.uk/tel-support-students/gradescope-tagging-pages-in-your-assignment/\" target=\"_blank\" rel=\"noopener noreferrer\">https://sites.reading.ac.uk/tel-support-students/gradescope-tagging-pages-in-your-assignment/</a> <br /><br />You can start MP1 right away (you don&#39;t need any lectures to do it, only sockets knowledge which is a prerequisite). Note the demo instructions are posted the Wednesday before the demo Monday). For MP1 you can do most of the MP well before you receive your VMs, so start now!</p>\n<p><br />You should solve each HW1 problem soon after the corresponding topic gets discussed in lecture/class. Note that problems may not be in order of topic discussed in lecture, but you should have the wisdom to make out which problem is for which topic! <br /><br />Please see the other post about registering your MP groups.<br /><br />===<br /><br />For some assignments (HW1-4: all students, MP1-4: On-campus 4cr only) you will be submitting your assignments on Gradescope.com. <br /><br />Please self-sign up on Gradescope.com for CS425 Fall 2024 (make sure you choose the right semester). Use <a href=\"https://www.gradescope.com/courses/1073777\" target=\"_blank\" rel=\"noopener noreferrer\">https://www.gradescope.com/courses/1073777</a>  and code <strong>SCRUBBED-CODE</strong><b>.</b><br /><br /><br />===<br /><br />STAFF-3, STAFF-1, and Course TAs<br /><br /><br /><br /></p>"
+      }
+    ],
+    "type": "note",
+    "tags": [
+      "hw1",
+      "instructor-note",
+      "past-class",
+      "pin"
+    ],
+    "tag_good": [],
+    "unique_views": 505,
+    "children": [
+      {
+        "anon": "no",
+        "folders": [],
+        "data": {
+          "embed_links": null
+        },
+        "no_upvotes": 0,
+        "subject": "It says that we can submit the homework mulitple times before the deadline. Does this mean that we can submit it, recieve a grade, and then resubmit to improve grade before the deadline?",
+        "created": "2026-09-01T03:41:01Z",
+        "bucket_order": 8,
+        "bucket_name": "Week 8/30 - 9/5",
+        "type": "followup",
+        "tag_good": [],
+        "uid": "uid-3",
+        "children": [
+          {
+            "anon": "no",
+            "folders": [],
+            "data": {
+              "embed_links": null
+            },
+            "subject": "You can resubmit freely before the deadline.  After the deadline, submission is locked.  We start grading after the deadline.  So you will only receive a grade for the most recent submission before the deadline. ",
+            "created": "2026-09-01T06:36:19Z",
+            "bucket_order": 8,
+            "bucket_name": "Week 8/30 - 9/5",
+            "type": "feedback",
+            "tag_good": [
+              {
+                "role": "instructor",
+                "name": "STAFF-1",
+                "endorser": {},
+                "admin": true,
+                "photo": null,
+                "id": "uid-1",
+                "photo_url": null,
+                "us": false,
+                "facebook_id": null
+              }
+            ],
+            "uid": "uid-2",
+            "children": [],
+            "tag_good_arr": [
+              "uid-1"
+            ],
+            "id": "child-1a",
+            "updated": "2026-09-01T13:59:03Z",
+            "config": {
+              "editor": "rte"
+            }
+          }
+        ],
+        "tag_good_arr": [],
+        "no_answer": 0,
+        "id": "child-1",
+        "updated": "2026-09-01T06:36:20Z",
+        "config": {
+          "editor": "rte"
+        }
+      },
+      {
+        "anon": "stud",
+        "folders": [],
+        "data": {
+          "embed_links": null
+        },
+        "no_upvotes": 0,
+        "subject": "Hi, I just had a question on how to format our HW. Can we type our answers out just like as a document or do we have to format them with something like overleaf/latex?",
+        "created": "2026-09-05T16:42:47Z",
+        "bucket_order": 8,
+        "bucket_name": "Week 8/30 - 9/5",
+        "type": "followup",
+        "tag_good": [],
+        "uid_a": "a_1",
+        "children": [
+          {
+            "anon": "no",
+            "folders": [],
+            "data": {
+              "embed_links": null
+            },
+            "subject": "The document is sufficient. But you could choose to use LaTeX to format equations better. In either case, make sure to use font sizes &gt; 10 and format it well.",
+            "created": "2026-09-05T17:10:39Z",
+            "bucket_order": 8,
+            "bucket_name": "Week 8/30 - 9/5",
+            "type": "feedback",
+            "tag_good": [],
+            "uid": "uid-1",
+            "children": [],
+            "tag_good_arr": [],
+            "id": "child-2a",
+            "updated": "2026-09-05T17:10:39Z",
+            "config": {
+              "editor": "rte"
+            }
+          }
+        ],
+        "tag_good_arr": [],
+        "no_answer": 0,
+        "id": "child-2",
+        "updated": "2026-09-05T17:10:41Z",
+        "config": {
+          "editor": "rte"
+        }
+      },
+      {
+        "anon": "no",
+        "folders": [],
+        "data": {
+          "embed_links": null
+        },
+        "no_upvotes": 0,
+        "subject": "<strong>Just a note to all: let&#39;s make new posts for questions related to HW1 instead of posting in this thread. This thread is getting very long! </strong>",
+        "created": "2026-09-17T03:19:17Z",
+        "bucket_order": 3,
+        "bucket_name": "Today",
+        "type": "followup",
+        "tag_good": [],
+        "uid": "uid-1",
+        "children": [],
+        "tag_good_arr": [],
+        "no_answer": 0,
+        "id": "child-3",
+        "updated": "2026-09-17T03:21:40Z",
+        "config": {
+          "editor": "rte"
+        }
+      }
+    ],
+    "tag_good_arr": [],
+    "id": "post-28",
+    "config": {
+      "editor": "rte",
+      "has_emails_sent": 1
+    },
+    "status": "active",
+    "drafts": {},
+    "request_instructor": 0,
+    "request_instructor_me": false,
+    "bookmarked": 27,
+    "num_favorites": 3,
+    "my_favorite": false,
+    "is_bookmarked": false,
+    "is_pinned": true,
+    "is_tag_good": false,
+    "q_edits": [],
+    "i_edits": [],
+    "s_edits": [],
+    "t": 1789768298725,
+    "default_anonymity": "no"
+  },
+  "error": null,
+  "aid": "aid-1"
+}
