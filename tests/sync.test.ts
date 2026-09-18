@@ -18,14 +18,17 @@ import {
   sourcesToRetryAfterUpdate,
   type StoreV1Plus,
 } from "../src/core/store.js";
+import { createStoreQueue } from "../src/core/queue.js";
 import { coursesUrl } from "../src/sources/canvas.js";
 import { ParseError } from "../src/sources/types.js";
 import {
   POPUP_DEBOUNCE_MS,
   adapterFailureKind,
   adapterPrefix,
+  planSync,
   runSync,
   sourcePrefix,
+  syncOnce,
   withoutRows,
   syncOneSource,
   type SyncDeps,
@@ -1085,5 +1088,209 @@ describe("a deadline the student typed in", () => {
     // `PLANS` has no `manual` entry: there is nothing to fetch, and an outcome
     // for it would be a state the health surfaces then have to explain away.
     expect(outcomes.map((outcome) => outcome.source)).not.toContain("manual");
+  });
+});
+
+/**
+ * The click that lands while a sync is fetching (worker rule 4).
+ *
+ * `sync()` held the store queue across every fetch of a run — the whole loop
+ * plus all of Piazza's requests — and the queue's re-entrancy flag let any
+ * caller that arrived during that window run unqueued. So a Hide pressed three
+ * seconds into a sync was written, and then overwritten by the sync's
+ * `saveStore` of the store it had loaded before the click: no error, and the
+ * control sprang back.
+ *
+ * `syncOnce` is the fix and it lives here, not in the worker, because the
+ * worker is the file the suite cannot reach (worker rule 1). The load-bearing
+ * line is the second `io.load()`: the results are applied to a store read
+ * **after** the fetches.
+ */
+describe("syncOnce: a change made during the fetches survives the sync", () => {
+  function deferred(): { promise: Promise<void>; release: () => void } {
+    let release = (): void => undefined;
+    const promise = new Promise<void>((resolve) => {
+      release = () => resolve();
+    });
+    return { promise, release };
+  }
+
+  /** A store on "disk", plus the one queue every writer in the worker uses. */
+  function io(initial: StoreV1Plus) {
+    let disk = initial;
+    const withStore = createStoreQueue();
+    return {
+      withStore,
+      load: async () => JSON.parse(JSON.stringify(disk)) as StoreV1Plus,
+      save: async (store: StoreV1Plus) => {
+        disk = store;
+      },
+      read: () => disk,
+    };
+  }
+
+  const HIDDEN_KEY = "gradescope:8398957";
+
+  /**
+   * Deps whose every fetch waits on a gate, and which queue `click` through the
+   * store the first time a request goes out — the popup pressing something
+   * while the sync is on the network, which is when this went wrong.
+   */
+  function gatedDeps(gate: { promise: Promise<void> }, click: () => void) {
+    let clicked = false;
+    return deps({
+      async fetchPage(url: string) {
+        if (!clicked) {
+          clicked = true;
+          click();
+        }
+        await gate.promise;
+        const body = PAGES[url];
+        if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+        return { url, finalUrl: url, status: 200, body };
+      },
+    });
+  }
+
+  it("keeps a hide that was queued while the sources were being fetched", async () => {
+    const gate = deferred();
+    const store = io(emptyStore());
+    let hide: Promise<void> | undefined;
+    const slow = gatedDeps(gate, () => {
+      hide = store.withStore(async () => {
+        const fresh = await store.load();
+        fresh.overrides = { ...fresh.overrides, hiddenKeys: [HIDDEN_KEY] };
+        await store.save(fresh);
+      }, "mutate: hide");
+    });
+
+    const running = syncOnce("manual", slow, store);
+    // One turn of the loop, so the hide is queued and — because the fetches
+    // hold nothing — has already run.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.release();
+    const result = await running;
+    await hide;
+
+    // Both halves: the click is in the store the sync wrote, and the sync's own
+    // rows arrived.
+    expect(result.store.overrides.hiddenKeys).toEqual([HIDDEN_KEY]);
+    expect(store.read().overrides.hiddenKeys).toEqual([HIDDEN_KEY]);
+    expect(Object.keys(store.read().raw).length).toBeGreaterThan(20);
+  });
+
+  it("dedupes over the overrides the fresh store holds, not the ones it planned with", async () => {
+    // The hide has to reach `dedupe`, or the row comes back visible until the
+    // next sync — which is the same springing-back control, one redraw later.
+    const gate = deferred();
+    const store = io(emptyStore());
+    let hide: Promise<void> | undefined;
+    const slow = gatedDeps(gate, () => {
+      hide = store.withStore(async () => {
+        const fresh = await store.load();
+        fresh.overrides = { ...fresh.overrides, hiddenKeys: [HIDDEN_KEY] };
+        await store.save(fresh);
+      }, "mutate: hide");
+    });
+
+    const running = syncOnce("manual", slow, store);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.release();
+    const result = await running;
+    await hide;
+
+    expect(result.store.items.filter((item) => item.hidden)).toHaveLength(1);
+  });
+
+  it("does not make a click wait for the network", async () => {
+    // The other half of the same property: the queue is held to plan and to
+    // apply, never across a fetch, so a press during a sync answers at once.
+    const gate = deferred();
+    const store = io(emptyStore());
+    let clicked = false;
+    let click: Promise<void> | undefined;
+    const slow = gatedDeps(gate, () => {
+      click = store.withStore(async () => {
+        clicked = true;
+      }, "mutate: tick");
+    });
+
+    const running = syncOnce("manual", slow, store);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(clicked).toBe(true);
+
+    gate.release();
+    await Promise.all([running, click]);
+  });
+
+  it("writes nothing when §6's popup debounce says the sync is a no-op", async () => {
+    const store = io(emptyStore());
+    await syncOnce("alarm", deps(), store);
+    const after = store.read();
+
+    const soon = new Date(Date.parse(NOW) + POPUP_DEBOUNCE_MS - 1000).toISOString();
+    const skipped = await syncOnce("popup", deps({ now: () => soon }), store);
+    expect(skipped.skipped).toBe(true);
+    expect(store.read()).toEqual(after);
+  });
+});
+
+/**
+ * Which triggers §6's ladder gives way to.
+ *
+ * "manual" is the student pressing Sync now, and the ladder gives way to it
+ * because the commonest reason to press it is having just fixed the thing that
+ * failed. "recheck" is a page finishing on a source's own site while that
+ * source waits on a login — evidence about that source, so it counts too. An
+ * alarm and a popup opening are neither, and a navigation that counted as
+ * "manual" is how a student who browses Gradescope defeated Piazza's ladder
+ * forever (`planPiazza` maps "recheck" to a scheduled run).
+ */
+describe("planSync and §6's backoff ladder", () => {
+  const resting = (): StoreV1Plus => {
+    const store = emptyStore();
+    store.sources.gradescope = {
+      ...store.sources.gradescope,
+      state: "network_error",
+      consecutiveFailures: 3,
+    };
+    store.backoffUntil.gradescope = new Date(Date.parse(NOW) + 60_000).toISOString();
+    return store;
+  };
+
+  it("rests a source on an alarm", () => {
+    const plan = planSync(resting(), "alarm", NOW);
+    expect(plan.resting).toContain("gradescope");
+    expect(plan.attempt).not.toContain("gradescope");
+  });
+
+  it("rests a source when the popup opens", () => {
+    // Opening the popup is not the student asking for this source.
+    const plan = planSync(resting(), "popup", NOW);
+    expect(plan.resting).toContain("gradescope");
+  });
+
+  it("rests a source on install", () => {
+    const plan = planSync(resting(), "install", NOW);
+    expect(plan.resting).toContain("gradescope");
+  });
+
+  it("reads a resting source when the student presses Sync now", () => {
+    const plan = planSync(resting(), "manual", NOW);
+    expect(plan.attempt).toContain("gradescope");
+    expect(plan.resting).toEqual([]);
+  });
+
+  it("reads a resting source when a page finished on its own site", () => {
+    const plan = planSync(resting(), "recheck", NOW);
+    expect(plan.attempt).toContain("gradescope");
+  });
+
+  it("leaves a source that is switched off out of both lists", () => {
+    const store = resting();
+    store.sources.gradescope = { ...store.sources.gradescope, enabled: false };
+    const plan = planSync(store, "manual", NOW);
+    expect(plan.attempt).not.toContain("gradescope");
+    expect(plan.resting).not.toContain("gradescope");
   });
 });

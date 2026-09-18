@@ -47,6 +47,42 @@ of falling through to `return false`. A worker built from current source can no
 longer go quiet on a message; only a stale one can, and the build-id banner catches
 that.
 
+## The store queue is exclusive, and nothing may hold it across a fetch
+
+`createStoreQueue` used to be re-entrant, marked with a module-level `held` flag so that
+`sync → reschedule → fireNotification` could not deadlock. The flag was wrong about its
+own invariant: the comment said it was "only true while an outer work function is on the
+stack", and it stays true across every `await` the holder makes. The holder was `sync()`,
+which held the queue across the whole loop *and* all of Piazza's class, feed and body
+requests — so for the length of a real sync, any caller that arrived took the
+`if (held) return work()` fast path and ran **unqueued**: a Hide, a tick, a rename, an
+accepted suggestion. It was written, then overwritten seconds later by the sync's own
+`saveStore` of a store loaded before the click. No error, and the control springs back.
+
+The queue is strictly exclusive now, which moves the obligation onto the callers:
+
+- **Every store-touching path is a load, a change and a save inside one section.** The
+  load has to be *inside* the section, or the section is not atomic.
+- **Nothing fetches inside a section.** `sync` is plan → fetch → apply (`syncOnce` in
+  `core/sync.ts`); `runPiazza` is the same shape; `gcalPush` reads, fetches, and writes
+  through `writeGcal`. The apply reads the store **again**, which is what makes a click
+  made during the fetches survive.
+- **No section may call `withStore` again**, directly or through anything it awaits —
+  that deadlocks permanently. `reschedule` reaches `fireNotification`, which takes the
+  queue, so it is only ever called *after* a section, never inside one.
+
+There is no ambient way to detect a nested call (a flag cannot tell the holder's own
+nested call from someone else's concurrent one — that is the bug above), so instead a
+section that outstays `SLOW_HOLD_MS` names itself:
+
+```
+[queue] "sync: apply" held the store for 3.4s — nothing long-running may hold it, and a
+section that calls withStore again never returns (worker rule 4)
+```
+
+If that line appears in the **service worker's** console, something is holding the queue
+that should not be. Pass a label to every `withStore` call for that reason.
+
 ## Project skills (`.claude/skills/`)
 
 Six procedures this repo kept re-deriving from CLAUDE.md are now Claude Code project

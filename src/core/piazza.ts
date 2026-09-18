@@ -26,6 +26,7 @@
 import { extractCourseCodes } from "./normalize.js";
 import { isInstant, KeyGuard, nonEmpty } from "./parsing.js";
 import { backoffMinutes } from "./store.js";
+import { POPUP_DEBOUNCE_MS } from "./sync.js";
 import { ParseError } from "../sources/types.js";
 
 /** The only origin this module ever describes a request to. */
@@ -1034,18 +1035,34 @@ export function classifyPiazzaResponse(input: {
   if (input.status < 200 || input.status > 299) return "http_error";
   return "ok";
 }
-
 /** What the Settings row is allowed to assert, all of it from an attempt. */
 export type PiazzaHealth = "pending" | "ok" | "needs_login" | "error";
 
 /** The stored facts this module reads. A narrow view of `ObserverState`. */
 export interface PiazzaFacts {
   enabled: boolean;
+  /**
+   * `pending` until a request is made — and back to `pending` for a run that
+   * made **no request at all** (worker rule 2: `ok` means "I fetched, and it
+   * was fine", never "I did not fetch"). A run with nothing to poll used to
+   * record `ok`, so a between-terms store sat on a green row and a December
+   * reading for months.
+   */
   state?: PiazzaHealth;
   /** When a fetch was last *attempted*. The only thing `ok` may be derived from. */
   lastAttemptAt?: string;
   /** When posts were last actually read. */
   lastObservedAt?: string;
+  /**
+   * What the last attempt could not do, in the words the row shows.
+   *
+   * Not only failures: a run that read three classes of four, or that could not
+   * open six post bodies, **succeeded and has something to say** — and with no
+   * per-class field in the store (`migrateObservers` whitelists what it keeps)
+   * this one sentence is where the caveat lives. `applyPiazzaResult` is the
+   * only writer, `describePiazza` shows it beside the counts, and a clean run
+   * clears it.
+   */
   lastError?: string;
   postsSeen?: number;
   /**
@@ -1073,6 +1090,17 @@ export interface PiazzaFacts {
   readerVersion?: number;
   /** §6's ladder, one level down: the earliest next attempt after a failure. */
   nextAttemptAt?: string;
+  /**
+   * Consecutive attempts that produced no reading — failures **and** refusals.
+   *
+   * A sign-out used to reset this to zero and delete `nextAttemptAt` on
+   * purpose, so that signing in was noticed at once. That is right for an
+   * expired session and wrong for everything else `needs_login` also means: a
+   * 403 from a server that has decided to refuse this client is retried on
+   * every popup open, every alarm and every page load, for ever, with no
+   * ladder — the pattern most likely to harden the refusal.
+   * `PIAZZA_LOGIN_GRACE` keeps the prompt cheap and then puts the ladder back.
+   */
   failures?: number;
 }
 
@@ -1130,6 +1158,94 @@ export function classesToPoll(
 }
 
 /**
+ * The console line describing a class list, naming why each class is skipped.
+ *
+ * `parseClassPage` records `extra.unparsedTerm` for a class whose `term_key`
+ * and `term` both failed their anchored regexes, and marks it inactive — and
+ * the worker then printed "— other term" for it, asserting a term it had never
+ * managed to read. Those two want opposite fixes ("it comes back in January"
+ * against "this parser needs a new term format") and the evidence to tell them
+ * apart was being collected and thrown away (worker rule 5).
+ */
+export function classListLine(classes: readonly PiazzaClass[], poll: readonly PiazzaPoll[]): string {
+  const each = classes.map((entry) => {
+    if (entry.active) return entry.courseRaw;
+    const unparsed = entry.extra?.unparsedTerm;
+    return unparsed === undefined
+      ? `${entry.courseRaw} — ${entry.termKey ?? "no term"}, not this one`
+      : `${entry.courseRaw} — its term could not be read (${JSON.stringify(unparsed)})`;
+  });
+  return (
+    `class list: ${classes.length} enrolment(s), ${poll.length} in this term` +
+    (each.length === 0 ? "" : ` (${each.join("; ")})`)
+  );
+}
+
+/**
+ * "This whole run is a login problem, not a failure."
+ *
+ * In core rather than in the worker because two decisions now turn on it —
+ * whether a bad class-page URL is worth retrying, and whether one class's
+ * refusal signs the whole source out — and both are pinned here (worker rule 1).
+ */
+export class PiazzaNeedsLogin extends Error {
+  override readonly name = "PiazzaNeedsLogin";
+}
+
+/**
+ * The class-page URLs to try, in order.
+ *
+ * The discovery URL was `/class/<the first stored class's nid>`, and that class
+ * is exactly the one most likely to have gone away: the list keeps inactive and
+ * archived enrolments, and Piazza's `networks` order is not "active first". Any
+ * non-2xx for it ended the run — 404 became an error plus a growing backoff,
+ * 403 became "Sign in needed" — and since neither branch clears `classes`, the
+ * next refresh derived the same dead URL, for ever, with no user-reachable
+ * recovery. `${PIAZZA_ORIGIN}/class` answers for any signed-in student, so it
+ * is the fallback rather than a URL nothing ever tries.
+ */
+export function classPageAttempts(storedNid: string | undefined): (string | undefined)[] {
+  return nonEmpty(storedNid) === undefined ? [undefined] : [storedNid, undefined];
+}
+
+/**
+ * Read the class list, falling back off a stored class id that no longer works.
+ *
+ * Takes the fetch as a function so the retry — which is a decision — is pinned
+ * here and the worker keeps only the request (worker rule 1). A sign-out is not
+ * retried: it is the session, and the bare `/class` URL would answer it the
+ * same way.
+ */
+export async function readClassList(
+  storedNid: string | undefined,
+  attempt: (nid: string | undefined) => Promise<PiazzaClass[]>,
+  log: (line: string) => void,
+): Promise<PiazzaClass[]> {
+  const candidates = classPageAttempts(storedNid);
+  let last: unknown;
+  for (const [index, nid] of candidates.entries()) {
+    try {
+      const classes = await attempt(nid);
+      // Both branches out loud (worker rule 5): "the stored id still works" and
+      // "we fell back" are otherwise the same silence, and the second one is
+      // the evidence that a stored class has gone away.
+      if (index > 0) log(`the stored class id did not answer; ${classPageUrl(nid)} did`);
+      return classes;
+    } catch (err) {
+      if (err instanceof PiazzaNeedsLogin) throw err;
+      last = err;
+      if (index + 1 < candidates.length) {
+        log(
+          `${classPageUrl(nid)} failed (${err instanceof Error ? err.message : String(err)}) — ` +
+            `trying ${classPageUrl(candidates[index + 1])}`,
+        );
+      }
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
+}
+
+/**
  * What this sync should do about Piazza, and why.
  *
  * Every branch names itself, because "off", "not granted", "resting" and
@@ -1138,7 +1254,7 @@ export function classesToPoll(
  */
 export function planPiazza(
   facts: PiazzaFacts | undefined,
-  ctx: { granted: boolean; now: Date; trigger?: "manual" | "scheduled" },
+  ctx: { granted: boolean; now: Date; trigger?: "manual" | "scheduled" | "popup" },
 ): PiazzaPlan {
   const rereadAll = readerVersionOf(facts) < PIAZZA_READER_VERSION;
   // The upgrade's first half: with `lastNr` ignored, the feed offers every post
@@ -1178,13 +1294,55 @@ export function planPiazza(
     };
   }
 
+  /*
+   * §6's popup debounce, which used to stop at the loop.
+   *
+   * `runSync` returns `skipped` for a popup sync inside `POPUP_DEBOUNCE_MS`,
+   * but the Piazza run sat outside that branch and had no debounce of its own —
+   * so five popup opens in ten minutes were 20 `network.get_my_feed` POSTs to
+   * the one host with a session cookie attached, where the loop made no request
+   * at all. The decision lives here rather than in the worker so it can be
+   * pinned (worker rule 1).
+   */
+  const attempted = facts.lastAttemptAt;
+  if (
+    ctx.trigger === "popup" &&
+    isInstant(attempted) &&
+    ctx.now.getTime() - Date.parse(attempted) < POPUP_DEBOUNCE_MS
+  ) {
+    return {
+      fetch: false,
+      refreshClasses: false,
+      poll: [],
+      reason: `the popup opened, and Piazza was last read at ${attempted} — inside the ${
+        POPUP_DEBOUNCE_MS / 60_000
+      }-minute debounce, so nothing is refetched`,
+    };
+  }
+
   const fetchedAt = facts.classesFetchedAt;
   const stale =
     !isInstant(fetchedAt) || ctx.now.getTime() - Date.parse(fetchedAt) >= CLASS_LIST_MAX_AGE_MS;
-  const refreshClasses = facts.classes === undefined || facts.classes.length === 0 || stale;
+  /*
+   * An empty list is *a list*, and re-reading it on every sync was a class-page
+   * GET every half hour for ever — `CLASS_LIST_MAX_AGE_MS` defeated entirely,
+   * and reported as staleness the list did not have. It is refreshed when it is
+   * genuinely stale, and when the student presses Sync now, which is the button
+   * to press after enrolling in something.
+   */
+  const refreshClasses =
+    facts.classes === undefined || stale || (facts.classes.length === 0 && ctx.trigger === "manual");
 
+  const why =
+    facts.classes === undefined
+      ? "none stored"
+      : facts.classes.length === 0
+        ? stale
+          ? "the stored list is empty and a day old"
+          : "the stored list is empty and you asked"
+        : "a day old";
   const polling = refreshClasses
-    ? `reading the class list (${facts.classes === undefined ? "none stored" : "stale"}), then polling`
+    ? `reading the class list (${why}), then polling`
     : `polling ${poll.length} class${poll.length === 1 ? "" : "es"}`;
 
   return {
@@ -1251,11 +1409,214 @@ export function readerUpgrade(
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* The body stage: what a failed `content.get` may and may not settle           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Posts that still need their body fetched.
+ *
+ * A post *above* `lastNr` may already have been ingested: when an earlier
+ * sync's body fetch failed, `lastNr` stayed below it, so the feed offers every
+ * post after it again on the next sync. Fetching those bodies a second time is
+ * a request per post per sync for a post `ingestPost` will refuse anyway. A
+ * re-read (`reread`) is the exception — that is an *edit*, and the new body is
+ * the whole reason to look.
+ */
+export function postsNeedingBody(
+  sent: readonly ObservedPost[],
+  seenPosts: Record<string, string> | undefined,
+): { fetch: ObservedPost[]; alreadyRead: number } {
+  const seen = seenPosts ?? {};
+  const fetch = sent.filter((post) => post.reread === true || seen[post.id] === undefined);
+  return { fetch, alreadyRead: sent.length - fetch.length };
+}
+
+/**
+ * Whether a body fetch may be asked again, or is a refusal to be given up on.
+ *
+ * The distinction is what bounds the retry with no per-post memory to bound it
+ * with (`migrateObservers` keeps no such field). A timeout, a network error, a
+ * 429 or a 5xx is the kind of failure that answers next time, so the post is
+ * left unread and `lastNr` stays below it. Anything else — a 404, a 403, a body
+ * that is not the JSON this endpoint returns — will answer the same way for
+ * ever, so the post is taken at its 120-character snippet and marked read, with
+ * the reason logged. That is what the code did for *every* failure, which is
+ * how one transient 500 cost a term's deadline.
+ */
+export type BodyFailureKind = "transient" | "refused";
+
+export function bodyFailureKind(status: number | undefined, unreadableBody = false): BodyFailureKind {
+  if (unreadableBody) return "refused";
+  if (status === undefined) return "transient";
+  if (status === 408 || status === 429 || status >= 500) return "transient";
+  if (status >= 400) return "refused";
+  // A 2xx that produced no body is a shape we do not understand; asking again
+  // is not going to change it.
+  return "refused";
+}
+
+/** One post whose body this sync asked for, and what came back. */
+export interface BodyAttempt {
+  nid: string;
+  courseHint: string;
+  /** The post as it now reads — carrying its body when one arrived. */
+  post: ObservedPost;
+  /**
+   * Absent when the body arrived and was read.
+   *
+   * `login` marks the one failure that may mean the *session* rather than the
+   * post: a body that asked for a sign-in is never settled at its snippet, and
+   * when every body says it, the run ends as a sign-out (`feedSignedOut`).
+   */
+  failure?: { kind: BodyFailureKind; message: string; login?: true };
+}
+
+export interface ResolvedBodies {
+  /** Posts to ingest: read in full, or given up on and taken at the snippet. */
+  ingest: BodyAttempt[];
+  /** Posts to ask about again next sync. `lastNr` must stay below the lowest. */
+  retry: BodyAttempt[];
+  /** One line each, for the worker's console (worker rule 5). */
+  notes: string[];
+  bodiesRead: number;
+  bodiesFailed: number;
+}
+
+/**
+ * What the run may settle about each post whose body it asked for.
+ *
+ * `bodyBatch` exists so a post whose body was never fetched is never marked
+ * read ("advancing either past a post whose body was never fetched would leave
+ * it read at its 120-character snippet for good"), and the worker discarded
+ * that guarantee the moment a fetch *failed* rather than being deferred: it
+ * ingested the snippet and advanced both marks. One 500 on a note whose
+ * deadline sentence is at character 400 cost that deadline for the term.
+ */
+export function resolveBodies(attempts: readonly BodyAttempt[]): ResolvedBodies {
+  const resolved: ResolvedBodies = {
+    ingest: [],
+    retry: [],
+    notes: [],
+    bodiesRead: 0,
+    bodiesFailed: 0,
+  };
+  for (const attempt of attempts) {
+    if (attempt.failure === undefined) {
+      resolved.bodiesRead += 1;
+      resolved.ingest.push(attempt);
+      continue;
+    }
+    resolved.bodiesFailed += 1;
+    if (attempt.failure.kind === "transient") {
+      resolved.retry.push(attempt);
+      resolved.notes.push(
+        `${attempt.courseHint} post ${attempt.post.nr}: body unread (${attempt.failure.message}) — ` +
+          `left unread, and this class stops at post ${attempt.post.nr - 1} until it can be read`,
+      );
+      continue;
+    }
+    resolved.ingest.push(attempt);
+    resolved.notes.push(
+      `${attempt.courseHint} post ${attempt.post.nr}: body refused (${attempt.failure.message}) — ` +
+        `giving up on it and reading its 120-character snippet instead`,
+    );
+  }
+  return resolved;
+}
+
+/**
+ * `lastNr` held below every post this run could not read.
+ *
+ * `planned` is what `bodyBatch` allowed; `floors` is each class's stored
+ * `sinceNr`, because a cap must never move a class's mark *backwards* — that
+ * would re-offer posts this store has already ingested.
+ */
+export function cappedLastNr(
+  planned: Record<string, number>,
+  retry: readonly { nid: string; post: ObservedPost }[],
+  floors: Record<string, number> = {},
+): Record<string, number> {
+  const lowest = new Map<string, number>();
+  for (const entry of retry) {
+    const current = lowest.get(entry.nid);
+    if (current === undefined || entry.post.nr < current) lowest.set(entry.nid, entry.post.nr);
+  }
+  const out: Record<string, number> = {};
+  for (const [nid, nr] of Object.entries(planned)) {
+    const blocked = lowest.get(nid);
+    const capped = blocked === undefined ? nr : Math.min(nr, blocked - 1);
+    out[nid] = Math.max(capped, floors[nid] ?? 0);
+  }
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The feed stage: whose sign-out is it                                        */
+/* -------------------------------------------------------------------------- */
+
+/** One class's feed, and what came back. */
+export interface FeedOutcome {
+  courseHint: string;
+  kind: "ok" | "needs_login" | "failed";
+  message?: string;
+}
+
+/**
+ * Whether the *session* is signed out, or some classes were refused.
+ *
+ * `classifyPiazzaResponse` answers `needs_login` for a 401 **or a 403**, and
+ * Piazza answers 403 for a class you have been removed from or that has been
+ * archived — an access failure, not a session failure. Raised for the whole run
+ * it threw away every healthy class's new notes, left `lastNr` unadvanced, and
+ * put "Sign in needed" with a button that fixes nothing on a row whose other
+ * three classes had just answered 200. House rule 8 says the status decides
+ * whether this is a login problem; it does not say a 403 can only mean one
+ * thing. So a refusal is that class's failure unless **every** class says so —
+ * and the class page's own sign-out (`readClassList`) still ends the run,
+ * because that one really is the session.
+ */
+export function feedSignedOut(outcomes: readonly FeedOutcome[]): boolean {
+  return outcomes.length > 0 && outcomes.every((outcome) => outcome.kind === "needs_login");
+}
+
+/* -------------------------------------------------------------------------- */
+/* What one run produced, and what the row may say about it                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How many consecutive refusals are treated as "sign in" before the ladder.
+ *
+ * A real expiry is fixed in another tab within a minute or two, and the point
+ * of the un-backed-off `needs_login` branch is that signing in is noticed at
+ * once. Four attempts is enough for that; past it, the likelier story is a
+ * server that is refusing this client, and §6's ladder applies. A page load on
+ * piazza.com still overrides it (`piazzaNeedsRecheck` → a manual run), so the
+ * student who does sign in is never waiting on the ladder.
+ */
+export const PIAZZA_LOGIN_GRACE = 4;
+
 /** What one Piazza run produced. Every branch of it is recorded. */
 export type PiazzaResult =
   | {
       kind: "ok";
-      classes?: PiazzaClass[];
+      /**
+       * How many HTTP requests this run actually made.
+       *
+       * The honesty fact, and required for that reason: worker rule 2's whole
+       * sentence is "a green dot must mean *I fetched, and it was fine* — never
+       * *I did not fetch*". A run with nothing to poll makes no request, and
+       * used to record `ok` anyway.
+       */
+      requests: number;
+      /** Classes polled this run. */
+      classesPolled: number;
+      /** Classes whose feed could not be read, and why. */
+      classFailures?: { courseHint: string; message: string }[];
+      /** Post bodies read in full. */
+      bodiesRead?: number;
+      /** Post bodies asked for and not received. */
+      bodiesFailed?: number;
       /** Posts that reached `ingestPost` this run. */
       newPosts: number;
       /**
@@ -1266,6 +1627,7 @@ export type PiazzaResult =
        * with a deadline".
        */
       deadlines?: number;
+      classes?: PiazzaClass[];
       /** nid → highest number read, merged over what was stored. */
       lastNr?: Record<string, number>;
     }
@@ -1273,11 +1635,42 @@ export type PiazzaResult =
   | { kind: "error"; message: string };
 
 /**
- * The stored facts after a run.
+ * The one sentence a successful run still has to say, or `undefined`.
+ *
+ * Worker rule 2 at the stage level: "25 posts, 0 deadlines found" is a claim
+ * about posts, and a run whose every `content.get` was refused never read one.
+ * A class that fails every sync is the same defect a level up — the error was
+ * deleted from the store on each `ok`, so it existed only in a console the
+ * student is not looking at (UI rule 1).
+ */
+export function runNote(result: Extract<PiazzaResult, { kind: "ok" }>): string | undefined {
+  const parts: string[] = [];
+  const failures = result.classFailures ?? [];
+  if (failures.length > 0) {
+    parts.push(
+      `${failures.length} of ${result.classesPolled} class${
+        result.classesPolled === 1 ? "" : "es"
+      } couldn't be read`,
+    );
+  }
+  const unread = result.bodiesFailed ?? 0;
+  if (unread > 0) parts.push(`${unread} post${unread === 1 ? "" : "s"} couldn't be opened`);
+  return parts.length === 0 ? undefined : parts.join("; ");
+}
+
+/**
+ * The stored facts after a run — **all of them**.
+ *
+ * Assign this, never spread it over the facts it was given: its recovery
+ * contract is expressed with `delete` (`lastError`, `nextAttemptAt`), and a
+ * spread of the old facts cannot delete a key. The worker wrote
+ * `{ ...old, ...applyPiazzaResult(old, …) }`, which put back exactly the keys
+ * this deleted — so a sync that succeeded after four failures was written
+ * `state: "ok"` with a four-hour `nextAttemptAt` still on it, and Piazza then
+ * fetched nothing for four hours after the student watched it work.
  *
  * `lastAttemptAt` is stamped on **every** branch, including the failures: it is
- * what `describePiazza` derives "this was tried" from, and a state word with no
- * attempt behind it is the defect worker rule 2 is about. `lastObservedAt` is
+ * what `describePiazza` derives "this was tried" from. `lastObservedAt` is
  * stamped only when posts were actually read, so the row cannot claim a reading
  * it did not make.
  */
@@ -1291,7 +1684,6 @@ export function applyPiazzaResult(
   delete next.lastError;
 
   if (result.kind === "ok") {
-    next.state = "ok";
     next.failures = 0;
     delete next.nextAttemptAt;
     if (result.classes !== undefined) {
@@ -1301,6 +1693,19 @@ export function applyPiazzaResult(
     if (result.lastNr !== undefined) {
       next.lastNr = { ...(facts?.lastNr ?? {}), ...result.lastNr };
     }
+    if (result.requests === 0) {
+      /*
+       * Nothing was asked of piazza.com, so there is nothing to call healthy.
+       * `pending` is the honest word this vocabulary has — and `describePiazza`
+       * says *why* from the class list, which is the fact that put the run in
+       * this state.
+       */
+      next.state = "pending";
+      return next;
+    }
+    next.state = "ok";
+    const note = runNote(result);
+    if (note !== undefined) next.lastError = note;
     if (result.newPosts > 0) {
       next.lastObservedAt = now;
       next.postsSeen = (facts?.postsSeen ?? 0) + result.newPosts;
@@ -1317,13 +1722,22 @@ export function applyPiazzaResult(
   if (result.kind === "needs_login") {
     next.state = "needs_login";
     /*
-     * Not a failure, and deliberately not backed off. A login is fixed in
-     * another tab and nothing tells us when — the re-check is driven by the
-     * student's own navigation (`piazzaNeedsRecheck`), and a backoff here would
-     * make signing in take up to four hours to be noticed.
+     * Counted, and backed off only after the grace. A login is fixed in another
+     * tab and nothing tells us when, so the first few attempts are free — the
+     * re-check is driven by the student's own navigation
+     * (`piazzaNeedsRecheck`), which overrides the ladder. What the grace stops
+     * is the *other* thing 401/403 means: a refusal that signing in cannot fix,
+     * retried on every alarm for ever.
      */
-    next.failures = 0;
-    delete next.nextAttemptAt;
+    const refusals = (facts?.failures ?? 0) + 1;
+    next.failures = refusals;
+    if (refusals > PIAZZA_LOGIN_GRACE) {
+      next.nextAttemptAt = new Date(
+        Date.parse(now) + backoffMinutes(refusals - PIAZZA_LOGIN_GRACE) * 60_000,
+      ).toISOString();
+    } else {
+      delete next.nextAttemptAt;
+    }
     return next;
   }
 
@@ -1333,6 +1747,15 @@ export function applyPiazzaResult(
   next.failures = failures;
   next.nextAttemptAt = new Date(Date.parse(now) + backoffMinutes(failures) * 60_000).toISOString();
   return next;
+}
+
+/** A stored instant as the row prints it: a time today, a date before that. */
+function when(at: string, now: Date): string {
+  const parsed = new Date(at);
+  if (Number.isNaN(parsed.getTime())) return at;
+  return parsed.toDateString() === now.toDateString()
+    ? parsed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+    : parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 /**
@@ -1346,14 +1769,49 @@ export function describePiazza(facts: PiazzaFacts | undefined, now: Date = new D
   if (!facts?.enabled) return "Off";
   if (facts.state === "needs_login") return "Sign in needed";
   if (facts.state === "error") return "Couldn't be read";
-  if (facts.state !== "ok" || facts.lastObservedAt === undefined) return "On · nothing read yet";
 
-  const at = new Date(facts.lastObservedAt);
-  const when = Number.isNaN(at.getTime())
-    ? facts.lastObservedAt
-    : at.toDateString() === now.toDateString()
-      ? at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-      : at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  /*
+   * The class list decides before the counts do.
+   *
+   * A stored list with nothing active is the state in which this source makes
+   * **no request at all**, every half hour, for as long as the term boundary
+   * lasts — and the row went on printing "last read Dec 12 · 312 posts, 4
+   * deadlines found" through all of it, indistinguishable from health. The list
+   * is the fact that explains it, and it is already on disk.
+   */
+  if (facts.classes !== undefined) {
+    if (facts.classes.length === 0) return "On · no Piazza classes found";
+    if (!facts.classes.some((entry) => entry.active)) {
+      /*
+       * And the one surface `extra.unparsedTerm` has ever had. `parseClassPage`
+       * records it for a class whose `term_key` and `term` both failed their
+       * anchored regexes, marks the class inactive — and nothing read the field
+       * again, so "this comes back in January" and "the term format changed and
+       * this needs fixing" were the same sentence. They want opposite actions.
+       */
+      return facts.classes.every((entry) => entry.extra?.unparsedTerm !== undefined)
+        ? "On · no class here has a term that could be read"
+        : "On · no class in this term";
+    }
+  }
+
+  const note = facts.lastError === undefined ? "" : ` · ${facts.lastError}`;
+  if (facts.state !== "ok") return "On · nothing read yet";
+
+  if (facts.lastObservedAt === undefined) {
+    /*
+     * A successful run that found no new notes is not a run that never
+     * happened. `lastObservedAt` is only stamped when posts were ingested, so
+     * the steady state of a working class — every note already read — said the
+     * same words as a switch that had just been flipped. Both facts needed to
+     * tell them apart were stored and ignored.
+     */
+    const attempted = isInstant(facts.lastAttemptAt)
+      ? ` ${when(facts.lastAttemptAt, now)}`
+      : "";
+    return `On · checked${attempted}, nothing new${note}`;
+  }
+
   const seen = facts.postsSeen ?? 0;
   const posts = `${seen} post${seen === 1 ? "" : "s"}`;
   /*
@@ -1366,10 +1824,11 @@ export function describePiazza(facts: PiazzaFacts | undefined, now: Date = new D
    * been recorded (a store written before this field) the row says neither.
    */
   const found = facts.deadlinesFound;
-  if (found === undefined) return `On · last read ${when} · ${posts}`;
+  const head = `On · last read ${when(facts.lastObservedAt, now)} · ${posts}`;
+  if (found === undefined) return `${head}${note}`;
   return found === 0
-    ? `On · last read ${when} · ${posts}, none with a deadline`
-    : `On · last read ${when} · ${posts}, ${found} deadline${found === 1 ? "" : "s"} found`;
+    ? `${head}, none with a deadline${note}`
+    : `${head}, ${found} deadline${found === 1 ? "" : "s"} found${note}`;
 }
 
 /**
@@ -1392,6 +1851,8 @@ export function piazzaNeedsRecheck(
   const attempted = isInstant(facts.lastAttemptAt) ? Date.parse(facts.lastAttemptAt) : undefined;
   // `>=`, as in health.ts: a re-check we did not need costs one request, and
   // one we skipped costs the student half an hour of "sign in needed" while
-  // signed in.
+  // signed in. Self-limiting only because the worker stamps `lastAttemptAt`
+  // when a run *starts* — stamped at the end, a burst of navigations during one
+  // slow run each started another whole run.
   return attempted === undefined || navigatedAtMs >= attempted;
 }
