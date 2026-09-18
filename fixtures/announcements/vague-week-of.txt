@@ -1,0 +1,4 @@
+Looking ahead
+
+MP7 is due sometime next week; I will confirm the exact day once the
+autograder is ready.
