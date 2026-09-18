@@ -290,6 +290,40 @@ export interface Adapter {
    * ambiguous.
    */
   columns?: { title: string; due: string; link?: string };
+  /**
+   * `|`-separated labels for a page that writes its deadlines as `label: value`
+   * lines rather than table cells — ECE 411's Sphinx page, whose MPs are a
+   * `<ul>` of `Release: 8/25`, `Due: 9/7`, `CP1 Due: TBD`.
+   *
+   * The due text is read as `<label>:<rest>`; the label is compared **exactly**
+   * after whitespace and case are normalised (house rule 6, the same rule
+   * `columns` follows), `rest` goes to the date parser, and the label is
+   * appended to the title — `mp_pipeline CP1` — because §3.1 hashes the title
+   * and three checkpoints of one MP would otherwise share one `sourceId`.
+   *
+   * A line whose label is not declared is not this adapter's row and is skipped.
+   * A page where *no* row carries a declared label throws, like a named column
+   * that is no longer on the table.
+   */
+  dueLabel?: string;
+  /**
+   * Where a row that has no name of its own gets one.
+   *
+   * `"section >> h3"` climbs to `row.closest("section")` and reads `h3` inside
+   * it, so every line in `mp_setup`'s list is titled `mp_setup`. Without the
+   * `>>` the spec is a heading selector and the nearest match preceding the row
+   * in document order wins.
+   */
+  titleFrom?: string;
+  /**
+   * A selector whose text supplies the clock when the due text states none.
+   *
+   * ECE 411's syllabus prints `Midterm 1: September 29` with `Time: 7-9PM` in a
+   * sibling `<li>`; without this the runner invents 23:59 (worker rule 3) for an
+   * exam that starts at 19:00. A range gives its start. Row-relative, or scoped
+   * with `>>` like `titleFrom`.
+   */
+  time?: string;
   dateFormat: string;
   timezone: string;
   filter?: { include?: string; exclude?: string };

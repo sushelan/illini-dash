@@ -42,8 +42,15 @@ re-review that takes days (§0 decision 4).
 `src/core/registry.ts` is the only place this extension ingests data authored
 elsewhere, so it is a trust boundary:
 
-- a `url` that is not **https on `*.illinois.edu`** — §2.3 requests optional permission
-  for that suffix only, so anything else could never be granted and must not be offered;
+- a `url` that is not **https**. It used to have to be on `*.illinois.edu`, because §2.3
+  said course sites live on illinois.edu subdomains. That was incomplete when written,
+  not merely stale: the CS department's sites are their own domains — cs124.org,
+  cs128.org, cs225.org — and those are the highest-enrolment courses there are, so the
+  rule excluded exactly the students most likely to want the feature.
+  `optional_host_permissions` covers every https host now, which is safe only because of
+  the `hostPattern` rule directly below. The popup's own `safeUrl` was a second copy of
+  the old rule and outlived it by six days, rendering every cs225.org row as an
+  unclickable div; it is now the same check (mutation house rule 3);
 - a `hostPattern` that is not **exactly** `https://<the url's host>/*` — the pattern is
   what `chrome.permissions.request` asks for, so a wildcard like
   `https://*.illinois.edu/*` (the manifest's own optional entry, and therefore
@@ -115,6 +122,73 @@ A named column that is not on the page throws for that adapter, naming the colum
 the fix is one registry edit. `title` / `due` / `link` stay required and are the fallback
 for pages that are not tables — CS 424's rowspan grid, a list of prose items.
 
+## The third page shape: `label: value` lines under a heading
+
+CS 424 is a rowspan grid and ECE 310 is a header table. ECE 411 is neither — it is a
+Sphinx page whose deadlines are bullets:
+
+```html
+<section id="mp-setup">
+  <h3>mp_setup</h3>
+  <ul class="simple">
+    <li><p>Release: 8/25</p></li>
+    <li><p>Due: 9/7</p></li>
+  </ul>
+</section>
+```
+
+Three fields cover it, all optional:
+
+```json
+"rows": "#mp-information ul.simple > li",
+"title": "p",
+"titleFrom": "section >> h3",
+"due": "p",
+"dueLabel": "Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due"
+```
+
+- **`dueLabel`** reads the due text as `<label>:<rest>`. `rest` goes to the date parser —
+  which matters because the date formats are `^`-anchored, so `Due: 9/7` parses as
+  nothing at all until the label comes off the front. The label is matched **exactly**
+  after whitespace and case are normalised, never by substring, for the same reason
+  column headers are: `Due Date: 11/3` contains `Due`, and a substring match dates the MP
+  from a line the adapter never asked for with nothing on the page looking wrong. A line
+  whose label was not declared — `Release: 8/25`, `Location: ECEB 1002` — is not a
+  deadline row and is skipped rather than emitted undated. A page where *no* row carries
+  a declared label throws, naming the labels, exactly like a named column that has left
+  the table.
+
+  The matched label is also **appended to the title**, minus a trailing `Due` (which
+  every deadline line carries and so names nothing). That is what makes `mp_pipeline CP1`,
+  `CP2` and `CP3` three items: §3.1 hashes the title, so without it the three checkpoints
+  share one `sourceId` and `KeyGuard` keeps one of them.
+
+- **`titleFrom`** gives a row a name it does not have. `section >> h3` climbs to
+  `row.closest("section")` and reads the `h3` inside; without the `>>` the spec is a
+  heading selector and the nearest match *preceding* the row in document order wins. The
+  label's position in the list varies by section — `mp_setup` puts `Due` second, `mp_ooo`
+  has five labelled lines — so `nth-child` is wrong here for house rule 3's reason.
+
+- **`time`** supplies the clock when the due text states none. ECE 411's syllabus prints
+  `Midterm 1: September 29` with `Time: 7-9PM` in a sibling `<li>`; with `"time": "ul"`
+  the exam lands at 19:00 instead of an invented 23:59, and carries no `timeAssumed`.
+  A range gives its **start**, and a range written with one meridiem lends it to the
+  start. The search is anchored on the word `Time`, exactly as `statedTimeInText` is
+  anchored on `due`: a room number is a number too, and an unanchored search finds
+  `ECEB 1002` first.
+
+## One course, two adapters
+
+An adapter has one fixed `url`, and ECE 411 keeps its MPs on `assignments.html` and its
+exam dates on `syllabus.html`. So the course ships as **two registry entries** —
+`ece411-fa26-mp` and `ece411-fa26-exams` — with one `courseCode`. Only `id` has to be
+unique; `courseCode` is what merges them back into one course in the popup.
+
+This is the general answer to "course sites split across pages", and it needs no schema
+change: a second entry costs a registry edit and no build. The cost is that the student
+sees and enables two rows for one course, which is honest — they are two pages and either
+can break on its own.
+
 ## Adding one yourself
 
 Settings → Course websites → **Add a course site**. Paste the page that lists the
@@ -147,8 +221,8 @@ selectors written by a stranger, and a human reading the paste is that check.
 
 ## Seeding another one
 
-§4.5 asks for 2–3 seed adapters. One (`cs424-fa26`) now ships; a second and third still
-need real pages, which need a logged-in browser.
+§4.5 asks for 2–3 seed adapters. Five ship: `cs424-fa26`, `ece310-fa26`, `ece391-fa26`,
+`ece411-fa26-mp` and `ece411-fa26-exams`, each written against a real captured page.
 
 **Delivery is live as of 2026-09-10.** The registry is published at
 `https://raw.githubusercontent.com/sushelan/illini-dash/main/adapters/registry.json`

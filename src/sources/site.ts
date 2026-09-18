@@ -243,6 +243,209 @@ export function statedTimeInText(text: string): { hour: number; minute: number }
   return hour <= 23 && minute <= 59 ? { hour, minute } : undefined;
 }
 
+/* -------------------------------------------------------------------------- */
+/* List-shaped pages: "label: value" lines under a heading                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one normalisation used for every exact name comparison in this file —
+ * column headers, due labels, title prefixes. Whitespace collapsed, case
+ * folded, nothing else. Kept as one function for the reason `resolveColumn`
+ * exists: two copies of a matching rule means a mutation to one is masked by
+ * the other (mutation house rule 3).
+ */
+function normalizeLabel(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** The scope separator in a `titleFrom` / `time` spec: `section >> h3`. */
+const SCOPE_SEP = ">>";
+
+export interface DueLabelMatch {
+  /** The label as the **registry** spells it, not as the page does. */
+  label: string;
+  /** Everything after the first colon: what the date parser is handed. */
+  rest: string;
+}
+
+/**
+ * A `<label>: <value>` line, when the label is one the adapter declared.
+ *
+ * The third page shape. ECE 411's Sphinx page has no table at all — each MP is a
+ * `<section>` with an `<h3>` and a `<ul>` of `Release: 8/25`, `Due: 9/7`,
+ * `CP1 Due: TBD`. The date formats are `^`-anchored (deliberately: a format that
+ * matched mid-string would read a date out of any prose), so `Due: 9/7` parses
+ * as nothing at all until the label is taken off the front.
+ *
+ * Matched **exactly** after `normalizeLabel`, never by substring — house rule 6,
+ * and the same rule `resolveColumn` follows for headers. `Due Date: 9/7` is a
+ * different line from `Due: 9/7`, and a substring match on `Due` would claim
+ * both; on a page that prints a `Release Due` line as well, that is a deadline
+ * read off the release date. The label's *position* in the list varies by
+ * section too — `mp_setup` puts `Due` second, `mp_ooo` has five labelled lines —
+ * so `nth-child` is the wrong tool here for exactly house rule 3's reason.
+ *
+ * The declared spelling is returned rather than the page's, so the title suffix
+ * below is decided by the registry and cannot be reworded by the page.
+ */
+export function matchDueLabel(text: string, spec: string): DueLabelMatch | undefined {
+  const colon = text.indexOf(":");
+  if (colon < 0) return undefined;
+  const wanted = normalizeLabel(text.slice(0, colon));
+  if (!wanted) return undefined;
+  const rest = text.slice(colon + 1).replace(/\s+/g, " ").trim();
+  if (!rest) return undefined;
+  for (const candidate of spec.split("|")) {
+    const declared = candidate.replace(/\s+/g, " ").trim();
+    if (declared && normalizeLabel(declared) === wanted) return { label: declared, rest };
+  }
+  return undefined;
+}
+
+/**
+ * What a matched label contributes to the title.
+ *
+ * `Due` contributes nothing: every deadline line on the page carries it, so it
+ * names no item and `mp_setup Due` is just noise. What is left after it —
+ * `CP1`, `Advance Features` — is the only thing telling three checkpoints of one
+ * MP apart, and §3.1 hashes the title, so without it `mp_pipeline`'s CP1, CP2
+ * and CP3 collide on one `sourceId` and `KeyGuard` keeps one of the three.
+ */
+export function labelSuffix(label: string): string {
+  return label.replace(/\s*\bdue\b\s*$/i, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The title a labelled row gets.
+ *
+ * Two shapes, one rule. When the row has a name of its own — ECE 411's `<h3>`,
+ * reached by `titleFrom` — the suffix is appended to it: `mp_pipeline CP1`. When
+ * the title cell *is* the due line (the syllabus prints `Midterm 1: September 29`
+ * and nothing else), the cell carries no name beyond the label, so it is dropped
+ * and the label is the whole title: `Midterm 1`.
+ *
+ * The fallback keeps a misconfigured adapter — `dueLabel: "Due"` with no
+ * `titleFrom` — from producing an empty title rather than a visibly wrong one.
+ */
+export function titleWithLabel(base: string, label: string): string {
+  const cleaned = base.replace(/\s+/g, " ").trim();
+  const suffix = labelSuffix(label);
+  const isDueLine = normalizeLabel(cleaned).startsWith(`${normalizeLabel(label)}:`);
+  const joined = [isDueLine ? "" : cleaned, suffix].filter(Boolean).join(" ");
+  return joined || cleaned;
+}
+
+/**
+ * A row's text for a spec that climbs out of the row.
+ *
+ * `section >> h3` means: `row.closest("section")`, then `h3` inside it. A row in
+ * a list has no title of its own — the name is the heading above the list — and
+ * a selector run against the row can never reach it.
+ */
+export function resolveScoped(row: Element, spec: string): string | undefined {
+  const at = spec.indexOf(SCOPE_SEP);
+  if (at < 0) return undefined;
+  const scopeSel = spec.slice(0, at).trim();
+  const inner = spec.slice(at + SCOPE_SEP.length).trim();
+  if (!scopeSel || !inner) return undefined;
+  const scope = row.closest(scopeSel);
+  if (!scope) return undefined;
+  return select(scope, inner);
+}
+
+/**
+ * The nearest match **preceding** the row in document order.
+ *
+ * The no-scope branch of `titleFrom`, for pages that put a heading and its list
+ * side by side with no wrapper to climb to — which is the older Sphinx output
+ * and plenty of hand-written pages.
+ */
+function nearestPreceding(row: Element, selector: string): string | undefined {
+  // Walked backwards rather than asked of `compareDocumentPosition`, which
+  // linkedom does not implement faithfully — under it every heading on the page
+  // answered "preceding", so the last one in the document won and every row on
+  // the page inherited the same name. Silently, and with the right shape.
+  for (let node = previousInDocumentOrder(row); node; node = previousInDocumentOrder(node)) {
+    // An ancestor is reached by this walk too; a heading is never an ancestor of
+    // a row, and a selector for which it could be would be a wrong selector.
+    if (node.matches(selector)) return textOf(node) || undefined;
+  }
+  return undefined;
+}
+
+function previousInDocumentOrder(node: Element): Element | undefined {
+  const sibling = node.previousElementSibling;
+  if (!sibling) return node.parentElement ?? undefined;
+  let last = sibling;
+  while (last.lastElementChild) last = last.lastElementChild;
+  return last;
+}
+
+/** §4.5's `titleFrom`: scoped, or the nearest preceding heading. */
+export function resolveTitleFrom(row: Element, spec: string): string | undefined {
+  return spec.includes(SCOPE_SEP) ? resolveScoped(row, spec) : nearestPreceding(row, spec);
+}
+
+/** `7`, `7:30`, `7:30 PM` — one clock, or undefined when it is not one. */
+function readClock(
+  rawHour: string,
+  rawMinute: string | undefined,
+  rawMeridiem: string | undefined,
+): { hour: number; minute: number } | undefined {
+  const ampm = rawMeridiem?.toLowerCase();
+  // The same ambiguity rule as `parseAdapterDateParts` and `statedTimeInText`:
+  // a bare hour under 13 with no meridiem could be either end of the day, and
+  // reading `7` as 07:00 moves a 7 PM exam twelve hours while looking stated.
+  if (ampm === undefined && Number(rawHour) < 13 && !/^0\d$/.test(rawHour)) return undefined;
+  let hour = Number(rawHour);
+  const minute = rawMinute === undefined ? 0 : Number(rawMinute);
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  return hour <= 23 && minute <= 59 ? { hour, minute } : undefined;
+}
+
+const CLOCK = "(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?";
+const DASH = "(?:[-–—]|to)";
+const CLOCK_RANGE = new RegExp(`^${CLOCK}\\s*${DASH}\\s*${CLOCK}\\.?$`, "i");
+const CLOCK_ONE = new RegExp(`^${CLOCK}\\.?$`, "i");
+/**
+ * Anchored on the word that makes a number a clock, exactly as
+ * `statedTimeInText` is anchored on the word that makes one a deadline. A room
+ * number is a number too: ECE 411's exam bullet reads
+ * `Location: ECEB 1002 Time: 7-9PM`, and an unanchored search finds 1002 first.
+ */
+const CLOCK_LABELLED = new RegExp(
+  `\\btime\\b\\s*:\\s*(${CLOCK}(?:\\s*${DASH}\\s*${CLOCK})?)`,
+  "i",
+);
+
+/**
+ * The clock an element states, for a page that prints the date and the time in
+ * different places.
+ *
+ * ECE 411's syllabus lists `Midterm 1: September 29` with `Time: 7-9PM` in a
+ * sibling `<li>`. Without this the date parses, states no time, and §4.5's
+ * runner invents 23:59 — which worker rule 3 then lets outrank a real stated
+ * deadline elsewhere, and which would put a two-hour reminder for a 7 PM exam
+ * at 21:59, two hours after it ended.
+ *
+ * A range gives its **start**: an exam that runs 7-9PM starts at 7, and the
+ * start is the instant a student has to be somewhere. A range written with one
+ * meridiem (`7-9PM`) lends it to the start, which is what the page means.
+ */
+export function clockFromText(text: string): { hour: number; minute: number } | undefined {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (!trimmed) return undefined;
+  const labelled = CLOCK_LABELLED.exec(trimmed);
+  const segment = labelled ? labelled[1]!.trim() : trimmed;
+
+  const range = CLOCK_RANGE.exec(segment);
+  if (range) return readClock(range[1]!, range[2], range[3] ?? range[6]);
+  const one = CLOCK_ONE.exec(segment);
+  if (one) return readClock(one[1]!, one[2], one[3]);
+  return undefined;
+}
+
 export function supportedDateFormats(): string[] {
   return Object.keys(DATE_FORMATS);
 }
@@ -421,6 +624,8 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   }
 
   let sawTitledRow = false;
+  let sawDueLabel = false;
+  let sawTitleFrom = false;
   for (const row of rows) {
     const cell = adapter.columns
       ? cellByHeader(row, adapter.columns.title)
@@ -428,6 +633,45 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     // The `continue` stays: a header row legitimately has no title cell.
     if (!cell) continue;
     sawTitledRow = true;
+
+    const dueCell = adapter.columns
+      ? cellByHeader(row, adapter.columns.due)
+      : select(row, adapter.due);
+
+    /*
+     * A labelled list is rows-per-*line*, not rows-per-deadline: `Release: 8/25`
+     * and `Location: ECEB 1002` are the same `<li>` shape as `Due: 9/7` and
+     * there is no selector that tells them apart. A line whose label the adapter
+     * did not declare is not this adapter's row, so it is skipped rather than
+     * emitted undated — an undated "Release" would look like a deadline whose
+     * date this parser failed to read.
+     *
+     * Matched before the filter, deliberately: the page-level guard below asks
+     * whether the *page* still has labelled lines, and a filter that excludes
+     * every row (every checkpoint still TBD) is a normal week, not a redesign.
+     * That is the same reason `sawTitledRow` is keyed on titles, not items.
+     */
+    let rawDate = dueCell;
+    let matched: DueLabelMatch | undefined;
+    if (adapter.dueLabel) {
+      if (!dueCell) continue;
+      matched = matchDueLabel(dueCell, adapter.dueLabel);
+      if (!matched) continue;
+      sawDueLabel = true;
+      rawDate = matched.rest;
+    }
+
+    // A row in a list inherits its section's heading. Unresolved for one row is
+    // a fallback, not a throw — the page-level guard below is where "the
+    // heading is gone" becomes loud, so one odd row cannot discard the others.
+    //
+    // Resolved before the filter for the same reason the label is: the guard
+    // asks whether the *page* still has headings, and a term where every
+    // deadline still reads TBD filters every row away without anything having
+    // changed. Written after the filter first, and the all-filtered test caught
+    // it — worker rule 2's "a green dot must mean I fetched", inverted.
+    const inherited = adapter.titleFrom ? resolveTitleFrom(row, adapter.titleFrom) : undefined;
+    if (inherited) sawTitleFrom = true;
 
     // §4.5: one cell can hold several events. Split first, then filter, so a
     // filter can reject one half of `HW5 Due; HW6 Out` and keep the other —
@@ -438,18 +682,24 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       .filter((part) => matchesFilter(part, adapter.filter));
     if (titles.length === 0) continue;
 
-    const rawDate = adapter.columns
-      ? cellByHeader(row, adapter.columns.due)
-      : select(row, adapter.due);
+    /*
+     * A clock the row states somewhere other than the due cell. Falls back to
+     * the prose form, so an adapter may declare `time` for the page's usual
+     * shape and still pick up an ECE 391-style "due at 18:00" sentence.
+     */
+    const statedElsewhere =
+      (adapter.time ? clockFromText(readTimeCell(row, adapter.time) ?? "") : undefined) ??
+      // Read from the row's own text, not the whole page: the sentence that
+      // states this deadline's cutoff is in this row.
+      statedTimeInText(row.textContent ?? "");
+
     const parsed = rawDate
       ? parseAdapterDateParts(
           rawDate,
           adapter.dateFormat,
           adapter.timezone,
           page.fetchedAt,
-          // Read from the row's own text, not the whole page: the sentence that
-          // states this deadline's cutoff is in this row.
-          statedTimeInText(row.textContent ?? ""),
+          statedElsewhere,
         )
       : undefined;
     const dueAt = parsed?.iso;
@@ -464,7 +714,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       adapter.url,
     );
 
-    for (const title of titles) {
+    for (const part of titles) {
+      // The label is what tells three checkpoints of one MP apart, and §3.1
+      // hashes the title — see `titleWithLabel`.
+      const base = inherited ?? part;
+      const title = matched ? titleWithLabel(base, matched.label) : base;
       // §3.1: course sites have no ids, so the key is content-derived and a
       // rename loses any override on it. Documented and accepted there.
       const sourceId = `${adapter.id}:${hashTitleAndDate(title, dueAt)}`;
@@ -504,7 +758,31 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     );
   }
 
+  /*
+   * House rule 2 again, one field over. A `dueLabel` page whose rows still match
+   * but whose labels have all been reworded — `Due` becoming `Deadline` — yields
+   * nothing at all, and "nothing" is indistinguishable from a term that has not
+   * started. It is the list-shaped page's version of the named column that is no
+   * longer on the table, and it fails the same way, naming the labels so the fix
+   * is one registry edit.
+   */
+  if (adapter.dueLabel && !sawDueLabel) {
+    throw new ParseError(
+      `adapter ${adapter.id}: ${rows.length} rows, none carried a due label ${JSON.stringify(adapter.dueLabel)}`,
+    );
+  }
+  if (adapter.titleFrom && !sawTitleFrom) {
+    throw new ParseError(
+      `adapter ${adapter.id}: no row reached a title via ${JSON.stringify(adapter.titleFrom)}`,
+    );
+  }
+
   return items;
+}
+
+/** `time` takes the same scope mechanism as `titleFrom`, or is row-relative. */
+function readTimeCell(row: Element, spec: string): string | undefined {
+  return spec.includes(SCOPE_SEP) ? resolveScoped(row, spec) : select(row, spec);
 }
 
 /** §3.1: `${adapterId}:${hash(normalizedTitle + dueDate)}`. */

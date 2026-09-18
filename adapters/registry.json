@@ -54,6 +54,46 @@
         "include": "\\bdue\\b"
       },
       "minExtensionVersion": "1.0.0"
+    },
+    {
+      "$comment": "ECE 411 keeps MPs and exams on two pages, and an adapter has one URL — so the course is two entries. See docs/ece411-findings.md.",
+      "id": "ece411-fa26-mp",
+      "label": "ECE 411 course site",
+      "courseCode": "ECE411",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "#mp-information ul.simple > li",
+      "title": "p",
+      "titleFrom": "section >> h3",
+      "due": "p",
+      "dueLabel": "Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due",
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "filter": {
+        "exclude": "\\bTB[DA]\\b|\\bN/?A\\b"
+      },
+      "minExtensionVersion": "1.0.0"
+    },
+    {
+      "$comment": "The exam dates live on the syllabus, with the clock in a sibling bullet.",
+      "id": "ece411-fa26-exams",
+      "label": "ECE 411 exams",
+      "courseCode": "ECE411",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece411/fa2026/syllabus.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "#schedule > ul.simple > li",
+      "title": "p",
+      "due": "p",
+      "dueLabel": "Midterm 1|Midterm 2|Final",
+      "time": "ul",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "filter": {
+        "exclude": "\\bTB[DA]\\b|\\bN/?A\\b"
+      },
+      "minExtensionVersion": "1.0.0"
     }
   ]
 }

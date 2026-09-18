@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html data-content_root="./" lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Assignments &mdash; ECE411 FA26 documentation</title>
+	<link href="_static/pygments.css?v=5ecbeea2" rel="stylesheet" type="text/css" />
+	<link href="_static/basic.css?v=b08954a9" rel="stylesheet" type="text/css" />
+	<link href="_static/alabaster.css?v=27fed22d" rel="stylesheet" type="text/css" /><script src="_static/documentation_options.js?v=5929fcd5"></script><script src="_static/doctools.js?v=fd6eb6e6"></script><script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+	<link href="genindex.html" rel="index" title="Index" />
+	<link href="search.html" rel="search" title="Search" />
+	<link href="staff.html" rel="next" title="Course Staff" />
+	<link href="syllabus.html" rel="prev" title="Syllabus" />
+	<link href="_static/custom.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<div class="document">
+<div class="documentwrapper">
+<div class="bodywrapper">
+<div class="body" role="main">
+<section id="assignments">
+<h1>Assignments<a class="headerlink" href="#assignments" title="Link to this heading"> </a></h1>
+
+<p>All starter code and instructions will be available in our release repository, hosted at <a class="reference external" href="https://github.com/illinois-cs-coursework/fa26_ece411_.release">https://github.com/illinois-cs-coursework/fa26_ece411_.release</a>.</p>
+
+<p>You use the Verdi waveform viewer a lot in this class to debug. We have compiled some tips and tricks using the tool <a class="reference internal" href="verdi.html"><span class="doc">here</span></a>.</p>
+
+<section id="setup-instructions">
+<h2>Setup Instructions<a class="headerlink" href="#setup-instructions" title="Link to this heading"> </a></h2>
+
+<ol class="arabic">
+	<li>
+	<p>Create a repository via <a class="reference external" href="https://edu.cs.illinois.edu/create-gh-repo/fa26_ece411">https://edu.cs.illinois.edu/create-gh-repo/fa26_ece411</a>.</p>
+	</li>
+	<li>
+	<p>Next, on EWS, create a directory to contain your ECE 411 files (this will include subdirectories for each MP, so chose a name such as <cite>ece411</cite>) and execute the following commands (replacing <cite>NETID</cite> with your NetID):</p>
+
+	<div class="highlight-default notranslate">
+	<div class="highlight">
+	<pre>
+$ mkdir ece411
+$ cd ece411
+$ git init
+$ git remote add origin git@github.com:illinois-cs-coursework/fa26_ece411_NETID.git
+$ git remote add release git@github.com:illinois-cs-coursework/fa26_ece411_.release.git
+$ git pull origin main
+$ git branch -m main
+$ git fetch release
+$ git merge --allow-unrelated-histories --no-ff release/main
+$ git push --set-upstream origin main
+</pre>
+	</div>
+	</div>
+	</li>
+</ol>
+
+<p>If you have not set up SSH access to your github account, you may encounter errors during cloning. More detail is provided in <code class="docutils literal notranslate"><span class="pre">mp_setup</span></code>.</p>
+</section>
+
+<section id="mp-information">
+<h2>MP Information<a class="headerlink" href="#mp-information" title="Link to this heading"> </a></h2>
+
+<p>All MP submissions must be made in your <code class="docutils literal notranslate"><span class="pre">illinois-cs-coursework</span></code> repository unless otherwise specified. If you have not made one yet, please follow the setup instructions above.</p>
+
+<section id="mp-setup">
+<h3>mp_setup<a class="headerlink" href="#mp-setup" title="Link to this heading"> </a></h3>
+
+<ul class="simple">
+	<li>
+	<p>Release: 8/25</p>
+	</li>
+	<li>
+	<p>Due: 9/7</p>
+	</li>
+</ul>
+</section>
+
+<section id="mp-verif">
+<h3>mp_verif<a class="headerlink" href="#mp-verif" title="Link to this heading"> </a></h3>
+
+<ul class="simple">
+	<li>
+	<p>Release: 8/25</p>
+	</li>
+	<li>
+	<p>Due: 9/7</p>
+	</li>
+</ul>
+</section>
+
+<section id="mp-pipeline">
+<h3>mp_pipeline<a class="headerlink" href="#mp-pipeline" title="Link to this heading"> </a></h3>
+
+<ul class="simple">
+	<li>
+	<p>Release: TBD</p>
+	</li>
+	<li>
+	<p>CP1 Due: TBD</p>
+	</li>
+	<li>
+	<p>CP2 Due: TBD</p>
+	</li>
+	<li>
+	<p>CP3 Due: TBD</p>
+	</li>
+</ul>
+</section>
+
+<section id="mp-cache">
+<h3>mp_cache<a class="headerlink" href="#mp-cache" title="Link to this heading"> </a></h3>
+
+<ul class="simple">
+	<li>
+	<p>Release: TBD</p>
+	</li>
+	<li>
+	<p>Due: TBD</p>
+	</li>
+</ul>
+</section>
+
+<section id="mp-ooo">
+<h3>mp_ooo<a class="headerlink" href="#mp-ooo" title="Link to this heading"> </a></h3>
+
+<p>This MP will use a different submission repository than the previous solo MPs. You will receive an invite closer to the release.</p>
+
+<ul class="simple">
+	<li>
+	<p>Release: TBD</p>
+	</li>
+	<li>
+	<p>CP1 Due: TBD</p>
+	</li>
+	<li>
+	<p>CP2 Due: TBD</p>
+	</li>
+	<li>
+	<p>CP3 Due: TBD</p>
+	</li>
+	<li>
+	<p>Advance Features Due: TBD</p>
+	</li>
+	<li>
+	<p>Report &amp; Presentations: TBD</p>
+	</li>
+</ul>
+</section>
+</section>
+
+<section id="submission-autograder">
+<h2>Submission &amp; Autograder<a class="headerlink" href="#submission-autograder" title="Link to this heading"> </a></h2>
+
+<p>All MPs will be graded by an autograder. The autograder runs on the most recent commit in the <code class="docutils literal notranslate"><span class="pre">main</span></code> branch of your repository uploaded on or before 11:59PM CT for that day. To submit your MP, push your code to the main branch before 11:59PM CT on the deadline date.</p>
+
+<p>The autograder runs provided before the deadline are intended to ensure the MP code interfaces with the autograder correctly. There will be tests in the grading run not present in the previous runs.</p>
+
+<p>Autograder runs for each MP will begin 3 days before the deadline, and run daily through 3 days past the final submission date (to account for late submissions).</p>
+
+<p><em>Do not use the autograder as your only verification resource</em>. Since the runs prior to the deadline are only for autograder compatibility, the final autograder run may include additional testcases not present in the previous runs. This will also be stated as part of the MP instructions.</p>
+</section>
+
+<section id="late-policy">
+<h2>Late Policy<a class="headerlink" href="#late-policy" title="Link to this heading"> </a></h2>
+
+<p>MP submissions should be submitted by 11:59PM CT of the due date in order to be acknowledged by the autograder. Late submissions are allowed, albeit subject to the following penalties:</p>
+
+<ul class="simple">
+	<li>
+	<p>1 Day Late: 10% penalty</p>
+	</li>
+	<li>
+	<p>2 Days Late: 30% penalty</p>
+	</li>
+	<li>
+	<p>3 Days Late: 60% penalty</p>
+	</li>
+	<li>
+	<p>4+ Days Late: No Credit</p>
+	</li>
+</ul>
+
+<p>If you submit 4+ days late, the autograder will not grade your submission.</p>
+
+<p>In addition, you have one late voucher&Acirc;Â to submit mp_verif/mp_cache <em>or</em> a single checkpoint of mp_pipeline late by 3 days without any penalty. This does not stack with the previous late policy, this only removes the penalty. You can still only submit at most 3 days late.</p>
+
+<p>The intent of this voucher is to account for any unforeseen circumstances (illness, conflicts, etc.). Exceptions to the late policy will not be made, so use this voucher wisely. Once you choose to use your voucher for an MP/Checkpoint, <em>you cannot retroactively choose to move it to another MP/Checkpoint</em>.</p>
+
+<p>You can redeem your late voucher by filling out the form in the pinned post of our class Campuswire. This form must be submitted <em>before the intended deadline of the relevant MP or checkpoint</em>.</p>
+</section>
+</section>
+</div>
+</div>
+</div>
+
+<div aria-label="Main" class="sphinxsidebar" role="navigation">
+<div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ECE411 FA26</a></h1>
+
+<div class="searchformwrapper">
+<form action="search.html" class="search" method="get"><input aria-labelledby="searchlabel" autocapitalize="off" autocomplete="off" autocorrect="off" name="q" placeholder="Search" spellcheck="false" type="text" /> <input type="submit" value="Go" />&nbsp;</form>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+<h3>Navigation</h3>
+
+<ul class="current">
+	<li class="toctree-l1"><a class="reference internal" href="syllabus.html">Syllabus</a></li>
+	<li class="toctree-l1 current"><a class="current reference internal" href="#">Assignments</a>
+	<ul>
+		<li class="toctree-l2"><a class="reference internal" href="#setup-instructions">Setup Instructions</a></li>
+		<li class="toctree-l2"><a class="reference internal" href="#mp-information">MP Information</a>
+		<ul>
+			<li class="toctree-l3"><a class="reference internal" href="#mp-setup">mp_setup</a></li>
+			<li class="toctree-l3"><a class="reference internal" href="#mp-verif">mp_verif</a></li>
+			<li class="toctree-l3"><a class="reference internal" href="#mp-pipeline">mp_pipeline</a></li>
+			<li class="toctree-l3"><a class="reference internal" href="#mp-cache">mp_cache</a></li>
+			<li class="toctree-l3"><a class="reference internal" href="#mp-ooo">mp_ooo</a></li>
+		</ul>
+		</li>
+		<li class="toctree-l2"><a class="reference internal" href="#submission-autograder">Submission &amp; Autograder</a></li>
+		<li class="toctree-l2"><a class="reference internal" href="#late-policy">Late Policy</a></li>
+	</ul>
+	</li>
+	<li class="toctree-l1"><a class="reference internal" href="staff.html">Course Staff</a></li>
+	<li class="toctree-l1"><a class="reference internal" href="policies.html">Course Policies</a></li>
+	<li class="toctree-l1"><a class="reference internal" href="verdi.html">Verdi Tips &amp; Tricks</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+
+<ul>
+	<li><a href="index.html">Documentation overview</a>
+
+	<ul>
+		<li>Previous: <a href="syllabus.html" title="previous chapter">Syllabus</a></li>
+		<li>Next: <a href="staff.html" title="next chapter">Course Staff</a></li>
+	</ul>
+	</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="clearer">&nbsp;</div>
+</div>
+
+<div class="footer">&copy;2026, Dong Kai Wang. | Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a> &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a> | <a href="_sources/assignments.rst.txt" rel="nofollow">Page source</a></div>
+</body>
+</html>
