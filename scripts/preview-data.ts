@@ -592,3 +592,135 @@ items.push(
     movedBy: { reason: "Campuswire post 2026-09-17", from: at(2, 23, 59), postId: "cw-0" },
   }),
 );
+
+/* -------------------------------------------------------------------------- */
+/* "Add a course site", and the on-device model behind it                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Appended at the end, like the block above, because it needs none of the rows
+ * above it and two workers are editing them.
+ *
+ * `?model=ok|fail|absent` drives the three status lines the add-site flow can
+ * end on. They cannot be reached any other way in a harness: the real Prompt
+ * API needs 22GB of free disk and a 4GB GPU, so on most machines — including
+ * the one this preview runs on — the branch that says the model is missing is
+ * the *only* one reachable, which is exactly how the model running and saying
+ * nothing went unnoticed until Sushi ran it on a machine that had one.
+ *
+ * The page the stub answers with is a small list-shaped one (ECE 411's shape,
+ * which has no table on it), because that is the shape the deterministic search
+ * returns nothing for and therefore the only one that reaches the model at all.
+ */
+const PREVIEW_SITE_URL = "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html";
+const PREVIEW_SITE_HTML = [
+  "<html><head><title>Assignments — ECE411 FA26</title></head><body>",
+  '<section id="mp-information"><h2>MP Information</h2>',
+  '<section id="mp-setup"><h3>mp_setup</h3>',
+  '<ul class="simple"><li><p>Release: 8/25</p></li><li><p>Due: 9/7</p></li></ul></section>',
+  '<section id="mp-verif"><h3>mp_verif</h3>',
+  '<ul class="simple"><li><p>Release: 8/25</p></li><li><p>Due: 9/14</p></li></ul></section>',
+  "</section></body></html>",
+].join("");
+
+const previewModel = query.get("model");
+
+/*
+ * `absent` has to *replace* the API, not decline to add one.
+ *
+ * The browser this harness runs in turned out to have `LanguageModel` already,
+ * answering "downloadable" — so the branch that says the model is missing was
+ * unreachable here, which is the same hole one level down from the one this
+ * whole change is about. Deleting it does not work either: this script runs
+ * before Chrome installs the global, so the delete is a no-op and the real one
+ * appears afterwards.
+ *
+ * So it is replaced by one that throws, which `proposeWithModel` treats as
+ * absent on purpose — "an API that is present and throws is an API that is not
+ * there" — and which reaches the same sentence by the same branch.
+ */
+function installPreviewModel(stub: unknown): void {
+  /*
+   * Defined as a property that refuses to be replaced.
+   *
+   * Chrome installs the real `LanguageModel` on the window *after* the page's
+   * own scripts run, by assignment, and it overwrote a stub assigned here —
+   * even one re-assigned from a timeout. The harness then measured the machine
+   * it happened to run on rather than the branch it was asked for, which is how
+   * a laptop with the model and one without would both "verify" the same
+   * screen. A getter with a setter that ignores writes survives it, and nothing
+   * in the preview wants the real API.
+   */
+  Object.defineProperty(globalThis, "LanguageModel", {
+    configurable: true,
+    get: () => stub,
+    set: () => undefined,
+  });
+}
+
+if (previewModel === "absent") {
+  installPreviewModel({
+    availability: async () => {
+      throw new Error("preview: no model on this computer");
+    },
+  });
+}
+
+if (previewModel === "ok" || previewModel === "fail") {
+  const answer = JSON.stringify(
+    previewModel === "ok"
+      ? {
+          shape: "list",
+          rows: "#mp-information ul.simple > li",
+          title: "p",
+          due: "p",
+          titleFrom: "section >> h3",
+          dueLabel: "Due",
+          dateFormat: "M/d",
+        }
+      : // A selector that matches nothing: the shape a model that invented an id
+        // produces, and the one the status line has to quote a reason for.
+        { shape: "list", rows: "#schedule > li", title: "p", due: "p", dueLabel: "Due", dateFormat: "M/d" },
+  );
+  installPreviewModel({
+    availability: async () => "available",
+    create: async () => ({
+      contextWindow: 9216,
+      prompt: async () => answer,
+      destroy: () => undefined,
+    }),
+  });
+}
+
+/**
+ * The worker's half of the add-site flow.
+ *
+ * Wrapped around the stub above rather than added to its switch, because the
+ * switch is in the middle of a file two workers are editing. Everything it does
+ * not answer falls through to what answered before.
+ */
+const previousSendMessage = (globalThis as unknown as {
+  chrome: { runtime: { sendMessage: (req: { type: string }) => Promise<unknown> } };
+}).chrome.runtime.sendMessage;
+
+(globalThis as unknown as {
+  chrome: { runtime: { sendMessage: (req: { type: string }) => Promise<unknown> } };
+}).chrome.runtime.sendMessage = async (req: { type: string }) => {
+  if (req.type === "detect-adapter") {
+    // No candidates, with the page and the reason — which is the branch that
+    // reaches the model. `?model=absent` (or no switch at all) stops here, the
+    // way a student's laptop does.
+    return {
+      type: "detected",
+      candidates: [],
+      url: PREVIEW_SITE_URL,
+      html: PREVIEW_SITE_HTML,
+      courseCodeGuess: "ECE411",
+      reason:
+        "No table on this page. Either the schedule is built by JavaScript after the page " +
+        "loads, which this cannot read, or it is a list rather than a table.",
+    };
+  }
+  if (req.type === "add-local-adapter" || req.type === "set-adapter-enabled") return { type: "ok" };
+  return previousSendMessage(req);
+};

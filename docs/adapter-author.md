@@ -18,6 +18,15 @@ So when the search returns nothing, and only then, Chrome's built-in model is
 asked. What it proposes is run through the real runner on the page that was just
 fetched, and the student confirms it by reading the rows it extracted.
 
+**Amended 2026-09-18.** The first version of this could only propose a header
+table — `rows` + `columns` + `dateFormat` — while `runAdapter` had, the same
+morning, gained `dueLabel`, `titleFrom` and `time` for ECE 411's page, whose
+deadlines are `<li>`s reading `Due: 9/7` under an `<h3>` and which has no table
+on it at all. Sushi pasted exactly that page in and got "Asking the on-device
+model…" followed by the generic sentence about tables: the model ran, its
+outcome was hidden, and it could not have succeeded anyway. Both halves of that
+are fixed below — the three shapes, and the status line.
+
 ## The shape
 
 | Step | Where | What |
@@ -46,16 +55,22 @@ strings with no model anywhere near the suite.
 3. **The model is asked for selectors, never for values.** A date it read off
    the page would be a value this code invented (worker rule 3), ranked above a
    real Canvas deadline by §5.3 and impossible to audit. It names a row selector
-   and two column *headers*; `parseAdapterDate` reads them, the same code as
-   everywhere else. It is asked for headers rather than `td:nth-child(2)` for
-   house rule 3's reason: a positional cell turns one added column into a page
-   of mis-dated items with no error.
+   and, depending on the shape, two column *headers*, two row-relative selectors
+   or a set of `dueLabel` labels copied off the page; `parseAdapterDate` reads
+   what they point at, the same code as everywhere else. A selector that picks
+   by position is refused outright, for house rule 3's reason: a positional cell
+   turns one added column into a page of mis-dated items with no error.
 4. **Its answer clears the same trust boundary a published adapter clears.**
    `validateAdapter` first — so `dateFormat` is one of the closed set, the host
-   pattern is exactly the page's own host, and a host the extension already
-   holds is refused — then `runAdapter`, then: at least one row, at least half
-   of them dated, no `extra.unparsed*`, no empty titles. Anything else is a
-   rejection whose reason is fed back for the next attempt, at most three.
+   pattern is exactly the page's own host, a host the extension already holds is
+   refused, `kind` is one of the registry's six and `filter.exclude` compiles —
+   then `runAdapter`, then: at least one row, at least half of them dated, no
+   `extra.unparsed*`, no empty titles, and not a filter that removed every row.
+   Anything else is a rejection whose reason is fed back for the next attempt,
+   at most three. The candidate handed to the preview is built out of the
+   *validated adapter*, and `adapterFromCandidate` carries every one of its
+   fields into the saved entry — it used to write `columns` and nothing else,
+   so a validated `dueLabel` was dropped on the way to the store.
 5. **Nothing is saved without the student.** The preview shows the instants the
    extension recorded, not the text the page printed, because a column that
    reads plausibly and parses to the wrong day is exactly what a person who
@@ -96,3 +111,127 @@ The selector it prints for each table is scoped `tbody tr` where there is a
 `tbody`, because `table tr` also matches the header row: read through a
 `columns.title` of "Exercises", `<th>Exercises</th>` comes back as an *undated
 assignment called "Exercises"* that no course ever set.
+
+## The three shapes it may propose
+
+The model states which shape it saw, and the shape decides which fields it may
+name. They are the three `runAdapter` reads, and no others — `docs/adapters.md`
+describes each one as a hand-written entry.
+
+| `shape` | The page | What it names |
+|---|---|---|
+| `table` | a table with a header row | `rows`, `columns.title`, `columns.due`, optional `columns.link` |
+| `list` | `Label: value` bullets under a heading | `rows`, `title`, `due`, `dueLabel`, optional `titleFrom`, optional `time` |
+| `rows` | repeated blocks, no header row | `rows`, `title`, `due` |
+
+Any of the three may also carry `kind` (`assignment`, `exam`, `quiz`, `event`,
+`other`) and `filter.exclude`, a regular expression for the lines a course
+leaves reading TBD, TBA or N/A. ECE 411's own page is nine of eleven lines like
+that, and without the filter those nine arrive as undated rows — two dated out
+of eleven is under the half the validator requires, so a *correct* proposal for
+that page is rejected without one.
+
+`shape` is not decoration. A proposal carrying both a table's `columns` and a
+list's `dueLabel` is half of one answer and half of another: `runAdapter` reads
+`columns` and ignores the rest, so the preview would come from the table while
+the saved entry carried both. Naming the shape lets the validator refuse that in
+one line, and it is the cheapest signal that the model read the page rather than
+pattern-matched a table onto it.
+
+Two rejections are worth naming because they are house rules, not preferences:
+
+- **A positional selector is refused**, not merely discouraged in the prompt.
+  `p:nth-child(2)` is right until the course adds a bullet, and then every MP is
+  dated from its release line with no error anywhere (house rule 3). `rows` is
+  exempt: the summary itself offers `table:nth-of-type(2)` as a table's handle,
+  and picking the second table on a page is not picking the second cell of a row.
+- **A label is matched exactly.** `Due Date` contains `Due`; a substring match
+  would hand `mp_pipeline` a deadline off a line the adapter never asked for,
+  with nothing on the page looking wrong. The fixture
+  `ece411-fa2026-assignments-dated.html` prints both lines deliberately, and the
+  test that reads it is what pins the exact match.
+
+`kind` and `filter.exclude` are checked by `validateAdapter` — the same gate a
+published registry entry clears — rather than by a second copy of those rules
+here. A `kind` this file waved past would reach `Item.kind` as a value no
+`switch` in the UI has a branch for, and `examBoard` filters on it.
+
+## The summary has to show a list, not mention one
+
+`core/skeleton.ts` used to give tables 75% of the budget and render everything
+else as flat outline lines. On a page whose schedule *is* a list, that gave the
+model no `rows` selector to name, no sign that the `<h3>` above the bullets is
+where `titleFrom` points, and the bullets themselves were the first thing a
+tight budget dropped.
+
+Labelled lists are now peers of tables in the same structure budget, and a LIST
+block prints what a proposal needs:
+
+```
+LIST ul.simple
+  rows selector: #mp-setup ul.simple > li
+  every list like it: #mp-information ul.simple > li (5 lists)
+  heading: h3 mp_setup
+  titleFrom: section >> h3
+  inside: div.body > section#assignments > section#mp-information > section#mp-setup
+  LI | Release: 8/25
+  LI | Due: 9/7
+```
+
+`every list like it` is there because the handle nearest one MP is `#mp-setup`,
+and an adapter built on it silently covers a sixth of the course; the shipped
+`ece411-fa26-mp` entry uses the wider selector.
+
+A list qualifies only if it has two `<li>`s, half of them reading `Label:
+value`, a heading above it to take a name from, and at least one value shaped
+like a date. The last of those is the same test `detect.ts` applies to a table's
+column: ECE 310's "Recommended Textbook: Applied Digital Signal Processing" is a
+labelled list under a heading, and a share of the budget spent on it is rows of
+the one table with deadlines in it dropped.
+
+## What the student is told
+
+Every end of this branch has a sentence, and `core/author.ts`'s
+`modelStatusLine` decides which — in `core/`, because the options page is one of
+the two files the suite cannot reach (worker rule 1) and because the defect this
+replaces was three branches that said nothing.
+
+| What happened | The status line |
+|---|---|
+| A proposal survived the runner | *Chrome's built-in model proposed an entry (N attempts).* Then the preview |
+| It answered, and nothing it proposed read a deadline | *Chrome's built-in model tried N attempts and its last proposal read no deadlines: `<the validator's reason>`* |
+| `availability()` is not `available`, or the API is missing or throws | *Chrome's built-in model is not available on this computer.* |
+| The model is downloadable, or downloading | One line saying which, because "there is a thing that could have tried" is a different answer from "nothing found" |
+| The page was too large to summarise | *That page was too large to summarise for Chrome's built-in model.* |
+| The session or the prompt threw | *…could not be used on this page: `<the message>`* |
+
+The deterministic search's own reason — why *it* found nothing — is printed
+underneath, as a muted line, whenever no proposal survived. Both facts, in the
+order they happened. Before this, the search's sentence was the status line and
+the model's outcome was nothing at all.
+
+`noCandidateReason`'s no-table sentence changed with it: it used to end "it is a
+list rather than a table — those need a hand-written entry", which stopped being
+true the morning `dueLabel` landed.
+
+## Checking the three lines without a model
+
+The Prompt API needs 22GB of free disk and either a 4GB GPU or 16GB of RAM, so
+on most machines the only reachable branch is the one that says the model is
+missing — which is how a model running and saying nothing went unnoticed.
+`npm run preview` takes a switch:
+
+```
+dist/preview-options.html?model=ok       a proposal that validates, then the preview
+dist/preview-options.html?model=fail     three answers that read no deadlines
+dist/preview-options.html?model=absent   no model on this computer
+```
+
+The stub is installed with `Object.defineProperty` and a setter that ignores
+writes, because Chrome installs the real `LanguageModel` on the window *after*
+the page's own scripts run and plain assignment was silently overwritten — the
+harness was measuring the machine it ran on rather than the branch it was asked
+for.
+
+One thing the switch cannot check is a real model's answer. That needs Sushi, on
+the machine where `LanguageModel.availability()` returns `"available"`.

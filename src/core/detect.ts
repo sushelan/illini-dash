@@ -26,6 +26,7 @@
  */
 
 import { headerIndex, supportedDateFormats, parseAdapterDate } from "../sources/site.js";
+import type { Kind } from "../sources/types.js";
 
 /** How many rows must yield a date before a table is worth proposing. */
 const MIN_DATED_ROWS = 2;
@@ -44,11 +45,45 @@ export interface DetectedRow {
   due: string;
 }
 
+/**
+ * One proposal, in whichever of the three page shapes it was read from.
+ *
+ * `detectCandidates` below only ever produces the header-table shape, and that
+ * has not changed. The optional fields exist because `core/author.ts` produces
+ * candidates too, and a model may read a page the search cannot — a list of
+ * `Due: 9/7` bullets under an `<h3>`, or a row selector with two selectors
+ * hanging off it. Those shapes were supported by `runAdapter` and by a
+ * hand-written registry entry from the day ECE 411 landed, and by nothing that
+ * could *propose* one; a proposal that validated against the real runner then
+ * lost its `dueLabel` on the way to the preview, so what was saved was not what
+ * was checked.
+ *
+ * Everything here is carried straight through `buildAdapter` into the registry
+ * entry, so the rule is: a field that changes what `runAdapter` reads must be
+ * on this interface, or it must not be proposable.
+ */
 export interface Candidate {
   /** A CSS selector for this table's data rows, as the adapter would carry. */
   rows: string;
-  /** Header names, which survive a course adding a column (house rule 3). */
-  columns: { title: string; due: string; link?: string };
+  /**
+   * Header names, which survive a course adding a column (house rule 3).
+   *
+   * Absent for the two shapes that are not a header table, where `title` and
+   * `due` below are row-relative selectors instead.
+   */
+  columns?: { title: string; due: string; link?: string };
+  /** Row-relative selectors, for a page whose rows are not table cells. */
+  title?: string;
+  due?: string;
+  /** §4.5's `label: value` list fields. See `Adapter` for what each means. */
+  dueLabel?: string;
+  titleFrom?: string;
+  time?: string;
+  splitTitle?: string;
+  /** What the rows on this page are. Omitted means `assignment`. */
+  kind?: Kind;
+  /** `exclude` drops the TBD/TBA/N/A lines a course leaves in place. */
+  filter?: { include?: string; exclude?: string };
   dateFormat: string;
   /** Rows the selector matched. */
   total: number;
@@ -62,6 +97,17 @@ export interface Candidate {
    */
   sample: DetectedRow[];
 }
+
+/**
+ * What the search below produces, which is only ever the header-table shape.
+ *
+ * Stated as a type rather than left to a comment: the search finds a table by
+ * crossing its columns with the date formats, so `columns` is always there, and
+ * every caller that reads `candidate.columns.due` off a *detected* candidate is
+ * right to. A candidate from `core/author.ts` may be one of the other two
+ * shapes, and there the compiler asks.
+ */
+export type TableCandidate = Candidate & { columns: NonNullable<Candidate["columns"]> };
 
 /** Rows shown before the preview stops listing them. */
 const SAMPLE_ROWS = 6;
@@ -117,6 +163,54 @@ export function rowSelectorForTable(table: Element, doc: Document): string {
   return table.querySelector("tbody") ? `${selector} tbody tr` : `${selector} tr`;
 }
 
+/** An id or class this code may safely put back into a selector. */
+const SAFE_TOKEN = /^[A-Za-z][\w-]*$/;
+
+/** `ul.simple`, the narrowest thing a selector can call this list. */
+function tagWithClass(list: Element): string {
+  const first = (list.getAttribute("class") ?? "").trim().split(/\s+/)[0];
+  const tag = list.tagName.toLowerCase();
+  return first && SAFE_TOKEN.test(first) ? `${tag}.${first}` : tag;
+}
+
+/**
+ * A selector that finds this list again on the next fetch.
+ *
+ * The same shape as `selectorForTable`, and for the same reason: an `id` is
+ * what a page author meant as a handle, and a list rarely has one — ECE 411's
+ * MPs are `<section id="mp-setup"><h3>…<ul class="simple">`, where the handle is
+ * the section and the list is named relative to it.
+ */
+export function selectorForList(list: Element, doc: Document): string {
+  const id = list.getAttribute("id");
+  if (id && SAFE_TOKEN.test(id)) return `#${id}`;
+
+  const self = tagWithClass(list);
+  const container = list.closest("[id]");
+  const containerId = container?.getAttribute("id");
+  if (containerId && SAFE_TOKEN.test(containerId)) {
+    const within: Element[] = [...container!.querySelectorAll(self)];
+    if (within.length === 1) return `#${containerId} ${self}`;
+    const index = within.indexOf(list);
+    if (index >= 0) return `#${containerId} ${self}:nth-of-type(${index + 1})`;
+  }
+
+  const all: Element[] = [...doc.querySelectorAll(self)];
+  const index = all.indexOf(list);
+  return index <= 0 ? self : `${self}:nth-of-type(${index + 1})`;
+}
+
+/**
+ * The selector a list-shaped adapter would carry as its `rows`.
+ *
+ * `> li`, not a descendant `li`: a nested list would otherwise contribute its
+ * own items to the outer list's rows, and the two are different sections of the
+ * page. The shipped `ece411-fa26-mp` entry is spelled exactly this way.
+ */
+export function rowSelectorForList(list: Element, doc: Document): string {
+  return `${selectorForList(list, doc)} > li`;
+}
+
 /** The rows of a table that are not its header. */
 function dataRows(table: Element): Element[] {
   return [...table.querySelectorAll("tr")].filter(
@@ -131,8 +225,8 @@ function dataRows(table: Element): Element[] {
  * thing here that can be checked without a human. Ties go to the table with
  * more rows: a schedule beats a two-line summary box.
  */
-export function detectCandidates(doc: Document, reference: string, timezone: string): Candidate[] {
-  const found: Candidate[] = [];
+export function detectCandidates(doc: Document, reference: string, timezone: string): TableCandidate[] {
+  const found: TableCandidate[] = [];
 
   for (const table of doc.querySelectorAll("table")) {
     const headers = headerIndex(table);
@@ -187,7 +281,7 @@ export function detectCandidates(doc: Document, reference: string, timezone: str
   // more rows — which on a page where every assignment has a release date and
   // some have no deadline yet is the wrong one, with no way to reach the right
   // one. Found by mutation: collapsing by table survived every test.
-  const best = new Map<string, Candidate>();
+  const best = new Map<string, TableCandidate>();
   for (const candidate of found) {
     const key = `${candidate.rows}\u0000${candidate.columns.due}`;
     const seen = best.get(key);
@@ -252,8 +346,10 @@ export function noCandidateReason(doc: Document): string {
   if (tables.length === 0) {
     return (
       "No table on this page. Either the schedule is built by JavaScript after the page " +
-      "loads, which this cannot read, or it is a list rather than a table — those need a " +
-      "hand-written entry."
+      "loads, which this cannot read, or it is a list rather than a table. A list of " +
+      "“Due: 9/7” lines under a heading can be read — this search only looks at " +
+      "tables, but Chrome's built-in model can propose one for it on a computer that has " +
+      "the model, and a hand-written entry can always be written for it."
     );
   }
   if (!tables.some((table) => headerIndex(table).size >= 2)) {
@@ -270,6 +366,61 @@ export function noCandidateReason(doc: Document): string {
 
 /** §4.5 adapters are all UIUC, and UIUC runs on one clock. */
 export const SITE_TIMEZONE = "America/Chicago";
+
+/**
+ * The registry entry for a candidate the student approved.
+ *
+ * In `core/` rather than in the options page because it is a decision — *which
+ * fields of the thing that was validated survive into the thing that is saved*
+ * — and the page is one of the two files the suite cannot reach (worker rule
+ * 1). It was in the page, and it wrote out `columns` and nothing else: a
+ * list-shaped proposal that had been validated through the real runner with a
+ * `dueLabel` was saved without one, so the entry installed read every line of
+ * the list rather than the deadline lines. Nothing in the preview could show
+ * that, because the preview came from the other object.
+ *
+ * `hostPattern` is derived from the URL rather than asked for, because
+ * `validateAdapter` requires it to be exactly the URL's own host — a wildcard
+ * would be one prompt covering every illinois.edu site, and a later edit could
+ * repoint the adapter anywhere under it with no second prompt.
+ */
+export function adapterFromCandidate(
+  candidate: Candidate,
+  url: string,
+  courseCode: string,
+  term: string,
+  kind = "assignment",
+): Record<string, unknown> & { id: string } {
+  const host = new URL(url).origin;
+  return {
+    id: `${courseCode.toLowerCase()}-${term}-local`,
+    label: `${courseCode} course site`,
+    courseCode,
+    term,
+    url,
+    hostPattern: `${host}/*`,
+    rows: candidate.rows,
+    // The table shape is unchanged: `columns`, plus the positional fallback for
+    // a header that has gone missing at parse time. The other two shapes carry
+    // their own row-relative `title` / `due`, and a list carries `dueLabel`,
+    // `titleFrom`, `time` and `filter` with them.
+    ...(candidate.columns
+      ? { columns: candidate.columns, title: "td:nth-child(1)", due: "td:nth-child(2)" }
+      : { title: candidate.title ?? "", due: candidate.due ?? "" }),
+    ...(candidate.dueLabel ? { dueLabel: candidate.dueLabel } : {}),
+    ...(candidate.titleFrom ? { titleFrom: candidate.titleFrom } : {}),
+    ...(candidate.time ? { time: candidate.time } : {}),
+    ...(candidate.splitTitle ? { splitTitle: candidate.splitTitle } : {}),
+    ...(candidate.filter ? { filter: candidate.filter } : {}),
+    // Omitted when it is the default, which is what every entry written before
+    // `kind` existed means — a saved entry should read like a hand-written one
+    // rather than carry a field it did not need.
+    ...(kind && kind !== "assignment" ? { kind } : {}),
+    dateFormat: candidate.dateFormat,
+    timezone: SITE_TIMEZONE,
+    minExtensionVersion: "0.1.0",
+  };
+}
 
 /**
  * A course code read off the URL, as a starting point for the student to fix.

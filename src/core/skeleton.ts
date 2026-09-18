@@ -23,7 +23,7 @@
  */
 
 import { ParseError } from "../sources/types.js";
-import { selectorForTable } from "./detect.js";
+import { rowSelectorForList, selectorForTable } from "./detect.js";
 
 /** Tags that are all bytes and no structure. */
 const DROPPED = new Set([
@@ -49,15 +49,23 @@ const MAX_ROW = 320;
 const MAX_OUTLINE = 110;
 
 /**
- * The share of the budget tables get before anything else is written.
+ * The share of the budget the page's *structure* gets before anything else is
+ * written — its tables, and the labelled lists that are the third page shape.
  *
- * A course schedule is a table far more often than it is anything else, and a
- * summary that spends its budget on the department's address and truncates the
- * schedule away is worse than no summary: the model then answers from the
+ * A summary that spends its budget on the department's address and truncates
+ * the schedule away is worse than no summary: the model then answers from the
  * navigation, plausibly, and the student is asked to confirm a guess about a
  * page neither of them looked at.
+ *
+ * Lists are peers of tables here rather than outline lines underneath them.
+ * ECE 411 is the reason: its page has **no table at all**, and every deadline
+ * on it is a `<li>` reading `Due: 9/7` under an `<h3>`. Rendered only through
+ * the outline, those bullets are the first thing a tight budget drops, printed
+ * with no handle a `rows` selector could name and no sign that the `<h3>` above
+ * them is where `titleFrom` would point — which is a page the model cannot
+ * answer about even when it reads it correctly.
  */
-const TABLE_SHARE = 0.75;
+const STRUCTURE_SHARE = 0.75;
 
 /** Below this there is no room for a header and a row, so asking is pointless. */
 const MIN_BUDGET = 400;
@@ -151,6 +159,172 @@ function renderTable(table: Element, selector: string, budget: number): string {
   return lines.join("\n");
 }
 
+/* -------------------------------------------------------------------------- */
+/* The third page shape: `label: value` lines under a heading                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A line that states a label and a value, which is what makes a list a
+ * schedule rather than prose.
+ *
+ * `Due: 9/7`, `Release: TBD`, `Midterm 1: September 29`. Anchored and bounded
+ * on the label rather than a search for a colon anywhere: a sentence with a
+ * colon in the middle of it is a paragraph that happens to be in a list, and a
+ * page of those is not a page `dueLabel` can read.
+ */
+const LABEL_LINE = /^[^:]{1,60}:\s*\S/;
+
+/** The share of a list's lines that must be labelled before it is offered. */
+const MIN_LABELLED_SHARE = 0.5;
+
+/**
+ * A value that could be one of `site.ts`'s three date formats.
+ *
+ * Deliberately the same test `detectCandidates` applies to a table's column —
+ * a block is only worth a share of the budget if a deadline could be read out
+ * of it. Without it, ECE 310's "Recommended Textbook: Applied Digital Signal
+ * Processing: Theory and Practice" is a labelled list under a heading, takes a
+ * share of the structure budget, and pushes the rows of the one table that
+ * holds the homework deadlines out of the summary.
+ *
+ * A loose shape rather than `parseAdapterDate` itself, which needs a timezone
+ * and a reference instant this function has no business asking its caller for.
+ * Being generous here costs a block's share; being strict would cost a page.
+ */
+const DATE_SHAPED = new RegExp(
+  String.raw`\b\d{1,2}/\d{1,2}\b|\b\d{4}-\d{1,2}-\d{1,2}\b|` +
+    String.raw`\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b`,
+  "i",
+);
+
+/** Headings a list can take its rows' names from — what `titleFrom` points at. */
+const HEADINGS = "h1, h2, h3, h4";
+
+function directItems(list: Element): Element[] {
+  return [...list.children].filter((child) => child.tagName === "LI");
+}
+
+/**
+ * The heading a `titleFrom` would name for this list, and the spec that reaches
+ * it.
+ *
+ * Two spellings because `runAdapter` has two: `section >> h3` climbs to the
+ * row's enclosing section, and a bare `h3` takes the nearest heading preceding
+ * the row in document order. The scoped form is preferred where the page gives
+ * it, because it is the one that cannot drift when a section is moved.
+ */
+function headingFor(list: Element): { element: Element; spec: string } | undefined {
+  for (const scope of ["section", "article"]) {
+    const container = list.closest(scope);
+    const heading = container?.querySelector(HEADINGS);
+    if (heading && !droppedAncestor(heading)) {
+      return { element: heading, spec: `${scope} >> ${heading.tagName.toLowerCase()}` };
+    }
+  }
+  for (let node = previousInDocumentOrder(list); node; node = previousInDocumentOrder(node)) {
+    if (node.matches(HEADINGS) && !droppedAncestor(node)) {
+      return { element: node, spec: node.tagName.toLowerCase() };
+    }
+  }
+  return undefined;
+}
+
+/** The same backwards walk `site.ts` uses, for the same linkedom reason. */
+function previousInDocumentOrder(node: Element): Element | undefined {
+  const sibling = node.previousElementSibling;
+  if (!sibling) return node.parentElement ?? undefined;
+  let last = sibling;
+  while (last.lastElementChild) last = last.lastElementChild;
+  return last;
+}
+
+/**
+ * Whether this list is one the `dueLabel` shape could be written against.
+ *
+ * Two `<li>`s at least, half of them labelled, and a heading to take a name
+ * from. The heading is a requirement rather than a nicety: a row in a list has
+ * no title of its own, so a list with nothing above it is a list whose rows
+ * `runAdapter` could only title `"Due: 9/7"`.
+ */
+export function isLabelledList(list: Element): boolean {
+  const items = directItems(list);
+  if (items.length < 2) return false;
+  const labelled = items
+    .map((item) => squash(item.textContent))
+    .filter((text) => LABEL_LINE.test(text));
+  if (labelled.length / items.length < MIN_LABELLED_SHARE) return false;
+  if (!labelled.some((text) => DATE_SHAPED.test(text.slice(text.indexOf(":") + 1)))) return false;
+  return headingFor(list) !== undefined;
+}
+
+/**
+ * The selector that would read *every* list of this shape, not just this one.
+ *
+ * ECE 411's MPs are one `<section>` each, so the handle nearest a given list is
+ * `#mp-setup` and the selector built from it reads one MP. The shipped entry
+ * uses `#mp-information ul.simple > li`, which reads all of them — and a model
+ * shown only the narrow selector proposes an adapter that silently covers a
+ * sixth of the course. Printed alongside, with the count, so the choice is
+ * visible rather than inferred.
+ */
+function siblingListSelector(list: Element, doc: Document): string | undefined {
+  const self = tagOf(list);
+  for (let node = list.parentElement; node; node = node.parentElement) {
+    const id = node.getAttribute("id");
+    if (!id || !/^[A-Za-z][\w-]*$/.test(id)) continue;
+    const within = [...node.querySelectorAll(self)];
+    if (within.length > 1) return `#${id} ${self} > li (${within.length} lists)`;
+  }
+  return doc.querySelectorAll(self).length > 1 ? `${self} > li` : undefined;
+}
+
+/** `ul.simple` — the tag and its first class, as `selectorForList` spells it. */
+function tagOf(list: Element): string {
+  const first = (list.getAttribute("class") ?? "").trim().split(/\s+/)[0];
+  const tag = list.tagName.toLowerCase();
+  return first && /^[A-Za-z][\w-]*$/.test(first) ? `${tag}.${first}` : tag;
+}
+
+/**
+ * One labelled list, heading first, within `budget` characters.
+ *
+ * The `rows` selector and the `titleFrom` spec are printed rather than left for
+ * the model to derive, exactly as `renderTable` prints its own `rows` selector:
+ * the two fields a list-shaped entry needs beyond a table's are the two a model
+ * has no way to guess from a flat outline.
+ */
+function renderList(list: Element, doc: Document, budget: number): string {
+  const items = directItems(list);
+  const heading = headingFor(list);
+  const siblings = siblingListSelector(list, doc);
+  const head = [
+    `LIST ${describe(list)}`,
+    `  rows selector: ${rowSelectorForList(list, doc)}`,
+    ...(siblings ? [`  every list like it: ${siblings}`] : []),
+    ...(heading
+      ? [
+          `  heading: ${describe(heading.element)} ${clip(squash(heading.element.textContent), MAX_CELL)}`,
+          `  titleFrom: ${heading.spec}`,
+        ]
+      : []),
+    `  inside: ${ancestry(list)}`,
+  ];
+  const lines: string[] = [...head];
+  let used = head.join("\n").length;
+  let shown = 0;
+
+  for (const item of items) {
+    const link = item.querySelector("a[href]") ? " [link]" : "";
+    const line = `  LI | ${clip(squash(item.textContent), MAX_ROW)}${link}`;
+    if (used + line.length + 1 > budget) break;
+    lines.push(line);
+    used += line.length + 1;
+    shown += 1;
+  }
+  if (shown < items.length) lines.push(`  … ${shown} of ${items.length} lines shown`);
+  return lines.join("\n");
+}
+
 /** What the outline looks at: things a selector could name, and text beside them. */
 const OUTLINE_SELECTOR = "h1, h2, h3, h4, [id], li, p";
 
@@ -165,12 +339,17 @@ const OUTLINE_SELECTOR = "h1, h2, h3, h4, [id], li, p";
  * gets written against. Without both, ECE 310's summary came to 18KB of a 33KB
  * page, which is not a summary.
  */
-function renderOutline(doc: Document, budget: number): string {
+function renderOutline(doc: Document, budget: number, drawn: Element[]): string {
   const lines: string[] = [];
   let used = 0;
   for (const element of doc.querySelectorAll(OUTLINE_SELECTOR)) {
     if (DROPPED.has(element.tagName) || droppedAncestor(element)) continue;
     if (element.closest("table")) continue; // the tables are rendered in full above
+    // And a list that was rendered in full above is not reprinted as a run of
+    // loose `li:` lines underneath it — the same rule, and the same reason: a
+    // second copy of the schedule is a second thing for the model to quote a
+    // date out of, in a prompt whose whole rule is "selectors, never values".
+    if (drawn.some((list) => list !== element && list.contains(element))) continue;
     const encloses = element.querySelector(OUTLINE_SELECTOR) !== null;
     const text = encloses ? "" : squash(element.textContent);
     if (!encloses && !text) continue;
@@ -203,28 +382,47 @@ export function skeletonise(doc: Document, budgetChars: number): string {
   }
 
   const header = `PAGE TITLE: ${clip(squash(doc.title), MAX_CELL)}`;
-  const tables = [...doc.querySelectorAll("table")].filter((table) => !droppedAncestor(table));
+  /*
+   * Tables and labelled lists, in document order and sharing one budget.
+   *
+   * Two separate passes would have to decide which goes first, and either
+   * answer is wrong on some page: a course with a table of homework and a list
+   * of exams has its deadlines in both. One list of blocks with an equal share
+   * each is the same rule the tables already had, one shape wider.
+   */
+  const blocks = [...doc.querySelectorAll("table, ul, ol")].filter(
+    (element) =>
+      !droppedAncestor(element) &&
+      (element.tagName === "TABLE" ? true : isLabelledList(element)) &&
+      // A list inside a table is that table's cell content, already rendered.
+      !(element.tagName !== "TABLE" && element.closest("table")),
+  );
 
   const sections: string[] = [header];
+  const drawnLists: Element[] = [];
   let remaining = budgetChars - header.length - 1;
 
-  if (tables.length > 0) {
-    let tableBudget = Math.floor(budgetChars * TABLE_SHARE);
+  if (blocks.length > 0) {
+    let structureBudget = Math.floor(budgetChars * STRUCTURE_SHARE);
     let drawn = 0;
-    for (const [index, table] of tables.entries()) {
-      // Whatever an earlier table did not need flows to the next one, so a page
+    for (const [index, block] of blocks.entries()) {
+      // Whatever an earlier block did not need flows to the next one, so a page
       // with one summary box and one schedule spends the budget on the schedule.
-      const share = Math.floor(tableBudget / (tables.length - index));
+      const share = Math.floor(structureBudget / (blocks.length - index));
       if (share < 80) break;
-      const text = renderTable(table, selectorForTable(table, doc), share);
+      const text =
+        block.tagName === "TABLE"
+          ? renderTable(block, selectorForTable(block, doc), share)
+          : renderList(block, doc, share);
       if (text.length + 1 > remaining) break;
       sections.push(text);
+      if (block.tagName !== "TABLE") drawnLists.push(block);
       remaining -= text.length + 1;
-      tableBudget -= text.length + 1;
+      structureBudget -= text.length + 1;
       drawn += 1;
     }
-    if (drawn < tables.length) {
-      const note = `… ${drawn} of ${tables.length} tables shown`;
+    if (drawn < blocks.length) {
+      const note = `… ${drawn} of ${blocks.length} tables and lists shown`;
       if (note.length + 1 <= remaining) {
         sections.push(note);
         remaining -= note.length + 1;
@@ -234,7 +432,7 @@ export function skeletonise(doc: Document, budgetChars: number): string {
 
   const OUTLINE_HEADING = "PAGE OUTLINE:";
   if (remaining > OUTLINE_HEADING.length + 60) {
-    const outline = renderOutline(doc, remaining - OUTLINE_HEADING.length - 2);
+    const outline = renderOutline(doc, remaining - OUTLINE_HEADING.length - 2, drawnLists);
     if (outline) sections.push(`${OUTLINE_HEADING}\n${outline}`);
   }
 
