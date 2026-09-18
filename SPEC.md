@@ -528,9 +528,17 @@ Parser rules:
   available). Item is undated and only shown if unfinished and the user has "show
   undated" on. Default off.
 - Score cell → status: `Not started` → `not_submitted`; a `New instance` button →
-  `not_submitted`; a percentage bar `> 0%` → `graded` (PrairieLearn grades on the
-  spot, so this is "done" for our purposes); a `0%` bar → `not_submitted` (opened
-  but nothing earned).
+  `not_submitted`; a `0%` bar → `not_submitted` (opened but nothing earned); a bar at
+  `100%` or above → `graded` (nothing is left to earn). A bar **between 0 and 100** is
+  "done" only once nothing more can be earned: if any credit tier with credit above 0 is
+  open at fetch time, the row is `not_submitted` and carries
+  `extra.scorePercent = "40"`, which the popup shows as "40% so far"; if no such tier is
+  open, the work is closed and the row is `graded`. Openness comes from the credit
+  schedule when there is one, else from the credit cell (`80% until …` is an 80-credit
+  tier open until that instant), else it counts as closed — a row we cannot read is never
+  re-opened on a guess. (Amended 2026-09-18, roadmap I37; the rule was "a percentage bar
+  `> 0%` → `graded`", which hid a 40% homework behind the done filter while the window to
+  fix it was still open. Evidence in `docs/prairielearn-findings.md`.)
 - Titles containing `NOT FOR CREDIT`, `WILL NOT COUNT`, or `extra credit`
   (case-insensitive) get `extra.forCredit = "false"`. They still appear, but the popup
   sorts them last within their day and a filter hides them. Don't drop them: some

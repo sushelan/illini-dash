@@ -335,7 +335,32 @@ function precisionFor(section: SectionName | undefined): "relative" | "time" | "
   }
 }
 
+/**
+ * §4.3 as amended (roadmap I37): a PrairieLearn row scored below 100 with
+ * credit still on offer stays unfinished, and `extra.scorePercent` says how far
+ * it got. "40% so far" is the difference between a row that has never been
+ * opened and one that needs half an hour, and without it the two read alike.
+ */
+function scoreSoFar(item: Item): string | undefined {
+  // Not on a finished row. A closed assessment that ended at 40 also carries
+  // `scorePercent`, and "40% so far" on it reads as an invitation to go and
+  // earn the rest, which is the one thing that can no longer be done.
+  if (isItemDone(item) || isTickedDone(item)) return undefined;
+  const percent = item.members.find((m) => m.extra?.["scorePercent"])?.extra?.["scorePercent"];
+  return percent === undefined ? undefined : `${percent}% so far`;
+}
+
 export function formatDue(item: Item, now: Date, section?: SectionName): DueText {
+  const text = dueTextFor(item, now, section);
+  // Only where the row has nothing else to say. The credit wordings below are
+  // about the deadline, which is the more urgent of the two, and `detail` is a
+  // single line whose length already cost the title column its width once.
+  if (text.detail !== undefined) return text;
+  const soFar = scoreSoFar(item);
+  return soFar === undefined ? text : { ...text, detail: soFar };
+}
+
+function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
   const instant = instantOf(item);
   if (instant === undefined) {
     // A row with no deadline but a stated opening time. "no date" would be a

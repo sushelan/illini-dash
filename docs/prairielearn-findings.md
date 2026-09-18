@@ -78,3 +78,45 @@ Stable hooks exist and beat the colour classes:
   style and the same percentage as text
 - title: the `<a>` in the second cell; `(NOT FOR CREDIT)` appears in the link text as
   §4.3 predicted, so `extra.forCredit` works off the title as specified
+
+## Amendment 2026-09-18 — a partial score is not "done" (roadmap I37)
+
+**What §4.3 said, and what it now says.** The status rule read: *"a percentage bar
+`> 0%` → `graded` (PrairieLearn grades on the spot, so this is 'done' for our
+purposes)"*. The line has been rewritten in place, not annotated: `>= 100` is done, `0`
+is not started, and anything in between is done **only when no credit tier with credit
+above 0 is still open at fetch time**. A still-open partial row is `not_submitted` and
+carries `extra.scorePercent`, which the popup renders as "40% so far".
+
+**The evidence.** PrairieLearn homework is resubmittable: the credit schedule on this
+very capture runs `100 → 80 → 50 → 0`, so a student sitting at 40% with the 80% tier
+open can still take the row to 100. Under the old rule that row was `graded` — filtered
+out of the list by "hide done" the moment the first question was answered, in exactly
+the window where it most needed to be on it. The closed case is the mirror image: once
+every tier with credit has ended, nothing the student does changes the score, and a row
+that can never be cleared is worse than one hidden a day early. Decision by Sushi.
+
+**Where it is decided.** At parse time, in `mapStatus`/`creditStillOpen`
+(`src/sources/prairielearn.ts`) — not in `dedupe.ts`'s `isItemDone`, which I37's
+"Touches" line suggested. `isItemDone` sees a merged item and no clock; openness is a
+fact the page states, about one source's row, at the instant it was fetched.
+
+**The strongest objection, recorded rather than papered over.** *The table cannot tell a
+retake-to-100 homework from a one-shot quiz that ended at 40.* Both render a sub-100 bar
+with a tier still open — a quiz whose access window runs to the end of the module, but
+which allows one attempt, is indistinguishable in this markup from a homework with
+unlimited attempts. Nothing on the assessments page states the attempt limit; only the
+assessment page itself does, and fetching it per row is a second request per assessment.
+The badge (`extra.badge`, from `assessment-set-badge`: `HW3`, `Q1`, `E1`) is the only
+hint available here, and it is a heuristic — courses name their sets freely — so it is
+**not** used. The consequence is a known false positive: a one-shot quiz scored 40% with
+its window still open stays on the list until the window closes, at which point it goes
+`graded` on its own. That is the direction the error was chosen to fall, since the
+opposite failure hides work that can still be fixed.
+
+**The fixture.** `fixtures/prairielearn/assessments-cs357.html` has seven score bars and
+they read only 0%, 100% and 103%, so a `> 0 → graded` implementation and the amended one
+are indistinguishable against it (house rule 10). The constructed
+`fixtures/prairielearn/assessments-partial-scores.html` supplies the missing rows —
+40% with an open 80% tier, 40% with everything closed, 100% with an open tier, and 40%
+with no access details at all — and its README says plainly that it is not a capture.
