@@ -20,6 +20,9 @@ import type {
 } from "../sources/types.js";
 import { isOlderThan } from "./dates.js";
 import { isInstant } from "./parsing.js";
+// Type-only, so the runtime edge runs the other way: `core/piazza.ts` imports
+// `backoffMinutes` from here, and a value import back would be a cycle.
+import type { PiazzaClass, PiazzaHealth } from "./piazza.js";
 import { validateAdapter } from "./registry.js";
 
 /**
@@ -190,10 +193,18 @@ export interface StoreV1Plus extends StoreV1 {
   observers: Record<ObserverId, ObserverState>;
 }
 
-/** Every page observer this build knows about. */
-export type ObserverId = "campuswire";
+/**
+ * Every page observer this build knows about.
+ *
+ * `piazza` is here rather than in `Source` on purpose: it is fetched by the
+ * worker on the sync schedule, but what it produces is *posts* for
+ * `core/suggest.ts` and never a `RawItem`, so it has no place in `PLANS` and no
+ * health dot the sync loop could fill in. What it borrows from a source is the
+ * evidence of an attempt, which is the optional half of `ObserverState` below.
+ */
+export type ObserverId = "campuswire" | "piazza";
 
-export const ALL_OBSERVERS: ObserverId[] = ["campuswire"];
+export const ALL_OBSERVERS: ObserverId[] = ["campuswire", "piazza"];
 
 export interface ObserverState {
   enabled: boolean;
@@ -201,6 +212,27 @@ export interface ObserverState {
   lastObservedAt?: string;
   /** How many posts have reached the worker from it. Absent until one has. */
   postsSeen?: number;
+
+  /*
+   * Fetched observers only (today, Piazza). A page observer leaves none of
+   * these behind, because nothing about it is an attempt this extension made.
+   * Every one is derived from a request that happened — worker rule 2 — and
+   * `core/piazza.ts` owns every decision that reads or writes them.
+   */
+  /** `pending` until the first fetch. Never seeded `ok` (worker rule 2). */
+  state?: PiazzaHealth;
+  /** When a fetch was last attempted, successful or not. */
+  lastAttemptAt?: string;
+  /** Why the last attempt failed, in the words the row shows. */
+  lastError?: string;
+  /** The enrolment list, cached from the class page and refreshed daily. */
+  classes?: PiazzaClass[];
+  classesFetchedAt?: string;
+  /** nid -> the highest post number already read, so a 150-post feed is read once. */
+  lastNr?: Record<string, number>;
+  /** §6's ladder: the earliest next attempt after a failure. */
+  nextAttemptAt?: string;
+  failures?: number;
 }
 
 /**
@@ -212,6 +244,32 @@ export interface ObserverState {
  * was nothing to switch". The difference matters at exactly one moment: the
  * service worker re-registering the content script at startup.
  */
+function isObserverHealth(value: unknown): value is PiazzaHealth {
+  return value === "pending" || value === "ok" || value === "needs_login" || value === "error";
+}
+
+/** A cached enrolment entry that is actually usable. Validated, never cast. */
+function isUsableClass(value: unknown): value is PiazzaClass {
+  return (
+    isRecord(value) &&
+    typeof value["nid"] === "string" &&
+    value["nid"] !== "" &&
+    typeof value["courseRaw"] === "string" &&
+    Array.isArray(value["courseCodes"]) &&
+    value["courseCodes"].every((code) => typeof code === "string") &&
+    typeof value["active"] === "boolean"
+  );
+}
+
+/** nid -> post number, with anything that is not one dropped rather than trusted. */
+function usableLastNr(value: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [nid, nr] of Object.entries(value)) {
+    if (typeof nr === "number" && Number.isInteger(nr) && nr >= 0) out[nid] = nr;
+  }
+  return out;
+}
+
 function migrateObservers(stored: unknown): Record<ObserverId, ObserverState> {
   const out = {} as Record<ObserverId, ObserverState>;
   const value = isRecord(stored) ? stored : {};
@@ -225,6 +283,25 @@ function migrateObservers(stored: unknown): Record<ObserverId, ObserverState> {
       ...(isInstant(from["lastObservedAt"]) ? { lastObservedAt: from["lastObservedAt"] } : {}),
       ...(typeof from["postsSeen"] === "number" && Number.isInteger(from["postsSeen"]) && from["postsSeen"] >= 0
         ? { postsSeen: from["postsSeen"] }
+        : {}),
+      /*
+       * The fetched half, validated the same way and for the same reason: this
+       * is a blob off disk, possibly written by a build that predates every
+       * field here. A `state` of anything else would reach `describePiazza` and
+       * be printed at the student, and a `lastAttemptAt` that is not an instant
+       * would re-arm the login re-check on every navigation for ever.
+       */
+      ...(isObserverHealth(from["state"]) ? { state: from["state"] } : {}),
+      ...(isInstant(from["lastAttemptAt"]) ? { lastAttemptAt: from["lastAttemptAt"] } : {}),
+      ...(typeof from["lastError"] === "string" && from["lastError"] !== ""
+        ? { lastError: from["lastError"] }
+        : {}),
+      ...(Array.isArray(from["classes"]) ? { classes: from["classes"].filter(isUsableClass) } : {}),
+      ...(isInstant(from["classesFetchedAt"]) ? { classesFetchedAt: from["classesFetchedAt"] } : {}),
+      ...(isRecord(from["lastNr"]) ? { lastNr: usableLastNr(from["lastNr"]) } : {}),
+      ...(isInstant(from["nextAttemptAt"]) ? { nextAttemptAt: from["nextAttemptAt"] } : {}),
+      ...(typeof from["failures"] === "number" && Number.isInteger(from["failures"]) && from["failures"] >= 0
+        ? { failures: from["failures"] }
         : {}),
     };
   }
