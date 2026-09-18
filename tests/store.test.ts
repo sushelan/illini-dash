@@ -403,6 +403,31 @@ describe("page observers", () => {
     expect(store.observers.campuswire).toEqual({ enabled: true });
   });
 
+  it("keeps a deadline count, and refuses one that is not a whole number", () => {
+    /*
+     * The Piazza row prints "none with a deadline" for `0` and prints nothing
+     * at all when this is absent, so the difference between a bad value and a
+     * missing one is the difference between a claim and a silence. `"1"` and
+     * `1.5` and `-1` are all the absence.
+     */
+    expect(
+      migrate(
+        { observers: { piazza: { enabled: true, postsSeen: 25, deadlinesFound: 0 } } },
+        NOW,
+      ).observers.piazza,
+    ).toEqual({ enabled: true, postsSeen: 25, deadlinesFound: 0 });
+
+    for (const bad of ["1", 1.5, -1, null]) {
+      expect(
+        migrate(
+          { observers: { piazza: { enabled: true, postsSeen: 25, deadlinesFound: bad } } },
+          NOW,
+        ).observers.piazza,
+        JSON.stringify(bad),
+      ).toEqual({ enabled: true, postsSeen: 25 });
+    }
+  });
+
   it("ignores an observer this build has never heard of", () => {
     const store = migrate({ observers: { edstem: { enabled: true } } }, NOW);
     expect(Object.keys(store.observers)).toEqual(["campuswire", "piazza"]);

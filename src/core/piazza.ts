@@ -82,16 +82,12 @@ export function feedRequest(nid: string): PiazzaRequest {
  *
  * The feed carries `content_snipet`, which is the first 120 characters and
  * nothing more, so a deadline sentence further down a long instructor note is
- * invisible to this build. `content.get` returns the whole post, and the shape
- * of its response has not been captured yet
- * (`fixtures/piazza/post.json`) — so no parser for it exists, because a parser
- * before its fixture is exactly what CLAUDE.md's build order forbids.
+ * invisible to a feed-only build. `content.get` returns the whole post; the
+ * response is captured (`fixtures/piazza/post.json`) and `parsePostBody` below
+ * reads it.
  *
- * What *is* known is the request, so it is written down here rather than
- * rediscovered: it is the same endpoint with a different method name, taking
- * the feed entry's `id` as `cid`. `fetchPostBody` is deliberately a throw: an
- * unimplemented stage that returned `[]` or `undefined` would be this project's
- * worst failure mode wearing a helper's clothes.
+ * Same endpoint, a different method name, taking the feed entry's `id` as
+ * `cid`.
  */
 export function postBodyRequest(cid: string, nid: string): PiazzaRequest {
   if (nonEmpty(cid) === undefined || nonEmpty(nid) === undefined) {
@@ -104,12 +100,210 @@ export function postBodyRequest(cid: string, nid: string): PiazzaRequest {
   };
 }
 
-/** The second stage, once `fixtures/piazza/post.json` exists. Not yet written. */
-export function fetchPostBody(): never {
-  throw new ParseError(
-    "Piazza post bodies are not read yet: fixtures/piazza/post.json (a content.get " +
-      "response) has not been captured, and no parser is written before its fixture",
-  );
+/* -------------------------------------------------------------------------- */
+/* Post bodies (`content.get`)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Tags that are a line break when they are removed.
+ *
+ * The body is HTML written in Piazza's rich-text editor, and it reaches the
+ * worker as a JSON string — there is no DOM in a service worker and linkedom is
+ * a test-only dependency, so the tags come off here. What matters to the
+ * grammar is not the markup but the **line structure**: `announce.ts` ends a
+ * sentence at punctuation, at a blank line and after a title line, so a `</p>`
+ * that vanished without a trace would run an instructor's last sentence into
+ * the next paragraph's first one and let a trigger in one bind a date in the
+ * other. Everything in this list is a block (or `<br>`), and everything not in
+ * it — `<strong>`, `<a>`, `<em>` — is inline and leaves no gap.
+ */
+const BLOCK_TAG =
+  /<\/?(?:p|div|br|li|ul|ol|tr|td|th|table|h[1-6]|blockquote|pre|section|article|header|footer|hr)\b[^>]*>/gi;
+/** `<script>`/`<style>` take their contents with them; nothing in them is prose. */
+const DROPPED_BLOCK = /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
+/** Whatever tags are left are inline, and come off without a space. */
+const ANY_TAG = /<\/?[a-z][^>]*>/gi;
+
+/**
+ * One HTML post body as the text `announce.ts` reads.
+ *
+ * Exported because it is the one decision in this stage that a fixture cannot
+ * fully pin: the capture's markup is well formed, and every way of getting this
+ * wrong (eating the line breaks, decoding entities *before* the tags come off
+ * so that `&lt;div&gt;` becomes a tag, leaving `&#39;` in a span quoted back at
+ * the student) is invisible against it unless it is tested directly.
+ *
+ * Order is load-bearing and is the reverse of the tempting one: tags first,
+ * entities **last**. A body that quotes markup at the student — Piazza posts
+ * about `<code>` snippets do — encodes it, and decoding first would turn the
+ * quotation into a tag and delete it.
+ */
+export function htmlToText(html: string): string {
+  const withBreaks = html
+    .replace(DROPPED_BLOCK, " ")
+    .replace(BLOCK_TAG, "\n")
+    .replace(ANY_TAG, "");
+  return decodeEntities(withBreaks)
+    // A non-breaking space is a space, and `announce.ts`'s patterns spell `\s`.
+    .replace(/ /g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    // Three blank lines and one blank line mean the same thing to the sentence
+    // splitter; collapsing them keeps a `context` string readable when it is
+    // shown beside the post.
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** What the caller knows about the request it made; the response is checked against it. */
+export interface PostBodyContext {
+  nid: string;
+  /** The `cid` that was asked for. A response for another post is refused. */
+  cid: string;
+}
+
+/** One post's current version, read out of a `content.get` response. */
+export interface PostBody {
+  /** What `ingestPost` reads: the subject on its own line, then the body. */
+  text: string;
+  subject: string;
+  /** The body alone, tags off and entities decoded. */
+  bodyText: string;
+  /** Staff-written: `instructor-note` in `tags`, or `config.is_announcement`. */
+  instructorNote: boolean;
+  /** `history[0].created` — when *this version* was written. A real instant. */
+  versionAt: string;
+  cid: string;
+  nr: number;
+}
+
+/**
+ * The current version of one post.
+ *
+ * `history` is newest first and holds one entry per edit (five for the captured
+ * note), so `history[0]` is the post as it reads now and every older version is
+ * deliberately ignored: a deadline an instructor has since corrected is not a
+ * deadline, and offering both would put two rows in front of the student for
+ * one assignment.
+ *
+ * Validated positively, top down (house rule 5). Everything here is a **hook**
+ * rather than a value — without `history[0].content` there is no body, which is
+ * the entire point of this request — so every failure is a `ParseError` naming
+ * its field, and `background.ts` isolates it to the one post (the others keep
+ * their snippets).
+ */
+export function parsePostBody(json: unknown, ctx: PostBodyContext): PostBody {
+  if (nonEmpty(ctx?.nid) === undefined || nonEmpty(ctx?.cid) === undefined) {
+    throw new ParseError("a Piazza post body needs the class id and the cid it was asked for");
+  }
+  if (!isRecord(json)) {
+    throw new ParseError(`the Piazza content.get response for ${ctx.cid} is not a JSON object`);
+  }
+  // `error` is present and `null` on a healthy response, exactly as in the feed:
+  // only a non-empty string is an error (house rule 5).
+  const error = nonEmpty(json["error"]);
+  if (error !== undefined) {
+    throw new ParseError(`Piazza answered with an error for ${ctx.cid}: ${error}`);
+  }
+  const result = json["result"];
+  if (!isRecord(result)) {
+    throw new ParseError(`the Piazza content.get response for ${ctx.cid} has no \`result\` object`);
+  }
+
+  const cid = nonEmpty(result["id"]);
+  if (cid === undefined) {
+    throw new ParseError(`the Piazza post body for ${ctx.cid} has no \`id\``);
+  }
+  if (cid !== ctx.cid) {
+    /*
+     * The body of one post under another post's id would be ingested against
+     * the wrong `seenPosts` key and quoted back at the student as words the
+     * post it names does not contain. Cheap to check, and the only check that
+     * can catch a request that was answered out of order.
+     */
+    throw new ParseError(
+      `Piazza answered with post ${cid} for a request about ${ctx.cid}`,
+    );
+  }
+  const nr = result["nr"];
+  if (typeof nr !== "number" || !Number.isInteger(nr) || nr < 0) {
+    throw new ParseError(`the Piazza post body for ${ctx.cid} has no usable \`nr\``);
+  }
+
+  const history = result["history"];
+  if (!Array.isArray(history) || history.length === 0 || !isRecord(history[0])) {
+    // House rule 2: `history` is the container, and a `content.get` that
+    // returned none is a redesign, never a post with no text.
+    throw new ParseError(`the Piazza post body for ${ctx.cid} has no \`history[0]\``);
+  }
+  const version = history[0] as Record<string, unknown>;
+
+  const content = version["content"];
+  if (typeof content !== "string" || content.trim() === "") {
+    throw new ParseError(`the Piazza post body for ${ctx.cid} has no \`history[0].content\``);
+  }
+  if (typeof version["subject"] !== "string") {
+    throw new ParseError(`the Piazza post body for ${ctx.cid} has no \`history[0].subject\``);
+  }
+  const versionAt = version["created"];
+  if (!isInstant(versionAt)) {
+    throw new ParseError(
+      `the Piazza post body for ${ctx.cid} has no readable \`history[0].created\`: ` +
+        JSON.stringify(versionAt),
+    );
+  }
+
+  const subject = decodeEntities(version["subject"]).trim();
+  const bodyText = htmlToText(content);
+
+  /*
+   * Two positive markers, either of which is enough, and both exact (house rule
+   * 6): `instructor-note` is a whole tag and never a substring of another, and
+   * `config.is_announcement` is Piazza's own flag. A `type: "note"` can still
+   * be a pinned *student* post — the capture has one ("Search for Teammates!",
+   * tagged `pin`, `student`) — so "it is a note" is not the same claim.
+   */
+  const tags = result["tags"];
+  const instructorNote =
+    (Array.isArray(tags) && tags.some((tag) => tag === "instructor-note")) ||
+    (isRecord(result["config"]) && Boolean(result["config"]["is_announcement"]));
+
+  return {
+    // The subject as its own line, exactly as the feed stage builds it, so the
+    // grammar's title rule sees the same shape whichever stage read the post —
+    // and so a span is grounded in *this* string and no other.
+    text: subject === "" ? bodyText : `${subject}\n${bodyText}`,
+    subject,
+    bodyText,
+    instructorNote,
+    versionAt,
+    cid,
+    nr,
+  };
+}
+
+/**
+ * The feed's post, re-read with the body the second request returned.
+ *
+ * A pure seam rather than an object spread in the worker: the `nr` guard is a
+ * decision, and worker house rule 1 says a decision belongs where the suite can
+ * mutate it. `id`, `cid` and `postedAt` all stay the feed's — the id is what
+ * `seenPosts` remembers, and `history[0].created` is when the latest *edit* was
+ * made, which is not when the post was written and must not become the anchor
+ * every relative phrase in it resolves against.
+ */
+export function withPostBody(post: ObservedPost, body: PostBody): ObservedPost {
+  if (post.nr !== body.nr) {
+    throw new ParseError(
+      `Piazza post ${post.nr} was answered with the body of post ${body.nr}`,
+    );
+  }
+  return {
+    ...post,
+    subject: body.subject === "" ? post.subject : body.subject,
+    text: body.text,
+    bodyRead: true,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -162,6 +356,65 @@ function readTermKey(entry: Record<string, unknown>): string | undefined {
   return match ? `${match[1]}${match[2]}` : undefined;
 }
 
+/** The one thing on a signed-in class page that a signed-out one never has. */
+const USER_OBJECT = /const\s+USER\s*=\s*\{/;
+
+/**
+ * The splash's own login form, and nothing else on it.
+ *
+ * Piazza answers `/class/<nid>` for a signed-out student with its **marketing
+ * page** — 200, the unchanged URL, an ordinary `<title>` — which is house rule
+ * 11's case exactly: the parser runs, finds no enrolments, and throws
+ * `parse_error` ("the page changed, go fix the selectors") at a student whose
+ * entire fix is signing in.
+ *
+ * Of the four candidates the capture offers (`#loginModal`, `form#login-form`,
+ * `body.new_splash`, `body.qa_homepage_container`) this one is the form,
+ * anchored on **both** its id and its `action`. Two reasons for it over the
+ * body class: a class attribute is a list, so `qa_homepage_container` can
+ * acquire neighbours and can be reused on any Piazza page that borrows the
+ * homepage shell, whereas a form that posts your password to
+ * `https://piazza.com/class` *is* the sign-in prompt — if it is there, there is
+ * something to click, which is the whole claim `needs_login` makes. The
+ * `action` is matched literally, not by substring, because "a form somewhere on
+ * the page" is the loose marker house rule 12 warns about.
+ *
+ * And the marker is never enough on its own: `classifyClassPage` requires the
+ * `const USER` object to be **absent** as well, so a signed-in page that one
+ * day ships a hidden login form cannot silently freeze this source on
+ * "Sign in needed".
+ */
+const LOGIN_FORM = /<form\b[^>]*>/gi;
+
+function hasLoginForm(html: string): boolean {
+  LOGIN_FORM.lastIndex = 0;
+  for (const tag of html.match(LOGIN_FORM) ?? []) {
+    if (/\bid="login-form"/i.test(tag) && /\baction="https:\/\/piazza\.com\/class"/i.test(tag)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** What a 200 from `/class/<nid>` actually is. */
+export type ClassPageKind = "signed_in" | "signed_out" | "changed";
+
+/**
+ * Signed in, signed out, or neither — the three answers, named.
+ *
+ * `changed` is the one that has to exist. "No `const USER`" used to mean
+ * `needs_login`, which is safe in the case it was written for and wrong the day
+ * Piazza renames the object: the row would say "Sign in needed" to a student
+ * who is signed in, the list would freeze at whatever it last held, and nothing
+ * would say so (house rule 12). With a positive marker for the splash, a page
+ * with **neither** is what it says it is: the page changed.
+ */
+export function classifyClassPage(html: string): ClassPageKind {
+  if (typeof html !== "string") return "changed";
+  if (USER_OBJECT.test(html)) return "signed_in";
+  return hasLoginForm(html) ? "signed_out" : "changed";
+}
+
 /**
  * The `const USER = {…};` object the class page ships its enrolment list in.
  *
@@ -172,18 +425,13 @@ function readTermKey(entry: Record<string, unknown>): string | undefined {
  * cannot end the object early.
  */
 function readUserObject(html: string): Record<string, unknown> {
-  const marker = /const\s+USER\s*=\s*\{/.exec(html);
+  const marker = USER_OBJECT.exec(html);
   if (marker === null) {
     /*
-     * The positive signed-out marker this source does not have yet (house rule
-     * 11 and 12). A student who has never signed in gets 200 at the unchanged
-     * URL with an ordinary page, so the *absence* of the object is currently
-     * the only evidence — which is the weaker form of the test, because it also
-     * fires on a redesign. It is treated as `needs_login` by the caller rather
-     * than as `parse_error` because signing in is the fix in the one case that
-     * matters, and a wrong "sign in" prompt costs a click while a wrong
-     * "the page changed" costs the deadlines. Recorded as VERIFY in
-     * docs/piazza-findings.md: it is decided by a capture Sushi still owes.
+     * Reached only when the caller skipped `classifyClassPage`, which is the
+     * function that decides between "sign in" and "the page changed". Kept as a
+     * hard refusal rather than deleted: the alternative is reading an
+     * enrolment list out of a page that has none.
      */
     throw new ParseError(
       "no `const USER =` on this Piazza class page: either nobody is signed in, or the page changed shape",
@@ -321,6 +569,15 @@ export interface ObservedPost {
   snippet: string;
   /** What the grammar reads: the subject as its own line, then the snippet. */
   text: string;
+  /**
+   * True once `withPostBody` has replaced `text` with the whole post.
+   *
+   * The two stages are not interchangeable — a snippet stops at character 120,
+   * and every deadline in this class's long posts is past it — so the log line
+   * and `PiazzaFacts` have to be able to say which one a run actually read
+   * (worker rule 2: "I fetched" and "I fell back" are different claims).
+   */
+  bodyRead?: boolean;
   /** A real instant Piazza stated (`log[0].t`). Never invented here. */
   postedAt?: string;
   courseHint?: string;
@@ -507,6 +764,16 @@ export interface PostPayload {
 
 export interface SendPlan {
   payloads: PostPayload[];
+  /**
+   * The posts those payloads were built from, in the same order.
+   *
+   * The body stage needs the `cid` and the `nr`, which a `PostPayload`
+   * deliberately does not carry — and re-deriving "which posts would be sent"
+   * from a second copy of the filters below is mutation house rule 3's case:
+   * two spellings of one decision, where loosening either is masked by the
+   * other staying strict.
+   */
+  sent: ObservedPost[];
   skipped: { nr: number; reason: string }[];
 }
 
@@ -517,7 +784,7 @@ export interface SendPlan {
  * "Piazza never ran" are the same silence otherwise (worker rule 5).
  */
 export function postsToSend(posts: readonly ObservedPost[], options: SendOptions = {}): SendPlan {
-  const plan: SendPlan = { payloads: [], skipped: [] };
+  const plan: SendPlan = { payloads: [], sent: [], skipped: [] };
   for (const post of posts) {
     if (options.sinceNr !== undefined && post.nr <= options.sinceNr) {
       // Not a failure: a 150-post feed re-read every half hour would otherwise
@@ -544,8 +811,59 @@ export function postsToSend(posts: readonly ObservedPost[], options: SendOptions
       postedAt: post.postedAt,
       text: post.text,
     });
+    plan.sent.push(post);
   }
   return plan;
+}
+
+/**
+ * How many post bodies one sync will fetch for one class.
+ *
+ * A first sync on a class with a term's worth of posts would otherwise fire a
+ * `content.get` for every one of them at once. The rest are not dropped — they
+ * are read on the next sync, which is why `lastNr` below stops at the batch
+ * rather than at the top of the feed.
+ */
+export const MAX_BODIES_PER_SYNC = 25;
+
+export interface BodyBatch {
+  /** The posts whose bodies this sync fetches, oldest first. */
+  batch: ObservedPost[];
+  /** How many new posts are left for the next sync. */
+  deferred: number;
+  /**
+   * The highest post number this sync may remember having read.
+   *
+   * **Capped at the batch** when anything was deferred, and this is the whole
+   * reason the batch is oldest-first. `seenPosts` and `lastNr` both say "this
+   * post is dealt with": advancing either past a post whose body was never
+   * fetched would leave it read at its 120-character snippet for good, which is
+   * exactly the silent half-read this stage exists to end.
+   */
+  lastNr?: number;
+}
+
+/**
+ * Which new posts get a second request this sync, and which wait.
+ *
+ * Pure, and given the whole feed as well as the sendable posts, because the
+ * `lastNr` ceiling is a fact about the feed: when nothing was deferred, the
+ * questions and the already-decided posts above the last note are dealt with
+ * too and the mark can go to the top of the page.
+ */
+export function bodyBatch(
+  sent: readonly ObservedPost[],
+  all: readonly ObservedPost[],
+  limit = MAX_BODIES_PER_SYNC,
+): BodyBatch {
+  const ordered = [...sent].sort((a, b) => a.nr - b.nr);
+  const batch = ordered.slice(0, Math.max(0, limit));
+  const deferred = ordered.length - batch.length;
+  if (deferred > 0) {
+    return { batch, deferred, lastNr: batch[batch.length - 1]!.nr };
+  }
+  const top = highestNr(all);
+  return { batch, deferred: 0, ...(top === undefined ? {} : { lastNr: top }) };
 }
 
 /** The highest post number in a feed, for `lastNr`. `undefined` for an empty one. */
@@ -618,6 +936,17 @@ export interface PiazzaFacts {
   lastObservedAt?: string;
   lastError?: string;
   postsSeen?: number;
+  /**
+   * How many deadlines those posts produced — moved rows plus suggestions.
+   *
+   * Separate from `postsSeen` and written only by a run that actually ingested,
+   * because "25 posts" on its own reads as working while producing nothing:
+   * that is the sentence that hid the feed stage finding zero deadlines on this
+   * class for a day. `undefined` means no run has ever counted (an old store),
+   * and the row says nothing rather than claiming "none" — worker rule 2: the
+   * UI may only assert what an attempt recorded.
+   */
+  deadlinesFound?: number;
   classes?: PiazzaClass[];
   classesFetchedAt?: string;
   /** nid → the highest post number already read for that class. */
@@ -737,6 +1066,14 @@ export type PiazzaResult =
       classes?: PiazzaClass[];
       /** Posts that reached `ingestPost` this run. */
       newPosts: number;
+      /**
+       * Deadlines those posts produced this run — moves plus suggestions.
+       *
+       * Optional, and absent rather than `0` when nothing was ingested at all,
+       * so a run that read no new posts cannot reset the row's count to "none
+       * with a deadline".
+       */
+      deadlines?: number;
       /** nid → highest number read, merged over what was stored. */
       lastNr?: Record<string, number>;
     }
@@ -775,6 +1112,12 @@ export function applyPiazzaResult(
     if (result.newPosts > 0) {
       next.lastObservedAt = now;
       next.postsSeen = (facts?.postsSeen ?? 0) + result.newPosts;
+    }
+    if (result.deadlines !== undefined) {
+      // Written whenever posts were ingested, including when the answer is
+      // zero: "we read them and none stated a deadline" is a finding, and it is
+      // the one the row has to be able to say out loud.
+      next.deadlinesFound = (facts?.deadlinesFound ?? 0) + result.deadlines;
     }
     return next;
   }
@@ -820,7 +1163,21 @@ export function describePiazza(facts: PiazzaFacts | undefined, now: Date = new D
       ? at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
       : at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const seen = facts.postsSeen ?? 0;
-  return `On · last read ${when} · ${seen} post${seen === 1 ? "" : "s"}`;
+  const posts = `${seen} post${seen === 1 ? "" : "s"}`;
+  /*
+   * The honesty clause. "On · last read 10:32 · 25 posts" is what the row said
+   * while the feed stage was finding **no** deadlines on this class at all: it
+   * names an activity and implies a result, and a student reading it has no way
+   * to tell "nothing was announced" from "this has never worked". Both halves
+   * come from an attempt — `postsSeen` from posts that were ingested and
+   * `deadlinesFound` from what they produced — and when the count has never
+   * been recorded (a store written before this field) the row says neither.
+   */
+  const found = facts.deadlinesFound;
+  if (found === undefined) return `On · last read ${when} · ${posts}`;
+  return found === 0
+    ? `On · last read ${when} · ${posts}, none with a deadline`
+    : `On · last read ${when} · ${posts}, ${found} deadline${found === 1 ? "" : "s"} found`;
 }
 
 /**

@@ -295,6 +295,8 @@ export interface ObserverState {
   lastObservedAt?: string;
   /** How many posts have reached the worker from it. Absent until one has. */
   postsSeen?: number;
+  /** How many deadlines those posts produced. Absent until a run counted. */
+  deadlinesFound?: number;
 
   /*
    * Fetched observers only (today, Piazza). A page observer leaves none of
@@ -366,6 +368,15 @@ function migrateObservers(stored: unknown): Record<ObserverId, ObserverState> {
       ...(isInstant(from["lastObservedAt"]) ? { lastObservedAt: from["lastObservedAt"] } : {}),
       ...(typeof from["postsSeen"] === "number" && Number.isInteger(from["postsSeen"]) && from["postsSeen"] >= 0
         ? { postsSeen: from["postsSeen"] }
+        : {}),
+      // Validated exactly like `postsSeen`, and for one extra reason: the row
+      // prints "none with a deadline" for `0` and prints nothing at all when
+      // this is absent, so a half-written value would be the difference
+      // between a claim and a silence.
+      ...(typeof from["deadlinesFound"] === "number" &&
+      Number.isInteger(from["deadlinesFound"]) &&
+      from["deadlinesFound"] >= 0
+        ? { deadlinesFound: from["deadlinesFound"] }
         : {}),
       /*
        * The fetched half, validated the same way and for the same reason: this

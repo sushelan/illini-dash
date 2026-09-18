@@ -254,7 +254,21 @@ const TRIGGER = new RegExp(
     // The verb and the "by" are the two halves of one deadline, with the thing
     // itself between them — which is also where the subject is, so the filler
     // is captured rather than skipped.
-    `|(?<byDo>(?:complete|submit|turn\\s+in|hand\\s+in|fill\\s+out|finish|return|upload)\\b(?<byObj>[^.;:]{0,80}?)\\s+by)` +
+    //
+    // **The verb is what makes the "by" a deadline**, and it is the only thing
+    // that does. A bare "by <date-ish>" is far more often an attribution —
+    // "slides by Prof. STAFF-9", "posted by the TAs on Friday", "written by
+    // last year's staff" — so there is deliberately no arm here that reads a
+    // "by" on its own, and `tests/announce.test.ts` pins each of those three
+    // shapes producing nothing.
+    //
+    // `register`, `sign up` and `respond` joined the list on 2026-09-18, off
+    // the real CS 425 feed: "Reminder: Register Your MP Group **by** EOD Today
+    // 8/31!" is the hardest deadline on that page (miss it and you get no VM)
+    // and the old list — which was written from the ECE 408 capture, where
+    // every deadline was a submission — declined every one of them.
+    `|(?<byDo>(?:complete|submit|turn\\s+in|hand\\s+in|fill\\s+out|finish|return|upload` +
+      `|register|sign\\s+up|respond)\\b(?<byObj>[^.;:]{0,80}?)\\s+by)` +
     "|(?<moved>(?:is\\s+|are\\s+)?now\\s+due(?:\\s+(?:on|by|at))?" +
     "|(?:pushed\\s+back|pushed|moved|postponed|rescheduled|bumped)\\s+(?:to|until|back\\s+to))" +
     // "extend the final deadline of CNN project to 11:59pm today" — the object
