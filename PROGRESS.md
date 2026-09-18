@@ -2,10 +2,45 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1753 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1783 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 7: the HW1 deadline reaches the student; a seven-segment trace — 2026-09-18 night
+
+**Builder (1742 → 1772 → 1783 on main after the author merge).** `post-running.json` is
+pinned end to end: newest version only, one suggestion, HW1 at 2026-09-20T23:59:00-05:00
+with a *stated* clock — which turned up a grammar defect: `PROSE_SEP` stopped at the "(" of
+"(Sun)", so "9/20 (Sun) 11:59 pm" dropped its stated time and took the invented 23:59
+(equal instants, invisible, and ranked below a stated value by §5.3 — worker rule 3's
+exact hazard). A bracketed weekday between a date and its clock is now read and fed to
+§3.2's weekday cross-check (amendment; the builder stepped outside its file list for it
+and was right to). `PIAZZA_READER_VERSION = 2`: a store read by reader 1 drops its
+`piazza:` seen marks and per-class `lastNr` once, in the same write as the results, and
+logs "reader upgraded 1 → 2". Edited posts are re-read on the feed's own signal — the last
+create/update entry of each entry's `log[]`, which equals `history[0].created` in both
+captures; `modified` is last *activity* and would re-fetch on every follow-up (amendment).
+A post already due exactly when a suggestion would say is never re-offered, so an edit
+does not offer the student the row they just accepted.
+
+**Trace (7 finders, 2 refuters each, 102 agents).** 47 findings; **36 confirmed by both
+refuters, 5 split, 6 refuted.** The one I verified by reading before anything else, and
+the most important defect found today: **the store queue is not exclusive.**
+`createStoreQueue` implements re-entrancy with a global `held` flag, so while a sync holds
+the queue across its fetches, *any* concurrent caller — a Hide, a tick, an accept — sees
+`held` and runs immediately, then the sync's `saveStore` of its older snapshot overwrites
+the click. Worker rule 4's defect, reintroduced by the fix for its deadlock; the queue test
+"does not deadlock when work re-enters" pins the mechanism (worker rule 6). The other
+confirmed ones cluster: Piazza runs overlapping and recording `ok` without a request or
+after every body failed; a failed body marking its post read forever; one bad nid wedging
+the class list; a `released` mention auto-moving a deadline; the carried subject unbounded;
+cross-listed classes matching nothing (`courseCodes` computed and never read); HTML
+comments read as text; a per-class 403 signing the whole source out; the author's
+inventory and skeleton summary disagreeing; "Use this one" stuck disabled. All 41
+(confirmed + split) are in `/tmp/illini-trace-findings.json` for the fix wave, which runs
+as four workers by file territory — queue/sync/worker at high effort, Piazza parsing,
+grammar + suggestions + popup, author.
 
 ## Live: the calendar delete path, and Piazza's first seven suggestions — 2026-09-18 evening
 
@@ -2248,6 +2283,12 @@ back with a "Put back" button for anyone legitimately enrolled across two terms.
 - **Piazza (docs/piazza-findings.md)** — the signed-out marker is positive (the splash's
   login form with its literal `/class` action); a page with neither it nor `const USER` is
   a `parse_error`. (2026-09-18, from the signed-out capture.)
+- **§3.2 / announce.ts** — a bracketed weekday between a calendar date and its clock
+  ("9/20 (Sun) 11:59 pm") is part of the date, not a prose boundary: the clock is stated,
+  and the weekday is cross-checked like a prefix weekday. (2026-09-18, from the running post.)
+- **Piazza (docs/piazza-findings.md)** — a post's modification signal is the last
+  create/update entry of the feed entry's `log[]`, not `modified`, which moves on every
+  follow-up. (2026-09-18, from both captures.)
 
 ## §12 open questions
 - ~~1. PrairieLearn access-details in fetched HTML~~ — **yes**, resolved 2026-09-03.
