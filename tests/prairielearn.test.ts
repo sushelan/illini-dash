@@ -8,6 +8,7 @@ import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
   PRAIRIELEARN_ORIGIN,
+  creditStillOpen,
   deadlinesFromSchedule,
   isLoginResponse,
   mapStatus,
@@ -17,7 +18,14 @@ import {
   parseCreditSchedule,
 } from "../src/sources/prairielearn.js";
 import { wallClockToIso } from "../src/core/dates.js";
-import { ParseError, type PageCtx } from "../src/sources/types.js";
+import { formatDue } from "../src/core/grouping.js";
+import {
+  ParseError,
+  type Item,
+  type PageCtx,
+  type RawItem,
+  type Status,
+} from "../src/sources/types.js";
 
 const fixtureHtml = readFileSync(
   new URL("../fixtures/prairielearn/assessments-cs357.html", import.meta.url),
@@ -615,18 +623,157 @@ describe("the zone/DST path is pinned, not assumed", () => {
 
 describe("mapStatus (§4.3)", () => {
   const cell = (html: string) => docFrom(`<td>${html}</td>`).querySelector("td");
+  const bar = (percent: string) => cell(`<div class="progress-bar" style="width:${percent}%"></div>`);
 
   it("reads the score bar and the textual states", () => {
-    expect(mapStatus(cell("Not started"))).toBe("not_submitted");
-    expect(mapStatus(cell("<button>New instance</button>"))).toBe("not_submitted");
-    expect(mapStatus(cell(`<div class="progress-bar" style="width:0%"></div>`))).toBe(
-      "not_submitted",
+    expect(mapStatus(cell("Not started")).status).toBe("not_submitted");
+    expect(mapStatus(cell("<button>New instance</button>")).status).toBe("not_submitted");
+    expect(mapStatus(bar("0")).status).toBe("not_submitted");
+    expect(mapStatus(bar("100")).status).toBe("graded");
+    // A score above the maximum — extra credit — is still nothing left to earn.
+    expect(mapStatus(bar("103")).status).toBe("graded");
+    expect(mapStatus(cell("")).status).toBe("unknown");
+    expect(mapStatus(null).status).toBe("unknown");
+  });
+
+  // §4.3 as amended (Sushi 2026-09-18, roadmap I37): "a percentage bar > 0% →
+  // graded ... this is 'done' for our purposes" was wrong for a partial score
+  // with credit still on offer. The old rule is what these two replace.
+  it("calls a partial score done only once no credit is still open", () => {
+    expect(mapStatus(bar("40"), true)).toEqual({ status: "not_submitted", scorePercent: 40 });
+    expect(mapStatus(bar("40"), false)).toEqual({ status: "graded", scorePercent: 40 });
+    // Full marks are done whether or not a later tier is still open.
+    expect(mapStatus(bar("100"), true)).toEqual({ status: "graded" });
+    // And nothing earned is still nothing earned.
+    expect(mapStatus(bar("0"), true)).toEqual({ status: "not_submitted" });
+    // The cell text is the same rule when there is no bar to read.
+    expect(mapStatus(cell("40%"), true)).toEqual({ status: "not_submitted", scorePercent: 40 });
+  });
+
+  it("defaults to closed when nothing says the credit window is open", () => {
+    // The default matters: it is what an unreadable schedule falls back to, and
+    // re-opening a row on a guess produces one that never clears.
+    expect(mapStatus(bar("40"))).toEqual({ status: "graded", scorePercent: 40 });
+  });
+});
+
+describe("creditStillOpen (roadmap I37)", () => {
+  const now = Date.parse("2026-09-03T05:34:00.000Z");
+  const past = "2026-09-01T23:59:59-05:00";
+  const future = "2026-09-10T23:59:59-05:00";
+
+  it("is true only while a tier worth something is inside its window", () => {
+    expect(creditStillOpen(now, [{ credit: 100, end: past }], undefined)).toBe(false);
+    expect(creditStillOpen(now, [{ credit: 80, end: future }], undefined)).toBe(true);
+    // The 0-credit tail of a closed assessment is open forever and worth nothing.
+    expect(creditStillOpen(now, [{ credit: 0 }], undefined)).toBe(false);
+    // A tier with no End is open indefinitely.
+    expect(creditStillOpen(now, [{ credit: 50 }], undefined)).toBe(true);
+    // Not started yet: the window has not opened.
+    expect(creditStillOpen(now, [{ credit: 100, start: future }], undefined)).toBe(false);
+    // Any open tier counts, not just the first.
+    expect(
+      creditStillOpen(
+        now,
+        [
+          { credit: 100, end: past },
+          { credit: 80, start: past, end: future },
+        ],
+        undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to the credit cell, and to closed with neither", () => {
+    expect(creditStillOpen(now, undefined, { credit: 80, instant: future })).toBe(true);
+    expect(creditStillOpen(now, undefined, { credit: 80, instant: past })).toBe(false);
+    expect(creditStillOpen(now, undefined, { credit: 0, instant: future })).toBe(false);
+    expect(creditStillOpen(now, undefined, undefined)).toBe(false);
+  });
+});
+
+describe("partial scores over the constructed fixture", () => {
+  // Constructed, not captured — the real capture has only 0%, 100% and 103%
+  // bars, so it cannot tell the amended rule from the one it replaces. See
+  // fixtures/prairielearn/README.md.
+  const partialHtml = readFileSync(
+    new URL("../fixtures/prairielearn/assessments-partial-scores.html", import.meta.url),
+    "utf8",
+  );
+  const rows = parseAssessments(docFrom(partialHtml), page);
+  const row = (badge: string) => rows.find((i) => i.extra?.["badge"] === badge)!;
+
+  it("keeps a 40% homework open while its 80%-credit tier is", () => {
+    expect(row("PS1").status).toBe("not_submitted");
+    expect(row("PS1").extra?.["scorePercent"]).toBe("40");
+  });
+
+  it("calls the same 40% done once every tier has closed", () => {
+    expect(row("PS2").status).toBe("graded");
+    expect(row("PS2").extra?.["scorePercent"]).toBe("40");
+  });
+
+  it("leaves full marks done, and states no percentage for them", () => {
+    expect(row("PS3").status).toBe("graded");
+    expect(row("PS3").extra?.["scorePercent"]).toBeUndefined();
+  });
+
+  it("treats a row that states no credit window as closed", () => {
+    expect(row("PS4").status).toBe("graded");
+    expect(row("PS4").extra?.["scorePercent"]).toBe("40");
+  });
+});
+
+/**
+ * The wording lives in core/grouping.ts, but the fact it reports is this
+ * parser's, so it is pinned beside the parser that produces `scorePercent`.
+ */
+describe("formatDue says how far a partial score got (roadmap I37)", () => {
+  const NOW = new Date(2026, 8, 10, 18, 0, 0);
+  const member = (status: Status, extra?: Record<string, string>): RawItem => ({
+    source: "prairielearn",
+    sourceId: `224254:${status}`,
+    courseRaw: "CS 357",
+    title: "m",
+    kind: "assignment",
+    url: `${PRAIRIELEARN_ORIGIN}/pl/course_instance/224254/assessments`,
+    status,
+    extra,
+    fetchedAt: "2026-09-10T18:00:00.000Z",
+  });
+  const rowWith = (member_: RawItem, extra: Partial<Item> = {}): Item => ({
+    id: "x",
+    members: [member_],
+    courseLabel: "CS357",
+    title: "HW3 Errors and Big-O",
+    kind: "assignment",
+    url: `${PRAIRIELEARN_ORIGIN}/pl/course_instance/224254/assessments`,
+    status: member_.status,
+    hidden: false,
+    done: false,
+    notified: {},
+    dueAt: new Date(2026, 8, 12, 23, 59).toISOString(),
+    ...extra,
+  });
+
+  it("reads '40% so far' on an unfinished row", () => {
+    const row = rowWith(member("not_submitted", { scorePercent: "40" }));
+    expect(formatDue(row, NOW, "This week").detail).toBe("40% so far");
+  });
+
+  it("says nothing on a row that is finished or has no partial score", () => {
+    expect(
+      formatDue(rowWith(member("graded", { scorePercent: "40" })), NOW, "This week").detail,
+    ).toBeUndefined();
+    expect(formatDue(rowWith(member("not_submitted")), NOW, "This week").detail).toBeUndefined();
+  });
+
+  it("yields to the credit wording, which is about the deadline", () => {
+    const late = rowWith(
+      member("not_submitted", { scorePercent: "40", creditRemaining: "80" }),
+      { dueAt: undefined, lateDueAt: new Date(2026, 8, 22, 12, 0).toISOString() },
     );
-    expect(mapStatus(cell(`<div class="progress-bar" style="width:100%"></div>`))).toBe("graded");
-    // PrairieLearn grades on the spot, so anything above 0 is done for us.
-    expect(mapStatus(cell(`<div class="progress-bar" style="width:103%"></div>`))).toBe("graded");
-    expect(mapStatus(cell(""))).toBe("unknown");
-    expect(mapStatus(null)).toBe("unknown");
+    expect(formatDue(late, NOW, "Later").detail).toBe("80% credit until Tue 12:00 PM");
   });
 });
 

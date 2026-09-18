@@ -213,24 +213,85 @@ export function parseAvailableCell(text: string, reference: string): string | un
 /* -------------------------------------------------------------------------- */
 
 /**
- * §4.3: PrairieLearn grades on the spot, so a score above 0 is "done" for our
- * purposes. A 0% bar means opened but nothing earned, which is not done.
+ * Is there still credit to be earned on this row at `now`?
+ *
+ * A tier counts as open when its credit is above 0 and `now` falls inside its
+ * window; a tier with no End stays open. This is what separates a homework the
+ * student can still resubmit to 100 from a quiz that ended at 40 (roadmap I37),
+ * and it is decided here rather than in `dedupe.ts`, because it is a fact the
+ * page states and not a fact about the merged item.
+ *
+ * With no schedule the credit cell answers the same question one tier at a
+ * time: `80% until 23:59, Tue, Sep 8` is an 80-credit tier open until that
+ * instant. With neither, the answer is "not known to be open" — the old
+ * behaviour, so a row we cannot read is never re-opened on a guess.
  */
-export function mapStatus(scoreCell: Element | null | undefined): Status {
-  if (!scoreCell) return "unknown";
+export function creditStillOpen(
+  now: number,
+  tiers: CreditTier[] | undefined,
+  cell: CreditCell | undefined,
+): boolean {
+  if (tiers) {
+    return tiers.some(
+      (tier) =>
+        tier.credit > 0 &&
+        (!tier.start || Date.parse(tier.start) <= now) &&
+        (!tier.end || now < Date.parse(tier.end)),
+    );
+  }
+  if (cell) return cell.credit > 0 && Date.parse(cell.instant) > now;
+  return false;
+}
+
+/** What the Score cell said, and what that means for the row's status. */
+export interface ScoreReading {
+  status: Status;
+  /** The bar's percentage when it is a partial one, for `extra.scorePercent`. */
+  scorePercent?: number;
+}
+
+/**
+ * §4.3 as amended (docs/prairielearn-findings.md, Sushi 2026-09-18): a partial
+ * score is only "done" once nothing more can be earned.
+ *
+ * The spec read "a percentage bar > 0% → graded ... this is 'done' for our
+ * purposes", which hid a 40% homework with an open 80%-credit tier behind the
+ * done filter while the window to fix it was still open — the one case where
+ * the row most needs to be on the list. So:
+ *
+ * - `>= 100` → graded. Nothing is left to earn whatever the schedule says.
+ * - `0` → not_submitted (opened, nothing earned).
+ * - `< 100` with credit still open → not_submitted, and the percentage is kept
+ *   so the popup can say "40% so far".
+ * - `< 100` with no open tier → graded. The work is closed; a student can do
+ *   nothing about it, and re-opening it would be a row that never clears.
+ */
+export function mapStatus(
+  scoreCell: Element | null | undefined,
+  creditOpen = false,
+): ScoreReading {
+  if (!scoreCell) return { status: "unknown" };
   const text = textOf(scoreCell);
-  if (/not started/i.test(text)) return "not_submitted";
-  if (/new instance/i.test(text)) return "not_submitted";
+  if (/not started/i.test(text)) return { status: "not_submitted" };
+  if (/new instance/i.test(text)) return { status: "not_submitted" };
 
   const bar = scoreCell.querySelector(".progress-bar");
   if (bar) {
     const width = /width:\s*([\d.]+)%/.exec(bar.getAttribute("style") ?? "")?.[1];
     const percent = width === undefined ? Number.NaN : Number(width);
-    if (Number.isFinite(percent)) return percent > 0 ? "graded" : "not_submitted";
+    if (Number.isFinite(percent)) return readingFor(percent, creditOpen);
   }
   const percentText = /(\d+(?:\.\d+)?)%/.exec(text)?.[1];
-  if (percentText !== undefined) return Number(percentText) > 0 ? "graded" : "not_submitted";
-  return "unknown";
+  if (percentText !== undefined) return readingFor(Number(percentText), creditOpen);
+  return { status: "unknown" };
+}
+
+function readingFor(percent: number, creditOpen: boolean): ScoreReading {
+  if (percent >= 100) return { status: "graded" };
+  if (percent <= 0) return { status: "not_submitted" };
+  // A partial score: the percentage is reported either way, because "40% so
+  // far" is worth showing on a closed row too.
+  return { status: creditOpen ? "not_submitted" : "graded", scorePercent: percent };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -362,6 +423,7 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
     // The cell text is the fallback, and also a cross-check when both exist.
     const creditText = creditCell ? textOf(creditCell).replace(/\s*\?\s*$/, "") : "";
     const cell = creditText ? parseCreditCell(creditText, page.fetchedAt) : undefined;
+    const now = Date.parse(page.fetchedAt);
 
     if (tiers && cell) {
       // §4.3: with both present, use the schedule but assert the cell agrees
@@ -369,7 +431,6 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
       // belongs to a different row — a selector bug — and is logged, not fatal.
       // Compared by tier, not by instant: the cell is minute-precision (23:59)
       // while the schedule End carries seconds (23:59:59).
-      const now = Date.parse(page.fetchedAt);
       const active = tiers.find(
         (tier) =>
           (!tier.start || Date.parse(tier.start) <= now) &&
@@ -411,6 +472,9 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
       }
     }
 
+    const score = mapStatus(scoreCell, creditStillOpen(now, tiers, cell));
+    if (score.scorePercent !== undefined) extra["scorePercent"] = String(score.scorePercent);
+
     items.push({
       source: "prairielearn",
       sourceId,
@@ -425,7 +489,7 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
         PRAIRIELEARN_ORIGIN,
         page.url,
       ),
-      status: mapStatus(scoreCell),
+      status: score.status,
       extra,
       fetchedAt: page.fetchedAt,
     });
