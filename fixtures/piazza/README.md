@@ -85,3 +85,25 @@ and five students credited in the body are `STUDENT-N`.
 - Five versions of one note is why `history_size` exists; read `history[0]` only.
 
 Deliberately unrealistic: nothing.
+
+## class-page-signed-out.html — `GET https://piazza.com/class/<nid>` (signed OUT)
+
+Pasted by Sushi from *view-source* on 2026-09-18 after logging out. Piazza answers the
+class URL with its **marketing splash** — `<body class="qa_homepage_container new_splash">`,
+an ordinary title, and a login modal (`#loginModal`, `form#login-form` posting to
+`https://piazza.com/class`, `ERROR_MSG = "Please log in to proceed to your class…"`) — with
+no redirect visible from the source view and **no `const USER =`** anywhere. The HTTP status
+was not captured; house rule 11's case exactly (200 at the unchanged URL is the likely
+answer, and the parser must not depend on it either way).
+
+None of `loginModal`, `login-form`, `new_splash`, `qa_homepage_container` occurs in the
+signed-in capture, so any of them is a candidate *positive* signed-out marker (house rule
+12); the signed-in page has `const USER` and none of these.
+
+Trimmed: the marketing panels between the product brief and the footer (professor quotes,
+lecture links, the 1,500-school list, subject buttons, "Our story", "In the news") were
+cut to a heading each — they hold nothing a parser reads. The login form's hidden
+`csrf_token` value is replaced with `SCRUBBED-LOGIN-FORM-TOKEN`; it was a throwaway token
+for the form, not a session, but it does not belong in a repo either. Nothing else changed.
+
+Deliberately unrealistic: nothing.

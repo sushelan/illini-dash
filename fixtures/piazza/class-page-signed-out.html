@@ -1,0 +1,589 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="en-US">
+
+  <head>
+      <meta name="apple-itunes-app" content="app-id=453142230" />
+    <link href="/css/splash/smart-app-banner.min.css" rel="stylesheet" />
+
+
+  <!-- ===================================================================== -->
+  <!-- PAGE TITLE -->
+  <!-- ===================================================================== -->
+  <title>Piazza &#8226; Ask. Answer. Explore. Whenever.</title>
+
+
+  <!-- ===================================================================== -->
+  <!-- META TAGS -->
+  <!-- ===================================================================== -->
+
+  <!-- Forces page to render at the client device's width. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, user-scalable=1" />
+
+  <!-- Specify character set -->
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9; IE=8; IE=EDGE"/>
+
+  <!-- Description for search results -->
+  <meta name="description" content="Piazza is a free online gathering place where students can ask, answer, and explore 24/7, under the guidance of their instructors. Students as well as instructors can answer questions, fueling a healthy, collaborative discussion." />
+  <meta name="keywords" content="classroom,homework,help,q&amp;a,question and answer,school,university" />
+
+  <!-- Description for Facebook -->
+  <meta property="og:title" content="Piazza &#8226; Ask. Answer. Explore. Whenever."/>
+  <meta property="og:image" content="http://piazza.com/images/splash/PageTop/Piazza-Icon.png"/>
+  <meta property="og:url"
+      content="http://www.piazza.com"
+  />
+  <meta property="og:description" content="With Piazza, easily answer questions, manage course materials, and track student participation. It'll save you time, and your students will love using it. It's free, and easy to get started."/>
+
+
+  <!-- ===================================================================== -->
+  <!-- CSS -->
+  <!-- ===================================================================== -->
+
+  <!-- Third-Party -->
+    <link rel="stylesheet" type="text/css" href="/css/shared/lib/bootstrap3/css/bootstrap.min.css?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13" />
+<!--  -->
+
+  <link rel="stylesheet" type="text/css" href="/css/plugins/fancybox-1.3.4.css?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13" />
+<!--  -->
+
+
+
+
+  <!-- ===================================================================== -->
+  <!-- JQUERY -->
+  <!-- ===================================================================== -->
+
+  <!-- jQuery is the one JS file we do include at the top of the page, since so much HTML-nested code requires it. -->
+  <script type="text/javascript" src="/javascripts/jquery-1.7.1.min.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+
+
+
+    <!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="/css/plugins/fancybox-1.3.4.css?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13" />
+<!--  -->
+
+
+    <link rel="stylesheet" type="text/css" href="/css/splash/splash-responsive2.css?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13" />
+<!--  -->
+
+
+
+
+
+    <script type="text/javascript" src="/javascripts/respond.min.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/pwa/icon-180.png">
+    <link rel="shortcut icon" type="image/png" href="/pwa/icon-180.png"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  </head>
+
+  <body class="qa_homepage_container new_splash ">
+
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPTS -->
+  <!-- ===================================================================== -->
+
+  <!-- Third-Party -->
+    <script type="text/javascript" src="/javascripts/bootstrap3.min.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+  <script type="text/javascript" src="/javascripts/jquery.blockUI.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+
+  <script type="text/javascript" src="/javascripts/jquery.fancybox-1.3.4.pack.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+
+  <!-- Google Tag Manager is not used -->
+
+
+  <!-- Piazza -->
+  <script type="text/javascript" src="/modules/event_manager.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+  <script type="text/javascript" src="/modules/helpers.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+  <script type="text/javascript" src="/modules/ajax.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+  <script type="text/javascript" src="/js/splash/splash.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+
+
+
+        <nav id="navbar" class="navbar navbar-fixed-top" role="navigation">
+  <div class="container topbar-container">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <ul class="nav navbar-right-mobile navbar-nav navbar-right hidden-md hidden-lg hidden-sm visible-xs-block">
+
+        <li><button data-log-click="topbar_signup_modal" type="button" class="log_click btn btn-default" href="#" data-toggle="modal" data-target="#signupModal">Sign Up</button></li>
+        <li><button type="button" data-log-click="topbar_login_modal" class="log_click btn btn-default login_button" href="#" data-toggle="modal" data-target="#loginModal">Login</button></li>
+      </ul>
+
+      <a class="navbar-brand log_click"  data-log-click="topbar_logo" href="/signup"></a>
+    </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav main_nav dropdown">
+        <li class=""><a  data-log-click="topbar_product" class="log_click" href="/product/overview">Product</a></li>
+        <li class="hidden-sm "><a  data-log-click="topbar_professors" class="log_click" href="/professors">In Professors' Words</a></li>
+        <li class="visible-sm-block hidden-xs hidden-lg hidden-md "><a  data-log-click="topbar_professors" class="log_click" href="/professors">Professors</a></li>
+        <li><a data-log-click="topbar_prices" class="log_click" href="https://support.piazza.com/support/solutions/articles/48001161300-paid-model-for-piazza-q-a" target="_blank">Pricing</a></li>
+        <li class=""><a  data-log-click="topbar_support" class="log_click" href="http://support.piazza.com/" target="_blank">Support</a></li>
+        <li class=""><a  data-log-click="topbar_about" class="log_click" href="/about/story">About Us</a></li>
+        <li class="careers_link"><a data-log-click="topbar_recruiting" class="log_click" href="https://talent.piazza.com">Piazza Talent</a></li>
+<!--         href="https://talent.piazza.com"
+ -->  </ul>
+
+
+      <ul class="nav navbar-nav navbar-right sign_up_navbar">
+        <li class="dropdown">
+          <button id="signupMenuId" type="button"  data-log-click="topbar_signup" class="log_click btn btn-default" href="#" data-toggle="dropdown">Sign Up</button>
+
+          <ul class="dropdown-menu" role="menu">
+            <li><button id="signupInstId" data-log-click="topbar_instructor_signup" class="log_click btn btn-primary btn-large btn-block" onClick="location.href='/instructors/school-search'">Instructors Get Started</button></li>
+            <li><button id="signupStudId" data-log-click="topbar_student_signup" class="log_click btn-success btn btn-large btn-block" onClick="location.href='/school-search'">Students Get Started</button></li>
+            <li><a href="/piazzacareers" class="signup_dropdown_careers_hook">Looking for Piazza Careers Product?</a></li>
+          </ul>
+
+        </li>
+        <li><button id="login_button" type="button"  data-log-click="topbar_login_modal" class="log_click btn btn-default login_button" href="#" data-toggle="modal" data-target="#loginModal">Login</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<script type="text/javascript">
+  var ERROR_MSG = "Please log in to proceed to your class. Click \"Forgot your password\" if you need help with your password.";
+
+  function submitenter(myfield,e) {
+    var keycode;
+    if (window.event) keycode = window.event.keyCode;
+    else if (e) keycode = e.which;
+    else return true;
+
+    if (keycode == 13) {
+      myfield.form.submit();
+      return false;
+    } else return true;
+  }
+
+  $('document').ready(function() {
+    $('#loginModal').on("shown.bs.modal", function() {
+      $('#email_field').focus();
+    });
+
+    const modal = document.getElementById("loginModal")
+    const focusable = modal.querySelectorAll(
+      'a[href]:not([disabled]), button:not([disabled]), textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), select:not([disabled])'
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    const onKeyDown = (e) => {
+      if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.shiftKey && document.activeElement === first) {
+          last.focus()
+          e.preventDefault()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          first.focus()
+          e.preventDefault()
+        }
+      }
+    }
+    modal.addEventListener("keydown", onKeyDown)
+
+    // Show/hide the password when clicking the eye icon.
+    function togglePassword() {
+      var $password = $('#password_field');
+      var $toggle = $('#password_toggle');
+      var show = $password.attr('type') === 'password';
+      $password.prop('type', show ? 'text' : 'password');
+      $toggle.find('.icon-eye').toggle(!show);
+      $toggle.find('.icon-eye-off').toggle(show);
+      $toggle.attr('aria-pressed', show ? 'true' : 'false');
+      $toggle.attr('aria-label', show ? 'Hide password' : 'Show password');
+    }
+
+    $('#password_toggle').on('click', togglePassword);
+    $('#password_toggle').on('keypress', function (e) {
+      if (e.which == 13 || e.which == 32) {
+        e.preventDefault();
+        togglePassword();
+      }
+    });
+
+  });
+</script>
+
+<style type="text/css">
+    .form-group .prompt{
+        margin-left: 0%;
+    }
+
+    .form-group .controls .remember-the-titans{
+        margin-left: 6.5%;
+    }
+
+    .login-modal .password-wrapper {
+        position: relative;
+    }
+
+    .login-modal .password-wrapper .form-control {
+        padding-right: 42px;
+    }
+
+    .login-modal .password-toggle {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+</style>
+<div class="login-modal modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="loginModalLabel" aria-hidden="true" data-pats="login_modal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close login modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+        <div role="heading" aria-level="1" style="font-weight: bold;font-size: 20px;color: #484a4c;">Log In</div>
+      </div>
+
+      <div role="alert" class="modal-error-summary" style="display:block;">
+          <script type="text/javascript">
+            $(window).ready(function() {
+              if (ERROR_MSG === "Account suspended after too many failed login attempts.")
+                ERROR_MSG = "Account suspended after too many failed login attempts. <a href='/account/password/forgot'>Reset your password</a>"
+
+              $('#loginModal').modal('show');
+              $('#password_field').focus();
+
+              $('#loginModal').on("shown.bs.modal", function() {
+                $('#email_field').focus();
+                if (ERROR_MSG) {
+                  $('#modal_error_text').html(ERROR_MSG);
+                }
+              });
+
+              $('#loginModal').on("hide.bs.modal", function() {
+                $("#loginModal .modal-error-summary").hide();
+              });
+            });
+          </script>
+
+          <span id="modal_error_text" class="modal-error-message is-visible" data-pats="login-message"></span>
+      </div>
+
+      <div class="modal-body">
+
+        <form role="form" class="form-horizontal" id="login-form" method="post" action="https://piazza.com/class">
+          <input type="hidden" name="from" value="/signup"/>
+          <div>
+            <div class="form-group">
+              <label class="col-sm-3 control-label prompt" for="inputEmail" style="padding-right: 0px">Email*
+              </label>
+              <div class="col-sm-9">
+                <input required aria-required="true" type="text" class="form-control" id="email_field" data-pats="login-email" name="email" value="" aria-label="Email address" aria-describedby="modal_error_text"/>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0px; ">
+              <label class="col-sm-3 control-label prompt" for="inputPassword" style="padding-right: 0px">Password*
+              </label>
+              <div class="col-sm-9">
+                <div class="password-wrapper">
+                  <input required aria-required="true" type="password" class="form-control" id="password_field" data-pats="login-password" name="password" onKeyPress="return submitenter(this,event)" aria-label="user password" aria-describedby="modal_error_text"/>
+                  <span class="password-toggle" id="password_toggle" role="button" tabindex="0" aria-label="Show password" aria-pressed="false" data-pats="login-password-toggle">
+                    <svg class="password-toggle-icon icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#606770" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="password-toggle-icon icon-eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#606770" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;" aria-hidden="true">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="" style="height: 30px; ">
+                <div class="col-sm-3"></div>
+                <div class="col-sm-9" style="padding: 10px 0 0 7px;">
+                  <label class="" style="font-weight: normal; font-size: 12px;">
+                    * Required fields
+                  </label>
+                </div>
+            </div>
+            <div class="" style="height: 55px; margin-bottom:10px; padding-bottom:10px; border-bottom: 1px solid #e5e5e5;">
+              <div class="controls">
+                <div class="col-sm-3"></div>
+                <div class="col-sm-9" style="padding: 5px; margin-bottom: 10px">
+                  <label class="remember-me-label remember-the-titans" style="padding: 5px 0 5px 2px;">
+                    <input type="checkbox" id="remember" name="remember" checked="checked" data-pats="remember_checkbox"/> Remember me
+                  </label>
+                  <button id="modal_login_button" class="btn btn-default pull-right col-sm-3" data-pats="log-in-button" aria-describedby="modal_error_text" style="width: 80px;">Log in</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="border-top">
+            <a href="/account/password/forgot" class="btn btn-link" id="forgot_password_button" style="padding:2px 0">Forgot your password?</a>
+            <a href="/sso" class="btn btn-link" style="padding:2px 0">Login with your school&apos;s credentials (SSO)</a>
+          </div>
+          <input type="hidden" name="csrf_token" value="SCRUBBED-LOGIN-FORM-TOKEN">
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="signup-modal modal fade" id="signupModal" tabindex="-1" role="dialog" aria-labelledby="signupModal" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+        <h4 class="modal-title" id="signupModalLabel">Sign up</h4>
+      </div>
+      <div class="modal-body">
+        <button  data-log-click="topbar_instructor_signup" class="log_click btn btn-primary btn-large btn-block" onClick="location.href='/instructors/school-search'">Instructors Get Started</button>
+        <button  data-log-click="topbar_student_signup" class="log_click btn-success btn btn-large btn-block" onClick="location.href='/school-search'">Students Get Started</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  $(document).ready(function() {
+    $(document).scroll(function() {
+      if( $(this).scrollTop() >= 5 ) {
+        $("#navbar").addClass("navbar-shadow");
+      } else {
+        $("#navbar").removeClass("navbar-shadow");
+      }
+    });
+  });
+
+</script>
+
+
+    <main>
+
+<div class="container mobile-topbar hidden-lg hidden-md hidden-sm">
+  <div class="row">
+    <div class="col-xs-6 "><a href="/product/overview">Product</a></div>
+    <div class="col-xs-6 "><a href="/professors">Professors</a></div>
+    <div class="col-xs-6 "><a href="/support">Support</a></div>
+    <div class="col-xs-6 "><a href="/about/story">About Us</a></div>
+    <div class="col-xs-12 careers_link"><a href="https://talent.piazza.com">Piazza Talent</a></div>
+  </div>
+</div>
+
+<script src="https://kit.fontawesome.com/e68ca1529f.js" crossorigin="anonymous"></script>
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      <h1 class="main_header">The incredibly easy, incredibly engaging Q&amp;A platform</h1>
+      <h2 class="sub_header">Save time and help students learn using the power of community</h2>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal -->
+
+
+<div class="splash_panel product_brief">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-6 hidden-xs hidden-sm">
+        <div class="preview product-demo" >
+          <div class="screen-overlay log_click" id="watch_video" data-toggle="modal" data-target="#product_video_modal" data-log-click="watch_video_product">
+            <div class="screen-overlay-glare"></div>
+            <div class="screen-overlay-play-pill">
+              <i></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="features_list col-md-6">
+        <ul class="product_brief_list">
+          <li>Wiki style format enables collaboration in a single space</li>
+          <li>Features LaTeX editor, highlighted syntax and code blocking</li>
+          <li>Questions and posts needing immediate action are highlighted</li>
+          <li>Instructors endorse answers to keep the class on track</li>
+          <li>Anonymous posting encourages every student to participate</li>
+          <li>Highly customizable online polls</li>
+          <li>Integrates with every major LMS</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row startup_buttons">
+
+      <div class="col-md-4 col-sm-4">
+        <button data-pats="students_get_started_button" class="btn btn-block btn-success btn-lg log_click" data-log-click="student_signup" onClick="location.href='/school-search'">Students Get Started</button>
+      </div>
+
+      <div class="col-md-4 col-sm-4">
+        <button data-pats="professors_and_tas_get_started_button" class="btn btn-block btn-primary btn-lg log_click" data-log-click="instructor_signup" onClick="location.href='/instructors/school-search'">Professors and TAs Get Started</button>
+      </div>
+
+      <div class="col-md-4 col-sm-4">
+        <a data-log-click="view_real_class" class="log_click btn btn-block btn-default btn-lg" target="_blank" href="/demo_login?nid=gw9jakygzvs616&auth=50e021f&close=fancy">View a Real Class</a>
+      </div>
+    </div>
+
+    <div class="ferpa_note_text">
+      <span style="margin-right: 0px;">
+        <a href="/legal/ferpa" target="_blank">Learn more</a> about how Piazza complies with FERPA
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- TRIMMED (fixture): the marketing panels that followed here on the live page — the
+     "Over 100,000 professors" quotes, the lecture-series links, the 1,500-school list,
+     the subject buttons, "Our story", and "In the news" — carry nothing a parser reads
+     and were removed. Everything above and below is as served. -->
+
+<div class="splash_panel alt_panel profs_panel log_visibility" data-log-visibility="professors">
+  <div class="container splash_ctr" id="professors">
+    <h2>Over 100,000 professors have chosen Piazza. Millions of students in thousands of universities in 90 countries are using Piazza.</h2>
+    <h3>Click on an instructor to see why</h3>
+  </div>
+</div>
+
+<div class="schools splash_panel log_visibility" data-log-visibility="schools" id="schools_splash_panel" style="display: none;">
+  <a name="school_list"></a>
+  <div class="container splash_ctr school_logo_container_dec_2016" id="schools">
+    <h2>We're at 1,500 schools in 90 countries</h2>
+  </div>
+</div>
+
+<div class="our_story splash_panel log_visibility" data-log-visibility="our_story">
+  <div class="container splash_ctr" id="our_story">
+    <h2>Our story</h2>
+    <div class="row">
+      <div class="col-md-6">
+        <p>Piazza is designed to connect students, TAs, and professors so every student can get the help they need when they need it. </p>
+        <span class="pull-right muted">
+          &mdash; Pooja Nath Sankar, Piazza Founder
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+$(document).ready(function() {
+  var params = {
+    type: "hp_window_size",
+    int1: $(window).width(),
+    int2: $(window).height()
+  }
+  PA.call_pj("generic.page_event", params, 1, function(){});
+});
+</script>
+
+
+    </main>
+
+    <footer>
+        <div class="footer">
+  <div class="container">
+    <div class="row">
+
+      <!-- Internal Links -->
+      <div class="col-md-10 col-sm-10">
+        <div class="row">
+          <div class="col-md-2 col-sm-3 col-xs-6 footer_col about_panel">
+            <div role="heading" aria-level="3" class="title">About</div>
+            <ul>
+              <li><a class="log_click" data-log-click="footer_about_story" href="/about/story">Our Story</a></li>
+              <li><a class="log_click" data-log-click="footer_about_investors" href="/network">Piazza Network</a></li>
+              <li><a class="log_click" data-log-click="footer_about_investors" href="/about/investors">Investors</a></li>
+              <li><a class="log_click" data-log-click="footer_about_jobs" href="/about/jobs">Jobs</a></li>
+            </ul>
+          </div>
+          <div class="col-md-2 col-sm-3 col-xs-6 footer_col">
+            <div role="heading" aria-level="3" class="title">Legal</div>
+            <ul>
+              <li><a class="log_click" data-log-click="footer_legal_privacy" href="/legal/privacy">Privacy Policy</a></li>
+              <li><a class="log_click" data-log-click="footer_legal_terms" href="/legal/terms">Terms of Service</a></li>
+              <li><a class="log_click" data-log-click="footer_legal_ferpa" href="/legal/ferpa">FERPA Compliance</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Social & Legal -->
+      <div class="col-md-2 col-sm-2">
+        <div class="legal">
+          <div id="CopyrightInfo">
+            Copyright &#169; 2026<br/>Piazza Technologies<br/>All Rights Reserved
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr/>
+
+    <div class="align-center">
+      Our terms changed on July 30, 2018. Please review the new <a href="/legal/terms">Piazza Terms of Service</a>.
+    </div>
+
+  </div>
+</div>
+
+    </footer>
+
+      <script type="text/javascript" src="/js/jwplayer/jwplayer.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+
+    <script type="text/javascript" src="/javascripts/jquery.fancybox-1.3.4.pack.js?v=5de231cb9fc86b7c3d9d105a8e8b79435abc0e13"></script>
+<!---->
+
+    <script type="text/javascript">
+var wasVisible = {};
+var scrollOffsets = {};
+var loggingPageName = "homepage";
+
+$(document).ready(function() {
+
+  $('.log_click').click(function(){
+    var id = $(this).data("logClick");
+    if (id) {
+      id = loggingPageName + "." + id;
+      PA.call_pj("generic.page_event", {type:id}, 1, function(){});
+    }
+  });
+
+  $('.log_visibility').each(function(){
+    var id = $(this).data("logVisibility");
+    if (id) {
+      scrollOffsets[id] = $(this).offset().top;
+    }
+  });
+});
+    </script>
+
+
+
+  </body>
+
+</html>
