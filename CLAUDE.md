@@ -307,40 +307,33 @@ Sushi's time, which is the resource this project has least of.
 
 ---
 
-## HANDOFF — 2026-09-13
+## HANDOFF — 2026-09-13, updated 2026-09-18
 
-### The open bug: the row menu receives no mouse events
+### The row menu bug — found and fixed 2026-09-18
 
-**Symptom.** The menu opens. Clicking any item — Hide, Mark done, Split, Merge — does
-nothing at all. The item label never changes to "Applying…", nothing reaches the service
-worker, and the store is unchanged. Reported for week view first, then everywhere.
+**Cause.** `trapMenuKeys` decided "is focus still inside the menu?" inside a
+`queueMicrotask` queued from `focusout`. A real mousedown on a menu item moves focus from
+item 0 (focused by `focusAt(0)` the instant the menu opens) to the pressed button, and
+Blink fires `focusout` *before* it updates `document.activeElement`. A microtask runs in
+exactly that gap, saw `<body>`, and removed the menu between mousedown and mouseup; no
+mouseup on the same element means no `click`, so the handler never ran and nothing
+reached the worker. The probe's "waiting for a press…" was a menu re-opened afterwards.
+The health popover shares the code and always worked because it has no `.menu-item` for
+`focusAt` to focus; Enter worked because focus never left. A synthetic `.click()` and a
+programmatic `blur()` cannot produce the sequence, which is why every harness passed
+(UI rule 5) and why the ruled-out table above was right about everything it ruled out.
 
-**The decisive measurement.** A temporary probe (in `openRowMenu`, marked TEMPORARY) adds
-capture-phase listeners for `pointerdown`, `mousedown`, `mouseup` and `click` on the menu
-element and writes what arrives into the menu itself. Pressing Hide leaves it reading
-**"waiting for a press…"** — so **not even `pointerdown` in capture reaches the menu**.
-The press is not landing on that element.
+**Rule.** Never decide anything about focus inside a microtask queued from a focus event.
+Read `event.relatedTarget` (the element gaining focus, known during the event); if it is
+null, wait one *task*, not a microtask.
 
-**Ruled out, with evidence — do not re-check these:**
-
-| Hypothesis | How it was eliminated |
-|---|---|
-| Handler not wired | `entry.addEventListener("click", …)` is present; a synthetic `.click()` fires it and sends `override:hide` |
-| Message not routed | `override` is handled in `background.ts`; the worker now logs every override and every caught error, and logs nothing — consistent with nothing arriving |
-| Errors swallowed | Was true and is fixed (`applyOverrideAction` has the only `.catch`); did not change the symptom |
-| Redraw destroys the menu | Three `.menu` guards were dead; fixed and proven both ways — the menu now survives a store write |
-| `focusout` closes it | Menu provably survives a real `blur()` to `<body>` |
-| Menu below the fold | Was true in week; `placeFloating` flips above the anchor now, verified across all 17 rows |
-| Stacking order | `.menu-surface` is `z-index: 20`; the only others in the project are 1 and 2 |
-| `pointer-events` | No such rule exists anywhere in `public/*.css` |
-
-**Where a fresh session should start.** Something is receiving the press instead of the
-menu. Worth checking, in this order: whether more than one `.menu-surface` exists at once
-(the health popover shares the class — `.menu-surface popover`); whether the visible menu
-is still connected to the document when pressed; and what `document.elementFromPoint()`
-returns at the pointer while a menu is open. The last of those is one line and settles it.
-
-**Remove the probe** once the cause is known (`openRowMenu`, the block marked TEMPORARY).
+Two more defects sat on the same path and are fixed with it: the popup's own open-sync
+called `refresh()` with no menu guard (three callers guarded, three did not), and the
+capture-phase `scroll` listener on `window` closed a menu that was scrolling itself.
+Redraws that find a menu open are now **deferred, not skipped**, and run when it closes;
+`closeMenus` clears `aria-expanded`; the probe is gone. Verified with real pointer events
+in the preview document (Hide and a Merge candidate both reach their handlers and log
+`… requested for …`). One confirming press from Sushi in the real popup is still owed.
 
 ### Also open
 
@@ -430,3 +423,13 @@ interruption, and several were spent on ambiguity I could have removed for free.
 - Prefer a diagnostic that distinguishes several hypotheses at once over a yes/no.
 - When a round-trip is spent on something a log line would have answered, add the log
   line (worker rule 5) — do not just apologise for the round-trip.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

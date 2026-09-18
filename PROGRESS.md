@@ -7,6 +7,38 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## The menu received every press; a microtask threw it away — 2026-09-18
+
+Five rounds and a probe had concluded that not even `pointerdown` reached the menu. It
+did. `trapMenuKeys` closed the menu from a `focusout` handler via `queueMicrotask`, and a
+real mousedown on "Hide" fires `focusout` *before* `document.activeElement` moves to the
+pressed button — so the microtask saw `<body>` and removed the menu between mousedown and
+mouseup, and no `click` ever fired. The probe read "waiting for a press…" because it was
+a fresh menu, opened after the first one had been destroyed under the pointer.
+
+Three facts had been pointing at it all along: the health popover uses the same code and
+always worked (it has no `.menu-item` for `focusAt(0)` to focus, so focus never enters
+it); Enter worked (focus never leaves); and no harness fires a real focus change, so every
+harness passed. The fix reads `event.relatedTarget` and, when there is none, waits one
+task. Two smaller defects on the same path went with it: the popup's own open-sync called
+`refresh()` with no menu guard (the three guarded callers were not the ones that fired
+most), and the `scroll` listener in capture on `window` closed a menu that was scrolling
+itself. A redraw that finds a menu open is now deferred and runs when it closes, rather
+than being skipped or tearing the menu down. `closeMenus` clears `aria-expanded`, and the
+TEMPORARY probe is gone.
+
+Proven the only way it could be: real pointer events in the preview document, dark mode,
+the menu held open across the stubbed sync landing, then "Hide" and a "Merge with…"
+candidate each logging `… requested for …` from the click handler. One confirming press
+in the real popup is still owed by Sushi.
+
+Also this day: Graphify is installed (`graphify-out/`, `.claude/skills/graphify`),
+Ponytail is vendored (`.claude/skills/ponytail`, subordinate to this file), and the
+2026-09-18 design decisions are recorded in the plan file until they land here with
+their work.
+
+1023 tests.
+
 ## UI reference refresh — 2026-09-11
 - Updated light/navy surfaces, orange selected tabs and today marker, rounded course
   filters, sync toolbar, and full-width framed calendar with larger date navigation.

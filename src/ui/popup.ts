@@ -813,11 +813,35 @@ const MENU_CLASS = MENU_SELECTOR.slice(1);
  * The popup starts a sync the moment it opens, which is exactly when a student
  * is reaching for a row.
  */
+/**
+ * A redraw that arrived while a menu was open, and is owed to the list.
+ *
+ * Six things redraw this page — the popup's own open-sync, a store write, the
+ * worker's in-flight flag, the minute tick, `visibilitychange` and a manual
+ * sync — and three of them checked for an open menu and *skipped*, while the
+ * other three did not check at all and tore the menu down mid-press. Neither
+ * is right: a skipped redraw leaves the list stale until the next one, and a
+ * redraw under an open menu is how a click lands on the wrong row. So a redraw
+ * that finds a menu open is deferred, and `closeMenus` runs it.
+ */
+let redrawAfterMenu = false;
+
 function closeMenus(): void {
-  for (const open of document.querySelectorAll(MENU_SELECTOR)) open.remove();
+  const open = [...document.querySelectorAll(MENU_SELECTOR)];
+  for (const panel of open) panel.remove();
+  // The expanded state belongs to the panel, and only the focusout path used
+  // to clear it — so after every other kind of close the health pill's toggle
+  // and the Escape handler kept finding a stale "expanded" anchor.
+  for (const anchor of document.querySelectorAll('[aria-expanded="true"]')) {
+    anchor.removeAttribute("aria-expanded");
+  }
   // The room a panel asked for is given back the moment it closes, or the popup
   // stays that tall with nothing in the space. See `placeFloating`.
   document.body.style.minHeight = "";
+  if (open.length > 0 && redrawAfterMenu) {
+    redrawAfterMenu = false;
+    void refresh();
+  }
 }
 
 /**
@@ -883,7 +907,18 @@ function placeFloating(panel: HTMLElement, anchor: HTMLElement, align: "left" | 
   const flip = wanted > below && above > below;
   const top = flip ? Math.max(8, box.top - 4 - Math.min(wanted, above)) : box.bottom + 4;
   panel.style.top = `${top}px`;
-  panel.style.maxHeight = `${Math.max(140, (flip ? above : below))}px`;
+  // The floor is what asks Chrome for room (see `minHeight` below), so it stays;
+  // but it must never push the panel past the ceiling — with 120px below and a
+  // 140px floor the menu ran 20px off the bottom of a document that cannot
+  // grow. Clamped to what is left under `top`, and never so small as to be
+  // unusable: 60px is two rows and a scrollbar.
+  const room = flip ? above : below;
+  let cap = Math.max(140, room);
+  // An anchor can only sit past the ceiling in a harness whose viewport is
+  // taller than a popup can be; there the ceiling says nothing about the room.
+  const untilCeiling = ceiling - top - 8;
+  if (untilCeiling > 0) cap = Math.min(cap, untilCeiling);
+  panel.style.maxHeight = `${Math.max(60, cap)}px`;
 
   if (align === "right") {
     panel.style.right = `${Math.max(8, document.documentElement.clientWidth - box.right)}px`;
@@ -906,7 +941,18 @@ document.addEventListener("click", closeMenus);
 // A fixed panel does not travel with the document, so a page scrolled under an
 // open menu would leave it pointing at a different row. Closing is what every
 // other menu does, and it is the only option that cannot mislead.
-window.addEventListener("scroll", closeMenus, { passive: true, capture: true });
+window.addEventListener(
+  "scroll",
+  (event) => {
+    // Capture on `window` sees every scroll, including the menu's own: it is
+    // `overflow-y: auto` with a height floor below its content, so scrolling
+    // to reach "Merge with…" deleted the menu being scrolled.
+    const menu = document.querySelector(MENU_SELECTOR);
+    if (menu && event.target instanceof Node && menu.contains(event.target)) return;
+    closeMenus();
+  },
+  { passive: true, capture: true },
+);
 // Escape closes from anywhere, including from the row the menu was opened on.
 // Without it the only way out of an open menu with the keyboard was Tab, which
 // walked *into* it and then out the far side of the page.
@@ -969,14 +1015,35 @@ function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
     }
   });
 
-  // Losing focus out of the menu closes it. A menu left open behind the page it
-  // no longer belongs to is how a click lands on the wrong row.
-  menu.addEventListener("focusout", () => {
-    queueMicrotask(() => {
+  /*
+   * Losing focus out of the menu closes it. A menu left open behind the page it
+   * no longer belongs to is how a click lands on the wrong row.
+   *
+   * **This is where every mouse press on the menu used to die.** `focusAt(0)`
+   * puts focus inside the menu the instant it opens, so a real mousedown on
+   * "Hide" moves focus from item 0 to the pressed button — and the browser
+   * fires `focusout` *before* it updates `document.activeElement`. The old
+   * version asked `queueMicrotask` to look; a microtask runs in exactly that
+   * gap, saw `<body>`, and removed the menu between mousedown and mouseup. No
+   * mouseup on the same element means no `click`, so the handler never ran,
+   * "Applying…" never appeared, and the worker heard nothing. The health
+   * popover shares this code and always worked, because it has no
+   * `.menu-item` for `focusAt` to focus. A synthetic `.click()` and a
+   * programmatic `blur()` never produce that sequence, which is why every
+   * harness passed (UI house rule 5).
+   *
+   * `relatedTarget` is the element *gaining* focus and is known during the
+   * event itself. A press on non-focusable menu chrome reports none, so that
+   * case waits one task — a task, not a microtask — for focus to settle.
+   */
+  menu.addEventListener("focusout", (event) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && menu.contains(next)) return;
+    setTimeout(() => {
       if (!menu.isConnected || menu.contains(document.activeElement)) return;
       menu.remove();
       anchor.removeAttribute("aria-expanded");
-    });
+    }, 0);
   });
 
   focusAt(0);
@@ -1128,6 +1195,9 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
           applyOverrideAction({ kind: "merge", itemId: item.id, otherItemId: other.id }, entry);
         });
       }
+      // The pressed entry was just removed with the rest, and focus with it;
+      // put it on the first candidate so the arrows and Escape still work.
+      menu.querySelector<HTMLElement>(".menu-item")?.focus();
     });
   }
 
@@ -1135,39 +1205,6 @@ function openRowMenu(item: Item, anchor: HTMLElement): void {
   if (calendar) {
     add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
   }
-
-  /*
-   * TEMPORARY (2026-09-13): which event the menu actually receives.
-   *
-   * Five rounds of "I click Hide and nothing happens" have ruled out everything
-   * reading can rule out — the handler is wired, the button is a plain
-   * `<button>`, nothing sets `pointer-events`, the panel is the top of the
-   * stacking order at `z-index: 20`, and the menu provably survives both a
-   * store write and a real blur to `<body>`. The label still never changes to
-   * "Applying…", so the click never reaches the listener.
-   *
-   * A `click` needs mousedown **and** mouseup on the same element, so this says
-   * which of the three is missing. It is on the menu in capture, so it sees the
-   * event before any handler can stop it, and it writes into the menu itself
-   * because both consoles have already proved to be the wrong place to look.
-   *
-   * Remove once the cause is known.
-   */
-  const probe = document.createElement("div");
-  probe.className = "menu-heading";
-  probe.textContent = "waiting for a press…";
-  const seen: string[] = [];
-  for (const kind of ["pointerdown", "mousedown", "mouseup", "click"]) {
-    menu.addEventListener(
-      kind,
-      () => {
-        if (!seen.includes(kind)) seen.push(kind);
-        probe.textContent = seen.join(" → ");
-      },
-      true,
-    );
-  }
-  menu.prepend(probe);
 
   document.body.append(menu);
   placeFloating(menu, anchor, "right");
@@ -2460,10 +2497,15 @@ function render(
   sources: Record<Source, SourceStatus>,
   now: Date,
 ): void {
-  // An open menu closed over an Item from the previous list. Leaving it up
-  // across a re-render lets it act on ids that no longer exist — and the popup
-  // fires a sync on open, so that race is the common case, not a corner one.
-  closeMenus();
+  // An open menu closed over an Item from the previous list. Rather than pull
+  // the list out from under it — the popup fires a sync on open, so that race
+  // is the common case, not a corner one — the redraw waits for the menu to
+  // close. Checked here, after the awaits in `draw`, and not only in `refresh`:
+  // a menu can open while the state is in flight.
+  if (document.querySelector(MENU_SELECTOR)) {
+    redrawAfterMenu = true;
+    return;
+  }
   currentItems = items;
   viewEl.replaceChildren();
   delete viewEl.dataset["shape"];
@@ -2548,6 +2590,10 @@ function render(
  * channel this surface has, so everything ends up there.
  */
 async function refresh(): Promise<void> {
+  if (document.querySelector(MENU_SELECTOR)) {
+    redrawAfterMenu = true;
+    return;
+  }
   try {
     await draw();
   } catch (err) {
@@ -2759,8 +2805,8 @@ void recheckLogins();
  * whatever it drew when it opened, so a deadline that arrived, moved or was
  * submitted half an hour ago was simply not there.
  *
- * Guarded on a menu being open: the row menu closes over an Item, and pulling
- * the list out from under an open menu is how a click lands on the wrong row.
+ * While a menu is open the redraw is deferred, not skipped — `refresh` owns
+ * that rule, so no caller here has to remember it.
  */
 chrome.storage?.onChanged?.addListener((changes, area) => {
   // A sync the worker started — the poll, or a page finishing on a source's own
@@ -2769,12 +2815,11 @@ chrome.storage?.onChanged?.addListener((changes, area) => {
     const next = changes[SYNCING_KEY]?.newValue === true;
     if (next !== workerSyncing) {
       workerSyncing = next;
-      if (!document.querySelector(MENU_SELECTOR)) void refresh();
+      void refresh();
     }
     return;
   }
   if (area !== "local" || !(STORAGE_KEY in changes)) return;
-  if (document.querySelector(MENU_SELECTOR)) return;
   void refresh();
 });
 
@@ -2808,7 +2853,6 @@ setInterval(() => {
   const minute = new Date().getMinutes();
   if (minute === lastMinute) return;
   lastMinute = minute;
-  if (document.querySelector(MENU_SELECTOR)) return;
   void refresh();
 }, TICK_MS);
 

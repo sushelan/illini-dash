@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.log
 release/
+.claude/settings.local.json
+graphify-out/cost.json
