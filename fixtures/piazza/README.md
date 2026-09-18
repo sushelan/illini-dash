@@ -45,9 +45,32 @@ What a feed entry carries, and what it does not:
   (`"Pinned"`, `"This week"`…), `modified` / `updated` (ISO `Z`), `log[]` of
   `{t, u, n}` where `log[0].t` is the creation instant and `u` a person id.
 - **The body is not in the feed.** A deadline sentence past character 120 needs
-  `content.get` for that post (`fixtures/piazza/post.json`, not yet captured), so the
-  snippet-only stage reads only what fits in a subject and its first line.
+  `content.get` for that post (`post.json` below), so a snippet-only stage reads only what
+  fits in a subject and its first line.
 - Dates are real instants with a zone (`2026-09-18T09:09:00Z`), unlike Campuswire's
   date-only previews.
 
 Deliberately unrealistic: nothing. The trim and the scrub are the only edits.
+
+## post.json — `POST https://piazza.com/logic/api?method=content.get`
+
+Body `{"method":"content.get","params":{"cid":"<feed entry id>","nid":"<nid>"}}`, same
+header and cookies. One real instructor note (nr 179, "MP1 'Recommended' solutions"),
+captured 2026-09-18; every `uid` / `uid_a` is `uid-N` (same map as the other two files)
+and five students credited in the body are `STUDENT-N`.
+
+- `result.history[]` — one entry per **version**, newest first: `subject`, `content`
+  (**HTML**, entities encoded: `&#34;` `&#43;`), `created` (ISO `Z`), `uid`, `anon`. The
+  body a deadline sentence lives in is `history[0].content`; strip tags and unescape
+  entities before the grammar sees it, and keep the span grounded in the *text* you hand
+  the grammar, not the HTML.
+- `result.type` (`note`), `nr` (179 — matches the feed's `nr`), `id` (the `cid`), `tags`
+  (`instructor-note`, `pin`, a folder name), `folders`, `config.is_announcement` (1),
+  `created`, `change_log[]` (versions; uids), `children[]` (follow-ups and answers, with
+  their own `subject` text, `uid_a`, `children`).
+- `instructor-note` in `tags` and `config.is_announcement` are the positive markers that
+  a note is staff-written; a `type:"note"` can also be a pinned student post (the feed's
+  "Search for Teammates!" carries `tags: ["pin","student"]`).
+- Five versions of one note is why `history_size` exists; read `history[0]` only.
+
+Deliberately unrealistic: nothing.

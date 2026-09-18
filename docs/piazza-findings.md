@@ -36,13 +36,14 @@ it was first modelled on (parser house rule 9).
 - The class id is the last path segment of the class URL (`/class/mswcsieiaip5ju`), per
   house rule 13 a per-account list → a source with a discovery stage, not an adapter.
 
-## What is still to capture, before any parser is written
+## What was captured (the parser is written against these)
 
 1. `fixtures/piazza/feed.json` — the `network.get_my_feed` **response** for one class
    (DevTools → the request → Response → copy), scrubbed with `npm run scrub -- <file>`
    (it holds classmates' names and posts).
 2. `fixtures/piazza/post.json` — one `content.get` response (a full instructor note),
-   scrubbed.
+   scrubbed. **Captured 2026-09-18** (see the fixture README): the body is HTML in
+   `result.history[0].content`, `instructor-note` in `tags` marks staff posts.
 3. `fixtures/piazza/class-page.html` — `https://piazza.com/class/<nid>` via the options
    page's Fixture capture tool (it accepts any https URL), scrubbed; for the course name
    and any embedded config.

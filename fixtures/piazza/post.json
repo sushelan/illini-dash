@@ -1,0 +1,468 @@
+{
+ "result": {
+  "history_size": 5,
+  "folders": [
+   "mp_oncampus_1"
+  ],
+  "nr": 179,
+  "data": {
+   "embed_links": []
+  },
+  "created": "2026-09-18T01:58:47Z",
+  "bucket_order": 0,
+  "no_answer_followup": 0,
+  "change_log": [
+   {
+    "anon": "no",
+    "uid": "uid-3",
+    "data": "mu6b814u6zu4kq",
+    "v": "all",
+    "type": "create",
+    "when": "2026-09-18T01:58:47Z"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-3",
+    "data": "mu6b9m2pu7w1ag",
+    "v": "all",
+    "type": "update",
+    "when": "2026-09-18T02:00:01Z"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "data": "mu6dsym65gd38u",
+    "v": "all",
+    "type": "update",
+    "when": "2026-09-18T03:11:03Z"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "data": "mu6dtvp8z4x5jz",
+    "v": "all",
+    "type": "update",
+    "when": "2026-09-18T03:11:46Z"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "data": "mu6duksz6km7gm",
+    "v": "all",
+    "type": "update",
+    "when": "2026-09-18T03:12:18Z"
+   },
+   {
+    "anon": "stud",
+    "to": "mu6b814nxeb4ko",
+    "type": "followup",
+    "when": "2026-09-18T03:53:46Z",
+    "cid": "mu6fbvxywzx4o5",
+    "uid_a": "uid-88"
+   },
+   {
+    "anon": "stud",
+    "to": "mu6b814nxeb4ko",
+    "type": "followup",
+    "when": "2026-09-18T05:22:57Z",
+    "cid": "mu6iikt290u68x",
+    "uid_a": "uid-89"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-8",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T08:58:53Z",
+    "cid": "mu6q89zjly77m9"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-8",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T13:50:14Z",
+    "cid": "mu70my294pr4gm"
+   },
+   {
+    "anon": "stud",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T13:50:33Z",
+    "cid": "mu70nd4g6qp72f",
+    "uid_a": "uid-88"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-3",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T13:52:56Z",
+    "cid": "mu70qfoiqs53vh"
+   },
+   {
+    "anon": "stud",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T14:13:34Z",
+    "cid": "mu71gyr3w263gi",
+    "uid_a": "uid-90"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-4",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T15:49:24Z",
+    "cid": "mu74w7gxbmi2lr"
+   },
+   {
+    "anon": "stud",
+    "to": "mu6b814nxeb4ko",
+    "type": "feedback",
+    "when": "2026-09-18T15:53:50Z",
+    "cid": "mu751wptpc66zx",
+    "uid_a": "uid-88"
+   }
+  ],
+  "bucket_name": "Pinned",
+  "history": [
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "subject": "MP1 &#34;Recommended&#34; solutions (On-campus MPs only)",
+    "created": "2026-09-18T03:12:18Z",
+    "content": "<div>\n<div>\n<p>Dear 4cr On-campus &#43; Chicago students,</p>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>\n<div>&#34;Recommended solutions&#34; for MP1 (on-campus) have now been posted on the course website, in the five most common languages (Go, Python, Java, Rust, C&#43;&#43;). You can find them at: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </div>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>Feel free to use some/all of this code for your MP2 (and onwards). If you choose to do so, please understand that you are responsible for debugging any issues that arise therein. Thank you to the groups whose code appears in the above recommended solutions. The choice these groups&#39; MPs is neither an endorsement nor a guarantee of a high score on this or future MPs. Appearance of a group&#39;s code in this list of solutions is only for community building purposes (like an open-source community).</div>\n</div>\n</div>\n</div>\n<div></div>\n<div></div>\n<div>\n<div>\n<div>And you&#39;ve heard this before: <strong>START MP2 NOW!</strong><strong></strong></div>\n</div>\n</div>\n<div></div>\n<div>\n<div><strong>Class Statistics on choice of language for MP1 (number of groups):</strong></div>\n<div><strong></strong></div>\n<div>Class Statistics for MP1 from Fall 2026<strong>: </strong>Go: 60, C&#43;&#43;: 22, Python: 15, Java: 5, Rust: 6, C: 2, OCaml: 1, JavaScript: 1, Elixir: 1, C&#43;&#43;/TS: 1</div>\n</div>\n<div></div>\n<div><strong>(Statistics from Past Years) </strong>Always interesting to see the trends!</div>\n<div>Class Statistics for MP1 from Fall 2025: Go: 85 (groups), C&#43;&#43;: 13, Python: 13, Java: 4, Rust: 3, C: 2, Bash: 1</div>\n<div>\n<div>\n<div>\n<div>\n<div>Class Statistics for MP1 from Fall 2024: Go: 63 (groups), C&#43;&#43;: 14, Python: 10, Java: 7, Rust: 2</div>\n<div>Class Statistics for MP1 from Fall 2023: Go: 36 (groups), Python: 24, C&#43;&#43;: 12, Java: 8, Rust: 4, C/C&#43;&#43;: 1, Go/C/C&#43;&#43;: 1</div>\n</div>\n<div>Class Statistics for MP1 from Fall 2022: Go: 26, C&#43;&#43;: 20, Python: 19, Java: 12, C: 2, Rust: 2</div>\n<div>\n<div>Class Statistics for MP1 from Fall 2020: Go: 26, Python: 19, Java: 7, Rust: 2, C&#43;&#43;: 2</div>\n</div>\n</div>\n</div>\n</div>"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "subject": "MP1 &#34;Recommended&#34; solutions (On-campus MPs only)",
+    "created": "2026-09-18T03:11:46Z",
+    "content": "<div>\n<div>\n<p>Dear 4cr On-campus &#43; Chicago students,</p>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>\n<div>&#34;Recommended solutions&#34; for MP1 (on-campus) have now been posted on the course website, in the five most common languages (Go, Python, Java, Rust, C&#43;&#43;). You can find them at: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </div>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>Feel free to use some/all of this code for your MP2 (and onwards). If you choose to do so, please understand that you are responsible for debugging any issues that arise therein. Thank you to the groups whose code appears in the above recommended solutions. The choice these groups&#39; MPs is neither an endorsement nor a guarantee of a high score on this or future MPs. Appearance of a group&#39;s code in this list of solutions is only for community building purposes (like an open-source community).</div>\n</div>\n</div>\n</div>\n<div></div>\n<div></div>\n<div>\n<div>\n<div>And you&#39;ve heard this before: <strong>START MP2 NOW!</strong><strong></strong></div>\n</div>\n</div>\n<div></div>\n<div>\n<div><strong>Class Statistics on choice of language for MP1 (number of groups):</strong></div>\n<div><strong></strong></div>\n<div>Class Statistics for MP1 from Fall 2026<strong>: </strong>\n<div>\n<div>Go: 60, C&#43;&#43;: 22, Python: 15, Java: 5, Rust: 6, C: 2, OCaml: 1, JavaScript: 1, Elixir: 1, C&#43;&#43;/TS: 1</div>\n</div>\n</div>\n</div>\n<div></div>\n<div><strong>(Statistics from Past Years) </strong>Always interesting to see the trends!</div>\n<div>Class Statistics for MP1 from Fall 2025: Go: 85 (groups), C&#43;&#43;: 13, Python: 13, Java: 4, Rust: 3, C: 2, Bash: 1</div>\n<div>\n<div>\n<div>\n<div>\n<div>Class Statistics for MP1 from Fall 2024: Go: 63 (groups), C&#43;&#43;: 14, Python: 10, Java: 7, Rust: 2</div>\n<div>Class Statistics for MP1 from Fall 2023: Go: 36 (groups), Python: 24, C&#43;&#43;: 12, Java: 8, Rust: 4, C/C&#43;&#43;: 1, Go/C/C&#43;&#43;: 1</div>\n</div>\n<div>Class Statistics for MP1 from Fall 2022: Go: 26, C&#43;&#43;: 20, Python: 19, Java: 12, C: 2, Rust: 2</div>\n<div>\n<div>Class Statistics for MP1 from Fall 2020: Go: 26, Python: 19, Java: 7, Rust: 2, C&#43;&#43;: 2</div>\n</div>\n</div>\n</div>\n</div>"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-9",
+    "subject": "MP1 &#34;Recommended&#34; solutions (On-campus MPs only)",
+    "created": "2026-09-18T03:11:03Z",
+    "content": "<div>\n<div>\n<p>Dear 4cr On-campus &#43; Chicago students,</p>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>\n<div>&#34;Recommended solutions&#34; for MP1 (on-campus) have now been posted on the course website, in the five most common languages (Go, Python, Java, Rust, C&#43;&#43;). You can find them at: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </div>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>Feel free to use some/all of this code for your MP2 (and onwards). If you choose to do so, please understand that you are responsible for debugging any issues that arise therein. Thank you to the groups whose code appears in the above recommended solutions. The choice these groups&#39; MPs is neither an endorsement nor a guarantee of a high score on this or future MPs. Appearance of a group&#39;s code in this list of solutions is only for community building purposes (like an open-source community).</div>\n</div>\n</div>\n</div>\n<div></div>\n<div></div>\n<div>\n<div>\n<div>And you&#39;ve heard this before: <strong>START MP2 NOW!</strong><strong></strong></div>\n</div>\n</div>\n<div></div>\n<div>\n<div><strong>Class Statistics on choice of language for MP1 (number of groups):</strong></div>\n<div><strong></strong></div>\n<div>Class Statistics for MP1 from Fall 2026<strong>: </strong>\n<div>\n<div>Go: 60, C&#43;&#43;: 22, Python: 15, Rust: 6, Java: 5, C: 2, OCaml: 1, JavaScript: 1, Elixir: 1, C&#43;&#43;/TS: 1</div>\n</div>\n</div>\n</div>\n<div></div>\n<div><strong>(Statistics from Past Years) </strong>Always interesting to see the trends!</div>\n<div>Class Statistics for MP1 from Fall 2025: Go: 85 (groups), C&#43;&#43;: 13, Python: 13, Java: 4, Rust: 3, C: 2, Bash: 1</div>\n<div>\n<div>\n<div>\n<div>\n<div>Class Statistics for MP1 from Fall 2024: Go: 63 (groups), C&#43;&#43;: 14, Python: 10, Java: 7, Rust: 2</div>\n<div>Class Statistics for MP1 from Fall 2023: Go: 36 (groups), Python: 24, C&#43;&#43;: 12, Java: 8, Rust: 4, C/C&#43;&#43;: 1, Go/C/C&#43;&#43;: 1</div>\n</div>\n<div>Class Statistics for MP1 from Fall 2022: Go: 26, C&#43;&#43;: 20, Python: 19, Java: 12, C: 2, Rust: 2</div>\n<div>\n<div>Class Statistics for MP1 from Fall 2020: Go: 26, Python: 19, Java: 7, Rust: 2, C&#43;&#43;: 2</div>\n</div>\n</div>\n</div>\n</div>"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-3",
+    "subject": "MP1 &#34;Recommended&#34; solutions (On-campus MPs only)",
+    "created": "2026-09-18T02:00:01Z",
+    "content": "<div>\n<div>\n<p>Dear 4cr On-campus &#43; Chicago students,</p>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>\n<div>&#34;Recommended solutions&#34; for MP1 (on-campus) have now been posted on the course website, in the five most common languages (Go, Python, Java, Rust, C&#43;&#43;). You can find them at: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </div>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>Feel free to use some/all of this code for your MP2 (and onwards). If you choose to do so, please understand that you are responsible for debugging any issues that arise therein. Thank you to the groups whose code appears in the above recommended solutions. The choice these groups&#39; MPs is neither an endorsement nor a guarantee of a high score on this or future MPs. Appearance of a group&#39;s code in this list of solutions is only for community building purposes (like an open-source community).</div>\n</div>\n</div>\n</div>\n<div></div>\n<div></div>\n<div>\n<div>\n<div>And you&#39;ve heard this before: <strong>START MP2 NOW!</strong><strong></strong></div>\n</div>\n</div>\n<div></div>\n<div>\n<div><strong>Class Statistics on choice of language for MP1 (number of groups):</strong></div>\n<div><strong></strong></div>\n<div>Class Statistics for MP1 from Fall 2026<strong>: TBA</strong></div>\n</div>\n<div></div>\n<div><strong>(Statistics from Past Years) </strong>Always interesting to see the trends!</div>\n<div>Class Statistics for MP1 from Fall 2025: Go: 85 (groups), C&#43;&#43;: 13, Python: 13, Java: 4, Rust: 3, C: 2, Bash: 1</div>\n<div>\n<div>\n<div>\n<div>\n<div>Class Statistics for MP1 from Fall 2024: Go: 63 (groups), C&#43;&#43;: 14, Python: 10, Java: 7, Rust: 2</div>\n<div>Class Statistics for MP1 from Fall 2023: Go: 36 (groups), Python: 24, C&#43;&#43;: 12, Java: 8, Rust: 4, C/C&#43;&#43;: 1, Go/C/C&#43;&#43;: 1</div>\n</div>\n<div>Class Statistics for MP1 from Fall 2022: Go: 26, C&#43;&#43;: 20, Python: 19, Java: 12, C: 2, Rust: 2</div>\n<div>\n<div>Class Statistics for MP1 from Fall 2020: Go: 26, Python: 19, Java: 7, Rust: 2, C&#43;&#43;: 2</div>\n</div>\n</div>\n</div>\n</div>"
+   },
+   {
+    "anon": "no",
+    "uid": "uid-3",
+    "subject": "MP1 &#34;Recommended&#34; solutions (On-campus MPs only)",
+    "created": "2026-09-18T01:58:47Z",
+    "content": "<div>\n<div>\n<p>Dear 4cr On-campus &#43; Chicago students,</p>\n</div>\n<div></div>\n<div>\n<div>\n<div>&#34;Recommended solutions&#34; for MP1 (on-campus) have now been posted on the course website, in the five most common languages (Go, Python, Java, Rust, C&#43;&#43;). You can find them at: <a href=\"https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html\" target=\"_blank\" rel=\"noopener noreferrer\">https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html</a> </div>\n</div>\n<div></div>\n<div>\n<div>Feel free to use some/all of this code for your MP2 (and onwards). If you choose to do so, please understand that you are responsible for debugging any issues that arise therein. Thank you to the groups whose code appears in the above recommended solutions. The choice these groups&#39; MPs is neither an endorsement nor a guarantee of a high score on this or future MPs. Appearance of a group&#39;s code in this list of solutions is only for community building purposes (like an open-source community).</div>\n</div>\n</div>\n</div>\n<div></div>\n<div>\n<div>\n<div>And you&#39;ve heard this before: <strong>START MP2 NOW!</strong><strong></strong></div>\n</div>\n</div>\n<div></div>\n<div>\n<div><strong>Class Statistics on choice of language for MP1 (number of groups):</strong></div>\n<div><strong></strong></div>\n<div>Class Statistics for MP1 from Fall 2026<strong>: TBA</strong></div>\n</div>\n<div></div>\n<div><strong>(Statistics from Past Years) </strong>Always interesting to see the trends!</div>\n<div>Class Statistics for MP1 from Fall 2025: Go: 85 (groups), C&#43;&#43;: 13, Python: 13, Java: 4, Rust: 3, C: 2, Bash: 1</div>\n<div>\n<div>\n<div>\n<div>\n<div>Class Statistics for MP1 from Fall 2024: Go: 63 (groups), C&#43;&#43;: 14, Python: 10, Java: 7, Rust: 2</div>\n<div>Class Statistics for MP1 from Fall 2023: Go: 36 (groups), Python: 24, C&#43;&#43;: 12, Java: 8, Rust: 4, C/C&#43;&#43;: 1, Go/C/C&#43;&#43;: 1</div>\n</div>\n<div>Class Statistics for MP1 from Fall 2022: Go: 26, C&#43;&#43;: 20, Python: 19, Java: 12, C: 2, Rust: 2</div>\n<div>\n<div>Class Statistics for MP1 from Fall 2020: Go: 26, Python: 19, Java: 7, Rust: 2, C&#43;&#43;: 2</div>\n</div>\n</div>\n</div>\n</div>"
+   }
+  ],
+  "type": "note",
+  "tags": [
+   "instructor-note",
+   "mp_oncampus_1",
+   "pin"
+  ],
+  "tag_good": [],
+  "unique_views": 82,
+  "children": [
+   {
+    "anon": "stud",
+    "folders": [],
+    "data": {
+     "embed_links": null
+    },
+    "no_upvotes": 0,
+    "subject": "I&#39;m currently receiving &#34;Oops! We can&#39;t seem to find the page you&#39;re looking for.&#34; at the Box link.",
+    "created": "2026-09-18T03:53:46Z",
+    "bucket_order": 3,
+    "bucket_name": "Today",
+    "type": "followup",
+    "tag_good": [
+     {
+      "role": "student",
+      "name": "STUDENT-4",
+      "endorser": {
+       "lrbqih8v4z661k": 1708382941
+      },
+      "admin": false,
+      "photo": null,
+      "id": "lllh7v3cjhxa2",
+      "photo_url": null,
+      "published": true,
+      "us": false,
+      "facebook_id": null
+     },
+     {
+      "role": "student",
+      "name": "STUDENT-5 Sumendap",
+      "endorser": {},
+      "admin": false,
+      "photo": null,
+      "id": "mt2cleluwxo3eu",
+      "photo_url": null,
+      "published": true,
+      "us": false,
+      "facebook_id": null
+     },
+     {
+      "role": "student",
+      "name": "STUDENT-1",
+      "endorser": {
+       "m5nxt7gmucy419": 1743536221
+      },
+      "admin": false,
+      "photo": null,
+      "id": "llmydqpkxrw7aj",
+      "photo_url": null,
+      "published": true,
+      "us": false,
+      "facebook_id": null
+     },
+     {
+      "role": "student",
+      "name": "STUDENT-3",
+      "endorser": {},
+      "admin": false,
+      "photo": null,
+      "id": "l7rz8nsdgyhfq",
+      "photo_url": null,
+      "published": true,
+      "us": false,
+      "facebook_id": null
+     },
+     {
+      "role": "student",
+      "name": "STUDENT-2",
+      "endorser": {},
+      "admin": false,
+      "photo": null,
+      "id": "mt2clgiw59y3hy",
+      "photo_url": null,
+      "published": true,
+      "us": false,
+      "facebook_id": null
+     }
+    ],
+    "uid_a": "uid-88",
+    "children": [
+     {
+      "anon": "no",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "Are you logged into UofI box?",
+      "created": "2026-09-18T08:58:53Z",
+      "bucket_order": 4,
+      "bucket_name": "Yesterday",
+      "type": "feedback",
+      "tag_good": [],
+      "uid": "uid-8",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu6q89zjly77m9",
+      "d-bucket": "Yesterday",
+      "updated": "2026-09-18T08:58:53Z",
+      "config": {
+       "editor": "rte"
+      }
+     },
+     {
+      "anon": "stud",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "Yes.",
+      "created": "2026-09-18T13:50:33Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid_a": "uid-88",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu70nd4g6qp72f",
+      "updated": "2026-09-18T13:50:33Z",
+      "config": {
+       "editor": "rte"
+      }
+     },
+     {
+      "anon": "no",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "<p>Hmm....I believe the permissions for that Box folder (in that link) are set to &#34;People in your company&#34; &amp; &#34;Can view &amp; download&#34;. And that should allow students to access it with their UofI box account.</p>\n<p></p>\n<p>It would be good if a few students can reply to this post and let us know if they&#39;re able or unable to view this folder. Thank you</p>\n<p></p>",
+      "created": "2026-09-18T13:52:56Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid": "uid-3",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu70qfoiqs53vh",
+      "updated": "2026-09-18T13:52:56Z",
+      "config": {
+       "editor": "rte"
+      }
+     },
+     {
+      "anon": "stud",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "I am also unable to access the folder. I get the same message as the first student mentioned",
+      "created": "2026-09-18T14:13:34Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid_a": "uid-90",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu71gyr3w263gi",
+      "updated": "2026-09-18T14:13:34Z",
+      "config": {
+       "editor": "rte"
+      }
+     },
+     {
+      "anon": "no",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "<md>We've updated the link on the course website - can anyone give it a try?</md>",
+      "created": "2026-09-18T15:49:24Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid": "uid-4",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu74w7gxbmi2lr",
+      "updated": "2026-09-18T15:49:24Z",
+      "config": {
+       "editor": "md"
+      }
+     },
+     {
+      "anon": "stud",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "Yes, it works now. Thanks!",
+      "created": "2026-09-18T15:53:50Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid_a": "uid-88",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu751wptpc66zx",
+      "updated": "2026-09-18T15:53:50Z",
+      "config": {
+       "editor": "rte"
+      }
+     }
+    ],
+    "tag_good_arr": [
+     "lllh7v3cjhxa2",
+     "mt2cleluwxo3eu",
+     "llmydqpkxrw7aj",
+     "l7rz8nsdgyhfq",
+     "mt2clgiw59y3hy"
+    ],
+    "no_answer": 0,
+    "id": "mu6fbvxywzx4o5",
+    "updated": "2026-09-18T15:53:52Z",
+    "config": {
+     "editor": "rte"
+    }
+   },
+   {
+    "anon": "stud",
+    "folders": [],
+    "data": {
+     "embed_links": null
+    },
+    "no_upvotes": 0,
+    "subject": "Are the grades out yet? If so, where can we find them?",
+    "created": "2026-09-18T05:22:57Z",
+    "bucket_order": 3,
+    "bucket_name": "Today",
+    "type": "followup",
+    "tag_good": [],
+    "uid_a": "uid-89",
+    "children": [
+     {
+      "anon": "no",
+      "folders": [],
+      "data": {
+       "embed_links": null
+      },
+      "subject": "No, we release grades a week after the HW/MP due date. We make an announcement when we release grades.",
+      "created": "2026-09-18T13:50:14Z",
+      "bucket_order": 3,
+      "bucket_name": "Today",
+      "type": "feedback",
+      "tag_good": [],
+      "uid": "uid-8",
+      "children": [],
+      "tag_good_arr": [],
+      "id": "mu70my294pr4gm",
+      "updated": "2026-09-18T13:50:14Z",
+      "config": {
+       "editor": "rte"
+      }
+     }
+    ],
+    "tag_good_arr": [],
+    "no_answer": 0,
+    "id": "mu6iikt290u68x",
+    "updated": "2026-09-18T13:50:15Z",
+    "config": {
+     "editor": "rte"
+    }
+   }
+  ],
+  "tag_good_arr": [],
+  "id": "mu6b814nxeb4ko",
+  "config": {
+   "is_announcement": 1,
+   "editor": "rte",
+   "has_emails_sent": 1
+  },
+  "status": "active",
+  "drafts": {},
+  "request_instructor": 0,
+  "request_instructor_me": false,
+  "bookmarked": 7,
+  "num_favorites": 0,
+  "my_favorite": false,
+  "is_bookmarked": false,
+  "is_pinned": true,
+  "is_tag_good": false,
+  "q_edits": [],
+  "i_edits": [],
+  "s_edits": [],
+  "t": 1789765184084,
+  "default_anonymity": "no"
+ },
+ "error": null,
+ "aid": "mu7fzadno8go5"
+}
