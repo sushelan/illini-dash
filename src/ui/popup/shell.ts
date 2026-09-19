@@ -37,6 +37,7 @@ import { courseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/name
 import { coursesIn, weekContents } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
+import { unreadableDeadline } from "../../core/quality.js";
 import { downloadIcs } from "../download.js";
 import { appMark, bookMark, type IconName, icon, iconButton } from "../icons.js";
 import { renderThemePanel } from "../theme-panel.js";
@@ -1919,6 +1920,35 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
   add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", (entry) => {
     applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id }, entry);
   });
+
+  /*
+   * Then a date, for a row that has none (2026-09-19).
+   *
+   * The two undated groups on Alerts used to carry this as a filled button on
+   * every card, beside Tick off and Hide. Sushi, on twelve of them: "i dont
+   * like how theres 3 large choices, rather would just have it in the 3 dot
+   * option to give a date, mark as done, or hide." Two of the three were
+   * already here; this is the third, so the card can drop the line entirely
+   * and a row's answers are in one place on every tab.
+   *
+   * **Only when the row has no date this extension trusts.** A student who
+   * types a date over a *stated* one is a different feature (§5.3's open
+   * decision on precedence) that this entry must not quietly become. So the
+   * test is the pair of conditions that put a row in those two groups: no
+   * instant at all, or an instant whose source text could not be read —
+   * `unreadableDeadline`, the same derivation the card's amber chip and the
+   * group itself use, rather than a third spelling of it here.
+   *
+   * It opens a form, so it reports nothing and must not say "Applying…" (UI
+   * rule 4); `closeMenus` first, because the menu would otherwise outlive the
+   * document the screen replaces.
+   */
+  if (item.dueAt === undefined || unreadableDeadline(item).length > 0) {
+    add("Give it a date", "edit-calendar", () => {
+      closeMenus();
+      app.openGiveDate(item);
+    });
+  }
 
   /*
    * Then the site the row came from.

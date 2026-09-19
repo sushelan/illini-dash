@@ -273,39 +273,18 @@ html[data-design="classical"] #view .nodate-card .row--code {
   font-size: 10.5px; font-weight: 700; letter-spacing: .08em;   /* was 11px */
   color: var(--primary);                   /* mock: text-primary — was --muted at 10px */
 }
-html[data-design="classical"] .nodate-actions {
-  justify-content: flex-end;               /* mock: justify-end */
-  /* `flex-wrap` is popup-views.css's, for its own reason: at 400px a student's
-     own course name can push the third label past the window. */
-  flex-wrap: wrap;
-  gap: 6px;                                /* mock: gap-1.5 */
-  margin-top: 4px;                         /* mock: mt-1 */
-  padding: 8px 0 0;                        /* mock: pt-2 */
-  border-top: 1px solid var(--nd-act-rule);  /* mock: border-outline-variant/40 */
-}
-html[data-design="classical"] .nodate-actions .nodate-act {
-  /* mock: a 16px line box inside py-1 and the edge. Stated as a height so the
-     three stay level when one of them wraps. */
-  height: 26px;
-  padding: 4px 8px;                        /* mock: px-2 py-1 */
-  border: 1px solid var(--nd-act-edge);    /* mock: border-outline-variant */
-  border-radius: 2px;                      /* mock: rounded */
-  background: var(--nd-act-bg);            /* mock: bg-surface */
-  /* mock: text-label-sm font-label-sm — 11/16, 600, .08em. */
-  font-family: var(--sans);
-  font-size: 10.5px; font-weight: 600; line-height: 15px; letter-spacing: .08em;   /* was 11px/16px */
-}
-/* mock: hover:bg-surface-container. The edge is deliberately not restated —
-   it was a no-op on two of the three and quietly undid `--give`'s own. */
-html[data-design="classical"] .nodate-actions .nodate-act:hover {
-  background: var(--nd-act-hover);
-}
-html[data-design="classical"] .nodate-actions .nodate-act--give {
-  border-color: var(--muted);              /* mock: border-secondary, the one stronger edge */
-  color: var(--brand-mark);                /* mock: text-primary */
-}
-html[data-design="classical"] .nodate-actions .nodate-act--tick { color: var(--ok); }
-html[data-design="classical"] .nodate-actions .nodate-act--hide { color: var(--muted); }
+/*
+ * The card's own line of buttons is gone (2026-09-19).
+ *
+ * `.nodate-actions` and its three `.nodate-act` rules styled Give it a date,
+ * Tick off and Hide under every undated row — the mock's `justify-end` line
+ * with a hairline over it. Sushi, on twelve of them: "i dont like how theres
+ * 3 large choices, rather would just have it in the 3 dot option." All three
+ * are entries in the row's ⋯ now (`openRowMenu`), so the rules went with the
+ * markup rather than being left to style an element nothing builds — a
+ * selector with nothing behind it is the harness defect of 2026-09-19 in a
+ * stylesheet.
+ */
 html[data-design="classical"] .nodate-card--unread {
   border-color: var(--nd-peach);
 }
@@ -390,7 +369,6 @@ html[data-design="classical"] .nodate-stack {
 /* mock: the ambiguous card's stripe is `bg-tertiary-container/40`, a wash of
    #520e00, while the edge around it stays tertiary-fixed-dim. */
 html[data-design="classical"] .nodate-card--unread { border-left: 4px solid var(--nd-stripe); }
-html[data-design="classical"] .nodate-act .icon { width: 13px; height: 13px; }  /* mock: text-[13px] */
 /*
  * The mock's trailing glyph is gone, and so is everything that styled it — the
  * absolute box at the card's top right, its 18px icon, the `--help` variant and
@@ -400,5 +378,4 @@ html[data-design="classical"] .nodate-act .icon { width: 13px; height: 13px; }  
  * positioned against the row, which sets its own `position: relative` in
  * `popup-rows.css`.
  */
-html[data-design="classical"] .nodate-card--unread .nodate-act--give { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 html[data-design="classical"] .nodate-card .row--tick { display: none; }

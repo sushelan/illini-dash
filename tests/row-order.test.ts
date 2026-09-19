@@ -162,6 +162,7 @@ globals["chrome"] = {
 const { ATTENTION_NOTE } = await import("../src/ui/popup/views/alerts.js");
 const { app } = await import("../src/ui/popup/state.js");
 const shell = await import("../src/ui/popup/shell.js");
+const { MENU_CLASS } = await import("../src/ui/popup/state.js");
 await import("../src/ui/popup.js");
 
 const settle = (ms = 25) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -334,26 +335,75 @@ describe("a No Date card", () => {
     card = view().querySelector<HTMLElement>(".nodate-card")!;
   });
 
-  it("draws the row, then the three things that can be done to it", () => {
+  it("draws the row and the evidence, and no line of buttons under it", () => {
+    /*
+     * Sushi, 2026-09-19, on a tab holding twelve of these: "i dont like how
+     * theres 3 large choices, rather would just have it in the 3 dot option
+     * to give a date, mark as done, or hide."
+     *
+     * Three 29px controls per card is ~45px of a 600px window each, and the
+     * ⋯ two lines up already carries the same answers on every other tab. So
+     * the card is the row, whatever evidence it has, and nothing else.
+     */
     const order = shape(card);
     const row = order.findIndex((name) => /^a\.row|^div\.row/.test(name));
-    const actions = order.indexOf("div.nodate-actions");
     expect(row).toBeGreaterThanOrEqual(0);
-    expect(actions).toBeGreaterThan(row);
-    // The actions are the card's own line, under the row — not inside it, where
-    // they would be three unplaced children of the card grid.
-    expect(card.querySelector(".nodate-actions")!.parentElement).toBe(card);
-    expect(card.querySelector(".row .nodate-actions")).toBeNull();
+    expect(card.querySelector(".nodate-actions")).toBeNull();
+    expect(card.querySelector(".nodate-act")).toBeNull();
+    // Nothing else grew a line of buttons in their place: every child of the
+    // card is the row, the amber flag or the quoted source text.
+    for (const name of order) {
+      expect(
+        /^a\.row|^div\.row|^div\.nodate-flag|^blockquote\.nodate-source/.test(name),
+        `unexpected card child ${name}`,
+      ).toBe(true);
+    }
   });
 
-  it("offers Give it a date, Tick off and Hide, in that order", () => {
-    const actions = card.querySelector(".nodate-actions")!;
-    expect(shape(actions).length).toBe(3);
-    expect([...actions.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
-      "Give it a date",
-      "Tick off",
-      "Hide",
-    ]);
+  it("offers Give it a date, Mark done and Hide in the row's ⋯", async () => {
+    // The three the card used to draw, in the one place a row's answers live.
+    // Pressed rather than called: the menu is opened by a real press on the ⋯,
+    // which is the gesture the student has (UI house rule 5).
+    const dots = card.querySelector<HTMLElement>(".row--menu")!;
+    dots.dispatchEvent(new popup.Event("click", { bubbles: true }));
+    await settle();
+    const menu = document.querySelector<HTMLElement>(`.${MENU_CLASS}`)!;
+    expect(menu, "the ⋯ opened a menu").not.toBeNull();
+    const labels = [...menu.querySelectorAll(".menu-item")].map((e) => e.textContent);
+    expect(labels).toContain("Give it a date");
+    expect(labels).toContain("Mark done");
+    expect(labels).toContain("Hide");
+    // Give it a date opens a form, so it leads the row's own answers rather
+    // than sitting under "Open in …" — but Mark done stays first, which is
+    // e60f4c4's rule about the only route to done.
+    expect(labels.indexOf("Give it a date")).toBe(1);
+    expect(labels.indexOf("Mark done")).toBe(0);
+    shell.closeMenus();
+  });
+
+  it("does not offer a date on a row that already has one", async () => {
+    /*
+     * The entry is for rows with no date this extension trusts — the two
+     * groups this card draws. A student typing a date over a *stated* one is
+     * §5.3's open precedence question, and this menu must not quietly become
+     * that feature.
+     */
+    shell.selectTab("week");
+    await settle();
+    const dated = rows().find((r) => r.querySelector(".row--due")?.textContent)!;
+    dated.querySelector<HTMLElement>(".row--menu")!.dispatchEvent(
+      new popup.Event("click", { bubbles: true }),
+    );
+    await settle();
+    const labels = [...document.querySelectorAll(`.${MENU_CLASS} .menu-item`)].map(
+      (e) => e.textContent,
+    );
+    expect(labels.length, "the dated row opened a menu").toBeGreaterThan(0);
+    expect(labels).not.toContain("Give it a date");
+    shell.closeMenus();
+    shell.selectTab("nodate");
+    await settle();
+    card = view().querySelector<HTMLElement>(".nodate-card")!;
   });
 
   /*

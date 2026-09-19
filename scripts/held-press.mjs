@@ -97,5 +97,36 @@ await send("Runtime.enable"); const logs = []; ws.addEventListener("message", (m
 c = await centre(`[...document.querySelectorAll('.menu-item')].find(b => /^Hide/.test(b.textContent.trim()))`);
 if (c) { await heldPress(c.x, c.y); await sleep(800); out.afterHide = await evaluate(`({ menuOpen: !!document.querySelector('.menu-surface'), firstRowNow: document.querySelector('#view .row .row--title')?.textContent })`); out.hideLogs = logs.filter(l => /requested|hide/i.test(l)); }
 
+// 7. An undated row's ⋯ → "Give it a date", held (2026-09-19).
+//
+// The three buttons that used to sit under every No date card are gone
+// ("i dont like how theres 3 large choices, rather would just have it in the
+// 3 dot option"), so this menu entry is the ONLY route to dating one of those
+// rows — which is exactly the position Mark done was in when the row menu bug
+// of 2026-09-18 made it unreachable from a real press. Held, therefore, and
+// through Chrome's own input pipeline.
+await evaluate(`[...document.querySelectorAll('#tabs [role="tab"]')].find(t => t.textContent.startsWith('Alerts'))?.click()`);
+await sleep(400);
+// The card is ~800px down a 600px window, and a CDP press at y=796 lands
+// nowhere at all — UI house rule 6, "verify the click landed before believing
+// the result". Scrolled into view first, then measured.
+await evaluate(`document.querySelector('#view .nodate-card')?.scrollIntoView({ block: 'center' }); 1`);
+await sleep(200);
+c = await centre(`document.querySelector('#view .nodate-card .row--menu')`);
+if (c) {
+  out.undatedDots = c;
+  out.undatedHit = await evaluate(`(() => { const el = document.elementFromPoint(${c.x}, ${c.y}); return el ? el.tagName + '.' + (el.className || '') : null; })()`);
+  await heldPress(c.x, c.y);
+  out.undatedMenu = await evaluate(`[...document.querySelectorAll('.menu-item')].map(b => b.textContent.trim())`);
+  const give = await centre(`[...document.querySelectorAll('.menu-item')].find(b => /^Give it a date/.test(b.textContent.trim()))`);
+  if (give) {
+    await heldPress(give.x, give.y);
+    await sleep(400);
+    out.afterGive = await evaluate(`({ menuOpen: !!document.querySelector('.menu-surface'), heading: document.querySelector('#view .screen-bar--title, #view h2')?.textContent, hasDateField: !!document.querySelector('#view input[type="date"], #view input') })`);
+  } else {
+    out.afterGive = "no Give it a date entry";
+  }
+}
+
 console.log(JSON.stringify({ holdMs: HOLD_MS, ...out }, null, 2));
 ws.close(); chrome.kill(); server.close();

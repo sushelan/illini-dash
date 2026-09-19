@@ -260,11 +260,8 @@ body[data-view="day"] #view > .tsection:last-child { margin-bottom: 58px; }
  * popup's recurring bug; width is the other one, and both come from assuming a
  * line fits.
  */
-.nodate-actions {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-  padding: 8px 5px 0;
-}
-.nodate-actions .btn { height: 29px; }
+/* `.nodate-actions` was here: the three per-card buttons moved into the row's
+   ⋯ on 2026-09-19. See design-classical-nodate.css for the note. */
 
 /*
  * "check" — the amber mark on a row whose date could not be read.

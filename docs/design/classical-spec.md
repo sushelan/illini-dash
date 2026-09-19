@@ -132,9 +132,19 @@ equal tabs.
 - **Section heads.** `SECTION 1 · NO DATE AT ALL —— 3 items` and
   `SECTION 2 · COULDN'T READ —— 1 ambiguous`, at **10px mono, tracking-widest,
   uppercase, `--ink-muted`**.
-- **Cards.** White paper, source tag, and three buttons on a `#f0eae0` top rule:
-  `Give it a date` (`--ink-navy`), `Tick off` (`--forest-green`), `Hide` (`--ink-muted`)
-  — each white ground, `#dcd4c3` edge, 4px radius, 10px serif, hover `--bg-hover`.
+- **Cards.** White paper, source tag, and — in the mock — three buttons on a `#f0eae0`
+  top rule: `Give it a date` (`--ink-navy`), `Tick off` (`--forest-green`), `Hide`
+  (`--ink-muted`), each white ground, `#dcd4c3` edge, 4px radius, 10px serif, hover
+  `--bg-hover`.
+
+  **Departure (2026-09-19): the three buttons are not drawn.** Sushi, on the real tab
+  holding twelve undated rows: "i dont like how theres 3 large choices, rather would
+  just have it in the 3 dot option to give a date, mark as done, or hide." The mock has
+  four cards; a live account has twelve, and at ~45px of button line each that is a
+  whole 600px window spent offering what the row's ⋯ offers on every other tab. All
+  three are entries in `openRowMenu` — Mark done and Hide were already there, and
+  **Give it a date** is added for a row with no date this extension trusts. The card is
+  the row, its amber chip and its quoted source text, and nothing else.
 - **Ambiguous card.** Peach edge, a `⚠ Ambiguous date text` warning pill, and a callout:
   ground `#fcfaf5`, **2px left border in `--amber-gold`**, `p-2`, 12px serif italic
   `#4a3b32`, reading `SOURCE TEXT: "…"`.

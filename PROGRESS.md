@@ -2,10 +2,41 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2279 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2280 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## The No date card loses its three buttons — 2026-09-19
+
+Sushi, on a live Alerts tab with twelve undated rows: "i dont like how theres 3 large
+choices, rather would just have it in the 3 dot option to give a date, mark as done, or
+hide." Three 29px controls under every card is ~45px a row — twelve rows is a whole
+600px window of buttons offering what the ⋯ two lines up offers on every other tab, and
+it is the third time the same objection has been made about this popup's corners ("pick
+one bro. just pick the 3 dots").
+
+- `renderNoDateCard` draws the row, the amber chip and the quoted source text, and
+  nothing else. `.nodate-actions` / `.nodate-act` went from `popup-views.css` and
+  `design-classical-nodate.css` with the markup — a selector with nothing behind it is
+  the harness defect of 2026-09-19 in a stylesheet.
+- **Give it a date** is an `openRowMenu` entry now (Mark done and Hide already were),
+  offered only for a row with no date this extension trusts: `dueAt === undefined ||
+  unreadableDeadline(item).length > 0`, which is the same pair of conditions that puts a
+  row in those two groups rather than a third spelling of them. A student re-dating a
+  *stated* deadline is §5.3's open precedence question and this entry must not quietly
+  become it.
+- This is a **deliberate departure from the ZIP**, written down in
+  `docs/design/classical-spec.md` §6, `docs/design/brief.md` D3 and the reference
+  contract, since the mock draws the three buttons and has only four cards to draw them
+  under.
+- Mutation-checked: dropping the menu entry, and dropping its condition so every row
+  offers it, each failed the suite. Verified with `scripts/held-press.mjs` at 120ms —
+  the new step 7 scrolls the card into view first, because the first run pressed at
+  y=796 in a 600px window and landed nowhere (UI rule 6, caught by asserting what the
+  point actually hit). Held, the ⋯ opens `[Mark done, Give it a date, Open in
+  PrairieLearn, Hide, Merge with…]` and a held press on Give it a date closes the menu
+  and opens the dated form.
 
 ## Sources is a tab, and a post's row links to the post — 2026-09-19
 

@@ -579,48 +579,23 @@ function renderNoDateCard(
     card.append(box);
   }
 
-  const actions = document.createElement("div");
-  actions.className = "nodate-actions";
-
-  const give = document.createElement("button");
-  give.type = "button";
   /*
-   * One appearance for all three: white ground, `#dcd4c3` edge, 4px radius,
-   * 10px serif — they differ only in ink. An earlier pass filled this one on
-   * the unreadable card, which made the row with the *least* certain date carry
-   * the loudest control on the tab; the emphasis belongs to the ink instead,
-   * and the card's peach edge is what marks the row.
+   * No line of buttons under the row (2026-09-19).
+   *
+   * There were three — Give it a date, Tick off, Hide — on every card of both
+   * undated groups, and Sushi, looking at twelve of them: "i dont like how
+   * theres 3 large choices, rather would just have it in the 3 dot option."
+   * He is right, and the argument is the one he has now made three times about
+   * this popup's corners ("pick one bro. just pick the 3 dots"): three 29px
+   * controls per card is ~45px of a 600px window spent per row, so twelve
+   * undated rows cost about 540px of buttons — a whole popup's worth — to
+   * offer what the ⋯ two lines up already offers on every other tab.
+   *
+   * All three live in `openRowMenu` now: Mark done and Hide were always there,
+   * and **Give it a date** was added for a row with no usable date, which is
+   * exactly the rows this card draws. Nothing is lost and nothing moved to a
+   * different gesture — the ⋯ is the one place a row's answers are, on every
+   * tab.
    */
-  give.className = "btn btn-sm btn-secondary nodate-act nodate-act--give";
-  give.append(icon("edit-calendar"), document.createTextNode("Give it a date"));
-  give.title = "Put a date on this yourself. The source's own answer is kept underneath.";
-  // Not an override sent from here: it opens the editor prefilled, and the
-  // student's date is applied on save (`studentDueOverride`). The button that
-  // opens a form has nothing to report and must not say "Applying…".
-  give.addEventListener("click", () => app.openGiveDate(item));
-
-  const tick = document.createElement("button");
-  tick.type = "button";
-  tick.className = "btn btn-sm btn-secondary nodate-act nodate-act--tick";
-  tick.append(icon("check"), document.createTextNode("Tick off"));
-  tick.title = "Mark this done, so it stops asking";
-  // `applyOverrideAction` owns the round trip: it writes "Applying…" onto the
-  // control, logs the request in *this* console, and turns a rejection into a
-  // sentence on screen (UI rules 2 and 4).
-  tick.addEventListener("click", () => {
-    applyOverrideAction({ kind: "done", itemId: item.id }, tick);
-  });
-
-  const hide = document.createElement("button");
-  hide.type = "button";
-  hide.className = "btn btn-sm btn-secondary nodate-act nodate-act--hide";
-  hide.append(icon("hide"), document.createTextNode("Hide"));
-  hide.title = "Take this off the list entirely";
-  hide.addEventListener("click", () => {
-    applyOverrideAction({ kind: "hide", itemId: item.id }, hide);
-  });
-
-  actions.append(give, tick, hide);
-  card.append(actions);
   return card;
 }
