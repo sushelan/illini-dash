@@ -43,8 +43,10 @@ import {
   quietDay,
   visibleItems,
   weekContents,
+  weekStatus,
   weekDays,
 } from "../src/core/calendar.js";
+import { countdown } from "../src/core/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
 import type { Item, RawItem, Settings, Status } from "../src/sources/types.js";
 
@@ -1729,6 +1731,65 @@ describe("quietDay (the week's 22px row)", () => {
 
   it("calls an empty day quiet, as it always has", () => {
     expect(quietDay(dayContents([], new Date(2026, 8, 12), NOW), NOW)).toBe(true);
+  });
+});
+
+describe("weekStatus (brief D5, mock 1b)", () => {
+  it("says the clock for ordinary open work", () => {
+    // Mock 1b, Saturday: "9:00 PM" and "11:59 PM".
+    expect(weekStatus(item({ dueAt: at(2026, 8, 12, 21, 0) }), NOW)).toBe(
+      new Date(2026, 8, 12, 21, 0).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    );
+  });
+
+  it("says EOD for a time this extension invented, and a clock for a stated one", () => {
+    /*
+     * Worker house rule 3. Mock 1b's Saturday has both in one card: CS 425's
+     * MP1 Report at a stated "11:59 PM" and CS 424's Homework 1 at "EOD",
+     * because the course site printed a bare date and §4.5's runner filled in
+     * 23:59. Showing both as "11:59 PM" is the invention wearing a friendly
+     * face, and a student who trusts it misses a 5 PM cutoff.
+     */
+    const assumed = item({ dueAt: at(2026, 8, 12, 23, 59), timeAssumed: true });
+    const stated = item({ dueAt: at(2026, 8, 12, 23, 59) });
+    expect(weekStatus(assumed, NOW)).toBe("EOD");
+    expect(weekStatus(stated, NOW)).not.toBe("EOD");
+  });
+
+  it("says done, above everything else", () => {
+    // Mock 1b, Monday: "done", struck through. Including a row that is also
+    // overdue — finished work is not late, however long ago it was due.
+    expect(weekStatus(item({ done: true, dueAt: at(2026, 8, 12, 21) }), NOW)).toBe("done");
+    expect(weekStatus(item({ done: true, dueAt: at(2026, 8, 8, 21) }), NOW)).toBe("done");
+  });
+
+  it("says 'late ok' while the late window is still open", () => {
+    // Mock 1b, Wednesday. Full credit has gone and Gradescope is still
+    // accepting: printing the original clock reads as "you have until then".
+    const stillOpen = item({ dueAt: at(2026, 8, 9, 23, 59), lateDueAt: at(2026, 8, 16, 23, 59) });
+    expect(weekStatus(stillOpen, NOW)).toBe("late ok");
+  });
+
+  it("says how late, in countdown's own words", () => {
+    // Mock 1b, Friday: "1d late". One wording, so the Today hero and the week
+    // card cannot disagree about the same row.
+    const overdue = item({ dueAt: at(2026, 8, 9, 18, 0) });
+    expect(weekStatus(overdue, NOW)).toBe("1d late");
+    expect(weekStatus(overdue, NOW)).toBe(countdown(at(2026, 8, 9, 18, 0), NOW));
+    expect(weekStatus(item({ dueAt: at(2026, 8, 10, 16, 0) }), NOW)).toBe("2h late");
+  });
+
+  it("says how late rather than EOD for an overdue invented time", () => {
+    expect(weekStatus(item({ dueAt: at(2026, 8, 9, 23, 59), timeAssumed: true }), NOW)).toBe(
+      "1d late",
+    );
+  });
+
+  it("says nothing for a row with nothing to place", () => {
+    expect(weekStatus(item({ title: "undated" }), NOW)).toBe("");
   });
 });
 

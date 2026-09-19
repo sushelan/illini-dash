@@ -26,7 +26,7 @@
  */
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
-import { liveDeadline, sectionFor } from "./grouping.js";
+import { countdown, liveDeadline, sectionFor } from "./grouping.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -1222,6 +1222,50 @@ export function itemTone(item: Item, now: Date): ItemTone {
   // Gradescope is still accepting.
   if (live.at < now.getTime()) return "overdue";
   return live.late ? "late" : "open";
+}
+
+/**
+ * The word at the right-hand end of a week card's row (brief D5, mock 1b).
+ *
+ * A week card has room for a clock and nothing else, so the same slot has to
+ * carry every state the row can be in. The order below is the order in which
+ * the states *override* a clock, and each step is a thing the clock would
+ * otherwise be actively misleading about:
+ *
+ * - **done** — the deadline is a fact about the past; the row is struck through
+ *   and the hour it was due is no longer a question.
+ * - **N late** — how late, not when, is the whole question. Shares `countdown`'s
+ *   wording so the Today hero and the week card cannot disagree about the same
+ *   row ("1d late" in mock 1b).
+ * - **late ok** — full credit has gone and the window is still open. Printing
+ *   the original clock here reads as "you have until then", which is the
+ *   opposite of the truth; printing "late" in red tells a student to give up on
+ *   something Gradescope is still accepting.
+ * - **EOD** — §4.5 filled this clock in (worker house rule 3). "11:59 PM" is
+ *   the invention wearing a friendly face, and a student who trusts it misses a
+ *   5 PM cutoff. A *stated* 11:59 PM still reads "11:59 PM", which is mock 1b's
+ *   own Saturday: MP1 at 11:59 PM beside CS 424's Homework 1 at EOD.
+ * - otherwise the clock.
+ *
+ * `itemTone`'s own values are disjoint, so swapping the first two branches
+ * changes no answer — it already ranks `done` above `late`, and `liveDeadline`
+ * separately refuses a late window to finished work. Kept in this order because
+ * it is the order the *states* are in, not because a mutation can reach it
+ * (mutation house rule 2, *unreachable*); reversing it would be a lie about the
+ * precedence for the next reader.
+ */
+export function weekStatus(item: Item, now: Date): string {
+  const tone = itemTone(item, now);
+  if (tone === "done") return "done";
+  if (tone === "late") return "late ok";
+  const anchor = anchorOf(item, now);
+  // Nothing to place. A week card never draws such a row, so this is the
+  // caller-error case rather than a state — an empty string rather than a word
+  // the student would have to interpret.
+  if (anchor === undefined) return "";
+  if (tone === "overdue") return countdown(anchor.at, now);
+  if (anchor.assumed) return "EOD";
+  return new Date(anchor.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 /* -------------------------------------------------------------------------- */
