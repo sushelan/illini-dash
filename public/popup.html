@@ -5,6 +5,15 @@
     <title>Illini Dash</title>
     <link rel="stylesheet" href="ui.css" />
     <link rel="stylesheet" href="popup.css" />
+    <!--
+      One file per area, so the workers building the rows, the views and the
+      sub-screens never edit the same stylesheet. `popup.css` keeps the sizing
+      invariants, the shell and the shared card language; everything each area
+      adds goes in its own file, which loads after it and may override it.
+    -->
+    <link rel="stylesheet" href="popup-rows.css" />
+    <link rel="stylesheet" href="popup-views.css" />
+    <link rel="stylesheet" href="popup-screens.css" />
   </head>
   <body>
     <!--
@@ -13,9 +22,10 @@
       healthy state and 322 in the worst one — so the thing the popup was opened
       for started below the midpoint. The budget is now 144 healthy.
 
-      The header is one control on the left and three on the right. The left one
-      is the health pill, which replaced six 9px dots *and* the status line that
-      restated them 800px lower.
+      The header is the mark and the name on the left, the health pill and two
+      controls on the right. The pill replaced six 9px dots *and* the status
+      line that restated them 800px lower; the two controls replaced five, with
+      the sync moved to the footer and the rest one press into the ⋯.
     -->
     <header class="bar">
       <div id="health"></div>
@@ -27,17 +37,35 @@
       each with its own height and its own idea of what a banner looks like.
     -->
     <div id="banners"></div>
+    <!--
+      Errors only, and hidden the rest of the time. A popup that fails halfway is
+      a blank rectangle with no scrollback and no obvious way into the console,
+      so this is the one channel the surface has.
+
+      **At the top, beside the banners.** It used to sit under `#view`, with a
+      `scrollIntoView` to compensate — which works on a short list and not at
+      all on the week, where the document is 1100px in a 600px window. Every
+      failure it reported for a month landed below the fold (UI rule 3).
+    -->
+    <div id="status" hidden></div>
     <nav id="tabs" class="tabs" role="tablist" aria-label="Views"></nav>
+    <!--
+      The course chips. Empty since D9 moved course visibility into the ⋯ menu;
+      `renderFilters` still builds them and `.filters:empty` collapses this to
+      nothing, so putting the strip back is one call.
+    -->
     <div id="filters" class="filters"></div>
     <div id="nav" class="datenav"></div>
     <main id="view"></main>
     <!--
-      Errors only, and hidden the rest of the time. A popup that fails halfway is
-      a blank rectangle with no scrollback and no obvious way into the console,
-      so this is the one channel the surface has — but it is no longer a line
-      that is always there, restating the pill.
+      The footer strip (D10): what was read, how long ago, and the one button
+      that reads it again.
+
+      `position: sticky`, in flow — never `fixed`. A fixed strip contributes no
+      height to the document, and the document's height is the only thing Chrome
+      measures to size a popup.
     -->
-    <div id="status" hidden></div>
+    <footer id="footer" class="foot"></footer>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

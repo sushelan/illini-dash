@@ -96,6 +96,12 @@
      *raised* rather than as the page, which is the job. */
   --surface-raised: #ffffff;
   --shadow: rgba(0, 0, 0, .25);
+  /* A card's edge, and the lift under it.
+     `--line` is the rule *between* things on the blue ground and is too dark
+     around a white card at 11px; this is the mock's #dce7f5, one step lighter,
+     so a column of cards reads as separate objects rather than as a table. */
+  --card-line: #dce7f5;
+  --card-shadow: 0 1px 2px rgba(16, 38, 77, .07);
 
   /* Course hues: one saturated ink for text and edges, one wash for fills. */
   /* Deepened with the page. A wash tuned to sit on white is invisible on a
@@ -154,6 +160,11 @@
      still carries its ink on the edge and the code. */
   --pill-fill: #1a3050;
   --shadow: rgba(0, 0, 0, .55);
+  /* Lighter than the card it edges, not darker: on a near-black ground a card
+     is lifted by being paler than the page, and an edge darker than both reads
+     as a gap. Deeper shadow, because the same alpha does far less work here. */
+  --card-line: #24374f;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, .40);
 
   --course-0: #6ea8ff; --course-0-bg: #142440;
   --course-1: #2fd3aa; --course-1-bg: #0d2b28;
@@ -178,6 +189,9 @@
   --surface-raised: #ffffff;
   --tint: rgba(127, 127, 127, .06); --tint-strong: rgba(127, 127, 127, .11);
   --hover: rgba(127, 127, 127, .10); --today-tint: rgba(127, 127, 127, .09);
+  /* Neutral has no hue to spend, so the card edge is the rule itself. */
+  --card-line: var(--line);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, .06);
 }
 .theme-neutral.is-dark {
   --bg: #1c1c1c; --surface: #232323; --line: #3a3a3a;
@@ -189,6 +203,8 @@
   --accent-ink: #1c1c1c;
   --accent-wash: rgba(255, 255, 255, .12);
   --surface-raised: #2a2a2a;
+  --card-line: #3f3f3f;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, .45);
 }
 
 /* ---- High contrast: built for telling things apart ---- */
@@ -203,6 +219,11 @@
   --surface-raised: #ffffff;
   --tint: #eef1f6; --tint-strong: #e2e7f0; --hover: rgba(11, 27, 51, .12);
   --today-tint: #ffe6d2;
+  /* High contrast wants the border to be *seen*, so it is the full-strength
+     rule and there is no shadow at all — a soft edge is the thing this theme
+     exists to remove. */
+  --card-line: var(--line);
+  --card-shadow: none;
   --course-0: #0059b3; --course-0-bg: #e2eefb;
   --course-1: #00705a; --course-1-bg: #ddf3ee;
   --course-2: #b34700; --course-2-bg: #fceadb;
@@ -222,6 +243,8 @@
   --accent-ink: #1a0d04;
   --accent-wash: rgba(255, 155, 82, .22);
   --surface-raised: #141414;
+  --card-line: var(--line);
+  --card-shadow: none;
   --course-0: #66b8ff; --course-0-bg: #0b2337;
   --course-1: #4fe0b4; --course-1-bg: #072b25;
   --course-2: #ff9f57; --course-2-bg: #33210f;

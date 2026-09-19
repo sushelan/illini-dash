@@ -1,3 +1,39 @@
+/* ==========================================================================
+ * popup.css — the sizing invariants, the shell, and the card language.
+ *
+ * Three more sheets load after this one, one per area of the redesign, so that
+ * parallel work never collides in a single file: `popup-rows.css`,
+ * `popup-views.css`, `popup-screens.css`. Anything an area adds goes in its own
+ * file; what is *shared* stays here.
+ *
+ * ---- The card language ----
+ *
+ * Four classes, meant to be used by everything built on top of this. They are
+ * defined once so a card in the Week view and a card on the deadline screen
+ * cannot drift into being two different objects.
+ *
+ *   .card          A white (`--surface-raised`) block on the page's ground,
+ *                  `--card-line` edge, 11px radius, `--card-shadow` lift. This
+ *                  is the shape the whole redesign is made of: a deadline, a
+ *                  day, an explainer, a fact list.
+ *   .card--dashed  The same box, dashed edge, no fill — "there is nothing here
+ *                  yet, and this is where it would go". Used for "Add something
+ *                  by hand" and for an event, which is furniture rather than
+ *                  work owed.
+ *   .section-head  The label above a group of cards: 10px, uppercase, letter
+ *                  spaced, `--muted`, with an optional right-hand count that
+ *                  the flexbox pushes to the edge (`.section-head span:last`).
+ *   .screen        A sub-screen rendered **in document flow** — it replaces or
+ *                  pushes `#view`, never floats. A floating panel contributes
+ *                  no height, and the document's height is the only thing
+ *                  Chrome measures to size a popup (UI rule 8). `.screen-bar`
+ *                  is its top row: ‹ back, title, one right-hand control.
+ *
+ * Colours come from `ui.css` and nowhere else. A hex literal in this file is
+ * the "two copies of one decision" failure that the section headers below
+ * already record twice.
+ * ====================================================================== */
+
 /*
  * §8.1: 400px wide, 600px max height — the size Chrome measures when it opens
  * the popup.
@@ -96,12 +132,33 @@ html.view-full,
  * healthy, and this block is the first 40 of it.
  */
 .bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  box-sizing: border-box; min-height: 40px;
-  padding: 6px 4px 6px 6px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--tint); color: var(--fg); z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+  box-sizing: border-box; min-height: 44px;
+  padding: 8px 10px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--surface); color: var(--fg); z-index: 2;
 }
-.bar--right { display: flex; align-items: center; gap: 0; flex: none; }
+.bar--right { display: flex; align-items: center; gap: 4px; flex: none; }
+/*
+ * The app mark, and the only graphic here that is not `currentColor`.
+ *
+ * `flex: none` and an explicit size, because an inline SVG with only a viewBox
+ * lays out at 300x150 until the stylesheet lands — which on a popup that opens
+ * and paints in one frame is a visible jump of the whole header.
+ */
+.appmark { width: 20px; height: 20px; flex: none; display: block; border-radius: 6px; }
+.view-full .appmark { width: 24px; height: 24px; }
+/*
+ * The "+" is boxed and the "⋯" is not.
+ *
+ * They sit next to each other and do very different things: one adds a row to
+ * the list, the other opens a menu of settings. The mock gives the first a
+ * surface and a border and leaves the second as a bare glyph, which is the
+ * cheapest way to say that without a label on either.
+ */
+.bar .btn-boxed {
+  background: var(--surface-raised); border: 1px solid var(--card-line); border-radius: 7px;
+}
+.bar .btn-boxed:hover { border-color: var(--accent); }
 /*
  * 24px, and only in the popup's bar.
  *
@@ -117,6 +174,7 @@ html.view-full,
  * this; `npm run shots` and the measurement in PROGRESS can.
  */
 .bar .btn-icon { width: 24px; height: 24px; }
+.bar .btn-icon svg { width: 14px; height: 14px; }
 /*
  * The full view is not short of room, and was borrowing the popup's answer.
  *
@@ -137,8 +195,18 @@ html.view-full,
  * arrangement: the name never gives up a pixel, and the pill — which already
  * ellipses — is what absorbs a narrow window.
  */
-#health { min-width: 0; display: flex; align-items: center; gap: 6px; flex: 1; }
-#health .pill { min-width: 0; }
+#health { min-width: 0; display: flex; align-items: center; gap: 8px; flex: 1; }
+/*
+ * The pill sits at the *right* of its half, against the two controls.
+ *
+ * `margin-left: auto` rather than `flex: 1` on the wordmark: the name must
+ * never give up a pixel (it is what says what the window is), and the pill is
+ * the only thing up here that ellipses, so it is the one that should absorb a
+ * long sentence. Mock 1a/2a puts the two together, and it reads as one group
+ * that is about *state* beside a name that is not.
+ */
+#health .pill { min-width: 0; margin-left: auto; }
+.setup--brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .wordmark {
   flex: none;
   font-size: 12px; font-weight: 700; letter-spacing: -.2px;
@@ -358,9 +426,9 @@ h2.section {
  * not compete with --err, --warn and --ok.
  */
 .tabs {
-  display: flex; align-items: center; gap: 0;
-  box-sizing: border-box; height: 36px; padding: 0 4px;
-  border-bottom: 1px solid var(--line); background: var(--bg);
+  display: flex; align-items: center; gap: 3px;
+  box-sizing: border-box; padding: 8px 8px 6px;
+  background: var(--bg);
   position: sticky; z-index: 1;
 }
 /*
@@ -383,16 +451,27 @@ h2.section {
  * than a popup twice the size it should be.
  */
 .tab {
-  display: flex; align-items: center; gap: 3px;
-  box-sizing: border-box; height: 28px; padding: 0 5px; min-width: 0;
-  font: inherit; font-size: 12px; font-weight: 600; line-height: 1;
-  border: 0; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  /* One fifth each, and the strip's width is therefore a function of the
+     *document* rather than of the five labels. Before this the tabs were
+     content-sized and fitted with about three pixels to spare — and three
+     pixels is a coincidence, not a margin, with a popup opening at 800px on
+     the other side of it. A long label now ellipses inside its fifth; it can
+     no longer push. */
+  flex: 1 1 0; min-width: 0;
+  box-sizing: border-box; height: 28px; padding: 0 4px;
+  font: inherit; font-size: 11.5px; font-weight: 600; line-height: 1;
+  border: 0; border-radius: 8px;
   background: none; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
+/* The full view has width to spare and the strip reads better content-sized
+   there — five 250px tabs across a 1280px window is a navigation bar, not a
+   tab strip. */
+.view-full .tab { flex: none; justify-content: flex-start; }
 .tab--label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tab .chip-count { flex: none; min-width: 14px; padding: 0 3px; }
 .tab:hover { color: var(--fg); background: var(--hover); }
-.tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); }
+.tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); font-weight: 700; }
 .tab .icon { width: 12px; height: 12px; flex: none; }
 .tab[aria-selected="true"] .icon { color: var(--accent); }
 
@@ -406,6 +485,8 @@ h2.section {
  * The fade is a mask rather than a gradient overlay so it works on any
  * background — the strip is `--bg` here and `--tint` in the full view.
  */
+/* Empty since D9 put the courses in the header's ⋯. `:empty` below collapses
+   the strip to nothing, so `renderFilters` is one call away from returning. */
 .filters {
   display: flex; align-items: center; gap: 6px;
   box-sizing: border-box; height: 36px; padding: 0 10px;
@@ -676,7 +757,7 @@ h2.section {
  * ruled nothing between its title and the header, which reads as a page that
  * failed to load the top half.
  */
-.setup #banners, .setup #tabs, .setup #filters, .setup #nav { display: none; }
+.setup #banners, .setup #tabs, .setup #filters, .setup #nav, .setup .foot { display: none; }
 .setup--page { padding: 14px 14px 16px; }
 .setup--title { font-size: 15px; margin: 0 0 6px; }
 .setup--blurb { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
@@ -1031,3 +1112,146 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .wadd, .madd { transition: none; }
 }
+
+/* ==========================================================================
+ * The footer strip (D10)
+ *
+ * `[dot] 8 sources · synced 2m ago · Sync now`, always present, at the foot of
+ * the document.
+ *
+ * `position: sticky; bottom: 0` and **not** `fixed`. A fixed element is out of
+ * flow, so it contributes no height — and the document's intrinsic height is
+ * the only thing Chrome measures to size a popup. That is the same mechanism
+ * that clipped the source list half way down its fifth row, and the same one
+ * that opened the popup at 800x600 when `body` became a scroll container. A
+ * sticky element is in flow: it takes its 34px, the document is 34px taller,
+ * and Chrome knows.
+ *
+ * What it replaces is the old `#status` line, which carried this sentence at
+ * the *bottom of the document* — 1100px into a 600px window on the week view,
+ * so every word of it landed below the fold for a month (UI rule 3). Sticky is
+ * the difference: the same position in the flow, always on screen.
+ * ====================================================================== */
+.foot {
+  display: flex; align-items: center; gap: 6px;
+  box-sizing: border-box; min-height: 34px; padding: 8px 12px;
+  border-top: 1px solid var(--line); background: var(--surface);
+  font-size: 11px; color: var(--muted);
+  position: sticky; bottom: 0; z-index: 2;
+}
+/* The first-run screen empties it: it would be reporting on sources the
+   student is still in the middle of choosing. */
+.foot:empty { display: none; }
+/* Amber when a source is failing, which is when the ratio in `.foot--count`
+   stops reading "8 sources" and starts reading "7 of 8 sources". */
+.foot--warn { background: var(--warn-wash-strong); }
+.foot--dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.foot--dot.is-ok { background: var(--ok); }
+.foot--dot.is-warn { background: var(--warn); }
+.foot--dot.is-err { background: var(--err); }
+/* Never a filled dot: "not fetched yet" and "fetched, and it was fine" are
+   different states and used to render identically (worker rule 2). */
+.foot--dot.is-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.foot--count { font-weight: 600; color: var(--fg); flex: none; white-space: nowrap; }
+.foot--sep { flex: none; opacity: .55; }
+/* The one thing here that may shrink. A 45-character course name is not on
+   this line; "synced 14 minutes ago" is about as long as it gets. */
+.foot--when { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foot--sync {
+  flex: none; font: inherit; font-size: 11px; font-weight: 600;
+  color: var(--brand-mark); background: none; border: 0; padding: 2px 2px;
+  cursor: pointer; border-radius: 5px;
+}
+.foot--sync:hover:not(:disabled) { background: var(--hover); }
+/* Says "the click ran, and it is still running" on the control that was
+   pressed — which is the one place a student is definitely looking, and what
+   distinguishes "the click never ran" from "the round trip failed" with no
+   console at all (UI rule 4). */
+.foot--sync:disabled { cursor: default; opacity: .7; }
+.view-full .foot {
+  min-height: 44px; font-size: 12.5px;
+  padding-inline: max(24px, calc((100% - var(--chrome-max)) / 2));
+}
+
+/* ==========================================================================
+ * The card language
+ *
+ * Documented at the top of this file. Defined here, used by
+ * `popup-rows.css`, `popup-views.css` and `popup-screens.css`.
+ * ====================================================================== */
+.card {
+  box-sizing: border-box;
+  background: var(--surface-raised);
+  border: 1px solid var(--card-line);
+  border-radius: 11px;
+  box-shadow: var(--card-shadow);
+  padding: 9px 11px;
+}
+/*
+ * Nothing here yet, or nothing owed.
+ *
+ * Same box, no fill, dashed edge — the vocabulary `row-opening` and the drag
+ * ghost already use for "not real yet". It must not read as a lesser card: it
+ * is usually the only thing on the screen that can be pressed.
+ */
+.card--dashed {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+}
+/*
+ * The label over a group of cards, and the count on the right of it.
+ *
+ * `baseline`, not `center`: the two are different sizes and aligning their
+ * boxes leaves the smaller one floating. The right-hand span is `margin-left:
+ * auto` rather than `justify-content: space-between` so a heading with no count
+ * still sits hard left.
+ */
+.section-head {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 0 4px 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--muted);
+}
+.section-head > :last-child:not(:first-child) {
+  margin-left: auto; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none;
+}
+/*
+ * A sub-screen: the deadline detail, the editor, Needs you, first run.
+ *
+ * **In document flow**, always. It replaces or pushes `#view`; it never floats.
+ * A floating panel contributes no height to the box Chrome measures, so it
+ * would be clipped by the 600px ceiling with its primary button past the
+ * bottom edge — which is exactly what happened to the source list before
+ * `placeFloating` learned to ask for room, and to the editor before it was
+ * moved into flow. Pushing the rows down costs a scroll and cannot be clipped.
+ *
+ * No `position`, no percentage height, no viewport unit: everything sizes from
+ * its content, which is what leaves Chrome something to measure.
+ */
+.screen { padding: 10px 10px 14px; }
+.screen-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 2px 10px;
+}
+.screen-bar--title {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 700; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ‹ back, and whatever one control the screen puts on the right. Boxed like
+   the header's "+", so the two read as the same kind of thing. */
+.screen-bar .btn-icon {
+  flex: none; width: 26px; height: 26px;
+  background: var(--surface-raised); border: 1px solid var(--card-line); border-radius: 8px;
+}
+
+/* The appearance panel is a settings control in a 400px window, so it needs
+   more than a menu's width and less than the document's. */
+.popover--wide { min-width: 330px; max-width: 360px; padding: 8px; }
+.popover--wide .rows { border-color: var(--card-line); }
+/* A course that is switched off, in the ⋯ › Courses list. It stays on the
+   list rather than disappearing from it: a filter that removes its own control
+   leaves no way back (§11, one level up). */
+.menu-item--off { color: var(--muted); }
+.menu-item--off:not([data-active]) { opacity: .7; }
