@@ -295,6 +295,17 @@ export const state: {
    */
   workerSyncing: boolean;
   /**
+   * The sub-screen that has replaced the list, if one has (brief D8, D11).
+   *
+   * An **id and a tab**, never an `Item`: the screen is re-rendered from the
+   * fresh list on every draw (`renderOpenScreen`), so a countdown keeps
+   * counting and a row that a sync deleted takes its screen with it rather than
+   * leaving a stale copy on screen. The tab is what the screen was opened from
+   * — a press on the tab strip while it is open means the student wants the
+   * list, so the screen stands down rather than sitting on top of another view.
+   */
+  screen: { kind: "deadline" | "editor"; itemId?: string; view: ViewName } | undefined;
+  /**
    * The one editor that may be open, and the redraw it is holding off.
    *
    * One at a time by construction: a second "+" pressed while a form is open
@@ -335,6 +346,7 @@ export const state: {
 } = {
   view: "day",
   dayOffset: 0,
+  screen: undefined,
   hidden: hiddenCourses(),
   courseNames: {},
   currentItems: [],

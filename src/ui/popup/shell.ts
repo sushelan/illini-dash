@@ -1261,8 +1261,11 @@ export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
   focusAt(0);
 }
 
-/** One entry. Shared by the row menu and the header menu so they behave alike. */
-function menuItem(
+/**
+ * One entry. Shared by the row menu, the header menu and the deadline screen's
+ * ⋯ (`screens/deadline.ts`), so all three behave alike.
+ */
+export function menuItem(
   label: string,
   glyph: IconName,
   onClick: (entry: HTMLElement) => void,
