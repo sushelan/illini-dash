@@ -2,10 +2,84 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2065 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2071 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 12: the popup redesign, merged and reviewed — 2026-09-19
+
+**The popup is the soft-card design from Sushi's Claude Design project** (mocks 1a–1f,
+2a–2c, exported to `docs/design/`; decisions in `docs/design/brief.md`). Five tabs —
+Today · Week · Month · No date · Exams — a header of mark, pill, `+` and `⋯`, a sticky
+footer strip, card rows, and four in-flow screens (deadline, editor, Needs-you, first
+run). `1970 → 2071 tests`. Built by one core worker and five UI workers in parallel
+worktrees (W-core, W0–W4, entries below), then reviewed sequentially by three max-effort
+reviewers in fresh contexts, each fixed before the next ran:
+
+- **R1, feature parity** (`docs/design/review-r1.md`): all 198 items of
+  `docs/popup-feature-inventory.md` classified — 144 preserved, 49 replaced and recorded,
+  0 lost unrecorded, 4 degraded and 1 broken, all fixed. Its first finding was a bare
+  `=======` a merge had left in `popup-screens.css`, which CSS error recovery swallowed
+  together with the rule hiding the tabs behind the Needs-you screen; the build now
+  refuses any static file carrying a conflict marker.
+- **R2, house rules in the UI** (`review-r2.md`): 0 B, 8 M, 10 L. The new class it named:
+  *a guard that asks another listener whether its own work is still undone* — one Escape
+  closed the menu and the screen behind it because the screen's "not while a menu is
+  open" guard ran after the menu was gone; a menu closed by focus leaving dropped the
+  deferred redraw. Both fixed and verified with real key presses in
+  `dist/preview-popup.html` (and the first three attempts failed because the browser was
+  serving a cached `preview.js` — the served bundle has to be proven current before a
+  harness result means anything).
+- **R3, the core wave** (`review-r3.md`): 3 B, 5 M, 7 L; 47 mutations, 44 killed, the 3
+  survivors re-judged. The new class: *a decision moved into core, given eleven tests,
+  mutation-checked — and never called*, while the footer on screen kept its own second
+  copy and said "4 sources" in green over three never read. Fixed: the footer calls
+  `footerLine`; the pill says "N not read yet" over a pending source and "Something needs
+  a look" over an unactionable failure, never "All clear"; a student-typed year outside
+  this school year is refused (a typo'd 2016 had removed a row from every tab, permanently);
+  the deadline screen heads a student-set date "You set this date" and prints what the
+  source now says; `countdown`'s late branch is elapsed time; the suite pins
+  `America/Chicago`.
+
+**Deliberately replaced** (brief, "Deliberately replaced"; per-item table in review-r1):
+the day hour grid and drag-to-draft (→ Today's grouped list and the header `+`), the day
+‹ › navigator (→ Week and Month), the course chip strip (→ `⋯` › Courses and "Hide
+CODE"), the Attention tab (→ the pill's Needs-you screen and the No date tab), the row
+menu as the primary path (→ the deadline screen; the `⋯` stays for the keyboard), the
+health popover (→ the Needs-you screen, in flow). Not built: **Snooze** (no store
+support; a snoozed deadline still falls due) and the mock's Figtree font (no remote
+fonts in an extension).
+
+**Two decisions for Sushi, both from R3, both left as they were:**
+
+1. **A date the student set outranks every later source date, for ever** (R3 M5).
+   SPEC §5.3 says nothing about `dueOverrides`; brief D3 says only "applies the existing
+   due override". When PrairieTest finally publishes the slot, the popup keeps the
+   placeholder. Interim: the deadline screen now says "PrairieTest says Nov 3, 9:00 AM"
+   under "You set this date", so it is never silent. Options: the source's first stated
+   date supersedes the placeholder; or the row asks "use it?".
+2. **Student-typed dates are built in campus time; every view buckets in the browser's
+   zone** (R3 M8). A student outside Central who types `2026-09-22` gets Chicago 23:59,
+   filed on Sep 23 in their own zone. Predates the redesign (`newManualItem` always did
+   this) but the redesign added a second surface. Options: build them in the browser's
+   zone, or say "campus time" beside the date field.
+
+**One browser round-trip, for the morning** (everything else was verified in the real
+document, dark first, `docs/ux/after/popup-*-dark.png` regenerated on the final build):
+
+> `npm run build`, then click **Reload** on the Illini Dash card at `chrome://extensions`,
+> open the popup, and look at it in dark mode. Then: press one row (the deadline screen
+> should open in place, ‹ back should return you to the same tab with focus on that row);
+> press the pill (the Needs-you screen); press `+` (the add form) and Cancel; open the
+> `⋯` and Escape it. If anything is wrong, right-click the popup → Inspect popup and
+> paste the console — that console, not `background.js`'s.
+>
+> What each answer proves: all four work → the redesign is on the real document, G4's
+> beta can continue on it. A screen opens but the popup is 800px wide → a sizing
+> invariant broke in the real window and the harness could not see it (measure `html`
+> width first). A press does nothing and the console is empty → the worker is running
+> the older build; Reload again.
 
 ## Wave 12 / W1: the card row, Today, the week, the quiet state — 2026-09-19
 
