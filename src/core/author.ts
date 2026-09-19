@@ -64,18 +64,70 @@ import { renderStructures, repeatedStructures, type RepeatedStructure } from "./
 const PROPOSAL_FIELDS = [
   "shape",
   "rows",
-  "columns",
   "title",
   "due",
   "dueLabel",
+  "link",
   "titleFrom",
   "time",
   "kind",
   "filter",
   "dateFormat",
 ] as const;
-const COLUMN_FIELDS = ["title", "due", "link"] as const;
 const FILTER_FIELDS = ["exclude"] as const;
+
+/**
+ * Every field whose value is a string, which is every field but `filter`.
+ *
+ * Read in one loop so that one rule — **`""` is how the model says "this shape
+ * has no use for this field"** — is written once. That rule is what lets the
+ * schema require a key the shape does not use, which is the whole fix: the
+ * schema now demands everything `validateProposal` can demand, so a constrained
+ * decode cannot produce an answer that is refused for a *missing* key.
+ */
+const STRING_FIELDS = [
+  "rows",
+  "title",
+  "due",
+  "dueLabel",
+  "link",
+  "titleFrom",
+  "time",
+  "kind",
+  "dateFormat",
+] as const;
+
+/**
+ * The fields the schema demands of every shape, whatever the shape uses them for.
+ *
+ * Live, 2026-09-18, ECE 411: *"Chrome's built-in model tried 3 attempts and its
+ * last proposal read no deadlines: shape \"rows\" needs title"* — three times,
+ * every one the `rows` shape with no `title`. The schema required
+ * `["shape", "rows", "dateFormat"]` and *which* fields each shape needs was
+ * decided here, in `validateProposal`, where the model never saw it. A
+ * constrained decode emits exactly the keys the schema requires and nothing it
+ * does not, so the retry was feeding back a sentence about a key the decoder
+ * was not allowed to write. Asking more nicely cannot change what a grammar
+ * permits.
+ *
+ * Chrome's `responseConstraint` takes flat JSON Schema — `type`, `enum`,
+ * `properties`, `required`, `items` — and `oneOf` branches would make a small
+ * model answer worse even where they are honoured. So the requirement is flat
+ * and the *meaning* is per shape, stated in the prompt and in each field's
+ * `description`:
+ *
+ * | field      | shape "table"          | shapes "list" and "rows"                  |
+ * | ---------- | ---------------------- | ----------------------------------------- |
+ * | `title`    | the column's header    | a selector inside one row, or `""` for the row's own text |
+ * | `due`      | the column's header    | likewise                                  |
+ * | `dueLabel` | `""`                   | `"Due|CP1 Due"` for a list; `""` for rows |
+ *
+ * The invariant `tests/author.test.ts` pins: the minimal object this schema
+ * permits, for every shape, is never rejected for a key that is *absent* — only
+ * ever for a value that is wrong. A rejection a retry can act on is one about a
+ * value it chose.
+ */
+const REQUIRED_OF_EVERY_SHAPE = ["shape", "rows", "title", "due", "dueLabel", "dateFormat"] as const;
 
 /** The three shapes `runAdapter` can read, named so the model can say which. */
 export const SHAPES = ["table", "list", "rows"] as const;
@@ -115,10 +167,13 @@ const MODEL_SELECTORS = ["title", "due", "titleFrom", "time"] as const;
 export interface Proposal {
   shape: Shape;
   rows: string;
-  columns?: { title: string; due: string; link?: string };
-  title?: string;
-  due?: string;
-  dueLabel?: string;
+  /** A header's text for shape "table"; a row-relative selector for the others. */
+  title: string;
+  due: string;
+  /** Only shape "list" uses it; `""` everywhere else. */
+  dueLabel: string;
+  /** Only shape "table" uses it: the header of a column whose cells link out. */
+  link?: string;
   titleFrom?: string;
   time?: string;
   kind?: Kind;
@@ -160,12 +215,11 @@ export function proposalSchema(
   return {
     type: "object",
     additionalProperties: false,
-    // Only the three every shape needs. Which of the rest are required, and
-    // which are refused, is decided per `shape` in `validateProposal` — a JSON
-    // Schema can express that with `oneOf`, and a small model given three
-    // branching sub-schemas answers worse, not better. A rejection costs one
-    // attempt and its reason is fed back.
-    required: ["shape", "rows", "dateFormat"],
+    // Everything `validateProposal` can demand, for every shape — see
+    // `REQUIRED_OF_EVERY_SHAPE`. `""` is the answer where a shape has no use
+    // for a field, so a key is never missing and a rejection is always about a
+    // value the model chose.
+    required: [...REQUIRED_OF_EVERY_SHAPE],
     properties: {
       shape: {
         type: "string",
@@ -183,49 +237,35 @@ export function proposalSchema(
           "CSS selector matching every data row, copied exactly from the REPEATED STRUCTURES " +
           "list in the page summary",
       },
-      columns: {
-        type: "object",
-        additionalProperties: false,
-        required: ["title", "due"],
-        description: "shape 'table' only: the header text of each column",
-        properties: {
-          title: {
-            type: "string",
-            maxLength: MAX_HEADER,
-            description: "The exact header text of the column holding the assignment name",
-          },
-          due: {
-            type: "string",
-            maxLength: MAX_HEADER,
-            description: "The exact header text of the column holding the deadline",
-          },
-          link: {
-            type: "string",
-            maxLength: MAX_HEADER,
-            description: "Optional: the header of a column whose cells link to the assignment",
-          },
-        },
-      },
       title: {
         type: "string",
         maxLength: MAX_SELECTOR,
         description:
-          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text " +
-          "holding its name, e.g. 'p'",
+          "shape 'table': the exact header text of the column holding the assignment name. " +
+          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text holding " +
+          "its name, e.g. 'strong' — or \"\" when the row's own text is the name",
       },
       due: {
         type: "string",
         maxLength: MAX_SELECTOR,
         description:
-          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text " +
-          "holding its deadline, e.g. 'p' or 'time@datetime'",
+          "shape 'table': the exact header text of the column holding the deadline. " +
+          "shapes 'list' and 'rows': a CSS selector, relative to one row, for the text holding " +
+          "its deadline, e.g. 'p' or 'time@datetime' — or \"\" when the row's own text is it",
       },
       dueLabel: {
         type: "string",
         maxLength: MAX_SELECTOR,
         description:
           "shape 'list': the '|'-separated labels that start a deadline line, copied exactly " +
-          "from the page, e.g. 'Due|CP1 Due|CP2 Due'",
+          "from the page, e.g. 'Due|CP1 Due|CP2 Due'. \"\" for the other two shapes",
+      },
+      link: {
+        type: "string",
+        maxLength: MAX_HEADER,
+        description:
+          "shape 'table' only, optional: the header of a column whose cells link to the " +
+          "assignment. \"\" when there is none",
       },
       titleFrom: {
         type: "string",
@@ -300,21 +340,27 @@ export function buildPrompt(
      * invitation to copy it, so the only selectors left in this text are the
      * page's own, printed under REPEATED STRUCTURES by the user half.
      */
-    'shape "table" — a table with a header row naming its columns. Name the header text of',
-    "the column holding the name and of the column holding the deadline.",
-    '  { "shape": "table", "rows": "ROWS",',
-    '    "columns": { "title": "Exercises", "due": "Due Date" }, "dateFormat": "M/d" }',
+    'Always answer every one of shape, rows, title, due, dueLabel, dateFormat. Where the shape',
+    'has no use for a field, answer "" — never leave the key out.',
+    "",
+    'shape "table" — a table with a header row naming its columns. title and due are the',
+    "header TEXT of the column holding the name and of the column holding the deadline.",
+    '  { "shape": "table", "rows": "ROWS", "title": "Exercises", "due": "Due Date",',
+    '    "dueLabel": "", "dateFormat": "M/d" }',
     "",
     'shape "list" — a LIST block: bullets reading "Label: value" under a heading, where the',
-    "heading is the assignment's name and each bullet is one line about it.",
+    "heading is the assignment's name and each bullet is one line about it. title and due are",
+    "CSS selectors inside one bullet.",
     '  { "shape": "list", "rows": "ROWS", "title": "p", "due": "p",',
     '    "dueLabel": "Due|CP1 Due", "titleFrom": "section >> h3",',
     '    "filter": { "exclude": "\\\\bTB[DA]\\\\b" }, "dateFormat": "M/d" }',
     "",
     'shape "rows" — repeated blocks with no header row, where the name and the date are each',
-    "reachable by a selector inside one block.",
+    "reachable by a selector inside one block. Pick title and due from the tags printed after",
+    '"inside one row:" for the structure you chose; answer "" for whichever of the two the',
+    "row's own text already states.",
     '  { "shape": "rows", "rows": "ROWS", "title": ".name", "due": ".date",',
-    '    "dateFormat": "MMM d, h:mm a" }',
+    '    "dueLabel": "", "dateFormat": "MMM d, h:mm a" }',
     "",
     'Replace ROWS with one line copied exactly from REPEATED STRUCTURES. Never invent a',
     "selector, and never copy one out of these examples: they are from other courses.",
@@ -324,6 +370,8 @@ export function buildPrompt(
     "Rules:",
     "- Header text and dueLabel text must be copied exactly from the summary, never shortened:",
     '  "Due" and "Due Date" are different lines and only the exact one is read.',
+    '- title and due are header text for "table" and CSS selectors inside one row for "list"',
+    '  and "rows". A selector must name something printed after "inside one row:", or be "".',
     "- rows must be one of the REPEATED STRUCTURES lines, character for character. Use the",
     "  'titleFrom' printed with a list.",
     "- Never answer with a positional selector such as td:nth-child(2) or li:first-child.",
@@ -593,12 +641,12 @@ function reachesFromRow(rows: Element[], spec: string): boolean {
  * constrained or not, on the page.
  */
 function groundProposal(
-  p: Record<string, unknown>,
+  rows: string | undefined,
+  specs: Record<string, string | undefined>,
   doc: Document,
   structures: RepeatedStructure[],
 ): string | undefined {
-  const rows = p["rows"];
-  if (typeof rows !== "string" || rows.trim() === "") return "rows must be a selector";
+  if (rows === undefined) return "rows must be a selector";
   let rowEls: Element[];
   try {
     rowEls = [...doc.querySelectorAll(rows)];
@@ -643,16 +691,15 @@ function groundProposal(
    * and the loop skips them on their own.
    */
   const inRows = ` inside any of the ${rowEls.length} rows ${JSON.stringify(rows)} matched`;
-  for (const field of ["title", "due", "time"] as const) {
-    const spec = p[field];
-    if (typeof spec !== "string") continue;
+  for (const [field, spec] of Object.entries(specs)) {
+    if (spec === undefined || field === "titleFrom") continue;
     const malformed = notASelector(field, spec, doc);
     if (malformed) return malformed;
     if (!reachesFromRow(rowEls, spec)) return ungrounded(field, spec, inRows, structures);
   }
 
-  const titleFrom = p["titleFrom"];
-  if (typeof titleFrom === "string") {
+  const titleFrom = specs["titleFrom"];
+  if (titleFrom !== undefined) {
     const malformed = notASelector("titleFrom", titleFrom, doc);
     if (malformed) return malformed;
     // The unscoped form is "the nearest heading preceding the row", which a
@@ -712,24 +759,29 @@ export function validateProposal(
     return { ok: false, reason: `shape must be one of ${SHAPES.join(", ")}` };
   }
 
-  const columns = p["columns"];
-  if (columns !== undefined) {
-    if (!columns || typeof columns !== "object" || Array.isArray(columns)) {
-      return { ok: false, reason: "columns must be an object naming the title and due headers" };
-    }
-    for (const key of Object.keys(columns as Record<string, unknown>)) {
-      if (!(COLUMN_FIELDS as readonly string[]).includes(key)) {
-        return { ok: false, reason: `unknown columns.${key}` };
-      }
-    }
+  /*
+   * One pass, one rule: a string field is *given* when it has non-blank text.
+   *
+   * `""` is how the schema lets a shape say "not this one" for a key it is
+   * nonetheless required to answer, so every reading of `given` below is about
+   * a value the model chose — and no branch in this function can ever refuse a
+   * proposal for a key that is absent (`REQUIRED_OF_EVERY_SHAPE`).
+   */
+  const given: Record<string, string> = {};
+  for (const key of STRING_FIELDS) {
+    const value = p[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string") return { ok: false, reason: `${key} must be a string` };
+    const trimmed = value.trim();
+    if (trimmed !== "") given[key] = trimmed;
   }
 
-  const filter = p["filter"];
-  if (filter !== undefined) {
-    if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+  const declared = p["filter"];
+  if (declared !== undefined) {
+    if (!declared || typeof declared !== "object" || Array.isArray(declared)) {
       return { ok: false, reason: "filter must be an object" };
     }
-    for (const key of Object.keys(filter as Record<string, unknown>)) {
+    for (const key of Object.keys(declared as Record<string, unknown>)) {
       if (!(FILTER_FIELDS as readonly string[]).includes(key)) {
         // `include` is refused rather than accepted: an include that matches
         // nothing empties the page and reads exactly like a term that has not
@@ -738,41 +790,76 @@ export function validateProposal(
       }
     }
   }
+  // `{ "exclude": "" }` is the same `""` the string fields use — "no filter",
+  // not an empty pattern. `validateAdapter` would refuse it as `bad
+  // filter.exclude`, which is a sentence about a key the model was told to
+  // leave blank.
+  const exclude = (declared as { exclude?: unknown } | undefined)?.exclude;
+  const filter =
+    declared === undefined || (typeof exclude === "string" && exclude.trim() === "")
+      ? undefined
+      : declared;
 
   /*
-   * The shape decides which fields are read, so the shape decides which are
-   * required and which are refused.
+   * The shape decides what each field *means*, and which have no meaning at all.
    *
-   * A proposal that names both `columns` and `dueLabel` is not one this can
-   * half-apply: `runAdapter` reads `columns` and ignores the rest, so the
-   * student would confirm a preview produced by one half of an answer and save
-   * an entry carrying the other. Saying which shape it saw is also the cheapest
-   * signal that the model read the page rather than pattern-matched a table
-   * onto it.
+   * A proposal that names both a table's columns and a list's `dueLabel` is not
+   * one this can half-apply: `runAdapter` reads `columns` and ignores the rest,
+   * so the student would confirm a preview produced by one half of an answer
+   * and save an entry carrying the other. Every rejection below is about a
+   * *value* — a field the shape does not read carrying text, or one it does
+   * read carrying none — because a missing key is no longer expressible
+   * (`REQUIRED_OF_EVERY_SHAPE`).
    */
-  const required =
-    shape === "table" ? ["columns"] : shape === "list" ? ["title", "due", "dueLabel"] : ["title", "due"];
-  const refused =
-    shape === "table"
-      ? ["title", "due", "dueLabel", "titleFrom"]
-      : shape === "list"
-        ? ["columns"]
-        : ["columns", "dueLabel", "titleFrom"];
-  for (const field of required) {
-    if (p[field] === undefined) return { ok: false, reason: `shape "${shape}" needs ${field}` };
-  }
+  const isTable = shape === "table";
+  const refused = isTable ? ["dueLabel", "titleFrom"] : shape === "list" ? ["link"] : ["dueLabel", "titleFrom", "link"];
   for (const field of refused) {
-    if (p[field] !== undefined) {
+    if (given[field] !== undefined) {
       return { ok: false, reason: `shape "${shape}" does not take ${field}` };
     }
   }
 
-  for (const field of MODEL_SELECTORS) {
-    const value = p[field];
-    if (value === undefined) continue;
-    if (typeof value !== "string" || value.trim() === "") {
-      return { ok: false, reason: `${field} must be a selector` };
+  if (isTable) {
+    // Header text, not a selector: `runAdapter` re-resolves it against the
+    // table's own header row on every parse (house rule 3).
+    for (const [field, what] of [
+      ["title", "the header text of the column holding the assignment name"],
+      ["due", "the header text of the column holding the deadline"],
+    ] as const) {
+      if (given[field] === undefined) {
+        return {
+          ok: false,
+          reason: `shape "table": ${field} must be ${what}, copied exactly from the page`,
+        };
+      }
     }
+  } else if (shape === "list" && given["dueLabel"] === undefined) {
+    return {
+      ok: false,
+      reason:
+        'shape "list": dueLabel must be the text that starts a deadline line, copied exactly ' +
+        'from the page, e.g. "Due" or "Due|CP1 Due"',
+    };
+  }
+
+  /*
+   * `""` for a row-relative field is the row's own text, which is `.` to the
+   * runner — and on a `Due: 9/7` bullet it is the right answer, not a gap.
+   * `select()` reads `.` as the row itself, `reachesFromRow` cannot fail on it,
+   * and `validateAdapter` wants a non-empty string, so the translation happens
+   * here rather than anywhere a `""` could reach the registry.
+   */
+  const selectors: Record<string, string | undefined> = isTable
+    ? { time: given["time"] }
+    : {
+        title: given["title"] ?? ".",
+        due: given["due"] ?? ".",
+        titleFrom: given["titleFrom"],
+        time: given["time"],
+      };
+  for (const field of MODEL_SELECTORS) {
+    const value = selectors[field];
+    if (value === undefined) continue;
     if (POSITIONAL.test(value)) {
       return {
         ok: false,
@@ -786,7 +873,7 @@ export function validateProposal(
   // Before the runner, and before `validateAdapter`: a proposal naming elements
   // this page has not got costs a `querySelectorAll` to refuse and a full parse
   // to refuse the other way round.
-  const ungroundedReason = groundProposal(p, doc, structures);
+  const ungroundedReason = groundProposal(given["rows"], selectors, doc, structures);
   if (ungroundedReason) return { ok: false, reason: ungroundedReason };
 
   let host: string;
@@ -810,24 +897,33 @@ export function validateProposal(
     term: "proposed",
     url,
     hostPattern: `https://${host}/*`,
-    rows: p["rows"],
-    ...(columns === undefined ? {} : { columns }),
-    // `title` and `due` are required by the schema. For a table they are the
-    // fallback for a header that is missing at parse time and the named columns
-    // are what resolve; for the other two shapes they are the answer itself.
-    title: shape === "table" ? "td:nth-child(1)" : p["title"],
-    due: shape === "table" ? "td:nth-child(2)" : p["due"],
-    ...(p["dueLabel"] === undefined ? {} : { dueLabel: p["dueLabel"] }),
-    ...(p["titleFrom"] === undefined ? {} : { titleFrom: p["titleFrom"] }),
-    ...(p["time"] === undefined ? {} : { time: p["time"] }),
+    rows: given["rows"],
+    ...(isTable
+      ? {
+          columns: {
+            title: given["title"],
+            due: given["due"],
+            ...(given["link"] === undefined ? {} : { link: given["link"] }),
+          },
+        }
+      : {}),
+    // `Adapter.title` and `Adapter.due` are required whatever the shape. For a
+    // table they are the fallback for a header that is missing at parse time
+    // and the named columns are what resolve; for the other two shapes they are
+    // the answer itself, with `.` meaning the row's own text.
+    title: isTable ? "td:nth-child(1)" : selectors["title"],
+    due: isTable ? "td:nth-child(2)" : selectors["due"],
+    ...(given["dueLabel"] === undefined ? {} : { dueLabel: given["dueLabel"] }),
+    ...(given["titleFrom"] === undefined ? {} : { titleFrom: given["titleFrom"] }),
+    ...(given["time"] === undefined ? {} : { time: given["time"] }),
     // Passed through to `validateAdapter` rather than checked here: it owns the
     // `Record<Kind, true>` the compiler watches, and a `kind` this file waved
     // past would reach `Item.kind` as a value no `switch` in the UI answers.
     // `filter.exclude` is data compiled into a regex, and it is refused there
     // if it does not compile.
-    ...(p["kind"] === undefined ? {} : { kind: p["kind"] }),
+    ...(given["kind"] === undefined ? {} : { kind: given["kind"] }),
     ...(filter === undefined ? {} : { filter }),
-    dateFormat: p["dateFormat"],
+    dateFormat: given["dateFormat"],
     timezone,
     minExtensionVersion: "0.1.0",
   };
@@ -870,20 +966,35 @@ export function validateProposal(
     };
   }
   if (items.some((item) => item.title.trim() === "")) {
+    const titleName = adapter.columns?.title ?? adapter.title;
     return {
       ok: false,
-      reason: `${JSON.stringify(adapter.columns?.title ?? adapter.title)} has empty cells`,
+      reason: `${titleName === "." ? "the row's own text" : JSON.stringify(titleName)} is empty on some rows`,
     };
   }
 
-  const dueName = adapter.columns?.due ?? adapter.dueLabel ?? adapter.due;
+  /*
+   * What the model called the deadline, in its own words.
+   *
+   * `.` is this file's translation of the `""` the schema invites for "the
+   * row's own text", so quoting it back would be a rejection about a value the
+   * model never wrote — and the one thing a retry has to be able to do is
+   * recognise the answer it gave.
+   */
+  const dueName = adapter.columns
+    ? `the ${JSON.stringify(adapter.columns.due)} column`
+    : adapter.dueLabel
+      ? `the lines labelled ${JSON.stringify(adapter.dueLabel)}`
+      : adapter.due === "."
+        ? "the row's own text"
+        : `${JSON.stringify(adapter.due)} in each row`;
   const dated = items.filter((item) => item.dueAt !== undefined);
   if (dated.length === 0) {
     return {
       ok: false,
       reason:
-        `no row's ${JSON.stringify(dueName)} cell parsed as ${adapter.dateFormat}. ` +
-        `Check the column and the format (${supportedDateFormats().join(", ")}).`,
+        `nothing in ${dueName} read as a date in ${adapter.dateFormat} format. ` +
+        `Check where the deadline is and the format (${supportedDateFormats().join(", ")}).`,
     };
   }
   if (dated.length / items.length < MIN_DATED_SHARE) {
@@ -977,6 +1088,18 @@ export interface AttemptInfo {
   outcome: "proposed" | "rejected" | "threw" | "not-json";
   /** The validator's reason, or the thrown message; absent for "proposed". */
   reason?: string;
+  /**
+   * The `shape` the answer claimed, and the keys it carried.
+   *
+   * A rejection line without them says what this code thought of the answer and
+   * nothing about the answer. The live run that started this — three attempts,
+   * every one `shape "rows" needs title` — would have said in its first line
+   * that the keys were `shape, rows, dateFormat` and never anything else, which
+   * is the schema's fingerprint rather than the model's mistake. Absent when
+   * the answer was not JSON, or not an object.
+   */
+  shape?: string;
+  keys?: string[];
   /** Characters the model answered with; 0 when the prompt threw. */
   answerChars: number;
   /** Characters sent — the whole prompt, retry suffix included. */
@@ -1019,22 +1142,67 @@ export interface AuthorOptions {
  */
 export const MAX_RETRY_REASON_CHARS = 300;
 
+/** And the longest row sketch a retry will repeat; see `rowSketchNote`. */
+export const MAX_SKETCH_NOTE_CHARS = 200;
+
+/**
+ * "Inside one `#mp-information ul.simple > li` row: p, text." — or nothing.
+ *
+ * The inventory prints this beside every structure, and a rejected attempt is
+ * where it is worth printing twice: every rejection a retry can act on is a
+ * different `title`, `due`, `titleFrom` or `time`, and each of those is a
+ * choice from *inside a row* — markup the summary may have had no budget to
+ * show below the structures list.
+ *
+ * Attached only when the proposal's `rows` is one of the page's own groups,
+ * which is both the case where a sketch exists and the case where the rows
+ * answer was right and only the inside of it was wrong. A `rows` the page has
+ * not got earns `groundProposal`'s reason instead, which lists what it *does*
+ * have.
+ */
+export function rowSketchNote(
+  proposal: unknown,
+  structures: RepeatedStructure[],
+): string | undefined {
+  const rows = (proposal as { rows?: unknown } | null | undefined)?.rows;
+  if (typeof rows !== "string") return undefined;
+  const structure = structures.find((candidate) => candidate.selector === rows);
+  if (!structure || structure.sketch === "") return undefined;
+  return `Inside one ${rows} row: ${structure.sketch}.`;
+}
+
 /** The text appended to `base` on every attempt after the first. */
-export function retrySuffix(reason: string): string {
+export function retrySuffix(reason: string, sketch?: string): string {
   const quoted =
     reason.length > MAX_RETRY_REASON_CHARS
       ? `${reason.slice(0, MAX_RETRY_REASON_CHARS - 1)}…`
       : reason;
-  return `\n\nYour previous answer was rejected: ${quoted}\nAnswer again, correcting that.`;
+  // Clipped here rather than only where it is built: `RETRY_SUFFIX_CHARS` is
+  // what the caller subtracts from the page summary before any attempt has
+  // run, so the cap belongs on the one function that decides the length.
+  const note =
+    sketch === undefined
+      ? ""
+      : sketch.length > MAX_SKETCH_NOTE_CHARS
+        ? `${sketch.slice(0, MAX_SKETCH_NOTE_CHARS - 1)}…\n`
+        : `${sketch}\n`;
+  return (
+    `\n\nYour previous answer was rejected: ${quoted}\n` + note + "Answer again, correcting that."
+  );
 }
 
 /**
  * The most a retry can add, which is what the budget has to reserve.
  *
  * Derived from `retrySuffix` rather than written down beside it, so the two
- * cannot drift: a longer sentence changes both at once (mutation rule 3).
+ * cannot drift: a longer sentence changes both at once (mutation rule 3). The
+ * sketch is part of that, so it is measured at its cap rather than at whatever
+ * the page happened to print.
  */
-export const RETRY_SUFFIX_CHARS = retrySuffix("x".repeat(MAX_RETRY_REASON_CHARS)).length;
+export const RETRY_SUFFIX_CHARS = retrySuffix(
+  "x".repeat(MAX_RETRY_REASON_CHARS),
+  "x".repeat(MAX_SKETCH_NOTE_CHARS),
+).length;
 
 const DEFAULT_ATTEMPTS = 3;
 /**
@@ -1075,8 +1243,10 @@ export async function authorAdapter(
   const say = options.onAttempt ?? (() => {});
 
   let reason = "";
+  /** The row sketch the last rejection earned, repeated on the next attempt. */
+  let sketch: string | undefined;
   for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const text = attempt === 1 ? base : `${base}${retrySuffix(reason)}`;
+    const text = attempt === 1 ? base : `${base}${retrySuffix(reason, sketch)}`;
 
     let answer: string;
     try {
@@ -1095,6 +1265,7 @@ export async function authorAdapter(
       parsed = JSON.parse(answer);
     } catch {
       reason = "that was not JSON";
+      sketch = undefined;
       say({
         attempt,
         outcome: "not-json",
@@ -1105,16 +1276,38 @@ export async function authorAdapter(
       continue;
     }
 
+    // What the model emitted, for the line the student will be asked to read —
+    // read off the answer itself, so a schema that permits the wrong thing is
+    // visible in the console rather than only in this file.
+    const emitted =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? {
+            shape:
+              typeof (parsed as Record<string, unknown>)["shape"] === "string"
+                ? ((parsed as Record<string, unknown>)["shape"] as string)
+                : undefined,
+            keys: Object.keys(parsed as Record<string, unknown>),
+          }
+        : {};
+
     const outcome = validateProposal(parsed, doc, url, timezone, reference, structures);
     if (outcome.ok) {
-      say({ attempt, outcome: "proposed", answerChars: answer.length, promptChars: text.length });
+      say({
+        attempt,
+        outcome: "proposed",
+        ...emitted,
+        answerChars: answer.length,
+        promptChars: text.length,
+      });
       return { ok: true, candidate: outcome.candidate, attempts: attempt };
     }
     reason = outcome.reason;
+    sketch = rowSketchNote(parsed, structures);
     say({
       attempt,
       outcome: "rejected",
       reason,
+      ...emitted,
       answerChars: answer.length,
       promptChars: text.length,
     });
@@ -1201,8 +1394,14 @@ export async function saveProposedAdapter(
  */
 export function attemptLogLine(info: AttemptInfo): string {
   const invented = groundingSelector(info.reason);
+  const answered =
+    info.shape === undefined && info.keys === undefined
+      ? ""
+      : ` — answered shape ${JSON.stringify(info.shape ?? null)}` +
+        ` with keys [${(info.keys ?? []).join(", ")}]`;
   return (
     `[author] attempt ${info.attempt}: ${info.outcome}` +
+    answered +
     (invented === undefined ? "" : ` — selector not on the page: ${invented}`) +
     ` (prompt ${info.promptChars} chars, answer ${info.answerChars} chars)` +
     (info.reason === undefined ? "" : ` — ${info.reason}`)

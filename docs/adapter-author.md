@@ -33,9 +33,9 @@ are fixed below — the three shapes, and the status line.
 |---|---|---|
 | Fetch the page | `background.ts` → `capture` | Unchanged. The HTML now comes back with the candidates (`htmlForAuthoring`), so nothing is fetched twice |
 | Propose deterministically | offscreen → `core/detect.ts` | Unchanged. Candidates → the existing preview |
-| **Inventory the page** | `core/skeleton.ts` | `repeatedStructures(doc)` — the page's repeated element groups, each with a selector that has been run and matched |
+| **Inventory the page** | `core/skeleton.ts` | `repeatedStructures(doc)` — the page's repeated element groups, each with a selector that has been run and matched, a count and a sketch of one row's insides |
 | **Summarise the page** | `core/skeleton.ts` | `skeletonise(doc, budgetChars)` — tags, ids, classes, table structure; scripts, styles, nav and footer dropped |
-| **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })`, with `rows` enumerated from the inventory |
+| **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })`, with `rows` enumerated from the inventory and every key the validator can demand required |
 | **Ground** | `core/author.ts` | `groundProposal` — every selector checked against the DOM, before the runner is paid for |
 | **Check** | `core/author.ts` | `validateProposal` → `validateAdapter` + `runAdapter`, on the real DOM |
 | Confirm | `ui/options.ts` | The same `renderCandidates` preview, "Use this one", "Copy for sharing" |
@@ -163,11 +163,19 @@ The model states which shape it saw, and the shape decides which fields it may
 name. They are the three `runAdapter` reads, and no others — `docs/adapters.md`
 describes each one as a hand-written entry.
 
-| `shape` | The page | What it names |
-|---|---|---|
-| `table` | a table with a header row | `rows`, `columns.title`, `columns.due`, optional `columns.link` |
-| `list` | `Label: value` bullets under a heading | `rows`, `title`, `due`, `dueLabel`, optional `titleFrom`, optional `time` |
-| `rows` | repeated blocks, no header row | `rows`, `title`, `due` |
+Every answer carries the same six keys — `shape`, `rows`, `title`, `due`,
+`dueLabel`, `dateFormat` — and the shape decides what two of them *mean* and
+which are `""`:
+
+| `shape` | The page | `title` / `due` | also |
+|---|---|---|---|
+| `table` | a table with a header row | the two columns' header **text** | optional `link` (a column header), `dueLabel` is `""` |
+| `list` | `Label: value` bullets under a heading | selectors inside one bullet, or `""` for the bullet's own text | `dueLabel` required, optional `titleFrom`, optional `time` |
+| `rows` | repeated blocks, no header row | selectors inside one block, or `""` for the block's own text | `dueLabel` is `""`, optional `time` |
+
+`""` means "this shape has no use for this field", and for `title`/`due` on a
+list or a rows page it means "the row's own text" — which the validator turns
+into the runner's `.`, so nothing empty ever reaches the registry.
 
 Any of the three may also carry `kind` (`assignment`, `exam`, `quiz`, `event`,
 `other`) and `filter.exclude`, a regular expression for the lines a course
@@ -176,12 +184,71 @@ that, and without the filter those nine arrive as undated rows — two dated out
 of eleven is under the half the validator requires, so a *correct* proposal for
 that page is rejected without one.
 
-`shape` is not decoration. A proposal carrying both a table's `columns` and a
+`shape` is not decoration. A proposal carrying both a table's headers and a
 list's `dueLabel` is half of one answer and half of another: `runAdapter` reads
 `columns` and ignores the rest, so the preview would come from the table while
 the saved entry carried both. Naming the shape lets the validator refuse that in
 one line, and it is the cheapest signal that the model read the page rather than
 pattern-matched a table onto it.
+
+### The schema requires what the validator will demand
+
+Live, 2026-09-18, ECE 411 again: *"Chrome's built-in model tried 3 attempts and
+its last proposal read no deadlines: shape `"rows"` needs title"*. Three
+attempts, every one the `rows` shape with no `title`, and the retry quoted that
+sentence back twice without the model ever adding the key.
+
+It could not. `proposalSchema` required `["shape", "rows", "dateFormat"]`, and
+*which* fields each shape needs was decided in `validateProposal`, which the
+model never sees. **A constrained decode emits exactly the keys the schema
+requires and nothing it does not**, so the retry was asking for a key the
+decoder was not allowed to write; no wording can fix that.
+
+Chrome's `responseConstraint` takes flat JSON Schema — `type`, `enum`,
+`properties`, `required`, `items` — so the per-shape conditional cannot be
+expressed there (and three branching `oneOf` sub-schemas make a small model
+answer worse where they are honoured at all). The requirement is therefore flat
+and the meaning is per shape, stated in the prompt and in each field's
+`description`.
+
+The invariant, pinned by a test that generates the minimal object the schema
+permits for each shape: **no proposal that satisfies the schema can be rejected
+for a missing key — only for a wrong value.** A rejection a retry can act on is
+one about a value it chose, so `shape "table": title must be the header text of
+the column holding the assignment name, copied exactly from the page` replaces
+`shape "table" needs columns`.
+
+`columns` is gone from the model's vocabulary for the same reason: it was a key
+whose absence was the commonest rejection and whose name the model had no other
+use for. The validator assembles `columns` from `title`/`due` for a table, so
+`Candidate` and the saved registry entry are unchanged.
+
+### The inventory sketches one row's insides
+
+`title` and `due` are selectors *relative to one row*, and the structures list
+named the groups without ever showing what a row contains — so every row-relative
+answer was a guess at markup the model had not been shown. Each entry now carries
+one, from the first matching element:
+
+```
+#mp-information ul.simple > li  ×16  inside one row: p  e.g. "Release: 8/25"
+#mp-information > section  ×5  inside one row: h3, ul.simple  e.g. "mp_setup Release: 8/25 Due: 9/7"
+```
+
+Tags and classes, deduplicated (three `<p>`s are one answer), at most six of
+them and 64 characters, with `text` last when the row states something of its
+own — which is what makes `""` a visible option rather than a trick. A rejected
+attempt gets the line again above "Answer again": `Inside one #mp-information
+ul.simple > li row: p.`, clipped inside the same reserve `RETRY_SUFFIX_CHARS`
+already budgets for.
+
+### The attempt line says what the model emitted
+
+`[author] attempt 1: rejected — answered shape "rows" with keys [shape, rows,
+dateFormat] — …`. The keys are read off the answer, so the live run above would
+have said in its first line that three keys arrived every time — the schema's
+fingerprint rather than the model's mistake — instead of costing a night to
+work out.
 
 ### A selector the page has not got is refused before the runner
 

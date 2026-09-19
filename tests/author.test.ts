@@ -31,6 +31,7 @@ import {
   modelStatusLine,
   OUTPUT_RESERVE,
   RETRY_SUFFIX_CHARS,
+  rowSketchNote,
   retrySuffix,
   type AttemptInfo,
   proposalSchema,
@@ -77,7 +78,14 @@ const GOOD = {
   // undated assignment no course ever set. The hand-written `ece310-fa26`
   // entry scopes it the same way.
   rows: "#homework table tbody tr",
-  columns: { title: "Exercises", due: "Due Date", link: "Exercises" },
+  // Header text, not selectors — that is what `title` and `due` mean for a
+  // table, and the schema requires them of every shape so that a proposal can
+  // never be refused for a key the decoder was not allowed to write.
+  title: "Exercises",
+  due: "Due Date",
+  link: "Exercises",
+  // `""` is how a shape says "no use for this one": a table has no dueLabel.
+  dueLabel: "",
   dateFormat: "M/d",
 };
 
@@ -92,18 +100,26 @@ describe("the schema the model is constrained to", () => {
   };
 
   it("asks for exactly the fields the runner reads, and no others", () => {
-    // Three fields every shape needs. Which of the rest are required is decided
-    // per shape by `validateProposal`, because three branching sub-schemas make
-    // a small model answer worse and a rejection costs one attempt.
-    expect(schema.required.sort()).toEqual(["dateFormat", "rows", "shape"]);
+    // Everything `validateProposal` can demand of any shape. The meaning is per
+    // shape; the requirement is flat, because a constrained decode emits the
+    // required keys and nothing else — which is how three ECE 411 attempts came
+    // back without a `title` and were each refused for not having one.
+    expect(schema.required.sort()).toEqual([
+      "dateFormat",
+      "due",
+      "dueLabel",
+      "rows",
+      "shape",
+      "title",
+    ]);
     expect(schema.additionalProperties).toBe(false);
     expect(Object.keys(schema.properties).sort()).toEqual([
-      "columns",
       "dateFormat",
       "due",
       "dueLabel",
       "filter",
       "kind",
+      "link",
       "rows",
       "shape",
       "time",
@@ -144,7 +160,7 @@ describe("the prompt", () => {
     // House rule 3: `cells[2]` turns one added column into a page of mis-dated
     // items with no error. Banning it everywhere and then asking a model for it
     // would be perverse.
-    expect(system).toContain("header text of");
+    expect(system).toContain("header TEXT of");
     expect(system).toContain("Never answer with a positional selector");
   });
 
@@ -218,27 +234,24 @@ describe("a proposal that is wrong", () => {
     // whose cells hold the dates. "Due" matches neither, exactly — and a
     // validator that matched by substring would date every row from an
     // assignment name and call it a pass.
-    const outcome = check({ ...GOOD, columns: { title: "Exercises", due: "Due" } });
+    const outcome = check({ ...GOOD, due: "Due" });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("no due column headed");
   });
 
   it("is refused when the column holds no dates", () => {
-    const outcome = check({
-      ...GOOD,
-      columns: { title: "Exercises", due: "Solution" },
-    });
+    const outcome = check({ ...GOOD, due: "Solution" });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("no row's");
+    expect(outcome.reason).toContain('nothing in the "Solution" column read as a date');
   });
 
   it("is refused when the format does not match the column", () => {
     const outcome = check({ ...GOOD, dateFormat: "yyyy-MM-dd" });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toMatch(/no row's|readable date/);
+    expect(outcome.reason).toMatch(/read as a date|readable date/);
   });
 
   it("is refused when fewer than half the rows carry a date", () => {
@@ -250,7 +263,7 @@ describe("a proposal that is wrong", () => {
        <tr><td>MP4</td><td>ask staff</td></tr></tbody></table>`,
     ).document as unknown as Document;
     const outcome = validateProposal(
-      { shape: "table", rows: "#t tbody tr", columns: { title: "Work", due: "Due" }, dateFormat: "M/d" },
+      { shape: "table", rows: "#t tbody tr", title: "Work", due: "Due", dueLabel: "", dateFormat: "M/d" },
       doc,
       URL_ECE310,
       ZONE,
@@ -272,7 +285,7 @@ describe("a proposal that is wrong", () => {
        <tr><td>MP2</td><td>9/11 at 5:00</td></tr></tbody></table>`,
     ).document as unknown as Document;
     const outcome = validateProposal(
-      { shape: "table", rows: "#t tbody tr", columns: { title: "Work", due: "Due" }, dateFormat: "M/d" },
+      { shape: "table", rows: "#t tbody tr", title: "Work", due: "Due", dueLabel: "", dateFormat: "M/d" },
       doc,
       URL_ECE310,
       ZONE,
@@ -376,7 +389,7 @@ describe("the retry loop", () => {
 
   it("feeds the reason back and accepts the correction", async () => {
     const { outcome, seen } = await run([
-      JSON.stringify({ ...GOOD, columns: { title: "Exercises", due: "Due" } }),
+      JSON.stringify({ ...GOOD, due: "Due" }),
       JSON.stringify(GOOD),
     ]);
     expect(outcome.ok).toBe(true);
@@ -476,7 +489,9 @@ describe("end to end over the real capture", () => {
         return JSON.stringify({
           shape: "table",
           rows: "#homework table tbody tr",
-          columns: { title: header![1], due: header![2] },
+          title: header![1],
+          due: header![2],
+          dueLabel: "",
           dateFormat: "M/d",
         });
       },
@@ -668,7 +683,11 @@ describe("what a shape is allowed to name", () => {
     const outcome = validateProposal(noLabel, ece411(), URL_ECE411, ZONE, REFERENCE);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain('shape "list" needs dueLabel');
+    // A *value* complaint, not a missing-key one: the schema requires
+    // `dueLabel` of every shape, so the answer a constrained decode gives here
+    // is `""`, and the sentence has to say what to put there instead.
+    expect(outcome.reason).toContain('shape "list": dueLabel must be the text');
+    expect(outcome.reason).not.toContain("needs");
   });
 
   it("refuses a selector that picks by position", () => {
@@ -1541,7 +1560,9 @@ describe("a table proposal that includes the header row", () => {
       {
         shape: "table",
         rows: "#homework tr",
-        columns: { title: "Exercises", due: "Due Date" },
+        title: "Exercises",
+        due: "Due Date",
+        dueLabel: "",
         dateFormat: "M/d",
       },
       ece310(),
@@ -1553,5 +1574,286 @@ describe("a table proposal that includes the header row", () => {
     if (outcome.ok) return;
     expect(outcome.reason).toContain("header row");
     expect(outcome.reason).toContain("#homework table tbody tr");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The schema demands everything the validator can demand                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Live, 2026-09-18, ECE 411: *"Chrome's built-in model tried 3 attempts and its
+ * last proposal read no deadlines: shape "rows" needs title"*.
+ *
+ * Three attempts, every one the `rows` shape with no `title`, and the retry fed
+ * the sentence back twice. The schema required `["shape", "rows", "dateFormat"]`
+ * while `validateProposal` decided the rest per shape — and a constrained decode
+ * emits exactly the required keys and nothing else, so the model was being asked
+ * for a key its decoder was not allowed to write. No prompt wording can fix
+ * that, which is why the assertion below is about the *schema*, not the prompt.
+ */
+describe("no schema-valid answer can be refused for a key it does not have", () => {
+  interface Prop {
+    type?: string;
+    enum?: string[];
+    properties?: Record<string, unknown>;
+  }
+  const schema = proposalSchema(supportedDateFormats(), repeatedStructures(ece411())) as {
+    required: string[];
+    properties: Record<string, Prop>;
+  };
+
+  /** The smallest object this schema permits: every required key, no more. */
+  const minimal = (shape: string): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const key of schema.required) {
+      const prop = schema.properties[key]!;
+      // A required key whose value cannot be an empty string would make the
+      // generator lie, so the shape of the schema is asserted, not assumed.
+      expect(prop.type).toBe("string");
+      expect(prop.properties).toBeUndefined();
+      out[key] = key === "shape" ? shape : (prop.enum?.[0] ?? "");
+    }
+    return out;
+  };
+
+  for (const shape of ["table", "list", "rows"] as const) {
+    it(`refuses the minimal "${shape}" answer for a value, never for a missing key`, () => {
+      const proposal = minimal(shape);
+      expect(Object.keys(proposal).sort()).toEqual([...schema.required].sort());
+      const outcome = validateProposal(
+        proposal,
+        ece411(),
+        URL_ECE411,
+        ZONE,
+        REFERENCE,
+        repeatedStructures(ece411()),
+      );
+      if (outcome.ok) return;
+      // "needs" is the word the old per-shape requirement used, and any new
+      // one would reach for: the rejection has to name a value the model
+      // chose, because that is the only thing the next attempt can change.
+      expect(outcome.reason).not.toContain("needs");
+      expect(outcome.reason).not.toContain("missing");
+    });
+  }
+
+  it("tells a table what to put in title, in the model's own vocabulary", () => {
+    // The minimal table answer, and the sentence it earns. `validateAdapter`
+    // would refuse it too — as `columns.title must be a header name` — but
+    // `columns` is not a key the model is allowed to write any more, so that
+    // reason names something the next attempt cannot act on.
+    const outcome = validateProposal(
+      { shape: "table", rows: "#homework table tbody tr", title: "", due: "", dueLabel: "", dateFormat: "M/d" },
+      ece310(),
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+    );
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe(
+      'shape "table": title must be the header text of the column holding the assignment ' +
+        "name, copied exactly from the page",
+    );
+  });
+
+  it("requires every key the validator reads for any one shape", () => {
+    // The table-and-list union, written out rather than derived, so that a
+    // field gaining a per-shape requirement without gaining a schema entry
+    // fails here instead of in a student's console.
+    expect([...schema.required].sort()).toEqual(
+      ["dateFormat", "due", "dueLabel", "rows", "shape", "title"].sort(),
+    );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* `""` is "the row's own text", which is the answer on a `Due: 9/7` bullet     */
+/* -------------------------------------------------------------------------- */
+
+describe("an empty title or due for a row shape", () => {
+  it("reads as the row itself, and the candidate says so", () => {
+    const doc = parseHTML(`<ul id="s"><li>9/4</li><li>9/11</li><li>9/18</li></ul>`)
+      .document as unknown as Document;
+    const outcome = validateProposal(
+      { shape: "rows", rows: "#s > li", title: "", due: "", dueLabel: "", dateFormat: "M/d" },
+      doc,
+      URL_ECE310,
+      ZONE,
+      REFERENCE,
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    // `.` is what `select()` reads as "this row", and what `validateAdapter`
+    // will accept — `""` is neither, and a `""` that reached the registry
+    // would be an entry whose title selector is a falsy string.
+    expect(outcome.candidate.title).toBe(".");
+    expect(outcome.candidate.due).toBe(".");
+    expect(outcome.candidate.dated).toBe(3);
+  });
+
+  it("is refused by a value, on the page the live run failed on", () => {
+    // ECE 411 again, with exactly the answer a constrained decode gives for
+    // the `rows` shape: the page's own `#mp-information ul.simple > li`, and
+    // `""` for everything it is not required to fill in. The rows *are* read —
+    // the runner is reached and returns the sixteen bullets — and the
+    // rejection is that none of "Release: 8/25" is an `M/d` date, which names
+    // the value and sends the next attempt to the `list` shape and `dueLabel`.
+    const runner = vi.mocked(runAdapter);
+    runner.mockClear();
+    const outcome = validateProposal(
+      {
+        shape: "rows",
+        rows: "#mp-information ul.simple > li",
+        title: "",
+        due: "",
+        dueLabel: "",
+        dateFormat: "M/d",
+      },
+      ece411(),
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+    );
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe(
+      "nothing in the row's own text read as a date in M/d format. " +
+        `Check where the deadline is and the format (${supportedDateFormats().join(", ")}).`,
+    );
+    expect(outcome.reason).not.toContain("needs");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* What one row is made of, in the prompt and in the retry                     */
+/* -------------------------------------------------------------------------- */
+
+describe("the row sketch", () => {
+  const structures = repeatedStructures(ece411());
+
+  it("is printed beside every structure the model may name", () => {
+    const { user } = buildPrompt("PAGE", URL_ECE411, supportedDateFormats(), structures);
+    expect(user).toContain("inside one row:");
+    // ECE 411's bullets hold their text in a `<p>`, so `title: "p"` is a
+    // choice from something printed rather than a guess at markup.
+    expect(user).toMatch(/#mp-information ul\.simple > li\s+×16\s+inside one row: p/);
+  });
+
+  it("is repeated in the retry, for the rows the last answer chose", () => {
+    const note = rowSketchNote({ rows: "#mp-information ul.simple > li" }, structures);
+    expect(note).toBe("Inside one #mp-information ul.simple > li row: p.");
+    expect(retrySuffix("nothing read as a date", note)).toContain(
+      "Inside one #mp-information ul.simple > li row: p.",
+    );
+  });
+
+  it("says nothing when the answer's rows are not the page's", () => {
+    // `groundProposal` already answers that one, with the whole inventory.
+    expect(rowSketchNote({ rows: "#schedule .event" }, structures)).toBeUndefined();
+    expect(rowSketchNote({}, structures)).toBeUndefined();
+    expect(rowSketchNote(null, structures)).toBeUndefined();
+  });
+
+  it("is inside the reserve the caller budgets for", () => {
+    const longest = retrySuffix("z".repeat(5_000), "y".repeat(5_000));
+    expect(longest.length).toBeLessThanOrEqual(RETRY_SUFFIX_CHARS);
+  });
+
+  it("reaches the second prompt of a real retry", async () => {
+    const doc = ece411();
+    const sent: string[] = [];
+    await authorAdapter(
+      async (text) => {
+        sent.push(text);
+        return JSON.stringify({
+          shape: "rows",
+          rows: "#mp-information ul.simple > li",
+          title: "",
+          due: "",
+          dueLabel: "",
+          dateFormat: "M/d",
+        });
+      },
+      doc,
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      "PAGE",
+      { maxAttempts: 2 },
+    );
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).not.toContain("Inside one #mp-information ul.simple > li row: p.");
+    expect(sent[1]).toContain("Inside one #mp-information ul.simple > li row: p.");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The attempt line says what the model emitted                                */
+/* -------------------------------------------------------------------------- */
+
+describe("the [author] line names the answer, not only this code's verdict", () => {
+  it("prints the shape and the keys of a rejected proposal", () => {
+    const line = attemptLogLine({
+      attempt: 1,
+      outcome: "rejected",
+      shape: "rows",
+      keys: ["shape", "rows", "dateFormat"],
+      reason: 'shape "rows" needs title',
+      answerChars: 70,
+      promptChars: 8_000,
+    });
+    // The line that would have ended the live investigation in one reading:
+    // three keys, every attempt, which is the schema's fingerprint rather than
+    // the model's mistake.
+    expect(line).toContain('answered shape "rows" with keys [shape, rows, dateFormat]');
+  });
+
+  it("says so when the answer was not an object with a shape", () => {
+    const line = attemptLogLine({
+      attempt: 2,
+      outcome: "rejected",
+      keys: ["rows"],
+      reason: "shape must be one of table, list, rows",
+      answerChars: 20,
+      promptChars: 8_000,
+    });
+    expect(line).toContain("answered shape null with keys [rows]");
+  });
+
+  it("stays as it was for an attempt that produced no object at all", () => {
+    const line = attemptLogLine({
+      attempt: 3,
+      outcome: "threw",
+      reason: "An unknown error occurred: kErrorUnknown",
+      answerChars: 0,
+      promptChars: 8_000,
+    });
+    expect(line).not.toContain("answered shape");
+  });
+
+  it("carries the real answer's keys through the loop", async () => {
+    const seen: AttemptInfo[] = [];
+    await authorAdapter(
+      async () =>
+        JSON.stringify({
+          shape: "rows",
+          rows: "#nope",
+          title: "",
+          due: "",
+          dueLabel: "",
+          dateFormat: "M/d",
+        }),
+      ece411(),
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      "PAGE",
+      { maxAttempts: 1, onAttempt: (info) => seen.push(info) },
+    );
+    expect(seen[0]!.shape).toBe("rows");
+    expect(seen[0]!.keys).toEqual(["shape", "rows", "title", "due", "dueLabel", "dateFormat"]);
   });
 });
