@@ -16,9 +16,11 @@
  * that has not been checked is `pending`, and pending is grey.
  */
 
-import { groupItems } from "./grouping.js";
+import { groupItems, liveDeadline } from "./grouping.js";
+import { isItemDone, isTickedDone } from "./dedupe.js";
 import {
   LOGIN_URL,
+  courseLabel,
   SOURCE_HOME,
   SOURCE_NAME,
   STATE_WORD,
@@ -940,4 +942,111 @@ export function emptyStateFor(
     };
   }
   return { text: "Nothing due in the next 60 days.", logins: [] };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The quiet state (brief D13, mock 1f)                                        */
+/* -------------------------------------------------------------------------- */
+
+export interface QuietState {
+  /** "Nothing due for 3 days". */
+  headline: string;
+  /** "Next up is ECE 374 GPS5 on Tuesday. All 8 sources answered 2 min ago." */
+  detail: string;
+  /** The deadline the sentence names, so the caller can make it clickable. */
+  next: Item;
+}
+
+/** Whole local days from today's midnight to `at`'s. */
+function daysFromToday(at: number, now: Date): number {
+  const midnight = (when: Date) =>
+    new Date(when.getFullYear(), when.getMonth(), when.getDate()).getTime();
+  return Math.round((midnight(new Date(at)) - midnight(now)) / 86_400_000);
+}
+
+/**
+ * How far out the quiet state is worth drawing.
+ *
+ * "Nothing due for 1 day" is a sentence about tomorrow, which the Today view is
+ * already showing in full; the reassurance only means anything once the next
+ * thing is far enough away that the student would otherwise wonder whether the
+ * list is broken.
+ */
+const QUIET_MIN_DAYS = 2;
+
+/**
+ * A week with nothing in it, said as a fact rather than as an absence.
+ *
+ * `emptyStateFor` answers "why is this list empty", and every one of its
+ * sentences is either an apology or a warning — which is right, because it is
+ * called when a view has *no rows at all*. The quiet state is the other case:
+ * there is plenty in the list, none of it is soon, and the student's actual
+ * question is "am I really free until Tuesday, or is this thing broken again".
+ *
+ * So it returns something **only when every source answered**. That is worker
+ * house rule 2 in its most direct form: "All 8 sources answered 2 min ago" is a
+ * claim about eight fetches, and one `pending` or one expired session makes it
+ * false in the exact way that reads as "I am free" while meaning "I could not
+ * look" (§11). Those cases keep `emptyStateFor`'s wording, which names the
+ * source and offers the login.
+ */
+export function quietState(
+  items: Item[],
+  sources: Partial<Record<Source, SourceStatus>>,
+  now: Date,
+  courseNames: Record<string, string> = {},
+): QuietState | undefined {
+  const summary = summarize(sources);
+  // Not `failing.length === 0`: a pending source has not answered either, and
+  // a sentence counting it among the eight would be counting a fetch that has
+  // not happened.
+  if (summary.checkable.length === 0 || summary.ok.length !== summary.checkable.length) {
+    return undefined;
+  }
+
+  let next: Item | undefined;
+  let nextAt = Number.POSITIVE_INFINITY;
+  for (const item of items) {
+    if (item.hidden) continue;
+    // Neither is a thing that is *due*: a booking is a window and an event is
+    // something that happens. "Next up is Fall 2026 Office Hours" would be the
+    // same dilution that once made the Attention tab read 11.
+    if (item.kind === "booking" || item.kind === "event") continue;
+    if (isItemDone(item) || isTickedDone(item)) continue;
+    const live = liveDeadline(item, now);
+    if (live === undefined || live.at <= now.getTime()) continue;
+    if (live.at < nextAt) {
+      nextAt = live.at;
+      next = item;
+    }
+  }
+  if (next === undefined) return undefined;
+
+  const days = daysFromToday(nextAt, now);
+  if (days < QUIET_MIN_DAYS) return undefined;
+
+  const when = new Date(nextAt);
+  // A weekday only while it is unambiguous. Past six days "on Tuesday" is two
+  // different Tuesdays, and the one the student assumes is the near one.
+  const day =
+    days < 7
+      ? when.toLocaleDateString(undefined, { weekday: "long" })
+      : when.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  const total = summary.checkable.length;
+  let newest: number | undefined;
+  for (const source of summary.checkable) {
+    const at = Date.parse(sources[source]?.lastSuccessAt ?? "");
+    if (Number.isNaN(at)) continue;
+    if (newest === undefined || at > newest) newest = at;
+  }
+  const ago = timeAgo(newest, now);
+
+  return {
+    headline: `Nothing due for ${days} days`,
+    detail:
+      `Next up is ${courseLabel(next.courseLabel, courseNames)} ${next.title} on ${day}.` +
+      ` All ${total} source${total === 1 ? "" : "s"} answered${ago ? ` ${ago}` : ""}.`,
+    next,
+  };
 }

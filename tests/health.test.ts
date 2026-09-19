@@ -16,6 +16,7 @@ import {
   footerLine,
   healthPill,
   needsYouPill,
+  quietState,
   type NeedsYouInput,
   sourceRows,
   sourcesToRecheck,
@@ -1147,5 +1148,112 @@ describe("the Google Calendar row", () => {
     expect(summarize(only).checkable).toEqual(["canvas"]);
     expect(sourceRows(only, NOW).map((row) => row.source)).toEqual(["canvas"]);
     expect(healthPill(only, NOW.toISOString(), NOW).text).not.toContain("Calendar");
+  });
+});
+
+describe("quietState (brief D13, mock 1f)", () => {
+  const ALL_OK = () =>
+    sources({
+      gradescope: status({ lastSuccessAt: iso(120_000) }),
+      canvas: status({ source: "canvas", lastSuccessAt: iso(300_000) }),
+    });
+  // NOW is Thursday 2026-09-10. Tuesday the 15th is five days out.
+  const TUESDAY = () => item({ courseLabel: "ECE374", title: "GPS5", dueAt: at(2026, 8, 15, 23) });
+
+  it("says how long the quiet stretch is, and what ends it", () => {
+    const quiet = quietState([TUESDAY()], ALL_OK(), NOW);
+    expect(quiet?.headline).toBe("Nothing due for 5 days");
+    expect(quiet?.detail).toBe(
+      "Next up is ECE 374 GPS5 on Tuesday. All 2 sources answered 2 min ago.",
+    );
+    expect(quiet?.next.title).toBe("GPS5");
+  });
+
+  it("counts from the newest success across the sources, not from a sync that failed", () => {
+    expect(
+      quietState([TUESDAY()], sources({ gradescope: status({ lastSuccessAt: iso(3_600_000) }) }), NOW)
+        ?.detail,
+    ).toBe("Next up is ECE 374 GPS5 on Tuesday. All 1 source answered 1h ago.");
+  });
+
+  it("says nothing at all while a source is signed out", () => {
+    /*
+     * §11: "the student reads it as 'I am free' when it means 'I could not
+     * look'." "All 2 sources answered" is a claim about two fetches, and one
+     * expired session makes it false in exactly that way — so the failure
+     * sentences in `emptyStateFor` keep the screen.
+     */
+    const out = sources({
+      gradescope: status({ state: "needs_login" }),
+      canvas: status({ source: "canvas" }),
+    });
+    expect(quietState([TUESDAY()], out, NOW)).toBeUndefined();
+    expect(emptyStateFor(out, false).text).toContain("sign in");
+  });
+
+  it("says nothing while a source has not been fetched at all", () => {
+    // Worker house rule 2: pending has not answered either.
+    expect(
+      quietState(
+        [TUESDAY()],
+        sources({
+          gradescope: status(),
+          canvas: status({ source: "canvas", state: "pending", lastAttemptAt: undefined }),
+        }),
+        NOW,
+      ),
+    ).toBeUndefined();
+    expect(quietState([TUESDAY()], sources({}), NOW)).toBeUndefined();
+  });
+
+  it("stays out of the way when something is due today or tomorrow", () => {
+    expect(quietState([item({ dueAt: at(2026, 8, 10, 23) })], ALL_OK(), NOW)).toBeUndefined();
+    expect(quietState([item({ dueAt: at(2026, 8, 11, 23) })], ALL_OK(), NOW)).toBeUndefined();
+    // Two days out is the first distance the sentence is worth drawing.
+    expect(quietState([item({ dueAt: at(2026, 8, 12, 23) })], ALL_OK(), NOW)?.headline).toBe(
+      "Nothing due for 2 days",
+    );
+  });
+
+  it("names the soonest deadline, not the first in the list", () => {
+    expect(
+      quietState([item({ title: "later", dueAt: at(2026, 8, 20, 23) }), TUESDAY()], ALL_OK(), NOW)
+        ?.next.title,
+    ).toBe("GPS5");
+  });
+
+  it("does not count finished, hidden, event or booking rows as what is next", () => {
+    const quiet = quietState(
+      [
+        item({ title: "ticked", done: true, dueAt: at(2026, 8, 12, 23) }),
+        item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 12, 23) }),
+        item({ title: "office hours", kind: "event", dueAt: at(2026, 8, 12, 20) }),
+        item({ title: "cbtf window", kind: "booking", dueAt: at(2026, 8, 12, 20) }),
+        TUESDAY(),
+      ],
+      ALL_OK(),
+      NOW,
+    );
+    expect(quiet?.next.title).toBe("GPS5");
+    expect(quiet?.headline).toBe("Nothing due for 5 days");
+  });
+
+  it("gives a date rather than an ambiguous weekday past a week", () => {
+    // "on Tuesday" three weeks out is two different Tuesdays, and the one a
+    // reader assumes is the near one.
+    const far = quietState([item({ title: "Final", dueAt: at(2026, 9, 1, 23) })], ALL_OK(), NOW);
+    expect(far?.detail).not.toMatch(/on (Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day/);
+    expect(far?.headline).toBe("Nothing due for 21 days");
+  });
+
+  it("says nothing when there is no next deadline to name", () => {
+    expect(quietState([], ALL_OK(), NOW)).toBeUndefined();
+    expect(quietState([item({ title: "undated" })], ALL_OK(), NOW)).toBeUndefined();
+  });
+
+  it("uses the student's own name for the course", () => {
+    expect(quietState([TUESDAY()], ALL_OK(), NOW, { ECE374: "Algorithms" })?.detail).toContain(
+      "Next up is Algorithms GPS5",
+    );
   });
 });
