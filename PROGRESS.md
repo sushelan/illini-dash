@@ -2,10 +2,81 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1970 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2065 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 12 / W-core: the rules behind the popup redesign — 2026-09-19
+
+**1970 → 2065 tests.** The core half of `docs/design/brief.md`, so the UI workers have
+pure functions to draw rather than decisions to re-derive. Every item mutation-checked;
+four survivors, each classified and acted on (see below). New API, by file:
+
+`src/core/calendar.ts`
+- `ViewName` is `day | week | month | nodate | exams` — `"attention"` is gone as a tab
+  (D1). A stored `"attention"` is not in the union, so `VIEWS.includes` falls it back to
+  `day` with no migration.
+- `noDateGroups(items, now)`, `NO_DATE_ORDER`, `noDateCount(items, now)` — the No date
+  tab (D3). Undated first, then "Couldn't read"; the badge counts **both**, unlike
+  `attentionCount`.
+- `overdueItems(items, now)` — the Overdue group, for the pill and the Needs-you screen.
+- `todayBoard(items, now)` → `{ nextUp?, nextUpWhen?, alsoToday, tomorrow, thisWeek,
+  weekMore }` and `WEEK_PREVIEW_ROWS` (5) — the Today tab (D4). Grouped by `sectionFor`,
+  not by a second copy of `endOfWeek`.
+- `monthDots(items, anchor, now)`, `MONTH_DOT_CAP` (4) and `dayList(items, day, now)` —
+  the popup month (D6). `FULL_VIEW_ONLY` can drop `month`.
+- `weekStatus(item, now)` → `done | N late | late ok | EOD | clock` — the week card (D5).
+
+`src/core/grouping.ts`
+- `countdown(instant, now, "coarse" | "fine")` — the row's right-hand column (D4). `fine`
+  adds the minutes for the hero; mock 1a shows one 11:59 PM deadline as "in 4h 12m" and
+  "in 4h".
+
+`src/core/health.ts`
+- `needsYouPill({ sources, syncing, overdue, suggestions })` → `{ text, tone, kind }`,
+  kind ∈ `syncing | pending | late | needs-you | clear` — the header pill (D2).
+  `healthPill` is unchanged and still owns "which source broke".
+- `footerLine(sources, syncing, now)` → `{ dot, sources, synced, tone }` — the footer
+  strip (D10). **It takes no `lastSyncAt`**, by design.
+- `quietState(items, sources, now, courseNames?)` → `{ headline, detail, next }` — the
+  quiet empty state (D13). Undefined unless *every* checkable source answered.
+
+`src/core/manual.ts`
+- `ManualInput.date` is optional (D11); such a row has no `dueAt` and **no**
+  `timeAssumed`. A time with no day is refused; a *mistyped* date is still refused.
+- `statedInstant(date, time, zone)` — one answer to "what counts as a date a student
+  typed", now shared with the override below.
+
+`src/core/overrides.ts`
+- `studentDueOverride(stated, item, zone, now)` and `STUDENT_POST_ID` — "Give it a date"
+  for a source row (D3). `applyDueOverride` had no caller in `src/` at all; the gap was a
+  message, not a rule.
+
+`src/core/theme.ts`
+- `TWEAK_KEYS`, `DEFAULT_TWEAKS`, `normalizeTweaks(stored)` — `urgencyEdge` (off) and
+  `showSourceNames` (on) (D14).
+
+**Outside core, pure wiring only** (flagged for the worker splitting `popup.ts`):
+`src/ui/popup.ts`'s three `"attention"` literals renamed to `"nodate"` and the tab count
+swapped to `noDateCount`, so the file still compiles; one `OverrideAction` member
+(`set-due`) in `src/messages.ts`; one `else if` in `background.ts`'s `applyOverride`
+calling the two core functions.
+
+**Mutation survivors, classified.** `dayList`'s title tie-break was *redundant*
+(`dayContents` already breaks its ties by title and `Array#sort` is stable) — deleted.
+Its NaN guard "survived" because the input never reached it (mutation house rule 4) — the
+test now uses two untimed rows named so the concatenation answers wrongly. `todayBoard`'s
+"today before the rest of the week" and `weekStatus`'s "done before late ok" are both
+*unreachable* as differences, because `sectionFor` and `itemTone` already decide them;
+both kept, with a comment at the line saying so.
+
+**One deliberate deviation from the mock**, in `quietState`: "All 8 sources answered
+2 min ago" rather than "2 minutes ago", reusing `timeAgo` instead of adding a third
+ago-format beside it and `compactAgo`.
+
+**Nothing here draws anything.** `docs/popup-feature-inventory.md`'s "Deliberately
+replaced" list still has to be written by whoever lands the UI.
 
 ## Wave 10: the page is read without the model — 2026-09-19
 
