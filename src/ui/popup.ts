@@ -78,8 +78,10 @@ import {
   deleteManual,
   openAddEditor,
   openEditEditor,
+  openGiveDate,
   undoDelete,
 } from "./popup/screens/editor.js";
+import { clearScreenMark, openDeadline, renderOpenScreen } from "./popup/screens/deadline.js";
 
 /* -------------------------------------------------------------------------- */
 /* Which view, and what it is anchored on                                      */
@@ -166,6 +168,13 @@ function render(
 
   const nav = navFor(state.view, now);
   renderDateNav(nav.label, nav.step);
+
+  // A sub-screen owns `#view` while it is open, and is re-rendered from this
+  // draw's items rather than held over from the one that opened it (D8). The
+  // shell above is drawn either way: the tab strip stays live, and pressing a
+  // tab is how a student leaves the screen with the mouse.
+  if (renderOpenScreen(now)) return;
+  clearScreenMark();
 
   if (state.view === "nodate") {
     // The undated half of the old Attention tab (D3). Overdue and the
@@ -420,15 +429,27 @@ app.openAddEditor = () => openAddEditor();
 app.openEditEditor = openEditEditor;
 app.deleteManual = deleteManual;
 app.undoDelete = undoDelete;
-// Interim stubs until the screens land (brief D8, D3, D2): a row still opens
-// its page, "Give it a date" opens the add form, the pill opens the popover.
-app.openDeadline = (item) => {
-  const url = safeUrl(item.url);
-  if (url) chrome.tabs.create({ url });
-};
-app.openGiveDate = (item) =>
-  openAddEditor({ values: { title: item.title, courseRaw: item.courseLabel } });
+app.openDeadline = openDeadline;
+app.openGiveDate = openGiveDate;
+// Interim stub until the Needs-you screen lands (brief D2): the pill opens the
+// source popover it has always opened.
 app.openNeedsYou = () => document.querySelector<HTMLElement>(".pill")?.click();
+
+/*
+ * The harness's way in, and nothing else's.
+ *
+ * `npm run preview` appends an epilogue that opens a sub-screen so `npm run
+ * shots` can capture one, and until a row's press routes through
+ * `app.openDeadline` (D7) there is no route to the deadline screen from
+ * outside this module graph — a state the harness cannot reach is a state
+ * nothing checks. It is the object the modules already share, under a name
+ * nothing else uses; it holds no decision, and the page is an extension
+ * document that loads no remote script.
+ */
+(globalThis as { __illiniDash?: { app: typeof app; state: typeof state } }).__illiniDash = {
+  app,
+  state,
+};
 
 renderActions();
 void refresh();

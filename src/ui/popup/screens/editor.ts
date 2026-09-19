@@ -8,12 +8,13 @@
 
 import { createEditor, type EditorValues } from "../../editor.js";
 import { coursesIn, dayKey } from "../../../core/calendar.js";
-import { courseLabel } from "../../../core/names.js";
+import { courseLabel, SOURCE_NAME } from "../../../core/names.js";
 import { icon } from "../../icons.js";
 import { send } from "../../../messages.js";
 import type { Item } from "../../../sources/types.js";
 import { UNDO_MS, app, state, viewedDate, viewEl } from "../state.js";
-import { closeMenus, showStatus } from "../shell.js";
+import { closeMenus, showStatus, soleManualMember } from "../shell.js";
+import { markScreen } from "./deadline.js";
 
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
@@ -48,7 +49,12 @@ export function valuesOfMember(member: Item["members"][number]): EditorValues {
   return {
     title: member.title,
     courseRaw: member.courseRaw,
-    date: dated ? dayKey(due!) : viewedDate(),
+    // Blank, not today, when the row has no date: since D11 a manual row may
+    // legitimately have none, and pre-filling the day the list happens to be
+    // looking at would save a deadline the student never typed the moment they
+    // opened the form to fix a title. The form reads a blank date as its
+    // "No date yet" toggle being on.
+    date: dated ? dayKey(due!) : "",
     time: dated && !assumed ? timeValue(due!) : "",
     endTime: end !== undefined && !Number.isNaN(end.getTime()) ? timeValue(end) : "",
     kind: member.kind,
@@ -89,14 +95,35 @@ export async function saveManual(values: EditorValues, sourceId?: string): Promi
 }
 
 export interface EditorRequest {
-  /** Where the form goes. In the popup this is always a node already in flow. */
-  container: HTMLElement;
+  /**
+   * Where the form goes, for a caller that has a place for it — the week's
+   * per-day boxes, and the day grid's draft, which both need the form *inside*
+   * the thing that was pressed.
+   *
+   * Left out, the form is a **screen**: it replaces `#view`, like the deadline
+   * screen, which is what mock 2b draws and what the header's `+`, "Give it a
+   * date" and the No date tab's dashed card all want. Either way it is in
+   * document flow — a floating form contributes no height for Chrome to
+   * measure (F116).
+   */
+  container?: HTMLElement;
   where?: "start" | "end";
   heading: string;
   submitLabel: string;
+  /** The sentence under the bar (mock 2b), for the screens that have one. */
+  intro?: string;
   values: Partial<EditorValues>;
   /** Present when this is an edit rather than a new row. */
   sourceId?: string;
+  /**
+   * What Save does, when it is not a manual row being written.
+   *
+   * "Give it a date" on a *source* row is the one case: there is nothing in
+   * `manualItems` to edit, and the date goes into the overrides instead. It
+   * rejects with the sentence to show, exactly as `saveManual` does, so the
+   * editor's own catch is the only error path either way.
+   */
+  save?: (values: EditorValues) => Promise<void>;
   /** Follows the clock fields; the day grid uses it to move the draft box. */
   onChange?: (values: EditorValues) => void;
   /** Run when the form goes away, however it goes away. */
@@ -111,7 +138,12 @@ export function closeEditor(): void {
   const after = state.editorOnClose;
   state.editorOnClose = undefined;
   after?.();
-  if (state.redrawAfterEditor) {
+  // A form that had replaced the view leaves an empty `#view` behind, so the
+  // redraw is not optional there the way it is for a form that was pushed into
+  // a list still on screen.
+  const wasScreen = state.screen?.kind === "editor";
+  if (wasScreen) state.screen = undefined;
+  if (state.redrawAfterEditor || wasScreen) {
     state.redrawAfterEditor = false;
     void app.refresh();
   }
@@ -125,9 +157,11 @@ export function openEditor(request: EditorRequest): void {
     submitLabel: request.submitLabel,
     courses: courseChoices(),
     values: request.values,
+    ...(request.intro !== undefined ? { intro: request.intro } : {}),
     ...(request.onChange ? { onChange: request.onChange } : {}),
     onSave: async (values) => {
-      await saveManual(values, request.sourceId);
+      if (request.save) await request.save(values);
+      else await saveManual(values, request.sourceId);
       closeEditor();
       // Not deferred: the form is gone, and the row it just created is the
       // whole point of having pressed Save.
@@ -137,8 +171,20 @@ export function openEditor(request: EditorRequest): void {
   });
   state.editor = { handle, el: handle.el };
   state.editorOnClose = request.onClose;
-  if (request.where === "end") request.container.append(handle.el);
-  else request.container.prepend(handle.el);
+  const container = request.container;
+  if (container === undefined) {
+    // The screen case. `state.screen` is what tells the entry's `render` that
+    // the view belongs to a sub-screen; `drawIsHeld` is what stops a redraw
+    // arriving mid-word, so between them the form is neither overwritten nor
+    // left behind by a draw it did not see.
+    state.screen = { kind: "editor", view: state.view };
+    viewEl.replaceChildren(handle.el);
+    markScreen();
+  } else if (request.where === "end") {
+    container.append(handle.el);
+  } else {
+    container.prepend(handle.el);
+  }
   handle.focus();
   // The form is taller than most rows, and in the week and month views it opens
   // well down a document that may be scrolled. `nearest`, so a form already in
@@ -149,10 +195,13 @@ export function openEditor(request: EditorRequest): void {
 /** The header's "+", and the week and month "+"s, all end up here. */
 export function openAddEditor(request: Partial<EditorRequest> = {}): void {
   openEditor({
-    container: viewEl,
-    where: "start",
+    where: "end",
     heading: "Add a deadline",
-    submitLabel: "Add",
+    submitLabel: "Add it",
+    intro:
+      "For work no site lists — a paper problem set, an office-hours slot, " +
+      "something a TA said out loud. It sits in the list like everything else, " +
+      "and no sync can overwrite it.",
     ...request,
     values: { date: viewedDate(), kind: "assignment", ...(request.values ?? {}) },
   });
@@ -160,12 +209,71 @@ export function openAddEditor(request: Partial<EditorRequest> = {}): void {
 
 export function openEditEditor(item: Item, member: Item["members"][number]): void {
   openEditor({
-    container: viewEl,
-    where: "start",
     heading: `Edit “${item.title}”`,
     submitLabel: "Save",
     values: valuesOfMember(member),
     sourceId: member.sourceId,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* "Give it a date" (brief D3)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The same form, for a row that has no date — whoever listed it.
+ *
+ * Two different saves behind one screen, because a *source* row has no field of
+ * its own to write: the next sync replaces the whole `RawItem`, so a date typed
+ * here would survive about five minutes. It goes into the same `dueOverrides`
+ * record an announcement writes, through `set-due` → `studentDueOverride`.
+ *
+ * A row the student typed themselves is an ordinary edit, and every field on it
+ * is theirs to change.
+ */
+export function openGiveDate(item: Item): void {
+  const mine = soleManualMember(item);
+  if (mine) {
+    openEditor({
+      heading: "Give it a date",
+      submitLabel: "Save",
+      values: { ...valuesOfMember(mine), date: viewedDate() },
+      sourceId: mine.sourceId,
+    });
+    return;
+  }
+  const source = item.members[0]?.source;
+  openEditor({
+    heading: "Give it a date",
+    submitLabel: "Save",
+    intro:
+      `${source ? SOURCE_NAME[source] : "The source"} lists this without a date. ` +
+      "What you type here is yours: the next sync will not overwrite it, and the " +
+      "row's undo puts it back.",
+    values: {
+      title: item.title,
+      courseRaw: item.members[0]?.courseRaw ?? item.courseLabel,
+      date: viewedDate(),
+      kind: item.kind,
+    },
+    // Not `saveManual`: there is no manual row to save. The override goes
+    // through the worker's `set-due`, which builds the entry with
+    // `studentDueOverride` and keys it to every member of the row.
+    save: async (values) => {
+      // Logged on this side, because the popup's console and the worker's are
+      // different windows (UI rule 2's neighbour).
+      console.log(`[illini-dash] set-due requested for ${item.id}`);
+      const response = await send({
+        type: "override",
+        action: {
+          kind: "set-due",
+          itemId: item.id,
+          date: values.date,
+          ...(values.time ? { time: values.time } : {}),
+        },
+      });
+      if (response.type === "error") throw new Error(response.message);
+    },
   });
 }
 

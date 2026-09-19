@@ -7,6 +7,63 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 12 / W3: the deadline screen and the editor — 2026-09-19
+
+**2065 tests, unchanged** — the suite does not import the popup. Verified by
+`npm run typecheck`, `npm run build`, `npm run shots` in both modes (dark first),
+and by **real pointer events** in `dist/preview-popup.html`: the screen's dot menu
+opens and lists Merge with... / Report this page..., back returns to the list and
+puts focus on the row it came from, the No date toggle disables Date and Time,
+Escape closes the editor screen, and a "Give it a date" save on a PrairieTest row
+logs `set-due requested for ...` and closes the form.
+
+**The deadline screen (D8, mock 1c)** is `screens/deadline.ts`, in document flow
+inside `#view`. Course pill, title, Due card with the countdown, facts list
+(Source + Open, Also seen in, Status, Late window, exam room), the amber *moved by
+an announcement* note with **Undo move**, then **Mark done / Not done**, **Add to
+Calendar** (hidden when `googleCalendarUrl` does not resolve), **Hide CODE** (the
+header's Courses set, `HIDDEN_KEY`) and **Hide this / Unhide**. The row menu
+carries the rest of inventory section I - Split, Merge with... (replace-in-place,
+twelve `sameCourse` candidates), Edit / Delete for a sole manual member - plus
+**Report this page...**, which opens Settings > Help; the scrub needs a NetID, a
+name and a file to download. Snooze is not built (D8).
+
+**It is re-rendered from the fresh item on every draw, not held over one.**
+`state.screen` is `{kind, itemId, view}` and `renderOpenScreen` looks the row up in
+`state.currentItems`, so the countdown keeps counting, a row a sync deleted takes
+its screen with it, and a tab press stands the screen down. `drawIsHeld` is
+untouched.
+
+**The editor (D11, mock 2b).** Screen bar, intro sentence, 9.5px uppercase labels,
+Title wide with Course / Kind and Date / Time in two columns, a real
+`role="switch"` **No date yet** (disables the clock fields; `read()` sends no date,
+so `core/manual.ts`'s optional date is what saves), End time and Link under a
+**More** `<details>`, **Add it** + **Cancel**. Without a `container` the form
+replaces `#view`, like the deadline screen; the week's per-day boxes and the day
+grid's draft still pass one and still open in place. **`valuesOfMember` now answers
+a blank date for an undated row** instead of `viewedDate()`, which would have
+turned "open the form to fix a title" into a deadline nobody typed.
+
+**"Give it a date" (D3)** is that form with two saves behind it:
+`edit-manual-item` for a sole manual member, and otherwise `{kind:"set-due"}` ->
+`studentDueOverride`, through `EditorRequest.save`, which rejects with the sentence
+the editor shows.
+
+**Preserved F-numbers:** F59 (now the Source row's *Open*), F60, F61, F62, F63,
+F64, F65, F66, and F67-F70 untouched; F116-F128, with F118's field order and
+F125's "Add it" changed to the mock and F126 extended as above.
+**Measured** at 400 wide: `body.scrollWidth` 400, **0 elements past x=401**,
+deadline screen document **598px** (no scroll). The editor screen is **613px** on
+the fixture that carries two banners - 13px past Chrome's ceiling, which Chrome
+scrolls itself; with no banner it is under 600.
+
+**Two harness findings.** A `MouseEvent("click")` is `cancelable: false` unless you
+say otherwise, so every `preventDefault` on its way up is ignored - the first
+`popup-deadline` capture was gradescope.com's login page. And nothing yet routes a
+row press to `app.openDeadline` (D7 is the rows worker's), so `?open=deadline`
+presses the row *and* falls back to opening the screen through `__illiniDash`,
+printing which of the two happened. That fallback and the `__illiniDash` handle in
+`popup.ts` can go the day a row's press opens the screen.
 ## Wave 12 / W2: the month, the No date tab, and the exam board — 2026-09-19
 
 **2065 tests, unchanged — the suite does not import the popup.** Verified by

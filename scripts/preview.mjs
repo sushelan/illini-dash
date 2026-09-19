@@ -115,16 +115,69 @@ const epilogue = `
   // the editor is now the tallest thing this document can grow by. It is a
   // synthetic click and proves nothing about *pressing* the button (UI house
   // rule 5) — it only gets the harness into the state.
+  // \`?open=deadline\` presses the first row, which is the only way into the
+  // deadline screen (brief D8). A **real pointer sequence**, not \`.click()\`:
+  // the row menu bug of 2026-09-18 was invisible to every harness precisely
+  // because a synthetic click fires no pointerdown, no mousedown and no focus
+  // change (UI house rule 5), and a screen opened from a press is the state
+  // worth shooting.
   const target = q.get("open") === "health"
     ? ".pill"
-    : q.has("editor")
-      ? '#actions button[aria-label="Add a deadline"]'
-      : undefined;
+    : q.get("open") === "deadline"
+      ? "#view a.row, #view .row"
+      : q.has("editor")
+        ? '#actions button[aria-label="Add a deadline"]'
+        : undefined;
   if (!target) return;
+  const press = (el) => {
+    const box = el.getBoundingClientRect();
+    // \`cancelable: true\` is the whole difference between a press and a
+    // gesture nothing can refuse. It defaults to **false**, and a click that
+    // cannot be cancelled ignores every \`preventDefault\` on its way up — so
+    // the row's own handler ran, called \`chrome.tabs.create\`, and the browser
+    // then followed the link anyway, taking preview-popup.html to
+    // gradescope.com. The shot was of a login page.
+    const at = {
+      clientX: box.left + box.width / 2,
+      clientY: box.top + 10,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+    };
+    el.dispatchEvent(new PointerEvent("pointerdown", { ...at, isPrimary: true, button: 0 }));
+    el.dispatchEvent(new MouseEvent("mousedown", { ...at, button: 0 }));
+    el.focus();
+    el.dispatchEvent(new PointerEvent("pointerup", { ...at, isPrimary: true, button: 0 }));
+    el.dispatchEvent(new MouseEvent("mouseup", { ...at, button: 0 }));
+    el.dispatchEvent(new MouseEvent("click", { ...at, button: 0 }));
+  };
   const open = () => {
     const el = document.querySelector(target);
-    if (el) el.click();
-    else setTimeout(open, 120);
+    if (!el) {
+      setTimeout(open, 120);
+      return;
+    }
+    if (q.get("open") !== "deadline") {
+      el.click();
+      return;
+    }
+    press(el);
+    // And if the press did not open the screen, open it the only other way
+    // there is, so the shot exists either way. Which of the two happened is
+    // visible in the console line the fallback prints — a harness that quietly
+    // substitutes one path for another is how a dead control ships.
+    setTimeout(() => {
+      if (document.querySelector(".screen--deadline")) return;
+      const hook = globalThis.__illiniDash;
+      // A dated row: the due card and its countdown are most of this screen,
+      // and the first item in the fixture is an undated booking.
+      const items = hook ? hook.state.currentItems : [];
+      const item = items.find((candidate) => candidate.dueAt) || items[0];
+      if (!item) return;
+      console.log("[preview] the row press did not open the deadline screen; opening it directly");
+      hook.app.openDeadline(item);
+    }, 400);
   };
   // After the popup's own open-sync has landed and redrawn: a render calls
   // closeMenus(), so clicking earlier opens a panel that is closed again a
@@ -252,3 +305,4 @@ console.log("");
 console.log("  npx http-server dist -p 8731   (or any static server)");
 console.log("  then open http://localhost:8731/preview-popup.html");
 console.log("  ?view=full for the tab, ?setup=1 for the first-run screen, ?editor=1 for the add form");
+console.log("  ?open=health for the source list, ?open=deadline for the deadline screen");
