@@ -18,6 +18,14 @@ Sushi in the real browser.
 
 ---
 
+
+> **Parity, checked 2026-09-19.** Reviewer R1 classified all 198 items against the
+> redesigned popup: 144 preserved, 49 replaced and recorded (brief D1–D15 and the
+> "Deliberately replaced" list in [design/brief.md](design/brief.md)), 0 lost
+> unrecorded; its four degraded items and one broken one were fixed the same day.
+> The per-item table is [design/review-r1.md](design/review-r1.md). The checkboxes
+> below are left as the review left them; the table is the record.
+
 ## Contents
 
 - [A. Document shell and load-time behaviour](#a-document-shell-and-load-time-behaviour)
