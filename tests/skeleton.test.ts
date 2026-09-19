@@ -10,7 +10,12 @@
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
-import { renderStructures, repeatedStructures, skeletonise } from "../src/core/skeleton.js";
+import {
+  MAX_SKETCH_CHARS,
+  renderStructures,
+  repeatedStructures,
+  skeletonise,
+} from "../src/core/skeleton.js";
 import { ParseError } from "../src/sources/types.js";
 
 function fixture(name: string): Document {
@@ -564,5 +569,88 @@ describe("repeatedStructures on a large page", () => {
     expect(structures.some((structure) => structure.selector.includes("div.assignment"))).toBe(
       true,
     );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* What one row is made of                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The inventory said *which* groups a page has and nothing about what is inside
+ * one — while `title` and `due` are selectors relative to one row. On ECE 411,
+ * 2026-09-18, the model answered three times with no `title` at all; with the
+ * schema fixed it has to name one, and `sketch` is where the right answer is
+ * printed. `sample` cannot serve: it is a row's flattened text, which says
+ * nothing about the `<p>` the text is in.
+ */
+describe("the row sketch", () => {
+  it("names the tags and classes inside one row, deduplicated", () => {
+    const doc = docFrom(
+      `<ul id="s">
+         <li><strong>MP1</strong><p>Due: 9/7</p><p>Release: 8/25</p> and a note</li>
+         <li><strong>MP2</strong><p>Due: 9/14</p><p>Release: 9/1</p> and a note</li>
+       </ul>`,
+    );
+    const structure = repeatedStructures(doc).find((s) => s.selector === "#s > li");
+    // Three `<p>`s are one answer to "what is in here", and the budget is not
+    // spent saying it three times; `text` is last, and it is what says that
+    // `""` — the row's own text — is an option for `title`.
+    expect(structure?.sketch).toBe("strong, p, text");
+  });
+
+  it("says nothing but the tags when the row has no text of its own", () => {
+    const doc = docFrom(
+      `<ul id="s"><li><span class="name">MP1</span></li><li><span class="name">MP2</span></li></ul>`,
+    );
+    const structure = repeatedStructures(doc).find((s) => s.selector === "#s > li");
+    expect(structure?.sketch).toBe("span.name");
+  });
+
+  it("is 'text' for a row that is only text, which is itself the answer", () => {
+    // It says `title: ""` — the row's own text — is what to answer for this
+    // group, which is the one case the structures list could not express.
+    const doc = docFrom(`<ul id="s"><li>9/4</li><li>9/11</li></ul>`);
+    const structure = repeatedStructures(doc).find((s) => s.selector === "#s > li");
+    expect(structure?.sketch).toBe("text");
+  });
+
+  it("is bounded by the number of parts it names", () => {
+    const children = Array.from({ length: 30 }, (_, i) => `<span class="c${i}">x</span>`).join("");
+    const doc = docFrom(`<ul id="s"><li>${children}</li><li>${children}</li></ul>`);
+    const structure = repeatedStructures(doc).find((s) => s.selector === "#s > li");
+    expect(structure!.sketch.length).toBeLessThanOrEqual(MAX_SKETCH_CHARS);
+    expect(structure!.sketch.split(", ")).toHaveLength(6);
+  });
+
+  it("is bounded by characters too, which the part count alone does not do", () => {
+    /*
+     * Six parts of a normal class name fit inside the cap, so the clip is
+     * unreachable through the test above — mutating it away survived, which is
+     * mutation rule 2's "the adversarial input never reached the line". One
+     * deliberately absurd class name is what reaches it, and the cap matters
+     * because this line is in the first prompt and in every retry.
+     */
+    const long = `<span class="${"x".repeat(300)}">MP1</span>`;
+    const doc = docFrom(`<ul id="s"><li>${long}</li><li>${long}</li></ul>`);
+    const structure = repeatedStructures(doc).find((s) => s.selector === "#s > li");
+    expect(structure!.sketch.length).toBeLessThanOrEqual(MAX_SKETCH_CHARS);
+    expect(structure!.sketch.endsWith("\u2026")).toBe(true);
+  });
+
+  it("is printed for every structure the model is offered", () => {
+    const doc = fixture("ece411-fa2026-assignments.html");
+    const text = renderStructures(repeatedStructures(doc));
+    for (const structure of repeatedStructures(doc)) {
+      expect(structure.sketch).not.toBe("");
+      expect(text).toContain(
+        `${structure.selector}  ×${structure.count}  inside one row: ${structure.sketch}`,
+      );
+    }
+  });
+
+  it("reaches the rendered line, so the model sees it beside the selector", () => {
+    const doc = docFrom(`<ul id="s"><li>9/4</li><li>9/11</li></ul>`);
+    expect(renderStructures(repeatedStructures(doc))).toContain("#s > li  ×2  inside one row: text");
   });
 });

@@ -603,6 +603,53 @@ export interface RepeatedStructure {
    * apply: does the member state a date, or a `Label: value`?
    */
   rowLike: boolean;
+  /**
+   * What one row is made of, as tags and classes: `strong, p, text`.
+   *
+   * The inventory used to say *which* groups the page has and nothing about
+   * what is inside one. `title` and `due` are selectors **relative to one row**,
+   * so a model naming them off `sample` — a row's flattened text — is guessing
+   * at markup it has never been shown, and on 2026-09-18 it did not name them
+   * at all. With the sketch beside the selector, `"title": "strong"` is a choice
+   * from something printed rather than an invention, and a rejection about a
+   * row-relative field can quote the same line back (`retrySuffix`).
+   *
+   * A row that is only text sketches as `text`, which is itself the answer: it
+   * says `""` — the row's own text — is the right `title`. The empty string is
+   * left only for a row with neither text nor a nameable child, which no
+   * capture has produced (such a row has no `sample` either and is dropped
+   * before this runs); `rowSketchNote` still guards it rather than printing a
+   * sentence with nothing after the colon.
+   */
+  sketch: string;
+}
+
+/** A row sketch names this many parts at most; a row is not an outline. */
+const MAX_SKETCH_PARTS = 6;
+/** And this many characters, because it is in the prompt and in every retry. */
+export const MAX_SKETCH_CHARS = 64;
+
+/**
+ * One row's inside, as one line.
+ *
+ * Deduplicated: three `<p>`s are one answer to "what is in here", and `p, p, p`
+ * spends the budget saying it three times. `text` is listed last and only when
+ * the row states something of its own — which is what makes `""` (the row's own
+ * text) a visible option for `title` on a `Due: 9/7` bullet.
+ */
+export function rowSketch(row: Element): string {
+  const parts: string[] = [];
+  for (const child of row.children) {
+    if (DROPPED.has(child.tagName)) continue;
+    const name = tagOf(child);
+    if (!parts.includes(name)) parts.push(name);
+    if (parts.length >= MAX_SKETCH_PARTS) break;
+  }
+  const ownText = [...row.childNodes].some(
+    (node) => node.nodeType === 3 && squash(node.textContent) !== "",
+  );
+  if (ownText) parts.push("text");
+  return clip(parts.join(", "), MAX_SKETCH_CHARS);
 }
 
 /** Shown to the model, and enumerated in the schema. Both want a short list. */
@@ -708,6 +755,7 @@ export function repeatedStructures(doc: Document): RepeatedStructure[] {
       count: matched.length,
       sample,
       rowLike: rows / matched.length >= MIN_ROW_LIKE_SHARE,
+      sketch: rowSketch(matched[0]!),
     });
   };
 
@@ -777,6 +825,11 @@ export function renderStructures(structures: RepeatedStructure[]): string {
   if (structures.length === 0) return "";
   return [
     "REPEATED STRUCTURES ON THIS PAGE — the rows selector must be one of these:",
-    ...structures.map((s) => `  ${s.selector}  ×${s.count}  e.g. ${JSON.stringify(s.sample)}`),
+    ...structures.map(
+      (s) =>
+        `  ${s.selector}  ×${s.count}` +
+        `  inside one row: ${s.sketch}` +
+        `  e.g. ${JSON.stringify(s.sample)}`,
+    ),
   ].join("\n");
 }
