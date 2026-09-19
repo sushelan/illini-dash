@@ -7,6 +7,71 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Classical Calendar is the design, and the fonts are bundled — 2026-09-19
+
+It stopped being an exploration. `applyDesign` returns `classical` when nothing is
+stored, so a fresh load and a Reload on the extension card both get it with no console
+and no Settings visit; opting out is an explicit stored `none`, because "nothing stored"
+is now a choice rather than an absence. The Appearance picker's second row is **Plain**.
+
+**The fonts were the whole problem, and I flagged them and then left them.** `EB Garamond`
+and `Newsreader` were *named* in the stack and never shipped, so **Georgia** drew every
+screen — larger x-height, heavier strokes, lining figures. The design was not "nearly
+right", it was set in a different typeface throughout, and every size in the sheet had
+been tuned against the wrong one. The latin subsets of the three variable files now live
+in `public/fonts/classical/` (132KB, `font-display: block` — a popup is open for four
+seconds and a swap is a visible reflow), and the whole scale was re-measured against the
+real face: Garamond's lowercase is about 0.86 of Georgia's at one size, and it is
+narrower, so titles went 13 → 15 and the week's title track grew by 33px. `--label`
+(Newsreader) is the honest name for what `--sans` holds; the mock's own DESIGN.md
+specifies Newsreader for every tracked small-caps label, and an earlier pass had argued
+against that spec from a face that was never going to draw.
+
+Five agents in parallel, one per independent piece, disjoint files so they could not
+collide: the tick box (`rows.ts`/`shell.ts`/`state.ts`), and one per view
+(`views/<v>.ts` + `public/design-classical-<v>.css`). Each was given the mock's own
+`code.html` as the spec rather than a description of it, and its own server and debug
+ports. Every lane held.
+
+### The tick box: two defects, one of them mine
+
+A held press on the box opened the deadline screen. `pointerdown` hit the box and `click`
+fired on the **row** — the element was replaced between mousedown and mouseup, so the
+click landed on the nearest survivor.
+
+The redraw that replaced it was **the deferred one this fix had just added**. `endPress`
+ran on `pointerup` and called `refresh()` synchronously; in the preview every `await`
+settles as a microtask, so the draw completed before Chrome dispatched `mouseup`, inside
+the exact gap the guard existed to protect. The release now waits one **task**, which is
+the 2026-09-18 handoff's own rule about focus events applied to redraws.
+`createPressHold` is DOM-free and injectable, in `state.ts`, because a decision in an
+event handler is a decision the suite cannot reach.
+
+Second and unrelated: `.row--menu` is `position: absolute` and painted **over** the box.
+Nine of the box's fifteen rows were the ⋯ button, so aiming at the visible square pressed
+the menu. One line — `position: relative` on the tick, which paints later in source
+order. No event trace would ever have shown this; only measuring both rectangles did.
+
+`tests/press-hold.test.ts`, 9 tests, mutation-checked twice (synchronous release fails 2;
+clearing the flag eagerly at `pointerup` fails 1). Suite 2085.
+
+### What the mock asks for that the data cannot say
+
+The exams board refused four of the mock's own words rather than invent them: no source
+reports a grade (`Taken`, not `✓ Graded`), nothing records that a seat was taken
+(`3 scheduled`, not `2 Confirmed`, and the verified tick means only "read from
+PrairieTest"), no term is stored (`all-term`, not `Fall Semester 2024`), and the venue is
+only sometimes in `extra.location` (`Reserve a seat`, not `Reserve CBTF Seat`). §11 one
+level up: a label the sources never justified is worse than a plainer true one.
+
+### Still not the mock
+
+Named here rather than quietly left: the sub-bar (`5 Connected` / `Sync Now`) is at the
+**foot** in this build, not under the header; the date range reads `Sep 19 – 25` rather
+than `Sep 20 – Sep 26, 2024`; the footer says `5 of 6 sources` rather than
+`5/5 ok · Needs-You Ledger ›` beside an `Expand Popout`; the mark is the shield, not a
+book; and the tab strip carries counts the mock had no data for.
+
 ## Classical Calendar: the fourth visual-language exploration — 2026-09-19
 
 From Sushi's Stitch bundle (`stitch_extension_ui_design.zip`, five screens) and the

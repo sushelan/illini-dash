@@ -64,8 +64,11 @@ export function renderTodayView(
 
   const day = todaySchedule(items, now);
 
+  const total = day.late.length + day.endOfDay.length + day.timed.length;
+  if (total > 0) viewEl.append(folio(now, total));
+
   if (day.late.length > 0) {
-    const band = section(LATE_HEADING);
+    const band = section(LATE_HEADING, day.late.length);
     for (const item of day.late) {
       // `weekStatus` reads "1h late" / "2d late" on an overdue row and "late ok"
       // while a late window is still open. One formatter for the two screens
@@ -79,7 +82,7 @@ export function renderTodayView(
     // No clock and no status on these rows: the heading has already said when,
     // and a repeated "11:59 PM" down the band would be presenting an invented
     // time as a stated one (worker house rule 3) eight times over.
-    const band = section(END_OF_DAY_HEADING);
+    const band = section(END_OF_DAY_HEADING, day.endOfDay.length);
     // `""`, not `undefined`: an absent status lets the row fall back to its own
     // countdown, and "in 13h" under a heading that already says "by end of day"
     // is the duplication this redesign exists to remove.
@@ -195,7 +198,7 @@ function timeline(
 }
 
 /** One band: its heading, then its rows. */
-function section(label: string): HTMLElement {
+function section(label: string, count?: number): HTMLElement {
   const band = document.createElement("div");
   band.className = "tsection";
   const head = document.createElement("p");
@@ -203,8 +206,49 @@ function section(label: string): HTMLElement {
   const name = document.createElement("span");
   name.textContent = label;
   head.append(name);
+  /*
+   * The count, which `.section-head span:last-child` pushes to the right edge.
+   *
+   * "1 item" rather than "1": the band's heading is a sentence fragment
+   * ("Overdue", "End of day") and a bare numeral beside one reads as a rank.
+   * Spelled here rather than at each call site so the two bands cannot
+   * disagree about the plural.
+   */
+  if (count !== undefined) {
+    const tally = document.createElement("span");
+    tally.textContent = `${count} item${count === 1 ? "" : "s"}`;
+    head.append(tally);
+  }
   band.append(head);
   return band;
+}
+
+/**
+ * The folio header: what day this is, how much is on it, and which term.
+ *
+ * Above the bands rather than inside the first one — it is the running head of
+ * the page, and the bands are its entries. The heading has to survive a 400px
+ * window, so the date is the long form the mock asks for and the term is
+ * dropped by CSS when the two cannot share a line.
+ */
+function folio(now: Date, count: number): HTMLElement {
+  const head = document.createElement("div");
+  head.className = "folio";
+
+  const date = document.createElement("h1");
+  date.className = "folio--date";
+  date.textContent = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const tally = document.createElement("span");
+  tally.className = "folio--count";
+  tally.textContent = `${count} item${count === 1 ? "" : "s"}`;
+
+  head.append(date, tally);
+  return head;
 }
 
 /** The one-line row Today and the Week share. */

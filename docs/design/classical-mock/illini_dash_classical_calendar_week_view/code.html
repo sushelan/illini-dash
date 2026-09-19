@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=400, initial-scale=1.0" name="viewport"/>
+<title>Illini Dash UIUC Study Journal - Week</title>
+<!-- Fonts: EB Garamond and Newsreader -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-primary": "#b9c6eb",
+            "on-primary-container": "#828eb1",
+            "primary-fixed": "#d9e2ff",
+            "tertiary-fixed": "#ffdbd2",
+            "primary-container": "#1a2744",
+            "secondary-fixed-dim": "#d9c2b6",
+            "on-secondary-fixed-variant": "#53443a",
+            "on-background": "#1c1c17",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#3c0800",
+            "on-tertiary-container": "#df6e50",
+            "secondary-fixed": "#f6ded1",
+            "surface-container-high": "#ece8e0",
+            "secondary": "#6c5b51",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed": "#0d1b37",
+            "on-surface": "#1c1c17",
+            "surface-variant": "#e6e2da",
+            "surface": "#fdf9f1",
+            "outline": "#75777e",
+            "primary": "#04122e",
+            "outline-variant": "#c5c6ce",
+            "on-primary": "#ffffff",
+            "on-surface-variant": "#45464d",
+            "surface-container": "#f1ede6",
+            "error": "#ba1a1a",
+            "surface-dim": "#dddad2",
+            "secondary-container": "#f6ded1",
+            "on-primary-fixed-variant": "#3a4665",
+            "on-secondary-container": "#726157",
+            "on-secondary": "#ffffff",
+            "surface-container-highest": "#e6e2da",
+            "on-tertiary-fixed-variant": "#812811",
+            "surface-tint": "#515e7e",
+            "on-error": "#ffffff",
+            "on-secondary-fixed": "#251911",
+            "tertiary-container": "#520e00",
+            "inverse-surface": "#31302b",
+            "on-error-container": "#93000a",
+            "inverse-on-surface": "#f4f0e8",
+            "surface-bright": "#fdf9f1",
+            "primary-fixed-dim": "#b9c6eb",
+            "background": "#fdf9f1",
+            "error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#ffb4a2",
+            "tertiary": "#2e0500",
+            "surface-container-low": "#f7f3eb"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem",
+            "space-md": "1rem",
+            "margin": "2rem"
+          },
+          "fontFamily": {
+            "label-md": ["Newsreader"],
+            "body-lg": ["EB Garamond"],
+            "headline-lg-mobile": ["EB Garamond"],
+            "headline-lg": ["EB Garamond"],
+            "headline-xl": ["EB Garamond"],
+            "label-sm": ["Newsreader"],
+            "annotation-italic": ["EB Garamond"],
+            "headline-sm": ["EB Garamond"],
+            "body-sm": ["EB Garamond"],
+            "body-md": ["EB Garamond"],
+            "headline-xl-mobile": ["EB Garamond"],
+            "headline-md": ["EB Garamond"]
+          },
+          "fontSize": {
+            "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+            "body-lg": ["19px", {"lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "headline-xl": ["42px", {"lineHeight": "50px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+            "annotation-italic": ["15px", {"lineHeight": "22px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+            "body-sm": ["14px", {"lineHeight": "22px", "letterSpacing": "0.015em", "fontWeight": "400"}],
+            "body-md": ["17px", {"lineHeight": "26px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-xl-mobile": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    }
+    .material-symbols-outlined {
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    /* Subtle ruled ledger guide line */
+    .ledger-ruled-card {
+      background-image: linear-gradient(to bottom, transparent 25px, rgba(216, 207, 190, 0.4) 26px);
+      background-size: 100% 26px;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface flex justify-center items-start min-h-screen antialiased selection:bg-secondary-container selection:text-primary">
+<!-- Popup Shell Container: Fixed 400px -->
+<div class="w-[400px] bg-surface min-h-screen flex flex-col relative pb-16">
+<!-- TopAppBar (from Shared Components JSON) -->
+<header class="flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline shadow-sm dark:shadow-none transition-colors duration-150 ease-in-out">
+<div class="flex items-center gap-space-xs text-primary">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="text-headline-sm font-headline-sm tracking-tight text-primary font-bold">Illini Dash UIUC</span>
+</div>
+<button class="text-secondary hover:text-primary transition-colors p-1 rounded hover:bg-surface-container-high flex items-center justify-center" title="Settings">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Sub-Header Connection & Sync Status Bar -->
+<section class="flex items-center justify-between px-space-md py-1.5 bg-surface-container-low border-b border-outline-variant/60">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#3f5945] inline-block"></span>
+<span class="text-label-sm font-label-sm text-secondary font-medium tracking-wide">5 Connected</span>
+</div>
+<button class="flex items-center gap-1 text-label-sm font-label-sm text-primary hover:text-secondary transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-[14px] text-secondary group-hover:text-primary transition-transform group-hover:rotate-180 duration-300" data-icon="sync">sync</span>
+<span class="underline decoration-outline-variant underline-offset-2">Sync Now</span>
+</button>
+</section>
+<!-- Week Navigator Bar -->
+<nav class="flex items-center justify-between px-space-md py-2 border-b border-outline-variant/50 bg-surface">
+<div class="flex items-center gap-2">
+<button aria-label="Previous week" class="p-1 text-secondary hover:text-primary hover:bg-surface-container transition-colors rounded-sm flex items-center">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span>
+</button>
+<span class="text-body-md font-body-md font-semibold text-primary tracking-tight">Sep 20 – Sep 26, 2024</span>
+<button aria-label="Next week" class="p-1 text-secondary hover:text-primary hover:bg-surface-container transition-colors rounded-sm flex items-center">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<span class="bg-surface-container-high text-primary text-label-sm font-label-sm px-2 py-0.5 rounded-full border border-outline-variant/60 font-medium">This Week</span>
+</nav>
+<!-- Main Rolling Seven Day Agenda -->
+<main class="flex-1 px-space-md py-2 flex flex-col gap-2">
+<!-- Tuesday, Sep 22 (TODAY - Active Highlighted Card) -->
+<article class="flex gap-2.5 p-2 bg-secondary-container/35 border border-primary/20 rounded-lg shadow-[0_1px_3px_rgba(74,59,50,0.06)] relative overflow-hidden">
+<!-- Bookmark edge accent -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<!-- DOW / Date Column (44px) -->
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5 pl-1">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-primary font-bold">Tue</span>
+<span class="text-headline-sm font-headline-sm font-bold text-primary leading-none mt-0.5">22</span>
+<span class="mt-1 text-[10px] font-label-sm font-bold text-on-secondary-container uppercase tracking-wider bg-secondary-container px-1 py-0.2 rounded">Today</span>
+</div>
+<!-- Deadlines List Column -->
+<div class="flex-1 flex flex-col gap-1.5 min-w-0 pr-0.5">
+<!-- Item 1: PHYS 212 -->
+<div class="flex items-center justify-between gap-1 text-left">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface text-secondary px-1 py-0.2 rounded border border-outline-variant/70 shrink-0">PHYS 212</span>
+<span class="text-body-sm font-body-sm text-primary font-medium truncate">Discussion Quiz 3</span>
+</div>
+<span class="text-label-sm font-label-sm text-[#a64b2a] font-bold shrink-0 ml-1">1d late</span>
+</div>
+<!-- Item 2: CS 225 -->
+<div class="flex items-center justify-between gap-1 text-left border-t border-outline-variant/30 pt-1">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface text-secondary px-1 py-0.2 rounded border border-outline-variant/70 shrink-0">CS 225</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Daily Memory Checkpoint</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">EOD</span>
+</div>
+<!-- Item 3: MATH 257 -->
+<div class="flex items-center justify-between gap-1 text-left border-t border-outline-variant/30 pt-1">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface text-secondary px-1 py-0.2 rounded border border-outline-variant/70 shrink-0">MATH 257</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Homework 5</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">11:59 PM</span>
+</div>
+</div>
+</article>
+<!-- Wednesday, Sep 23 -->
+<article class="flex gap-2.5 p-2 bg-surface-container-low border border-outline-variant/60 rounded-lg">
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-secondary">Wed</span>
+<span class="text-headline-sm font-headline-sm font-semibold text-primary leading-none mt-0.5">23</span>
+</div>
+<div class="flex-1 flex flex-col gap-1.5 min-w-0 pr-0.5">
+<div class="flex items-center justify-between gap-1 text-left">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">CS 225</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Lab 04: Trees &amp; Traversals</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">5:00 PM</span>
+</div>
+<div class="flex items-center justify-between gap-1 text-left border-t border-outline-variant/30 pt-1">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">smartPhysics</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Unit 6 Pre-lecture</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">8:00 AM</span>
+</div>
+</div>
+</article>
+<!-- Thursday, Sep 24 -->
+<article class="flex gap-2.5 p-2 bg-surface-container-low border border-outline-variant/60 rounded-lg">
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-secondary">Thu</span>
+<span class="text-headline-sm font-headline-sm font-semibold text-primary leading-none mt-0.5">24</span>
+</div>
+<div class="flex-1 flex flex-col justify-center min-w-0 pr-0.5">
+<div class="flex items-center justify-between gap-1 text-left">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">PHYS 212</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Lab 4: Capacitance</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">EOD</span>
+</div>
+</div>
+</article>
+<!-- Friday, Sep 25 -->
+<article class="flex gap-2.5 p-2 bg-surface-container-low border border-outline-variant/60 rounded-lg">
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-secondary">Fri</span>
+<span class="text-headline-sm font-headline-sm font-semibold text-primary leading-none mt-0.5">25</span>
+</div>
+<div class="flex-1 flex flex-col gap-1.5 min-w-0 pr-0.5">
+<div class="flex items-center justify-between gap-1 text-left">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">MATH 257</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Discussion Quiz 4</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">11:59 AM</span>
+</div>
+<div class="flex items-center justify-between gap-1 text-left border-t border-outline-variant/30 pt-1">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">CS 225</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">MP 2: Image Processing</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">11:59 PM</span>
+</div>
+</div>
+</article>
+<!-- Saturday, Sep 26 (Quiet Day) -->
+<article class="flex gap-2.5 p-2 bg-surface-container-low/40 border border-outline-variant/40 rounded-lg opacity-80">
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-secondary/70">Sat</span>
+<span class="text-headline-sm font-headline-sm font-medium text-secondary/70 leading-none mt-0.5">26</span>
+</div>
+<div class="flex-1 flex items-center min-w-0 pr-0.5">
+<span class="text-annotation-italic font-annotation-italic italic text-secondary text-[14px]">Nothing due</span>
+</div>
+</article>
+<!-- Sunday, Sep 27 -->
+<article class="flex gap-2.5 p-2 bg-surface-container-low border border-outline-variant/60 rounded-lg">
+<div class="w-[44px] flex flex-col items-center justify-start shrink-0 pt-0.5">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-secondary">Sun</span>
+<span class="text-headline-sm font-headline-sm font-semibold text-primary leading-none mt-0.5">27</span>
+</div>
+<div class="flex-1 flex flex-col justify-center min-w-0 pr-0.5">
+<div class="flex items-center justify-between gap-1 text-left">
+<div class="flex items-center gap-1.5 truncate">
+<span class="text-label-sm font-label-sm bg-surface-container-high text-secondary px-1 py-0.2 rounded border border-outline-variant/60 shrink-0">PHYS 212</span>
+<span class="text-body-sm font-body-sm text-on-surface truncate">Homework 5</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium shrink-0 ml-1">11:59 PM</span>
+</div>
+</div>
+</article>
+</main>
+<!-- Footer Colophon (from Shared Components JSON structure) -->
+<footer class="flex flex-wrap justify-between items-center gap-space-xs px-space-md py-space-xs w-full max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline mb-12">
+<a class="flex items-center gap-1 text-label-sm font-label-sm text-secondary hover:text-primary dark:hover:text-primary-fixed hover:underline transition-colors duration-150" href="#">
+<span class="text-[#3f5945]">●</span>
+<span>5/5 ok · Needs-You Ledger ›</span>
+</a>
+<button class="flex items-center gap-1 text-label-sm font-label-sm text-secondary hover:text-primary dark:hover:text-primary-fixed hover:underline transition-colors duration-150" title="Expand Popout">
+<span class="material-symbols-outlined text-[13px]" data-icon="open_in_new">open_in_new</span>
+<span>Expand Popout</span>
+</button>
+</footer>
+<!-- BottomNavBar (from Shared Components JSON: Active 'Week' Destination) -->
+<nav aria-label="Bottom Navigation" class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline shadow-sm dark:shadow-none">
+<!-- Tab 1: Today (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs hover:bg-surface-container dark:hover:bg-surface-container-high hover:text-primary dark:hover:text-primary-fixed transition-all duration-150 ease-out active:scale-95 flex-1">
+<span class="material-symbols-outlined" data-icon="today">today</span>
+<span class="text-label-sm font-label-sm mt-0.5">Today</span>
+</button>
+<!-- Tab 2: Week (ACTIVE - Highlighted via JSON style_active_navigation) -->
+<button class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-lg px-space-xs py-space-xs hover:bg-surface-container dark:hover:bg-surface-container-high hover:text-primary dark:hover:text-primary-fixed transition-all duration-150 ease-out active:scale-95 flex-1">
+<span class="material-symbols-outlined font-bold" data-icon="calendar_view_week">calendar_view_week</span>
+<span class="text-label-sm font-label-sm mt-0.5 font-bold">Week</span>
+</button>
+<!-- Tab 3: Month (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs hover:bg-surface-container dark:hover:bg-surface-container-high hover:text-primary dark:hover:text-primary-fixed transition-all duration-150 ease-out active:scale-95 flex-1">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="text-label-sm font-label-sm mt-0.5">Month</span>
+</button>
+<!-- Tab 4: No Date (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs hover:bg-surface-container dark:hover:bg-surface-container-high hover:text-primary dark:hover:text-primary-fixed transition-all duration-150 ease-out active:scale-95 flex-1">
+<span class="material-symbols-outlined" data-icon="event_busy">event_busy</span>
+<span class="text-label-sm font-label-sm mt-0.5 whitespace-nowrap">No Date</span>
+</button>
+<!-- Tab 5: Exams (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs hover:bg-surface-container dark:hover:bg-surface-container-high hover:text-primary dark:hover:text-primary-fixed transition-all duration-150 ease-out active:scale-95 flex-1">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="text-label-sm font-label-sm mt-0.5">Exams</span>
+</button>
+</nav>
+</div>
+</body></html>

@@ -1,0 +1,308 @@
+/* design-classical-exams.css — the Classical calendar's exams view.
+ *
+ * Scoped under `html[data-design="classical"]` like every rule in
+ * `design-classical.css`, which loads first and owns the tokens, the type
+ * scale, the shell, the tab bar and the shared card slip. Spend those here;
+ * do not restate them. One file per view so parallel work never collides in
+ * a single stylesheet.
+ *
+ * The invariants it may not break: `html` and `body` are never scroll
+ * containers, nothing takes a viewport unit or a percentage height, and no
+ * rule is keyed on window width. See the header of popup.css.
+ */
+
+/* ==========================================================================
+ * What was measured, and why the mock's numbers are not copied
+ *
+ * `code.html` draws its frame at `width: 400px` — the same width as the real
+ * popup — but sets it in a type scale built for a phone: a 20px card title, a
+ * 17px body, 16px gutters (`space-md`), and a `p-space-sm` (8px) card padding
+ * inside a `px-space-md` (16px) page. Taken literally that leaves
+ *
+ *     400 − 16 − 16 (page) − 1 − 1 (card edge) − 8 − 8 (card padding) = 350px
+ *
+ * of text column for a 20px serif, which holds about 22 characters. "Midterm
+ * Exam 1: Systems & Matrix Inverses" — the mock's own longest title — is 40.
+ * The mock does not show that because it wraps to three lines there; a real
+ * board with six exams on it would be a screen of wrapped titles.
+ *
+ * So this sheet keeps the mock's *structure* — icon-led metadata lines, a
+ * source pill, a full-width high-contrast CTA, a tinted "not booked" leaf —
+ * and spends `design-classical.css`'s already-reduced scale for the sizes:
+ *
+ *   text column   `.exam-stack` is 0 10px and the card slip is 1px + 9px, so
+ *                 360px measured in the browser, against the mock's 350. Near
+ *                 enough that the mock's line breaks hold; the type is what
+ *                 changes.
+ *   title         13px (the card slip's, unchanged) against the mock's 20.
+ *                 360px of 13px Georgia holds ~52 characters, so that same
+ *                 40-character title is one line here and two in the mock.
+ *   metadata      11px against the mock's 14, with a 12px glyph against its
+ *                 15 — one step over the 10.5px meta line, because these are
+ *                 the two facts on an exam card with a *wrong* answer.
+ *   pill / badge  9.5px sans, the size `.chip` and `.section-head` are already
+ *                 drawn at, against the mock's 11px `label-sm`.
+ *   CTA           30px tall, 12px label, against the mock's ~40px / 13px. A
+ *                 400px popup that has to fit a tab strip, a header and a
+ *                 footer cannot spend 40px on one control.
+ *
+ * Every colour is a token from `design-classical.css`, so the dark half is the
+ * dark half that sheet measured rather than an alpha over the light one. The
+ * one thing to know about dark here: `--primary` is a *gold* there, not the
+ * navy, and `--primary-ink` is the near-black ground — so the CTA is still the
+ * single highest-contrast object on the board at both ends, which is the whole
+ * point of it.
+ * ====================================================================== */
+
+/* ---- the running head --------------------------------------------------
+ * `.folio` already carries the serif, the rule and the gutters. All this adds
+ * is the mock's second hairline, which is what makes a heading read as a
+ * title page rather than as another section label. `box-shadow` rather than a
+ * second element: it costs no layout, so it cannot change the height Chrome
+ * measures.
+ */
+html[data-design="classical"] .exam-folio {
+  box-shadow: 0 3px 0 -2px var(--line);
+}
+
+/* ---- a section label ---------------------------------------------------
+ * Glyph, then the label, then the mock's right-hand note. `.section-head`
+ * gives this flex/space-between and the sans; only the glyph is new.
+ */
+html[data-design="classical"] .exam-head--label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-transform: uppercase;
+}
+html[data-design="classical"] .exam-head--label .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+/* "Action required" is a badge, not a count: a filled chip of the same
+   terracotta `.section-head--err` already sets the words in. */
+html[data-design="classical"] .section-head--err .exam-head--note {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--err-wash);
+  color: var(--err);
+  font-weight: 700;
+}
+
+/* ---- the not-booked leaf ------------------------------------------------
+ * The mock's terracotta-edged slip with a brass clip at its corner. The tone
+ * is one hue stated twice — the edge and the wash are both `--err` — which is
+ * the rule the overdue card in `design-classical.css` already follows.
+ */
+html[data-design="classical"] #view .row-booking {
+  position: relative;
+  border-color: var(--err);
+  background: var(--err-wash);
+}
+/* The clip. `color-mix` rather than two hex literals: brass is the warn ink
+   with a highlight on it, and the warn ink is a token that differs in dark. */
+html[data-design="classical"] #view .row-booking::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 18px;
+  width: 22px;
+  height: 5px;
+  border-radius: 2px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warn) 62%, white) 0%,
+    var(--warn) 100%
+  );
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+/* ---- a fact with a glyph in front --------------------------------------
+ * Across the whole card: these lines are appended after the slip's three grid
+ * areas, so without this they would be placed in the `tick`/`menu` columns.
+ */
+html[data-design="classical"] #view .exam-line {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+html[data-design="classical"] #view .exam-line .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+/* The room is the fact on this card most worth reading, so it is the one
+   metadata line set in the page's ink rather than in the muted grey. */
+html[data-design="classical"] #view .exam-line .row--detail-exam {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* The "when" line gets the same glyph treatment. `design-classical.css` lays
+   it out as a baseline row; a 12px glyph on a baseline sits low, so this is
+   the one place the alignment changes. */
+html[data-design="classical"] #view .exam-when {
+  align-items: center;
+  font-size: 11px;
+}
+html[data-design="classical"] #view .exam-when .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--muted);
+}
+html[data-design="classical"] #view .exam-when .row--due {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* ---- the source pill ---------------------------------------------------
+ * The mock's "✓ PrairieTest" / "Canvas / Gradescope". It is `.row--sources`,
+ * which every card already builds and which already carries the tooltip
+ * naming what was merged — a pill drawn around the element that states the
+ * fact, rather than a second element stating it again.
+ */
+html[data-design="classical"] #view .exam-src {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--card-line);
+  border-radius: 3px;
+  background: var(--tint);
+  font-family: var(--sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  overflow: visible;
+}
+html[data-design="classical"] #view .exam-src .icon {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+/* Read from the system that owns the booking, so it wears the design's
+   "done" ink. Outlined rather than filled: a filled green beside a filled
+   course chip is two badges competing on one line. */
+html[data-design="classical"] #view .exam-src--verified {
+  border-color: var(--ok);
+  background: none;
+  color: var(--ok);
+}
+
+/* ---- "Taken" ------------------------------------------------------------
+ * The mock's "✓ Graded" tag, on the sat-exams card. See the module note in
+ * `views/exams.ts` for why it does not say "Graded".
+ */
+html[data-design="classical"] #view .exam-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--tint-strong);
+  font-family: var(--sans);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ok);
+}
+html[data-design="classical"] #view .exam-tag .icon {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+/* A sitting that is over is still on the board — a board with the past week
+   blank reads as a board with nothing on it — but it must not read as
+   something still ahead. */
+html[data-design="classical"] #view .row-sat {
+  background: var(--tint);
+  border-color: var(--line);
+}
+
+/* ---- Reserve a seat ----------------------------------------------------
+ * The one filled control in the design, at the foot of the card, full width.
+ *
+ * `box-sizing: border-box` and `width: 100%` of the *card*, which is a fixed
+ * 358px — not a percentage of anything Chrome has to measure the window to
+ * know. `grid-column: 1 / -1` for the same reason `.exam-line` needs it.
+ */
+html[data-design="classical"] #view .exam-reserve {
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  margin-top: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-family: var(--serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+html[data-design="classical"] #view .exam-reserve:hover {
+  /* Darker in light, lighter in dark — one expression, because the mix is
+     toward the button's own ink rather than toward a fixed colour. */
+  background: color-mix(in srgb, var(--primary) 88%, var(--primary-ink));
+}
+html[data-design="classical"] #view .exam-reserve:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+html[data-design="classical"] #view .exam-reserve--label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The mock's pinging dot. Terracotta reads on the navy in light and on the
+   gold in dark, which is the property that decided it over `--err-wash`. */
+html[data-design="classical"] #view .exam-reserve--dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--err);
+}
+html[data-design="classical"] #view .exam-reserve--arrow {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.12s ease-out;
+}
+html[data-design="classical"] #view .exam-reserve:hover .exam-reserve--arrow {
+  transform: translateX(2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="classical"] #view .exam-reserve--arrow {
+    transition: none;
+  }
+}
+
+/* The qualifier, folded into the "when" line rather than taking a line of its
+   own. Quiet, because "in 24d" is arithmetic off the date beside it. */
+html[data-design="classical"] #view .exam-when .exam-rel {
+  color: var(--muted);
+  font-weight: 400;
+}

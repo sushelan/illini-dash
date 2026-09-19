@@ -60,6 +60,20 @@ export const ICON_PATHS = {
   /* Chrome's extensions menu, so the pin card can point at the real thing. */
   puzzle:
     "M6.5 2.2a1.7 1.7 0 0 1 3 0c0 .5-.2.9-.2 1.3h2.6a.6.6 0 0 1 .6.6v2.6c.4 0 .8-.2 1.3-.2a1.7 1.7 0 0 1 0 3c-.5 0-.9-.2-1.3-.2v2.6a.6.6 0 0 1-.6.6H9.3c0-.4.2-.8.2-1.3a1.7 1.7 0 0 0-3 0c0 .5.2.9.2 1.3H4.1a.6.6 0 0 1-.6-.6V9.3c-.4 0-.8.2-1.3.2a1.7 1.7 0 0 1 0-3c.5 0 .9.2 1.3.2V4.1a.6.6 0 0 1 .6-.6h2.6c0-.4-.2-.8-.2-1.3z",
+  /* ---- the exam board's metadata glyphs (Classical exams view) ----
+   *
+   * The mock sets a Material Symbol beside every fact on an exam card —
+   * `schedule` for the sitting, `pin_drop` for the room, `check_circle` for a
+   * source the extension actually read the booking from. These are those three
+   * on this file's own 16×16 / 1.5-stroke grid, so an exam card's glyphs are
+   * the same weight as the tab strip's. `tab-day` doubles as the mock's
+   * `date_range` (a booking window is a range of days) and `warning` as its
+   * `notification_important`; neither needed a new path.
+   */
+  clock: "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 4.7V8l2.3 1.5",
+  verified: "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM5.4 8.1 7.2 10l3.4-3.6",
+  place:
+    "M8 14.4c2.6-3 4.2-5.3 4.2-7.3a4.2 4.2 0 1 0-8.4 0c0 2 1.6 4.3 4.2 7.3zM9.5 7a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z",
   "tab-day": "M3 4h10v9H3zM3 7h10M5 2v2M11 2v2M5.5 10h5",
   "tab-week": "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
   "tab-month": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",

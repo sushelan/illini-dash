@@ -184,9 +184,70 @@ html[data-design="classical"]:root.is-dark {
  * `Newsreader` are named for the machines that have them and Georgia — which
  * every machine this runs on does have — is what actually draws.
  * ----------------------------------------------------------------------- */
+/*
+ * The two faces, bundled.
+ *
+ * An extension cannot fetch Google Fonts — its own CSP forbids it — so these
+ * are the latin subsets of the variable files, served from `public/fonts/`.
+ * 132KB for all three, which is the whole reason to take the latin subset and
+ * the variable file rather than seven static instances.
+ *
+ * Until they were bundled, Georgia drew every screen: it was third in the
+ * stack, and naming a face you have not shipped is naming nothing. Georgia has
+ * a far larger x-height, heavier strokes and lining figures, so the design did
+ * not "not quite match" — it was set in a different typeface throughout, and no
+ * amount of size tuning closes that.
+ *
+ * `font-display: block`, not `swap`. A popup is open for four seconds; a swap
+ * means the student sees Georgia, then a reflow. Blocking on a local file is a
+ * few milliseconds and no reflow at all.
+ */
+@font-face {
+  font-family: "EB Garamond";
+  src: url("fonts/classical/ebgaramond.woff2") format("woff2-variations"),
+       url("fonts/classical/ebgaramond.woff2") format("woff2");
+  /* One variable file covers the range, which is why 400/500/600/700 came back
+     from Google byte-identical. */
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "EB Garamond";
+  src: url("fonts/classical/ebgaramond-italic.woff2") format("woff2-variations"),
+       url("fonts/classical/ebgaramond-italic.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("fonts/classical/newsreader.woff2") format("woff2-variations"),
+       url("fonts/classical/newsreader.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: block;
+}
+
 html[data-design="classical"] {
-  --serif: "EB Garamond", Newsreader, Georgia, "Times New Roman", serif;
-  --sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --serif: "EB Garamond", Georgia, "Times New Roman", serif;
+  /*
+   * The label face is **Newsreader**, which is a serif — the design system in
+   * the mock's own DESIGN.md specifies it for `label-md` and `label-sm`, the
+   * tracked small-caps used on weekday initials, section headings and badges.
+   *
+   * An earlier pass set a system sans here on the argument that a serif at 9px
+   * with letter-spacing turns to mud. That was reasoning against the spec from
+   * a face that was never going to be used: Newsreader is drawn for small
+   * sizes and holds its tracking where Garamond would not.
+   *
+   * The token keeps the name `--sans` because the four per-view stylesheets
+   * already spend it, and one rename across five files to fix a name is churn
+   * this design does not need mid-flight. `--label` is the honest name and
+   * both resolve to the same stack.
+   */
+  --label: Newsreader, "EB Garamond", Georgia, serif;
+  --sans: var(--label);
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 html[data-design="classical"] body { font-family: var(--serif); }
@@ -194,7 +255,7 @@ html[data-design="classical"] body { font-family: var(--serif); }
 /* The wordmark, at the weight a title page gets. */
 html[data-design="classical"] .wordmark {
   font-family: var(--serif);
-  font-size: 14px; font-weight: 700; letter-spacing: 0;
+  font-size: 17px; font-weight: 600; letter-spacing: 0;
 }
 html[data-design="classical"].view-full .wordmark { font-size: 17px; }
 
@@ -204,19 +265,29 @@ html[data-design="classical"] .section-head,
 html[data-design="classical"] h2.section,
 html[data-design="classical"] .mdow div,
 html[data-design="classical"] .wday--dow {
-  font-family: var(--sans);
+  font-family: var(--label);
+  font-size: 11px;
   letter-spacing: .10em;
 }
 
-/* Titles. The one measurement that matters on this tab: the title track is
-   `minmax(0, 1fr)` of what is left after 60 + 44 + 92 + 24, which is about
-   162px in the popup. 13px of Georgia holds ~26 characters there; 13.5 holds
-   25 and reads no better. */
+/* ---- the scale, retuned against the real face ----
+ *
+ * Every size below was first set against **Georgia**, because that is what was
+ * drawing before the fonts were bundled. EB Garamond has a much smaller
+ * x-height for the same em — measured here, its lowercase is about 0.86 of
+ * Georgia's at one size — so the whole scale read a point and a half too small
+ * the moment the real face arrived. These are the Georgia numbers multiplied
+ * back up and then checked against the mock, not guesses.
+ *
+ * The title track is `minmax(0, 1fr)` of what is left after 60 + 44 + 92 + 24,
+ * about 162px in the popup; Garamond at 15px holds ~28 characters there, which
+ * is two more than Georgia at 13 did. The face is narrower as well as smaller.
+ */
 html[data-design="classical"] .row--title,
 html[data-design="classical"] .nodate-add--label {
-  font-size: 13px; font-weight: 600; letter-spacing: 0;
+  font-size: 15px; font-weight: 500; letter-spacing: 0;
 }
-html[data-design="classical"] .row--code { font-family: var(--sans); font-size: 10px; }
+html[data-design="classical"] .row--code { font-family: var(--label); font-size: 11px; }
 html[data-design="classical"] .row--due,
 html[data-design="classical"] .tclock,
 html[data-design="classical"] .mday--num,
@@ -226,7 +297,7 @@ html[data-design="classical"] .wday--num {
 /* The date navigator is the page's running head. */
 html[data-design="classical"] .datenav--label {
   font-family: var(--serif);
-  font-size: 16px; font-weight: 700; letter-spacing: -.1px;
+  font-size: 19px; font-weight: 600; letter-spacing: -.1px;
 }
 
 /* --------------------------------------------------------------------------
@@ -287,9 +358,18 @@ html[data-design="classical"] .tab {
   height: 50px;
   padding: 0 2px;
   border-radius: 0;
-  font-family: var(--serif);
-  font-size: 10px; font-weight: 600;
-  letter-spacing: .02em; text-transform: uppercase;
+  font-family: var(--label);
+  font-size: 11.5px; font-weight: 500;
+  /*
+   * Title Case, not uppercase.
+   *
+   * The mock sets the strip `Today Week Month No Date Exams`. Uppercasing it
+   * was mine, and it cost twice: the words got wider (which is what ellipsed
+   * "No date" into "NO DA…" and needed the count moved off the line), and
+   * small caps on five tabs reads as five headings rather than five places to
+   * go. `VIEW_LABEL` already spells them the way the mock does.
+   */
+  letter-spacing: .01em; text-transform: none;
 }
 html[data-design="classical"] .tabs .icon {
   display: block;
@@ -379,8 +459,8 @@ html[data-design="classical"] .chip-check { border-radius: 3px; }
  */
 html[data-design="classical"] .chip {
   font-family: var(--sans);
-  font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
-  border-radius: 3px; padding: 2px 5px;
+  font-size: 11px; font-weight: 600; letter-spacing: .07em;
+  border-radius: 3px; padding: 2px 6px;
   border-color: transparent;
   color: var(--course, var(--muted));
   background: var(--course-bg, var(--tint));
@@ -443,11 +523,11 @@ html[data-design="classical"] .wday {
 }
 html[data-design="classical"] .wday--num {
   font-family: var(--serif);
-  font-size: 19px; font-weight: 700; line-height: 1.05;
+  font-size: 22px; font-weight: 600; line-height: 1.05;
   color: var(--brand-mark);
 }
 html[data-design="classical"] .wday--dow {
-  font-size: 9px; font-weight: 700;
+  font-size: 10.5px; font-weight: 600;
 }
 html[data-design="classical"] .wday--today {
   font-family: var(--mono);
@@ -495,4 +575,156 @@ html[data-design="classical"] .menu-surface,
 html[data-design="classical"] .popover {
   border-radius: 3px;
   background: var(--surface-raised);
+}
+
+/* ==========================================================================
+ * 6. The card slip
+ *
+ * The row is the same five children `rows.ts` has always built — a dot, a main
+ * block of title-over-meta, a "when", and the menu trigger — re-laid as the
+ * slip the mock draws:
+ *
+ *     ┌────────────────────────────────────┐
+ *     │ [PHYS 212]  smartPhysics        ⋯  │   the meta line, moved above
+ *     │ Discussion Quiz 3: Electric Pot…   │   the title, at 13px
+ *     │ Due: Yesterday 11:59 PM            │   the "when", on its own line
+ *     └────────────────────────────────────┘
+ *
+ * Only the *order* is CSS. The two-line shape itself is markup, which is why
+ * `renderRow` stops collapsing to the compact line under this design: a
+ * stylesheet cannot put a source name back on a row that never built one.
+ * ====================================================================== */
+html[data-design="classical"] #view .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "main tick menu"
+    "when when when";
+  align-items: start;
+  gap: 3px 6px;
+  margin: 0 0 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--card-line);
+  border-radius: 4px;
+  background: var(--surface-raised);
+}
+html[data-design="classical"] #view .row--main { grid-area: main; }
+html[data-design="classical"] #view .row--when { grid-area: when; }
+html[data-design="classical"] #view .row--menu { grid-area: menu; align-self: start; }
+/* The colour is on the chip, which is right next to it. A dot as well is the
+   same fact twice, and it is the fact the card has least room for. */
+html[data-design="classical"] #view .row--dot { display: none; }
+
+/*
+ * Meta over title, not title over meta.
+ *
+ * The mock leads with the course and the source — "which class, and which site
+ * is this from" — and only then names the assignment. `order` rather than
+ * rebuilding `.row--main`, because this is genuinely only sequence: both
+ * elements exist, carry the right text, and are read in DOM order by a screen
+ * reader either way.
+ */
+html[data-design="classical"] #view .row--main {
+  display: flex; flex-direction: column; gap: 1px;
+  min-width: 0;
+}
+html[data-design="classical"] #view .row--meta { order: 0; }
+html[data-design="classical"] #view .row--title {
+  order: 1;
+  font-size: 15px; font-weight: 500; line-height: 1.3;
+  color: var(--fg);
+  /* Two lines, then ellipsis — the mock's titles wrap and the popup's did not.
+     A card can afford the second line; a 400px one-line row could not, which
+     is why the shipped design truncates at one. */
+  white-space: normal;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/*
+ * One line, clock first.
+ *
+ * `popup-rows.css` stacks these two — the list's "when" column is a clock over
+ * a relative phrase in a 92px track. A card has the width for the sentence the
+ * mock writes ("11:59 PM · 4h late"), and stacking them here put the lateness
+ * above the time it was late *for*.
+ *
+ * `order` rather than `row-reverse`: reversing a flex line leaves the DOM order
+ * alone, which is what a screen reader reads, so the two would disagree.
+ */
+html[data-design="classical"] #view .row--when {
+  display: flex; flex-direction: row; align-items: baseline; gap: 5px;
+  font-size: 12.5px;
+}
+html[data-design="classical"] #view .row--due { order: 0; }
+html[data-design="classical"] #view .row--rel { order: 1; }
+
+/* The tick box, at the card's right edge beside the ⋯.
+ *
+ * 15px and square-cornered — the mock's "classical scholar box", a ruled
+ * square rather than the platform's rounded blue one. `accent-color` is one
+ * line and keeps the native check mark, the focus ring and the space bar. */
+html[data-design="classical"] #view .row--tick {
+  grid-area: tick;
+  align-self: start;
+  width: 15px; height: 15px; margin: 1px 0 0;
+  border-radius: 2px;
+  accent-color: var(--brand-mark);
+  cursor: pointer;
+}
+/* The due line is the card's last word and reads as a sentence, not a column:
+   left-aligned under the title rather than right-aligned in a track. */
+html[data-design="classical"] #view .row--due { text-align: left; }
+
+/* Overdue is the one card with a tone, and it takes its edge and its wash
+   from `--err` — one hue, stated twice, rather than a red border on a pink
+   field from two different reds. */
+html[data-design="classical"] #view .row-overdue {
+  border-color: var(--err);
+  background: var(--err-wash);
+}
+html[data-design="classical"] #view .row-late { border-left-color: var(--warn); }
+
+/* The bands are 4px apart, and their heading carries the count the mock puts
+   on the right of it. */
+html[data-design="classical"] .tsection { padding: 0 10px; }
+html[data-design="classical"] .section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 12px 0 5px;
+}
+html[data-design="classical"] .section-head > :last-child:not(:first-child) {
+  font-family: var(--label);
+  font-size: 11px; letter-spacing: .04em;
+  color: var(--muted);
+}
+
+/* ---- the folio header ----
+ *
+ * `popup.css` hides `.folio`; this is the one design that has a running head.
+ * The rule under it is the mock's, and it is a real border rather than a
+ * pseudo-element so it cannot outlive the heading it belongs to.
+ */
+html[data-design="classical"] .folio {
+  display: flex; align-items: baseline; gap: 9px;
+  margin: 0 10px;
+  padding: 11px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+html[data-design="classical"] .folio--date {
+  margin: 0; min-width: 0;
+  font-family: var(--serif);
+  font-size: 21px; font-weight: 600; line-height: 1.15;
+  letter-spacing: -.2px;
+  color: var(--brand-mark);
+  /* One line. "Wednesday, September 22" is the longest real value and measures
+     188px at 18px of Georgia, so it fits the 380px the gutters leave — but a
+     locale that spells the month longer must ellipse rather than wrap the count
+     onto a second line and push the first card down. */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-design="classical"] .folio--count {
+  flex: none;
+  font-family: var(--label);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .10em; text-transform: uppercase;
+  color: var(--muted);
 }

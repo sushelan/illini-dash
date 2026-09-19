@@ -63,14 +63,6 @@ function write(key: string, value: string): void {
   }
 }
 
-function remove(key: string): void {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // As above. Nothing stored is the default, which is what is being asked for.
-  }
-}
-
 /** The stored choice, or the default. Never throws. */
 export function storedTheme(): ThemeName {
   return normalizeTheme(read(THEME_KEY));
@@ -143,6 +135,17 @@ export function applyStoredTheme(): void {
  */
 const DESIGN_KEY = "illini-dash.design";
 const DESIGNS = ["timetable", "rams", "editorial", "classical"] as const;
+/**
+ * What an install with nothing stored gets: the Classical calendar.
+ *
+ * It stopped being an exploration on 2026-09-19 — "ensure by the end of this
+ * iteration i can click on reload card and see the UI exactly like [the mock]".
+ * A design behind a stored key cannot satisfy that sentence: a fresh load, and
+ * every load on a machine that has never opened Settings, has no key.
+ */
+const DEFAULT_DESIGN = "classical";
+/** The stored value that means "the design that shipped before Classical". */
+const NO_DESIGN = "none";
 function applyDesign(root: HTMLElement): void {
   let value: string | null = null;
   try {
@@ -150,8 +153,12 @@ function applyDesign(root: HTMLElement): void {
   } catch {
     value = null;
   }
-  if (value && (DESIGNS as readonly string[]).includes(value)) root.dataset.design = value;
-  else delete root.dataset.design;
+  // Nothing stored is now a *choice* rather than an absence, so opting out
+  // needs a value of its own — `delete` would be indistinguishable from a
+  // profile that has never been asked.
+  if (value === NO_DESIGN) delete root.dataset.design;
+  else if (value && (DESIGNS as readonly string[]).includes(value)) root.dataset.design = value;
+  else root.dataset.design = DEFAULT_DESIGN;
 }
 
 /*
@@ -267,15 +274,14 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
  * They join the list below when they have something to show.
  */
 const DESIGN_CHOICES: { value: string; label: string; hint: string }[] = [
-  { value: "", label: "Default", hint: "The shipped design" },
-  {
-    value: "classical",
-    label: "Classical calendar",
-    hint: "Vellum and a serif, with the tabs at the foot of the window",
-  },
+  { value: "classical", label: "Classical calendar", hint: "Vellum and a serif, with the tabs at the foot of the window" },
+  { value: "", label: "Plain", hint: "The design that shipped before Classical" },
 ];
 
 function renderDesignPanel(): HTMLElement {
+  // `dataset.design` is the resolved answer, so the radio matches what is on
+  // screen rather than what happens to be in storage — a profile with nothing
+  // stored is on Classical and the picker has to say so.
   const chosen = document.documentElement.dataset.design ?? "";
   const wrap = document.createElement("div");
 
@@ -305,8 +311,7 @@ function renderDesignPanel(): HTMLElement {
        * set a value the loader would refuse. Two copies of that decision is how
        * a radio ends up selected for a design that never applies.
        */
-      if (design.value) write(DESIGN_KEY, design.value);
-      else remove(DESIGN_KEY);
+      write(DESIGN_KEY, design.value || NO_DESIGN);
       applyDesign(document.documentElement);
     });
 

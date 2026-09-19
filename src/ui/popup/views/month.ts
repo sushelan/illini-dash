@@ -302,8 +302,47 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
     );
   }
 
-  viewEl.append(head, grid, list);
+  viewEl.append(head, grid, renderLegend(cells, colours), list);
   if (selected) paintDayList(list, items, selected, now, colours);
+}
+
+/**
+ * The key under the grid: one coloured dot and one course code per course the
+ * grid is actually showing a dot for.
+ *
+ * A dot is 5px of colour with no text on it, so without this the grid says
+ * "three things are due that week" and nothing about *which class* — which is
+ * the question the colour was spent to answer. It is drawn from the cells
+ * rather than from `items`, so the key names exactly the hues on screen and
+ * cannot list a course whose only deadline is in another month.
+ *
+ * Order is the colour index, not first appearance: the palette is assigned by
+ * `courseIndex` and stays put for the whole term, so the key does too rather
+ * than reshuffling itself every time the student pages to another month.
+ */
+function renderLegend(cells: MonthDotCell[], colours: Map<string, number>): HTMLElement {
+  const seen = new Set<string>();
+  for (const cell of cells) {
+    if (cell.outside) continue;
+    for (const dot of cell.dots) seen.add(dot.courseLabel);
+  }
+  const legend = document.createElement("div");
+  legend.className = "mlegend";
+  const labels = [...seen].sort(
+    (a, b) => (colours.get(a) ?? 99) - (colours.get(b) ?? 99) || a.localeCompare(b),
+  );
+  for (const label of labels) {
+    const hue = colours.get(label);
+    const entry = document.createElement("span");
+    entry.className = hue === undefined ? "mlegend--item" : `mlegend--item course-${hue}`;
+    const mark = document.createElement("span");
+    mark.className = "mdot";
+    const name = document.createElement("span");
+    name.textContent = courseLabel(label, state.courseNames);
+    entry.append(mark, name);
+    legend.append(entry);
+  }
+  return legend;
 }
 
 function renderDotCell(
@@ -383,15 +422,25 @@ function paintDayList(
   const placed = dayList(items, cell.date, now);
 
   const heading = document.createElement("div");
-  heading.className = "section-head";
+  heading.className = "section-head mday-head";
   const when = document.createElement("span");
-  when.textContent = cell.date.toLocaleDateString(undefined, {
-    weekday: "short",
+  /*
+   * "Agenda for Tuesday, Sep 22", named in full (mock 2a).
+   *
+   * The grid above it is a field of bare numbers, so the one line that says
+   * which of them is open is the only place the weekday is written out; "Tue,
+   * Sep 22" was the abbreviation of a heading that has the width for the word.
+   * It is one line at 400px: the longest real value measures ~200px of 14px
+   * Georgia against the ~300px the count leaves it, and it ellipses rather
+   * than wrapping if a locale spells it longer.
+   */
+  when.textContent = `Agenda for ${cell.date.toLocaleDateString(undefined, {
+    weekday: "long",
     month: "short",
     day: "numeric",
-  });
+  })}`;
   const count = document.createElement("span");
-  count.textContent = `${placed.length} due`;
+  count.textContent = `${placed.length} ${placed.length === 1 ? "item" : "items"}`;
   heading.append(when, count);
   list.append(heading);
 

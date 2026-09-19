@@ -56,6 +56,7 @@ import {
   actionsEl,
   app,
   bannersEl,
+  createPressHold,
   dateNavEl,
   filtersEl,
   footerEl,
@@ -138,7 +139,13 @@ function sourcesTooltip(sources: Record<Source, SourceStatus>, now: Date): strin
 function renderWordmark(): HTMLElement {
   const mark = document.createElement("span");
   mark.className = "wordmark";
-  mark.textContent = "Illini Dash";
+  /*
+   * "Illini Dash UIUC", which is what the design mock's title bar says and
+   * what the extension is actually for — every source it reads is a UIUC
+   * system. The bar has had the whole left side to itself since the health
+   * pill was removed, so the five extra characters cost nothing.
+   */
+  mark.textContent = "Illini Dash UIUC";
   return mark;
 }
 
@@ -954,7 +961,47 @@ export function renderDateNav(label: string, step: number): void {
  * prefilled by the drag that opened it — losing that is losing the gesture.
  * `isDirty` is still read, for the confirmation on Escape.
  */
+/**
+ * Whether a mouse button is currently down inside the list.
+ *
+ * `pointerdown`/`pointerup` on the document in the capture phase, so no
+ * handler can stop it being seen. `pointercancel` counts as a release: a
+ * gesture that Chrome takes over (a scroll, a drag) will never produce a
+ * `click`, and a flag left set there would hold every redraw until the next
+ * press.
+ */
+const press = createPressHold((run) => setTimeout(run, 0));
+function endPress(): void {
+  press.release(() => {
+    state.redrawAfterPress = false;
+    void app.refresh();
+  });
+}
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    press.begin(event.target instanceof Element && !!event.target.closest("#view"));
+  },
+  { capture: true },
+);
+document.addEventListener("pointerup", endPress, { capture: true });
+document.addEventListener("pointercancel", endPress, { capture: true });
+
 export function drawIsHeld(): boolean {
+  /*
+   * A press in progress holds the draw — deferred, never skipped, like the
+   * two below it.
+   *
+   * A redraw between mousedown and mouseup replaces the element under the
+   * finger, and the `click` then fires on whatever ancestor survived: the tick
+   * box did nothing and the row it sits on opened instead. Held here rather
+   * than guarded at each of the six things that redraw, for the reason
+   * `redrawAfterMenu` is: three of them checked and three did not.
+   */
+  if (press.hold()) {
+    state.redrawAfterPress = true;
+    return true;
+  }
   const open = document.querySelector<HTMLElement>(MENU_SELECTOR);
   // A row menu is anchored to a row the redraw would replace, so the redraw
   // waits. The Appearance panel is anchored to the header, which no redraw

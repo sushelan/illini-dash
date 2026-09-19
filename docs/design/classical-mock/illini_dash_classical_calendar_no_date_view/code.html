@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Illini Dash UIUC Study Journal - No Date</title>
+<!-- Google Fonts: EB Garamond & Newsreader -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-primary": "#b9c6eb",
+            "on-primary-container": "#828eb1",
+            "primary-fixed": "#d9e2ff",
+            "tertiary-fixed": "#ffdbd2",
+            "primary-container": "#1a2744",
+            "secondary-fixed-dim": "#d9c2b6",
+            "on-secondary-fixed-variant": "#53443a",
+            "on-background": "#1c1c17",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#3c0800",
+            "on-tertiary-container": "#df6e50",
+            "secondary-fixed": "#f6ded1",
+            "surface-container-high": "#ece8e0",
+            "secondary": "#6c5b51",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed": "#0d1b37",
+            "on-surface": "#1c1c17",
+            "surface-variant": "#e6e2da",
+            "surface": "#fdf9f1",
+            "outline": "#75777e",
+            "primary": "#04122e",
+            "outline-variant": "#c5c6ce",
+            "on-primary": "#ffffff",
+            "on-surface-variant": "#45464d",
+            "surface-container": "#f1ede6",
+            "error": "#ba1a1a",
+            "surface-dim": "#dddad2",
+            "secondary-container": "#f6ded1",
+            "on-primary-fixed-variant": "#3a4665",
+            "on-secondary-container": "#726157",
+            "on-secondary": "#ffffff",
+            "surface-container-highest": "#e6e2da",
+            "on-tertiary-fixed-variant": "#812811",
+            "surface-tint": "#515e7e",
+            "on-error": "#ffffff",
+            "on-secondary-fixed": "#251911",
+            "tertiary-container": "#520e00",
+            "inverse-surface": "#31302b",
+            "on-error-container": "#93000a",
+            "inverse-on-surface": "#f4f0e8",
+            "surface-bright": "#fdf9f1",
+            "primary-fixed-dim": "#b9c6eb",
+            "background": "#fdf9f1",
+            "error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#ffb4a2",
+            "tertiary": "#2e0500",
+            "surface-container-low": "#f7f3eb"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem",
+            "space-md": "1rem",
+            "margin": "2rem"
+          },
+          "fontFamily": {
+            "label-md": ["Newsreader"],
+            "body-lg": ["EB Garamond"],
+            "headline-lg-mobile": ["EB Garamond"],
+            "headline-lg": ["EB Garamond"],
+            "headline-xl": ["EB Garamond"],
+            "label-sm": ["Newsreader"],
+            "annotation-italic": ["EB Garamond"],
+            "headline-sm": ["EB Garamond"],
+            "body-sm": ["EB Garamond"],
+            "body-md": ["EB Garamond"],
+            "headline-xl-mobile": ["EB Garamond"],
+            "headline-md": ["EB Garamond"]
+          },
+          "fontSize": {
+            "label-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+            "body-lg": ["19px", { "lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "headline-xl": ["42px", { "lineHeight": "50px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-sm": ["11px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+            "annotation-italic": ["15px", { "lineHeight": "22px", "letterSpacing": "0.02em", "fontWeight": "400" }],
+            "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "body-sm": ["14px", { "lineHeight": "22px", "letterSpacing": "0.015em", "fontWeight": "400" }],
+            "body-md": ["17px", { "lineHeight": "26px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "headline-xl-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    /* Classical double-line rule separator */
+    .folio-double-rule {
+      position: relative;
+      height: 4px;
+      border-top: 1px solid #c5c6ce;
+      border-bottom: 0.5px solid #dfdad0;
+    }
+    /* Subtle parchment background tooth */
+    body {
+      background-color: #fdf9f1;
+      color: #1c1c17;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen flex justify-center selection:bg-secondary-container selection:text-on-secondary-container">
+<!-- Main Container: UIUC Chrome Extension Popup Shell (400px width constraint) -->
+<div class="w-full max-w-[400px] min-h-screen bg-surface flex flex-col shadow-sm relative pb-[76px] border-x border-outline-variant/30">
+<!-- TopAppBar (from Shared Components JSON) -->
+<header class="bg-surface dark:bg-surface text-primary dark:text-primary-fixed border-b border-outline-variant dark:border-outline shadow-sm dark:shadow-none flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto sticky top-0 z-40">
+<button class="p-1 rounded text-primary hover:bg-surface-container-high transition-colors duration-150 ease-in-out flex items-center justify-center" title="Study Journal">
+<span class="material-symbols-outlined text-[20px]" data-icon="menu_book">menu_book</span>
+</button>
+<h1 class="text-headline-sm font-headline-sm text-primary dark:text-primary-fixed tracking-tight select-none">
+        Illini Dash UIUC
+      </h1>
+<button class="p-1 rounded text-primary hover:bg-surface-container-high transition-colors duration-150 ease-in-out flex items-center justify-center" title="Settings">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Status Bar -->
+<div class="bg-surface-container-low px-space-md py-1.5 border-b border-outline-variant/40 flex items-center justify-between text-label-sm font-label-sm">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="w-2 h-2 rounded-full bg-emerald-700/80 inline-block animate-pulse"></span>
+<span class="tracking-wider">● 5 Connected</span>
+</div>
+<button class="text-primary hover:text-primary-container font-semibold transition-colors flex items-center gap-1 hover:underline">
+<span>Sync Now</span>
+<span class="material-symbols-outlined text-[13px]" data-icon="sync">sync</span>
+</button>
+</div>
+<!-- Main Content Folio Canvas -->
+<main class="flex-1 px-space-md pt-space-md pb-space-lg flex flex-col gap-space-md">
+<!-- Headline & Subtitle Banner -->
+<section class="border-b border-outline-variant/60 pb-3">
+<div class="flex items-baseline justify-between mb-0.5">
+<h2 class="text-headline-md font-headline-md text-primary tracking-tight">
+            Undated &amp; Unparsed Items
+          </h2>
+<span class="text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant/60 text-secondary">
+            4 tasks
+          </span>
+</div>
+<p class="text-annotation-italic font-annotation-italic text-secondary leading-tight">
+          Deadlines listed without a specified date or requiring manual resolution.
+        </p>
+</section>
+<!-- Section 1: NO DATE AT ALL -->
+<section class="flex flex-col gap-2.5">
+<!-- Section Header with Classical Accent -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="text-label-sm font-label-sm text-secondary tracking-widest uppercase">
+              Section 1 · No Date at All
+            </span>
+<span class="h-px w-8 bg-outline-variant inline-block"></span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary-fixed-dim bg-primary-container text-surface px-1.5 py-0.2 rounded text-[10px]">
+            3 items
+          </span>
+</div>
+<p class="text-body-sm font-body-sm text-secondary leading-snug -mt-1">
+          Items discovered on course sites or PrairieLearn with no recorded due date.
+        </p>
+<!-- List of No Date Cards -->
+<div class="flex flex-col gap-2.5 mt-1">
+<!-- Card 1: CS 225 -->
+<article class="bg-surface-container-low rounded border border-outline-variant/70 p-space-sm hover:border-primary/40 transition-all shadow-[0_1px_3px_rgba(74,59,50,0.05)]">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 py-0.5 rounded bg-surface-container border border-outline-variant/50 text-primary font-bold">
+                    CS 225
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">PrairieLearn · Untimed</span>
+</div>
+<h3 class="text-body-md font-body-md font-medium text-primary mt-1 leading-snug">
+                  Final Project Proposal &amp; Team Contract
+                </h3>
+</div>
+<span class="material-symbols-outlined text-secondary/60 text-[18px]" data-icon="inventory_2" title="Undated repository task">inventory_2</span>
+</div>
+<!-- Card Actions -->
+<div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-outline-variant/40">
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-secondary text-primary text-label-sm font-label-sm transition-all flex items-center gap-1 shadow-2xs hover:border-primary">
+<span class="material-symbols-outlined text-[13px]" data-icon="edit_calendar">edit_calendar</span>
+<span>Give it a date</span>
+</button>
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary hover:text-primary text-label-sm font-label-sm transition-all flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]" data-icon="check">check</span>
+<span>Tick off</span>
+</button>
+<button class="px-1.5 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary/70 hover:text-error text-label-sm font-label-sm transition-all" title="Hide item">
+<span class="material-symbols-outlined text-[13px]" data-icon="visibility_off">visibility_off</span>
+<span>Hide</span>
+</button>
+</div>
+</article>
+<!-- Card 2: MATH 257 -->
+<article class="bg-surface-container-low rounded border border-outline-variant/70 p-space-sm hover:border-primary/40 transition-all shadow-[0_1px_3px_rgba(74,59,50,0.05)]">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 py-0.5 rounded bg-surface-container border border-outline-variant/50 text-primary font-bold">
+                    MATH 257
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">Canvas · Self-paced</span>
+</div>
+<h3 class="text-body-md font-body-md font-medium text-primary mt-1 leading-snug">
+                  Extra Credit Linear Algebra Exploration
+                </h3>
+</div>
+<span class="material-symbols-outlined text-secondary/60 text-[18px]" data-icon="auto_stories" title="Self study">auto_stories</span>
+</div>
+<!-- Card Actions -->
+<div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-outline-variant/40">
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-secondary text-primary text-label-sm font-label-sm transition-all flex items-center gap-1 shadow-2xs hover:border-primary">
+<span class="material-symbols-outlined text-[13px]" data-icon="edit_calendar">edit_calendar</span>
+<span>Give it a date</span>
+</button>
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary hover:text-primary text-label-sm font-label-sm transition-all flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]" data-icon="check">check</span>
+<span>Tick off</span>
+</button>
+<button class="px-1.5 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary/70 hover:text-error text-label-sm font-label-sm transition-all" title="Hide item">
+<span class="material-symbols-outlined text-[13px]" data-icon="visibility_off">visibility_off</span>
+<span>Hide</span>
+</button>
+</div>
+</article>
+<!-- Card 3: PHYS 212 -->
+<article class="bg-surface-container-low rounded border border-outline-variant/70 p-space-sm hover:border-primary/40 transition-all shadow-[0_1px_3px_rgba(74,59,50,0.05)]">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 py-0.5 rounded bg-surface-container border border-outline-variant/50 text-primary font-bold">
+                    PHYS 212
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">smartPhysics</span>
+</div>
+<h3 class="text-body-md font-body-md font-medium text-primary mt-1 leading-snug">
+                  Formula Sheet &amp; Reference Guide Review
+                </h3>
+</div>
+<span class="material-symbols-outlined text-secondary/60 text-[18px]" data-icon="menu_book" title="Reference">menu_book</span>
+</div>
+<!-- Card Actions -->
+<div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-outline-variant/40">
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-secondary text-primary text-label-sm font-label-sm transition-all flex items-center gap-1 shadow-2xs hover:border-primary">
+<span class="material-symbols-outlined text-[13px]" data-icon="edit_calendar">edit_calendar</span>
+<span>Give it a date</span>
+</button>
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary hover:text-primary text-label-sm font-label-sm transition-all flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]" data-icon="check">check</span>
+<span>Tick off</span>
+</button>
+<button class="px-1.5 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary/70 hover:text-error text-label-sm font-label-sm transition-all" title="Hide item">
+<span class="material-symbols-outlined text-[13px]" data-icon="visibility_off">visibility_off</span>
+<span>Hide</span>
+</button>
+</div>
+</article>
+</div>
+</section>
+<!-- Classical Inset Divider -->
+<div class="folio-double-rule my-1 opacity-70"></div>
+<!-- Section 2: COULDN'T READ -->
+<section class="flex flex-col gap-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="text-label-sm font-label-sm text-secondary tracking-widest uppercase">
+              Section 2 · Couldn't Read
+            </span>
+<span class="h-px w-8 bg-outline-variant inline-block"></span>
+</div>
+<span class="text-label-sm font-label-sm text-on-secondary-container bg-secondary-container px-1.5 py-0.2 rounded text-[10px] font-semibold">
+            1 ambiguous
+          </span>
+</div>
+<p class="text-body-sm font-body-sm text-secondary leading-snug -mt-1">
+          The parser encountered an ambiguous date format or relative deadline string.
+        </p>
+<!-- Unparsed Ambiguous Item Card -->
+<article class="bg-surface-container-low rounded border border-tertiary-fixed-dim/80 bg-[#fdf6f2]/60 p-space-sm shadow-[0_1px_3px_rgba(74,59,50,0.05)] relative overflow-hidden">
+<!-- Left Decorative Archival Tint Bar -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary-container/40"></div>
+<div class="pl-1">
+<div class="flex items-start justify-between gap-2 mb-1">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 py-0.5 rounded bg-surface-container border border-outline-variant/50 text-primary font-bold">
+                    CS 225
+                  </span>
+<span class="text-label-sm font-label-sm text-tertiary-container font-medium flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]" data-icon="warning">warning</span>
+                    Ambiguous date text
+                  </span>
+</div>
+<h3 class="text-body-md font-body-md font-medium text-primary mt-1 leading-snug">
+                  Honor Code Affirmation
+                </h3>
+</div>
+<span class="material-symbols-outlined text-tertiary-container/80 text-[18px]" data-icon="help_outline">help_outline</span>
+</div>
+<!-- Parsing Snippet Quote Box -->
+<div class="bg-surface rounded border border-outline-variant/50 p-2 my-2 text-annotation-italic font-annotation-italic text-secondary text-sm flex items-start gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[14px] mt-0.5 select-none" data-icon="format_quote">format_quote</span>
+<div>
+<span class="text-label-sm font-label-sm uppercase text-secondary/70 not-italic block mb-0.5">Source text:</span>
+<span class="text-primary italic">“Due before Midterm 1 window closes”</span>
+</div>
+</div>
+<!-- Card Actions -->
+<div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-outline-variant/40">
+<button class="px-2 py-1 rounded bg-primary text-surface hover:bg-primary-container text-label-sm font-label-sm transition-all flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[13px]" data-icon="edit_calendar">edit_calendar</span>
+<span>Give it a date</span>
+</button>
+<button class="px-2 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary hover:text-primary text-label-sm font-label-sm transition-all flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]" data-icon="check">check</span>
+<span>Tick off</span>
+</button>
+<button class="px-1.5 py-1 rounded bg-surface hover:bg-surface-container border border-outline-variant text-secondary/70 hover:text-error text-label-sm font-label-sm transition-all" title="Hide item">
+<span class="material-symbols-outlined text-[13px]" data-icon="visibility_off">visibility_off</span>
+<span>Hide</span>
+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- Colophon / Ledger Indicator Footer Link (from spec: "● 5/5 ok · Needs-You Ledger ›") -->
+<section class="mt-2 pt-2 border-t border-outline-variant/50 flex items-center justify-between text-label-sm font-label-sm">
+<span class="text-secondary flex items-center gap-1">
+<span class="text-emerald-700">●</span> 5/5 ok verified
+        </span>
+<button class="text-primary hover:text-primary-container font-semibold transition-colors flex items-center gap-0.5 hover:underline">
+<span>Needs-You Ledger</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</section>
+</main>
+<!-- BottomNavBar (Shared Components JSON execution) -->
+<!-- Destination count: 5 | Labels: ["Today", "Week", "Month", "No Date", "Exams"] -->
+<!-- Active state determined semantically: "No Date" tab is ACTIVE -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline shadow-sm dark:shadow-none">
+<!-- Tab 1: Today (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 hover:text-primary group flex-1">
+<span class="material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary" data-icon="today">today</span>
+<span class="text-label-sm font-label-sm">Today</span>
+</button>
+<!-- Tab 2: Week (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 hover:text-primary group flex-1">
+<span class="material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary" data-icon="calendar_view_week">calendar_view_week</span>
+<span class="text-label-sm font-label-sm">Week</span>
+</button>
+<!-- Tab 3: Month (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 hover:text-primary group flex-1">
+<span class="material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary" data-icon="calendar_month">calendar_month</span>
+<span class="text-label-sm font-label-sm">Month</span>
+</button>
+<!-- Tab 4: No Date (ACTIVE - executes JSON style_active_navigation) -->
+<button class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-lg px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 flex-1 shadow-2xs font-bold">
+<span class="material-symbols-outlined text-[20px] mb-0.5" data-icon="event_busy">event_busy</span>
+<span class="text-label-sm font-label-sm">No Date</span>
+</button>
+<!-- Tab 5: Exams (Inactive) -->
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 hover:text-primary group flex-1">
+<span class="material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary" data-icon="assignment">assignment</span>
+<span class="text-label-sm font-label-sm">Exams</span>
+</button>
+</nav>
+</div>
+</body></html>

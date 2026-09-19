@@ -261,7 +261,9 @@ function renderMarkOnly(): HTMLElement {
   wrap.className = "setup--brand";
   const mark = document.createElement("span");
   mark.className = "wordmark";
-  mark.textContent = "Illini Dash";
+  // Matches `renderWordmark` in shell.ts — the first-run screen and the bar
+  // are the same name, and two spellings of a product name is one too many.
+  mark.textContent = "Illini Dash UIUC";
   wrap.append(appMark(), mark);
   return wrap;
 }

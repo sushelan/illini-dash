@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Illini Dash UIUC Study Journal - Exams</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: EB Garamond & Newsreader -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration Verbatim -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-primary": "#b9c6eb",
+            "on-primary-container": "#828eb1",
+            "primary-fixed": "#d9e2ff",
+            "tertiary-fixed": "#ffdbd2",
+            "primary-container": "#1a2744",
+            "secondary-fixed-dim": "#d9c2b6",
+            "on-secondary-fixed-variant": "#53443a",
+            "on-background": "#1c1c17",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#3c0800",
+            "on-tertiary-container": "#df6e50",
+            "secondary-fixed": "#f6ded1",
+            "surface-container-high": "#ece8e0",
+            "secondary": "#6c5b51",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed": "#0d1b37",
+            "on-surface": "#1c1c17",
+            "surface-variant": "#e6e2da",
+            "surface": "#fdf9f1",
+            "outline": "#75777e",
+            "primary": "#04122e",
+            "outline-variant": "#c5c6ce",
+            "on-primary": "#ffffff",
+            "on-surface-variant": "#45464d",
+            "surface-container": "#f1ede6",
+            "error": "#ba1a1a",
+            "surface-dim": "#dddad2",
+            "secondary-container": "#f6ded1",
+            "on-primary-fixed-variant": "#3a4665",
+            "on-secondary-container": "#726157",
+            "on-secondary": "#ffffff",
+            "surface-container-highest": "#e6e2da",
+            "on-tertiary-fixed-variant": "#812811",
+            "surface-tint": "#515e7e",
+            "on-error": "#ffffff",
+            "on-secondary-fixed": "#251911",
+            "tertiary-container": "#520e00",
+            "inverse-surface": "#31302b",
+            "on-error-container": "#93000a",
+            "inverse-on-surface": "#f4f0e8",
+            "surface-bright": "#fdf9f1",
+            "primary-fixed-dim": "#b9c6eb",
+            "background": "#fdf9f1",
+            "error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#ffb4a2",
+            "tertiary": "#2e0500",
+            "surface-container-low": "#f7f3eb"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem",
+            "space-md": "1rem",
+            "margin": "2rem"
+          },
+          "fontFamily": {
+            "label-md": ["Newsreader"],
+            "body-lg": ["EB Garamond"],
+            "headline-lg-mobile": ["EB Garamond"],
+            "headline-lg": ["EB Garamond"],
+            "headline-xl": ["EB Garamond"],
+            "label-sm": ["Newsreader"],
+            "annotation-italic": ["EB Garamond"],
+            "headline-sm": ["EB Garamond"],
+            "body-sm": ["EB Garamond"],
+            "body-md": ["EB Garamond"],
+            "headline-xl-mobile": ["EB Garamond"],
+            "headline-md": ["EB Garamond"]
+          },
+          "fontSize": {
+            "label-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+            "body-lg": ["19px", { "lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "headline-xl": ["42px", { "lineHeight": "50px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-sm": ["11px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+            "annotation-italic": ["15px", { "lineHeight": "22px", "letterSpacing": "0.02em", "fontWeight": "400" }],
+            "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "body-sm": ["14px", { "lineHeight": "22px", "letterSpacing": "0.015em", "fontWeight": "400" }],
+            "body-md": ["17px", { "lineHeight": "26px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "headline-xl-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    /* Handcrafted tactile paper tooth & ruling mechanics */
+    .folio-container {
+      width: 400px;
+      min-height: 600px;
+      background-color: #fdf9f1;
+      box-shadow: 0 4px 20px rgba(74, 59, 50, 0.12), 0 1px 3px rgba(74, 59, 50, 0.08);
+      position: relative;
+    }
+    
+    .double-rule {
+      border-top: 1px solid #d8cfbe;
+      border-bottom: 0.5px solid #d8cfbe;
+      height: 3px;
+    }
+
+    .brass-clip-accent {
+      background: linear-gradient(135deg, #c49a45 0%, #8f6b28 100%);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-dim min-h-screen flex justify-center items-start p-0 md:p-6 font-body-md text-on-surface antialiased selection:bg-secondary-container">
+<!-- Main 400px Chrome Extension Codex Frame -->
+<div class="folio-container relative flex flex-col justify-between overflow-hidden bg-surface border-x border-outline-variant/40">
+<!-- TOP ANCHOR: TopAppBar (from Shared Components JSON) -->
+<header class="bg-surface sticky top-0 z-40 border-b border-outline-variant transition-colors duration-150 ease-in-out shadow-sm">
+<div class="flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto">
+<div class="flex items-center gap-space-xs">
+<button aria-label="Study Journal Index" class="text-primary hover:bg-surface-container-high p-1 rounded transition-colors duration-150">
+<span class="material-symbols-outlined text-primary">menu_book</span>
+</button>
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight font-semibold">
+            Illini Dash UIUC Study Journal
+          </span>
+</div>
+<button aria-label="Settings" class="text-on-surface-variant hover:text-primary hover:bg-surface-container-high p-1 rounded transition-colors duration-150">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<!-- Scholarly Status Sub-bar -->
+<div class="px-space-md py-1 bg-surface-container-low flex justify-between items-center border-t border-outline-variant/30 text-label-sm font-label-sm text-secondary">
+<div class="flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-[#3f5945] animate-pulse"></span>
+<span class="tracking-wide">● 5 Connected</span>
+</div>
+<button class="flex items-center gap-1 text-primary font-semibold hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[13px]">sync</span>
+<span>Sync Now</span>
+</button>
+</div>
+</header>
+<!-- MAIN SCROLLABLE CONTENT CANVAS -->
+<main class="flex-1 px-space-md pt-space-sm pb-24 space-y-space-md overflow-y-auto">
+<!-- Header Title Banner -->
+<section class="border-b border-outline-variant/60 pb-space-xs pt-1">
+<div class="flex justify-between items-baseline">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold tracking-tight">
+            Exams &amp; Reservations
+          </h1>
+<span class="text-label-sm font-label-sm uppercase text-secondary font-medium tracking-wider">Fall 2024</span>
+</div>
+<p class="font-annotation-italic text-annotation-italic text-secondary mt-0.5">
+          Fall Semester 2024 · All-term horizon
+        </p>
+<div class="double-rule mt-2 mb-1"></div>
+</section>
+<!-- SECTION 1: NOT BOOKED (Terracotta Action Card) -->
+<section class="space-y-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-on-tertiary-container text-[16px]">notification_important</span>
+<h2 class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary-container font-bold">
+              NOT BOOKED
+            </h2>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-tertiary-fixed text-on-tertiary-fixed font-bold">
+            Action Required
+          </span>
+</div>
+<!-- PrairieTest Alert Folio Leaflet -->
+<div class="relative bg-surface-container-low border border-tertiary-fixed-dim/80 rounded-lg p-space-sm shadow-sm transition-all duration-150 hover:shadow-md">
+<!-- Subtle Top Brass Accent Pin -->
+<div class="absolute -top-1 right-5 w-7 h-2 brass-clip-accent rounded-sm"></div>
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label-sm text-label-sm font-semibold tracking-wider text-on-tertiary-container">
+                CS 225
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold mt-0.5">
+                Midterm 1: Memory &amp; Pointers
+              </h3>
+</div>
+</div>
+<div class="mt-space-xs space-y-1 text-body-sm font-body-sm text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary">date_range</span>
+<span>Window open: Sep 20 – Sep 28</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary">location_on</span>
+<span class="font-medium text-primary">CBTF Grainger</span>
+</div>
+</div>
+<!-- Prominent Classical Ink/Terracotta CTA Button -->
+<div class="mt-space-sm pt-space-xs border-t border-outline-variant/50">
+<a class="flex items-center justify-between w-full px-space-md py-2 bg-primary text-on-primary hover:bg-primary-container rounded border border-[#131e34] transition-all duration-150 shadow-sm active:scale-[0.98] group" href="#reserve">
+<span class="font-label-md text-label-md font-semibold tracking-wide flex items-center gap-2">
+<span class="inline-block w-2 h-2 rounded-full bg-on-tertiary-container animate-ping"></span>
+                Reserve CBTF Seat
+              </span>
+<span class="font-headline-sm text-headline-sm leading-none group-hover:translate-x-1 transition-transform">→</span>
+</a>
+</div>
+</div>
+</section>
+<!-- SECTION 2: UPCOMING EXAMS (Confirmed & Booked) -->
+<section class="space-y-space-xs pt-1">
+<div class="flex items-center justify-between border-b border-outline-variant/40 pb-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[16px]">verified</span>
+<h2 class="font-label-md text-label-md uppercase tracking-wider text-secondary font-bold">
+              UPCOMING EXAMS
+            </h2>
+</div>
+<span class="font-annotation-italic text-annotation-italic text-secondary text-xs">
+            2 Confirmed
+          </span>
+</div>
+<!-- Confirmed Card 1: PHYS 212 -->
+<div class="bg-surface-container-low border border-outline-variant/70 rounded-lg p-space-sm space-y-1.5 hover:border-outline transition-colors">
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label-sm text-label-sm font-semibold tracking-wider text-primary">
+                PHYS 212
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold">
+                Hour Exam 1: Electrostatics
+              </h3>
+</div>
+<span class="inline-flex items-center gap-1 font-label-sm text-label-sm text-[#3f5945] bg-[#3f5945]/10 px-1.5 py-0.5 rounded border border-[#3f5945]/20">
+<span class="material-symbols-outlined text-[13px]" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+              PrairieTest
+            </span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface space-y-0.5 pt-0.5">
+<div class="flex items-center gap-1.5 text-primary font-medium">
+<span class="material-symbols-outlined text-[15px] text-secondary">schedule</span>
+<span>Thursday, Oct 8 · 7:00 PM – 8:30 PM</span>
+</div>
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[15px] text-secondary">meeting_room</span>
+<span>Room: 1404 Siebel Center</span>
+</div>
+</div>
+</div>
+<!-- Confirmed Card 2: MATH 257 -->
+<div class="bg-surface-container-low border border-outline-variant/70 rounded-lg p-space-sm space-y-1.5 hover:border-outline transition-colors">
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label-sm text-label-sm font-semibold tracking-wider text-primary">
+                MATH 257
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-primary font-bold">
+                Midterm Exam 1: Systems &amp; Matrix Inverses
+              </h3>
+</div>
+<span class="inline-flex items-center gap-1 font-label-sm text-label-sm text-secondary bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/50">
+<span class="material-symbols-outlined text-[13px]">sync_alt</span>
+              Canvas / Gradescope
+            </span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface space-y-0.5 pt-0.5">
+<div class="flex items-center gap-1.5 text-primary font-medium">
+<span class="material-symbols-outlined text-[15px] text-secondary">schedule</span>
+<span>Tuesday, Oct 20 · 7:00 PM</span>
+</div>
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[15px] text-secondary">pin_drop</span>
+<span>Foellinger Auditorium · Desk Roster Verified</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 3: RECENT (Archived & Past Week Exams) -->
+<section class="space-y-space-xs pt-1">
+<div class="flex items-center justify-between border-b border-outline-variant/40 pb-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[16px]">history_edu</span>
+<h2 class="font-label-md text-label-md uppercase tracking-wider text-secondary font-bold">
+              RECENT
+            </h2>
+</div>
+<span class="font-annotation-italic text-annotation-italic text-secondary text-xs">
+            Past week exams
+          </span>
+</div>
+<!-- Recent Card: CS 225 Assessment -->
+<div class="bg-surface-variant/40 border border-outline-variant/50 rounded-lg p-space-sm flex justify-between items-center opacity-85 hover:opacity-100 transition-opacity">
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm font-semibold tracking-wider text-secondary">
+                CS 225
+              </span>
+<span class="text-on-surface-variant/40 text-xs">·</span>
+<span class="font-body-sm text-body-sm text-secondary">Sat Sep 12</span>
+</div>
+<h4 class="font-body-md text-body-md text-primary font-medium mt-0.5">
+              Pre-semester Placement Assessment
+            </h4>
+</div>
+<span class="inline-flex items-center gap-1 font-label-sm text-label-sm font-bold text-[#3f5945] bg-[#3f5945]/10 px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">done_all</span>
+            Graded
+          </span>
+</div>
+</section>
+<!-- Colophon / Ledger Status Bar -->
+<div class="pt-2 pb-1 border-t border-outline-variant/40 flex justify-between items-center text-label-sm font-label-sm text-secondary">
+<span class="flex items-center gap-1.5">
+<span class="inline-block w-2 h-2 rounded-full bg-[#3f5945]"></span>
+<span>5/5 ok</span>
+</span>
+<button class="font-annotation-italic text-annotation-italic hover:text-primary transition-colors flex items-center gap-0.5 text-primary">
+<span>Needs-You Ledger</span>
+<span class="text-sm font-bold">›</span>
+</button>
+</div>
+</main>
+<!-- FOOTER NAV BAR: BottomNavBar (Exact from Shared Components JSON with Exams Active) -->
+<nav aria-label="Bottom Navigation" class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm transition-all duration-150 ease-out">
+<!-- 1. Today (Inactive) -->
+<button aria-label="Today" class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1">
+<span class="material-symbols-outlined text-secondary">today</span>
+<span class="text-label-sm font-label-sm mt-0.5">Today</span>
+</button>
+<!-- 2. Week (Inactive) -->
+<button aria-label="Week" class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1">
+<span class="material-symbols-outlined text-secondary">calendar_view_week</span>
+<span class="text-label-sm font-label-sm mt-0.5">Week</span>
+</button>
+<!-- 3. Month (Inactive) -->
+<button aria-label="Month" class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1">
+<span class="material-symbols-outlined text-secondary">calendar_month</span>
+<span class="text-label-sm font-label-sm mt-0.5">Month</span>
+</button>
+<!-- 4. No Date (Inactive) -->
+<button aria-label="No Date" class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1">
+<span class="material-symbols-outlined text-secondary">event_busy</span>
+<span class="text-label-sm font-label-sm mt-0.5">No Date</span>
+</button>
+<!-- 5. Exams (ACTIVE Highlighted State per Intent and JSON) -->
+<button aria-current="page" aria-label="Exams" class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-lg px-space-xs py-space-xs flex-1 shadow-sm">
+<span class="material-symbols-outlined text-primary font-bold" data-weight="fill" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<span class="text-label-sm font-label-sm font-bold text-primary mt-0.5">Exams</span>
+</button>
+</nav>
+</div>
+</body></html>

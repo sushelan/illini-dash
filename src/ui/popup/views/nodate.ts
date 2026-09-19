@@ -17,6 +17,7 @@
  */
 
 import { type AttentionName, noDateCount, noDateGroups } from "../../../core/calendar.js";
+import { unreadableDeadline } from "../../../core/quality.js";
 import { icon } from "../../icons.js";
 import type { Item } from "../../../sources/types.js";
 import { app, viewEl } from "../state.js";
@@ -49,13 +50,31 @@ const EXPLAINER =
   "and out of the badge, so they cannot bury anything that is actually due.";
 
 export function renderNoDateView(items: Item[], now: Date, colours: Map<string, number>): void {
-  const note = document.createElement("div");
-  note.className = "card view-note";
-  note.textContent = EXPLAINER;
-  viewEl.append(note);
-
   const groups = noDateGroups(items, now);
   const total = noDateCount(items, now);
+
+  // The mock's folio banner: the title, the count beside it, and the lead
+  // paragraph under a rule. It keeps `.card view-note` so the designs that are
+  // not Classical still get the prose card this replaces.
+  const note = document.createElement("div");
+  note.className = "card view-note nodate-banner";
+  const head = document.createElement("div");
+  head.className = "nodate-banner--head";
+  const title = document.createElement("h2");
+  title.className = "nodate-banner--title";
+  title.textContent = "Undated & unparsed";
+  head.append(title);
+  if (total > 0) {
+    const count = document.createElement("span");
+    count.className = "nodate-banner--count";
+    count.textContent = total === 1 ? "1 item" : `${total} items`;
+    head.append(count);
+  }
+  const lead = document.createElement("p");
+  lead.className = "nodate-banner--lead";
+  lead.textContent = EXPLAINER;
+  note.append(head, lead);
+  viewEl.append(note);
 
   if (total === 0) {
     // Not "nothing here": that would be a claim about the term. This says what
@@ -65,21 +84,52 @@ export function renderNoDateView(items: Item[], now: Date, colours: Map<string, 
     return;
   }
 
-  const heading = document.createElement("div");
-  heading.className = "section-head";
-  const label = document.createElement("span");
-  label.textContent = "Waiting on a date";
-  const count = document.createElement("span");
-  count.textContent = String(total);
-  heading.append(label, count);
-  viewEl.append(heading);
-
-  const stack = document.createElement("div");
-  stack.className = "nodate-stack";
+  /*
+   * Two sections, not one list.
+   *
+   * The mock names them — "No date at all" and "Couldn't read" — because they
+   * are answers to different questions: one is a source that never stated a
+   * deadline, the other is a deadline this extension failed to read. Drawing
+   * them in one stack left the card's `title` attribute as the only place that
+   * distinction survived, which is nowhere a student looks.
+   */
+  let first = true;
   for (const group of groups) {
+    if (group.items.length === 0) continue;
+    if (!first) {
+      // The mock's classical double rule between the two sections.
+      const rule = document.createElement("div");
+      rule.className = "nodate-rule";
+      viewEl.append(rule);
+    }
+    first = false;
+
+    const heading = document.createElement("div");
+    heading.className = "section-head nodate-group--head";
+    const label = document.createElement("span");
+    label.className = "nodate-group--name";
+    const name = document.createElement("span");
+    name.textContent = group.name;
+    const hair = document.createElement("span");
+    hair.className = "nodate-group--hair";
+    label.append(name, hair);
+    const count = document.createElement("span");
+    count.className = "nodate-group--count";
+    // "3 items", not "3": the mock counts in words because the number sits over
+    // two sections and a bare digit beside a heading reads as an index.
+    count.textContent = group.items.length === 1 ? "1 item" : `${group.items.length} items`;
+    heading.append(label, count);
+
+    const groupNote = document.createElement("p");
+    groupNote.className = "nodate-group--note";
+    groupNote.textContent = ATTENTION_NOTE[group.name];
+
+    const stack = document.createElement("div");
+    stack.className = "nodate-stack";
     for (const item of group.items) stack.append(renderNoDateCard(item, group.name, now, colours));
+    viewEl.append(heading, groupNote, stack);
   }
-  viewEl.append(stack, renderAddCard());
+  viewEl.append(renderAddCard());
 }
 
 /**
@@ -99,38 +149,74 @@ function renderNoDateCard(
 ): HTMLElement {
   const card = document.createElement("div");
   card.className = "card nodate-card";
-  // The group's sentence, on the row it applies to. The two groups are drawn in
-  // one list (mock 2c) rather than under two headings, so the row is the only
-  // place left that knows which of them it came from.
+  // The group's sentence, on the row it applies to. The section heading above
+  // names the group; this is what it means, for the student who hovers.
   card.title = ATTENTION_NOTE[group];
+
+  const unreadable = group === "Couldn't read" ? unreadableDeadline(item) : [];
+  if (unreadable.length > 0) {
+    card.classList.add("nodate-card--unread");
+    /*
+     * The amber marker (mock 2c), on a line of its own above the row.
+     *
+     * The mock sets it beside the course chip, which lives inside `rows.ts`'s
+     * row — reaching into that element to insert a child is how two files end
+     * up owning one. A line above it is the same mark in the same colour, and
+     * this file keeps owning every element it builds.
+     */
+    const flag = document.createElement("div");
+    flag.className = "nodate-flag";
+    const chip = document.createElement("span");
+    chip.className = "chip chip-check";
+    chip.append(icon("warning"));
+    const chipText = document.createElement("span");
+    chipText.textContent = "Ambiguous date text";
+    chip.append(chipText);
+    chip.title = ATTENTION_NOTE["Couldn't read"];
+    flag.append(chip);
+    card.append(flag);
+  }
 
   // `"Needs attention"` so `formatDue` keeps its relative precision, exactly as
   // the Attention tab passed it.
   card.append(renderRow(item, now, "Needs attention", undefined, colours));
 
+  /*
+   * The source text, quoted (mock 2c's SOURCE TEXT box).
+   *
+   * `parseField` kept the text it could not read in `extra.unparsed*` and
+   * `qualityFlags` hands it back as `detail`, so this quotes what the page
+   * actually printed rather than a phrase invented here. A flag with no
+   * `detail` — the parser recorded the failure but not the value — draws no
+   * box at all; an empty quotation mark pair would be a claim the source said
+   * nothing, which is the opposite of what happened.
+   */
+  const quoted = unreadable.find((flag) => flag.detail !== undefined && flag.detail !== "");
+  if (quoted !== undefined) {
+    const box = document.createElement("blockquote");
+    box.className = "nodate-source";
+    const boxLabel = document.createElement("span");
+    boxLabel.className = "nodate-source--label";
+    boxLabel.textContent = "Source text";
+    const text = document.createElement("span");
+    text.className = "nodate-source--text";
+    // `textContent`, never markup: the string came off a page this extension
+    // does not control (§8.1's rendering rule).
+    text.textContent = `\u201C${quoted.detail!}\u201D`;
+    box.append(boxLabel, text);
+    card.append(box);
+  }
+
   const actions = document.createElement("div");
   actions.className = "nodate-actions";
 
-  if (group === "Couldn't read") {
-    /*
-     * The amber `check` chip (mock 2c).
-     *
-     * On the actions line rather than inside the row: the row is
-     * `rows.ts`'s object and reaching into it to insert a child is how two
-     * files end up owning one element. The row already says "unreadable" in
-     * its date column and names the field underneath it; this is the mark
-     * that the *card* is the one this extension is at fault for.
-     */
-    const chip = document.createElement("span");
-    chip.className = "chip chip-check";
-    chip.textContent = "check";
-    chip.title = ATTENTION_NOTE["Couldn't read"];
-    actions.append(chip);
-  }
-
   const give = document.createElement("button");
   give.type = "button";
-  give.className = "btn btn-sm btn-secondary";
+  // Filled on an unreadable card, outlined on an undated one (mock 2c): the
+  // unreadable row is the only one on the tab where a date exists and this
+  // extension lost it, so it is the one the student is actually being asked to
+  // repair.
+  give.className = unreadable.length > 0 ? "btn btn-sm btn-primary" : "btn btn-sm btn-secondary";
   give.textContent = "Give it a date";
   give.title = "Put a date on this yourself. The source's own answer is kept underneath.";
   // Not an override sent from here: it opens the editor prefilled, and the

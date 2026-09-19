@@ -1,0 +1,385 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=400, initial-scale=1.0" name="viewport">
+<title>Illini Dash UIUC Study Journal</title>
+<!-- Google Fonts: EB Garamond, Newsreader, Caveat for fountain pen cursive annotations -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=EB+Garamond:ital,wght@0,400..700;1,400..700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@100..900&amp;family=Newsreader:wght@100..900&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "outline": "#75777e",
+            "primary-container": "#1a2744",
+            "surface-tint": "#515e7e",
+            "tertiary-fixed-dim": "#ffb4a2",
+            "on-secondary-container": "#726157",
+            "on-tertiary-container": "#df6e50",
+            "surface-bright": "#fdf9f1",
+            "on-secondary": "#ffffff",
+            "surface-dim": "#dddad2",
+            "on-secondary-fixed-variant": "#53443a",
+            "surface": "#fdf9f1",
+            "on-primary-container": "#828eb1",
+            "surface-container": "#f1ede6",
+            "primary-fixed-dim": "#b9c6eb",
+            "primary": "#04122e",
+            "outline-variant": "#c5c6ce",
+            "surface-container-high": "#ece8e0",
+            "background": "#fdf9f1",
+            "surface-container-highest": "#e6e2da",
+            "tertiary-container": "#520e00",
+            "secondary-fixed-dim": "#d9c2b6",
+            "on-surface": "#1c1c17",
+            "on-tertiary-fixed-variant": "#812811",
+            "surface-container-low": "#f7f3eb",
+            "on-error-container": "#93000a",
+            "on-primary-fixed": "#0d1b37",
+            "surface-container-lowest": "#ffffff",
+            "on-background": "#1c1c17",
+            "on-surface-variant": "#45464d",
+            "inverse-on-surface": "#f4f0e8",
+            "on-secondary-fixed": "#251911",
+            "error-container": "#ffdad6",
+            "inverse-primary": "#b9c6eb",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed-variant": "#3a4665",
+            "secondary-fixed": "#f6ded1",
+            "on-error": "#ffffff",
+            "on-primary": "#ffffff",
+            "primary-fixed": "#d9e2ff",
+            "secondary-container": "#f6ded1",
+            "surface-variant": "#e6e2da",
+            "secondary": "#6c5b51",
+            "error": "#ba1a1a",
+            "on-tertiary-fixed": "#3c0800",
+            "tertiary-fixed": "#ffdbd2",
+            "tertiary": "#2e0500",
+            "inverse-surface": "#31302b"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "margin": "2rem",
+            "space-md": "1rem",
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-lg": "1.5rem",
+            "space-xl": "2.5rem"
+          },
+          "fontFamily": {
+            "headline-xl": ["EB Garamond"],
+            "annotation-italic": ["EB Garamond"],
+            "body-sm": ["EB Garamond"],
+            "headline-md": ["EB Garamond"],
+            "headline-lg": ["EB Garamond"],
+            "headline-lg-mobile": ["EB Garamond"],
+            "label-sm": ["Newsreader"],
+            "body-md": ["EB Garamond"],
+            "body-lg": ["EB Garamond"],
+            "headline-xl-mobile": ["EB Garamond"],
+            "headline-sm": ["EB Garamond"],
+            "label-md": ["Newsreader"],
+            "handwriting": ["Caveat", "cursive"]
+          },
+          "fontSize": {
+            "headline-xl": ["42px", {"lineHeight": "50px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "annotation-italic": ["15px", {"lineHeight": "22px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+            "body-sm": ["14px", {"lineHeight": "22px", "letterSpacing": "0.015em", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+            "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+            "body-md": ["17px", {"lineHeight": "26px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "body-lg": ["19px", {"lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-xl-mobile": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+            "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500"}]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Journal Paper Ruling & Red Margin Line */
+    .journal-ruled-canvas {
+      background-color: #fdf9f1;
+      background-image: 
+        linear-gradient(to right, transparent 38px, rgba(223, 164, 149, 0.45) 38px, rgba(223, 164, 149, 0.45) 39.5px, transparent 39.5px),
+        linear-gradient(to bottom, transparent 25px, rgba(216, 207, 190, 0.35) 25px, rgba(216, 207, 190, 0.35) 26px);
+      background-size: 100% 26px, 100% 26px;
+      background-attachment: local;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1ede6;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #c5c6ce;
+      border-radius: 2px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #75777e;
+    }
+    .double-rule {
+      border-bottom: 1px solid #c5c6ce;
+      box-shadow: 0 2px 0 0 #fdf9f1, 0 3px 0 0 #c5c6ce;
+    }
+    .stamp-wax {
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.4), inset 0 -1px 2px rgba(0,0,0,0.25), 0 1px 3px rgba(158, 61, 36, 0.2);
+    }
+    .brass-accent {
+      background: linear-gradient(135deg, #d4af37 0%, #aa8222 100%);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .strikethrough-ink {
+      position: relative;
+    }
+    .strikethrough-ink::after {
+      content: '';
+      position: absolute;
+      left: -2px;
+      right: -2px;
+      top: 52%;
+      height: 1.5px;
+      background: #1a2744;
+      opacity: 0.75;
+      transform: rotate(-0.7deg);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface-container-high text-on-surface antialiased flex justify-center items-center min-h-screen p-0 m-0 select-none">
+<!-- Popup Envelope Container (Strict 400px width, max 600px height) -->
+<div class="w-[400px] h-[600px] max-w-[400px] max-h-[600px] bg-surface flex flex-col relative overflow-hidden shadow-2xl border border-outline-variant/60 rounded-lg">
+<!-- Tactile Spine & Binding Ribbon Marker -->
+<div class="absolute left-0 top-0 bottom-0 w-[4px] bg-secondary z-30 opacity-70"></div>
+<!-- TopAppBar (Shared Component Source of Truth) -->
+<header class="bg-surface text-primary border-b border-outline-variant shadow-sm z-20 flex-shrink-0">
+<div class="flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto">
+<div class="flex items-center space-x-2 pl-1">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="menu_book">menu_book</span>
+<span class="text-headline-sm font-headline-sm text-primary tracking-tight font-semibold">Illini Dash UIUC</span>
+</div>
+<button class="transition-colors duration-150 ease-in-out hover:bg-surface-container-high hover:text-primary p-1 rounded text-secondary flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[19px]" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Top Notification Banner: Tucked-in slip / Parchment Callout -->
+<div class="bg-surface-container-low border-b border-outline-variant/50 px-3.5 py-1.5 flex items-center justify-between text-on-surface z-10 relative"><div class="flex items-center space-x-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-700"></span><span class="text-label-sm font-label-sm text-secondary font-medium tracking-wide">5 Connected</span></div><button class="flex items-center space-x-1 text-label-sm font-label-sm text-primary hover:text-secondary transition-colors duration-150"><span class="material-symbols-outlined text-[14px]" data-icon="sync">sync</span><span class="font-medium">Sync Now</span></button></div>
+<!-- Scrollable Notebook Ruled Content Canvas (Bounded within popup) -->
+<main class="flex-1 overflow-y-auto custom-scroll relative pb-16">
+<!-- Date Folio Header & Cursive Marginalia -->
+<div class="pt-3 pb-2.5 px-4 relative"><div class="flex items-baseline justify-between"><div class="flex items-baseline space-x-2.5"><h1 class="text-headline-sm font-headline-sm text-primary font-bold tracking-tight">Tuesday, September 22</h1><span class="text-label-sm font-label-sm text-secondary uppercase tracking-wider font-medium">4 items</span></div><span class="text-label-sm font-label-sm text-secondary tracking-wide">Fall Semester 2024</span></div><div class="border-b border-outline-variant/60 mt-2 w-full"></div></div>
+<!-- Content Bands Container -->
+<div class="px-4 space-y-3.5">
+<!-- Band 1: LATE / OVERDUE (Past Due) -->
+<section class="relative pl-6">
+<div class="flex items-center justify-between mb-1"><div class="flex items-center space-x-1.5"><span class="material-symbols-outlined text-[15px] text-error" data-icon="error">error</span><span class="text-label-sm font-label-sm font-bold text-error uppercase tracking-wider">Overdue</span></div><span class="text-label-sm font-label-sm text-error bg-error-container/60 border border-error/40 px-1.5 py-0.2 rounded font-medium">1 item</span></div>
+<!-- Overdue Card Slip -->
+<div class="bg-surface-container-low/90 border border-error/30 rounded p-2 shadow-sm transition-all hover:border-error/50">
+<div class="flex items-start justify-between">
+<div class="flex-1 pr-2">
+<div class="flex items-center space-x-1.5 mb-0.5">
+<span class="bg-primary-container text-surface-bright text-label-sm font-label-sm px-1 rounded text-[10px]">
+                    PHYS 212
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">
+                    smartPhysics
+                  </span>
+</div>
+<h2 class="text-body-md font-body-md text-primary font-medium leading-snug">
+                  Discussion Quiz 3: Electric Potential
+                </h2>
+<p class="text-label-sm font-label-sm text-error font-medium mt-0.5">
+                  Due: Yesterday 11:59 PM
+                </p>
+</div>
+<button class="w-4 h-4 rounded border border-secondary text-primary flex items-center justify-center hover:bg-surface-container-high transition-colors mt-0.5">
+<span class="w-2.5 h-2.5 rounded-sm"></span>
+</button>
+</div>
+</div>
+</section>
+<!-- Band 2: BY END OF DAY -->
+<section class="relative pl-6">
+<div class="flex items-center justify-between mb-1"><div class="flex items-center justify-between"><h2 class="text-label-sm font-label-sm font-bold text-primary uppercase tracking-wider">End of Day</h2><span class="text-label-sm font-label-sm text-secondary font-medium">2 items</span></div></div>
+<div class="space-y-1.5">
+<!-- Untimed first: CS 225 -->
+<div class="bg-surface-container-low/80 border border-outline-variant/70 rounded p-2 shadow-sm flex items-start justify-between">
+<div class="flex-1 pr-2">
+<div class="flex items-center space-x-1.5 mb-0.5">
+<span class="bg-surface-container-highest text-secondary text-label-sm font-label-sm px-1 rounded text-[10px]">
+                    CS 225
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">
+                    PrairieLearn
+                  </span>
+<span class="text-outline-variant text-[10px]">•</span>
+<span class="text-label-sm font-label-sm text-secondary">
+                    Untimed · EOD completion
+                  </span>
+</div>
+<h3 class="text-body-md font-body-md text-primary font-medium leading-tight">
+                  Daily Memory Checkpoint &amp; Survey
+                </h3>
+</div>
+<!-- Hand-drawn Scholar Checkbox -->
+<div class="w-4 h-4 border border-secondary rounded-none flex items-center justify-center cursor-pointer hover:border-primary mt-1"></div>
+</div>
+<!-- Timed midnight: MATH 257 -->
+<div class="bg-surface-container-low/80 border border-outline-variant/70 rounded p-2 shadow-sm flex items-start justify-between">
+<div class="flex-1 pr-2">
+<div class="flex items-center space-x-1.5 mb-0.5">
+<span class="bg-surface-container-highest text-secondary text-label-sm font-label-sm px-1 rounded text-[10px]">
+                    MATH 257
+                  </span>
+<span class="text-label-sm font-label-sm text-secondary">
+                    Gradescope
+                  </span>
+<span class="text-outline-variant text-[10px]">•</span>
+<span class="text-label-sm font-label-sm text-tertiary font-semibold">
+                    50 pts
+                  </span>
+</div>
+<h3 class="text-body-md font-body-md text-primary font-medium leading-tight">
+                  Homework 5: Orthogonality &amp; Gram-Schmidt
+                </h3>
+<div class="flex items-center space-x-2 mt-0.5"><span class="text-label-sm font-label-sm text-secondary">Due 11:59 PM</span></div>
+</div>
+<div class="w-4 h-4 border border-secondary rounded-none flex items-center justify-center cursor-pointer hover:border-primary mt-1"></div>
+</div>
+</div>
+</section>
+<!-- Band 3: TODAY'S TIMELINE (Clocked schedule on an ink rail) -->
+<section class="relative pl-6 pt-1">
+<div class="flex items-center justify-between mb-2"><div class="flex items-center justify-between"><h2 class="text-label-sm font-label-sm font-bold text-primary uppercase tracking-wider">Timeline</h2><span class="text-label-sm font-label-sm text-secondary font-medium">Today's Schedule</span></div></div>
+<!-- Vertical Timeline Rail Container -->
+<div class="relative pl-6 pb-2">
+<!-- Vertical Fountain Pen Line Rail -->
+<div class="absolute left-2 top-1 bottom-1 w-[1.5px] bg-outline-variant"></div>
+<!-- Real-time Indicator Line: 'Now · 11:14 AM' with Pen-Nib Marker -->
+<div class="relative my-2.5 -ml-6 flex items-center">
+<div class="w-2.5 h-2.5 bg-primary-container rounded-full border-2 border-surface flex items-center justify-center z-10 ml-0.5">
+<div class="w-1 h-1 bg-surface-bright rounded-full"></div>
+</div>
+<div class="h-[1px] bg-primary-container flex-1 ml-1.5 opacity-80"></div>
+<span class="bg-primary-container text-surface-bright text-[11px] font-label-sm px-1.5 py-0.2 rounded-sm ml-1 shadow-sm font-medium tracking-wide">
+                Now · 11:14 AM
+              </span>
+</div>
+<!-- Event 1: 11:59 AM - CS 225 MP 2 -->
+<div class="relative mb-3.5 group">
+<!-- Timeline Pip Marker -->
+<div class="absolute -left-[22px] top-1.5 w-2 h-2 rounded-full border border-primary bg-surface z-10 group-hover:bg-primary transition-colors"></div>
+<div class="bg-surface-container-low border border-outline-variant/60 rounded p-2 transition-all">
+<div class="flex items-baseline justify-between mb-0.5">
+<div class="flex items-center space-x-1.5">
+<span class="text-label-sm font-label-sm font-semibold text-primary">11:59 AM</span>
+<span class="bg-primary-container text-surface-bright text-[10px] font-label-sm px-1 rounded">CS 225</span>
+<span class="text-label-sm font-label-sm text-secondary">PrairieLearn</span>
+</div>
+<span class="text-label-sm font-label-sm text-error font-medium">Due in 45m · 100 pts</span>
+</div>
+<div class="text-body-md font-body-md text-primary font-medium">
+                  MP 2: Quadtrees
+                </div>
+</div>
+</div>
+<!-- Event 2: 3:00 PM - ECE 391 (Finished / Struck-through) -->
+<div class="relative mb-2 group">
+<!-- Completed Pip Marker with deep ink checkmark -->
+<div class="absolute -left-[22px] top-1.5 w-2 h-2 rounded-full bg-secondary z-10"></div>
+<div class="bg-surface-container-high/60 border border-outline-variant/40 rounded p-2 opacity-85">
+<div class="flex items-baseline justify-between mb-0.5">
+<div class="flex items-center space-x-1.5">
+<span class="text-label-sm font-label-sm text-secondary">3:00 PM</span>
+<span class="bg-surface-container-highest text-secondary text-[10px] font-label-sm px-1 rounded">ECE 391</span>
+<span class="text-label-sm font-label-sm text-secondary">Course Site</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary italic">Finished</span>
+</div>
+<!-- Struck-through with fountain pen ink strike -->
+<div class="text-body-md font-body-md text-secondary strikethrough-ink inline-block">
+                  Lab 1 Milestone
+                </div>
+</div>
+</div>
+<!-- Collapsed Empty Hours (Bracket / Dotted Gap) -->
+<div class="relative my-2.5 pl-2 flex items-center justify-between text-secondary"><div class="flex items-center space-x-1.5 text-label-sm font-label-sm text-secondary opacity-75"><span class="material-symbols-outlined text-[14px]" data-icon="more_horiz">more_horiz</span><span class="">4 hrs unscheduled</span></div></div>
+<!-- Event 3: 7:00 PM - PHYS 212 -->
+<div class="relative group">
+<div class="absolute -left-[22px] top-1.5 w-2 h-2 rounded-full border border-primary bg-surface z-10"></div>
+<div class="bg-surface-container-low border border-outline-variant/60 rounded p-2">
+<div class="flex items-baseline justify-between mb-0.5">
+<div class="flex items-center space-x-1.5">
+<span class="text-label-sm font-label-sm font-semibold text-primary">7:00 PM</span>
+<span class="bg-primary-container text-surface-bright text-[10px] font-label-sm px-1 rounded">PHYS 212</span>
+<span class="text-label-sm font-label-sm text-secondary">PrairieTest</span>
+</div>
+<span class="text-label-sm font-label-sm text-secondary font-medium">booking</span>
+</div>
+<div class="text-body-md font-body-md text-primary font-medium">
+                  Evening Review Session
+                </div>
+<div class="text-label-sm font-label-sm text-secondary mt-0.5">
+                  7:00 PM - 8:30 PM · Grainger Library Rm 233
+                </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Colophon & Source Ledger Footer Section (Shared Component Source of Truth) -->
+<footer class="bg-surface-container-low border-t border-outline-variant mt-3 text-secondary text-label-sm font-label-sm"><div class="flex justify-between items-center px-space-md py-1.5 w-full max-w-[400px] mx-auto"><div class="flex items-center space-x-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-700"></span><span class="text-label-sm font-label-sm text-secondary">All 5 sources in sync</span></div><div class="flex items-center space-x-2 text-label-sm font-label-sm"><span class="hover:text-primary cursor-pointer text-secondary transition-colors">Calendar</span><span class="text-outline-variant">•</span><span class="hover:text-primary cursor-pointer text-secondary transition-colors">Ledger ›</span></div></div></footer>
+</div>
+</main>
+<!-- BottomNavBar (Shared Component - Active Tab: 'Today') -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm flex-shrink-0">
+<!-- Tab 1: Today (ACTIVE - Exactly semantic match) -->
+<button class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-lg px-space-xs py-space-xs transition-all duration-150 ease-out active:scale-95 flex-1 mx-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="today">today</span>
+<span class="text-label-sm font-label-sm mt-0.5 font-bold">Today</span>
+</button>
+<!-- Tab 2: Week -->
+<button class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-all duration-150 ease-out active:scale-95 flex-1 mx-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="calendar_view_week">calendar_view_week</span>
+<span class="text-label-sm font-label-sm mt-0.5">Week</span>
+</button>
+<!-- Tab 3: Month -->
+<button class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-all duration-150 ease-out active:scale-95 flex-1 mx-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+<span class="text-label-sm font-label-sm mt-0.5">Month</span>
+</button>
+<!-- Tab 4: No Date -->
+<button class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-all duration-150 ease-out active:scale-95 flex-1 mx-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="event_busy">event_busy</span>
+<span class="text-label-sm font-label-sm mt-0.5">No Date</span>
+</button>
+<!-- Tab 5: Exams -->
+<button class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-all duration-150 ease-out active:scale-95 flex-1 mx-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="assignment">assignment</span>
+<span class="text-label-sm font-label-sm mt-0.5">Exams</span>
+</button>
+</nav>
+</div>
+
+
+</body></html>

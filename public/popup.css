@@ -488,6 +488,17 @@ h2.section {
  */
 .tabs .icon { display: none; }
 
+/*
+ * The folio header — "Tuesday, September 22 · 4 items" — off in the shipped
+ * design, for the same reason the tab glyphs are.
+ *
+ * It is a 20px serif heading and a rule, which is about 40px of a 600px window
+ * spent restating something the date navigator above it already says. The
+ * Classical design has a running head because it is a journal; this one has a
+ * budget of 144px before the first row and no room for one.
+ */
+.folio { display: none; }
+
 /* ---- the course chips: one 36px row that scrolls ----
  *
  * Seven courses wrapped to two rows and cost 81px. `overflow-x` goes on this

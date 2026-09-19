@@ -32,7 +32,7 @@ import { iconButton } from "../icons.js";
 import { TWEAKS_EVENT } from "../theme-panel.js";
 import type { Item } from "../../sources/types.js";
 import { app, readTweaks, safeUrl, state } from "./state.js";
-import { applySuggestionRequest, openRowMenu } from "./shell.js";
+import { applyOverrideAction, applySuggestionRequest, openRowMenu } from "./shell.js";
 
 /** Said on the row rather than over a band of rows (brief D4). */
 const ASSUMED_NOTE =
@@ -61,6 +61,28 @@ window.addEventListener(TWEAKS_EVENT, () => {
   void app.refresh();
 });
 
+/**
+ * Whether the row is drawn as a card slip rather than as a line.
+ *
+ * The one thing in this file that asks which design is on, and it asks the
+ * root element — the same attribute `theme-panel.ts` writes and the stylesheet
+ * keys on, so there is no second copy of the choice to fall out of step.
+ *
+ * It exists because the two shapes are **markup**, not paint. The compact row
+ * never builds the source name at all, so no stylesheet can put "smartPhysics"
+ * back on a card that is supposed to carry it; and the Classical design's whole
+ * row is the two-line shape with a title over a meta line, which this file has
+ * built all along for the list views.
+ *
+ * Note this reverses a decision from the same day in the *other* design, on
+ * purpose: Sushi asked for one-line rows in the shipped popup ("each item per
+ * day is too large"), and the Classical mock asks for card slips with the
+ * source named. Both are true of their own design; neither is true of both.
+ */
+function cardDesign(): boolean {
+  return document.documentElement.dataset.design === "classical";
+}
+
 export function renderRow(
   item: Item,
   now: Date,
@@ -69,6 +91,9 @@ export function renderRow(
   colours?: Map<string, number>,
   options: RowOptions = {},
 ): HTMLElement {
+  // A card slip is the two-line shape, whoever asked for the one-line one.
+  const asCard = cardDesign();
+  if (asCard && options.compact) options = { ...options, compact: false };
   /*
    * An `<a>`, not a `<div>` with a click handler.
    *
@@ -404,7 +429,10 @@ export function renderRow(
   // D14: the source word is a per-device preference, not a default. Off means
   // the element is never built — hiding it in CSS would leave it in the
   // accessibility tree of the one student who asked for it to be gone.
-  if (state.tweaks.showSourceNames) metaLine.append(sep(), sources);
+  // D14 makes the source word a per-device preference. The Classical card
+  // states it by construction — it is a line of the card the mock draws, not
+  // an extra — so there the tweak cannot turn it off.
+  if (state.tweaks.showSourceNames || asCard) metaLine.append(sep(), sources);
   for (const part of meta) metaLine.append(sep(), part);
   if (item.forCredit === false) metaLine.append(sep(), practice);
 
@@ -422,6 +450,52 @@ export function renderRow(
   when.className = "row--when";
   when.append(rel, due);
   row.append(dot, main, when, menu);
+
+  /*
+   * The card slip's checkbox — "tick it off", which is the mock's whole
+   * gesture and the reason a card is worth its height.
+   *
+   * It does exactly what the ⋯ menu's **Mark done** does, through the same
+   * `applyOverrideAction`, so there is one code path to the store and not two
+   * that can disagree about what "done" means. Two of the five sources can
+   * never report completion, so this is the control a student reaches for most
+   * and it was two presses deep.
+   *
+   * A real `<input type="checkbox">`, not a styled `<span>`: it has to answer
+   * the space bar, take focus, and announce its state, and none of that is
+   * worth reimplementing. `preventDefault`/`stopPropagation` on the click
+   * because the card is an `<a>` — without them, ticking a box opens
+   * Gradescope (the same defect the undo button above already had).
+   */
+  if (asCard) {
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.className = "row--tick";
+    tick.checked = item.done === true;
+    /*
+     * The second half of "the box does not work", and the half no event trace
+     * shows: the ⋯ trigger is `position: absolute` and overlaps the box. A
+     * positioned element paints above a static one whatever the source order,
+     * so 9 of the box's 15 rows were the ⋯ button — measured in the real
+     * document, tick at [349,180,15,15], menu at [343,186,24,24]. Aim at the
+     * middle of the square you can see and you press ⋯.
+     *
+     * `position: relative` and nothing else: two positioned siblings with
+     * `z-index: auto` paint in source order, and the box is appended after the
+     * menu. It moves nothing — a relatively positioned grid item with no
+     * offsets occupies exactly the box it already had — so this is not a change
+     * to the design, and it is here rather than in the stylesheet because it is
+     * a hit-testing fact about these two elements rather than a look.
+     */
+    tick.style.position = "relative";
+    tick.title = item.done ? "Put this back — not done" : "Tick this off";
+    tick.setAttribute("aria-label", `${item.done ? "Not done" : "Done"}: ${item.title}`);
+    tick.addEventListener("click", (event) => {
+      event.stopPropagation();
+      applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id });
+    });
+    row.append(tick);
+  }
 
   for (const detail of details) {
     const line = document.createElement("span");

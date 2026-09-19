@@ -1,0 +1,314 @@
+/* design-classical-week.css — the Classical calendar's week view.
+ *
+ * Scoped under `html[data-design="classical"]` like every rule in
+ * `design-classical.css`, which loads first and owns the tokens, the type
+ * scale, the shell, the tab bar and the shared card slip. Spend those here;
+ * do not restate them. One file per view so parallel work never collides in
+ * a single stylesheet.
+ *
+ * The invariants it may not break: `html` and `body` are never scroll
+ * containers, nothing takes a viewport unit or a percentage height, and no
+ * rule is keyed on window width. See the header of popup.css.
+ */
+
+/* --------------------------------------------------------------------------
+ * What was measured, before any number below
+ *
+ * The mock reads as a 700px phone, but it is not one: its `<meta viewport>` is
+ * `width=400` and the shell it draws is `w-[400px]`. Every spacing and column
+ * number in `code.html` is therefore already at this popup's scale, and the
+ * honest reduction is *none* — the 44px day column, the 8px card padding
+ * (`p-2`), the 10px card gutter (`gap-2.5`) and the 8px between cards (`gap-2`)
+ * are the mock's own, kept.
+ *
+ * The type is the part that does not survive being copied. The mock sets a row
+ * title at `body-sm` = 14px of EB Garamond, which no machine here has: Georgia
+ * draws instead, and Georgia is materially wider per character at the same em.
+ * The track the title actually gets is
+ *
+ *     400 − 20 (view gutters) − 2 (card border) − 16 (card padding)
+ *         − 44 (day column) − 10 (gutter) − 15 (tick) − 20 (⋯) − 18 (gaps)
+ *       ≈ 255px, of which the time takes ~52 → ~195px for the title
+ *
+ * and 14px of Georgia holds ~28 characters there against 12.5px's ~32. "Lab 04:
+ * Trees & Traversals" is 25 and "MP 2: Image Processing" is 22, so 12.5 keeps
+ * the mock's real titles unclipped and 14 does not. The day number is the
+ * mock's `headline-sm` (20px) at 19px for the same reason — it is set in the
+ * serif beside a 44px column that must also hold "WED".
+ *
+ * Everything else comes from `design-classical.css`: no hex literal appears
+ * below, and no rule here restates a token.
+ * ----------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+ * 1. The week navigator
+ *
+ * `‹ Sep 20 – 26 ›` on the left, the "This Week" pill on the right — the mock's
+ * `<nav>`. The label and the arrows are already what `renderDateNav` builds;
+ * what changes is that the pill (either "This Week" when the anchor is now, or
+ * the "Today" button that takes you back when it is not) leaves the pair of
+ * arrows and goes to the far end of the bar, where the mock puts it.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] body[data-view="week"] .datenav {
+  gap: 4px;
+  padding: 0 10px;
+}
+html[data-design="classical"] body[data-view="week"] .datenav--today,
+html[data-design="classical"] .datenav--week {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid var(--card-line);
+  border-radius: 999px;
+  background: var(--pill-fill);
+  color: var(--fg);
+  font-family: var(--label);
+  /* Title Case and 11.5px, as the mock sets it — "This Week", not "THIS WEEK".
+     Uppercasing a two-word control makes it read as a heading, and the strip
+     it sits on already has one. */
+  font-size: 11.5px; font-weight: 500;
+  letter-spacing: .01em; text-transform: none;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+ * 2. The day card
+ *
+ * The shipped week is seven hairline-separated bands; the mock is seven slips,
+ * each with its own edge and its own fill, 8px apart. That is `popup-rows.css`
+ * reversed on purpose and only here — its argument ("three surfaces deep on a
+ * 400px screen") is answered by the card having no *nested* card in it: the
+ * rows inside are flattened to one line each, below.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] body[data-view="week"] #view {
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+html[data-design="classical"] #view .wrow {
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--card-line);
+  border-radius: 4px;
+  background: var(--surface);
+}
+/* `popup-rows.css` separates two bands with a rule on the second one. Two
+   slips 8px apart separate themselves, and the card's own edge already draws
+   that line — so the rule is folded back into the border above rather than
+   left to paint a second one. */
+
+/* A quiet day is the same slip, lighter: the mock keeps its border and drops
+   its weight (`/40`, `opacity-80`) rather than collapsing it to a line. */
+html[data-design="classical"] #view .wrow--quiet {
+  padding: 8px;
+  align-items: center;
+  background: transparent;
+  border-color: var(--line);
+}
+
+/*
+ * Today: the bookmark edge.
+ *
+ * The mock draws a 4px bar down the *card's* left edge, inside its rounded
+ * corner — not down the date column, which is where `popup-rows.css` moved it.
+ * `border-left` on the card itself, with the padding reduced by the same amount
+ * so the row does not shift 3px right of its six neighbours.
+ */
+html[data-design="classical"] #view .wrow--today {
+  background: var(--today-tint);
+  border-color: var(--accent);
+  border-left: 4px solid var(--brand-mark);
+  padding-left: 5px;
+}
+html[data-design="classical"] #view .wrow--today .wday {
+  border-left: 0;
+  border-radius: 0;
+  padding-left: 0;
+}
+
+/* --------------------------------------------------------------------------
+ * 3. The date column, 44px
+ *
+ * `WED` over `23`, centred, with a `Today` caption under it on one of the seven
+ * — the mock's `w-[44px]` column exactly. `design-classical.css` already sets
+ * the three type treatments; what is left is the caption's badge and the fact
+ * that this column no longer has a fill or a rule of its own (the card's edge
+ * does that work now).
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] #view .wday {
+  background: transparent;
+  border-right: 0;
+  padding-top: 1px;
+}
+html[data-design="classical"] #view .wrow--today .wday--dow,
+html[data-design="classical"] #view .wrow--today .wday--num { color: var(--brand-mark); }
+html[data-design="classical"] #view .wrow--quiet .wday--num { font-weight: 500; color: var(--muted); }
+html[data-design="classical"] #view .wrow--quiet .wday--dow { color: var(--muted); }
+/* The caption is a filled marker in the mock, not a word in the accent colour:
+   at 8.5px a colour-only signal is the one a high-contrast theme removes. */
+html[data-design="classical"] #view .wday--today {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--accent-wash);
+  color: var(--brand-mark);
+  font-family: var(--sans);
+  font-size: 8px; font-weight: 700; letter-spacing: .07em;
+}
+
+/* --------------------------------------------------------------------------
+ * 4. The deadline lines
+ *
+ * The mock's day holds *lines*, not slips: `[CS 225] Lab 04: Trees & Traversals
+ * … 5:00 PM`, hairline-ruled between them. `renderRow` builds the Classical card
+ * slip everywhere (`cardDesign()` in rows.ts), which is right on Today and
+ * wrong in a card that already is the card — three-line slips seven days deep
+ * is roughly 1900px of document in a 600px window.
+ *
+ * So the slip is flattened here, and only here: the grid becomes one baseline
+ * row, the meta line gives up everything except the course code, and the card's
+ * own edge, fill and padding go. Nothing is hidden that the mock shows.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] #view .witems { gap: 0; padding: 0; }
+html[data-design="classical"] #view .wrow .row {
+  display: flex; flex-direction: row; align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0; border-radius: 0;
+  background: none; box-shadow: none;
+}
+html[data-design="classical"] #view .wrow .row + .row { border-top: 1px solid var(--line); }
+html[data-design="classical"] #view .wrow .row:hover { background: none; }
+
+/* `.row--main` is a column of title-over-meta in the slip; here it is the same
+   two children on one line, the code first. Flex `order`, as the slip does it,
+   so the DOM order a screen reader follows is untouched. */
+html[data-design="classical"] #view .wrow .row--main {
+  flex: 1 1 auto; min-width: 0;
+  flex-direction: row; align-items: baseline;
+  gap: 6px;
+}
+html[data-design="classical"] #view .wrow .row--meta { order: 0; flex: none; }
+/*
+ * Only the code survives the meta line.
+ *
+ * The slip's meta is `CODE · Gradescope · Room 57 · practice`, four clauses
+ * competing with the title on a 195px track. Stating the whole line and then
+ * un-stating the parts one class at a time is how a new meta part (a new `·`,
+ * a new qualifier) silently reappears here; hiding the line's children and
+ * naming the two that stay cannot go wrong that way.
+ */
+html[data-design="classical"] #view .wrow .row--meta > * { display: none; }
+html[data-design="classical"] #view .wrow .row--meta > .row--code,
+html[data-design="classical"] #view .wrow .row--meta > .chip-practice { display: inline-block; }
+
+/* One line, ellipsed — the slip clamps to two, and a two-line title inside a
+   day card is the height this view cannot spend. */
+html[data-design="classical"] #view .wrow .row--title {
+  order: 1;
+  flex: 1 1 auto; min-width: 0;
+  display: block; -webkit-line-clamp: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; font-weight: 500; line-height: 1.35;
+}
+html[data-design="classical"] #view .wrow .row-done .row--title {
+  text-decoration: line-through;
+  opacity: .6;
+}
+
+/*
+ * The right-hand word, and only one of them.
+ *
+ * The mock writes a clock on a row that is fine and a lateness on a row that is
+ * not — never both, which is what the slip's "11:59 PM · 4h late" does. The
+ * lateness wins where it exists, because the clock it would sit beside is the
+ * one it is already about.
+ */
+html[data-design="classical"] #view .wrow .row--when {
+  flex: none;
+  gap: 0;
+  font-size: 10.5px;
+}
+html[data-design="classical"] #view .wrow .row--rel { display: none; }
+html[data-design="classical"] #view .wrow .row--rel-late,
+html[data-design="classical"] #view .wrow .row--rel-done { display: inline; font-weight: 700; }
+html[data-design="classical"] #view .wrow .row:has(.row--rel-late) .row--due,
+html[data-design="classical"] #view .wrow .row:has(.row--rel-done) .row--due { display: none; }
+
+/* The slip's extra lines — the exam room, the "time assumed" note, an undo —
+   are a second line by construction, which this row does not have. All of them
+   are on the deadline screen, one press away (D8). */
+html[data-design="classical"] #view .wrow .row > [class*="row--detail"] { display: none; }
+
+/* The tick and the ⋯ keep their place at the end of the line: the mock draws
+   neither, but "tick it off" and the row menu are the two things a week row
+   can do, and a control that is not on screen is a control a student cannot
+   find (UI rule 4's argument, one step earlier). */
+html[data-design="classical"] #view .wrow .row--tick {
+  order: 2;
+  align-self: center;
+  width: 13px; height: 13px;
+  margin: 0;
+}
+html[data-design="classical"] #view .wrow .row--menu {
+  order: 3;
+  align-self: center;
+}
+
+/* A quiet day says so in the ledger's voice — italic, in the muted ink, on the
+   baseline of the date beside it. `design-classical.css` owns the italic. */
+html[data-design="classical"] #view .witems--empty {
+  align-self: center;
+  font-size: 12.5px;
+}
+
+/* ==========================================================================
+ * Corrections against the mock, 2026-09-19 — read side by side with
+ * `docs/design/classical-mock/illini_dash_classical_calendar_week_view/`.
+ *
+ * Four things the first pass of this view did not do, all of them visible in
+ * a direct comparison and none of them a matter of taste.
+ * ====================================================================== */
+
+/* 1. The date column sits on a shaded panel with a rule beside it.
+ *
+ * The mock's day slip is two fields, not one: a tinted gutter carrying the
+ * weekday and the date, then the entries on the card's own ground. Without the
+ * fill the date floats, and the eye has nothing to run down the left of the
+ * week. */
+html[data-design="classical"] .wrow .wday {
+  background: var(--tint);
+  border-right: 1px solid var(--line);
+}
+html[data-design="classical"] .wrow--today .wday { background: var(--today-tint); }
+
+/* 2. A hairline between entries inside a day.
+ *
+ * Three deadlines on one card ran together as one block. The rule is the
+ * card's own `--card-line`, inset to the entries so it stops at the shaded
+ * gutter rather than crossing it — the mock draws it the same way. */
+html[data-design="classical"] .wrow .witems > * + * {
+  border-top: 1px solid var(--card-line);
+}
+
+/* 3. No tick box in the week.
+ *
+ * The shared card slip grew one, and the mock's week has none: a week is for
+ * reading what is coming, and the row is one line with no room for a control
+ * that needs a 15px square and its own hit area. Today, the month's agenda and
+ * the deadline screen all still offer it. `display: none` rather than not
+ * building it, because the element belongs to `rows.ts` — which this file may
+ * not edit — and a week row is never the only place a deadline appears. */
+html[data-design="classical"] .wrow .row--tick { display: none; }
+
+/* 4. The title takes the room the tick gave back.
+ *
+ * Re-measured against EB Garamond rather than Georgia, which is what drew when
+ * this file was first written: the real face is narrower and smaller, so the
+ * title track grew from ~195px to ~228px (the 15px tick and its 6px gap) and
+ * 13.5px of Garamond now holds about 34 characters where 12.5px of Georgia
+ * held 32. "Lab 04: Trees & Traversals" is 25 and clears it with room. */
+html[data-design="classical"] .wrow .row--title { font-size: 13.5px; }
+html[data-design="classical"] .wrow .row--code { font-size: 10.5px; }
+html[data-design="classical"] .wrow .row--due,
+html[data-design="classical"] .wrow .row--rel { font-size: 11.5px; }

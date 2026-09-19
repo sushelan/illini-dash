@@ -360,6 +360,21 @@ export const state: {
    */
   redrawAfterMenu: boolean;
   /**
+   * A redraw that arrived while a mouse button was down on the list.
+   *
+   * The same rule as `redrawAfterMenu`, one gesture wider, and found the same
+   * way: a held press on a row's tick box logged `pointerdown` on the checkbox
+   * and `click` on the **row**, because the open-sync's redraw replaced the
+   * checkbox between the two. A `click` needs mousedown and mouseup on one
+   * element; when the element under the finger is swapped mid-press the event
+   * fires on the nearest surviving ancestor instead, so the box did nothing and
+   * the row opened the deadline screen.
+   *
+   * Every harness passed it — a synthetic `.click()` is instantaneous and has
+   * no gap for a redraw to land in (UI house rule 5).
+   */
+  redrawAfterPress: boolean;
+  /**
    * A deletion that can still be taken back, and the fields to rebuild it from.
    *
    * Held here rather than in the banner element, because `renderBanners`
@@ -392,6 +407,7 @@ export const state: {
   editorOnClose: undefined,
   redrawAfterEditor: false,
   redrawAfterMenu: false,
+  redrawAfterPress: false,
   pendingUndo: undefined,
   undoTimer: undefined,
 };
@@ -457,3 +473,77 @@ export const app: {
   openNeedsYou: () => undefined,
   closeNeedsYou: () => undefined,
 };
+
+/* -------------------------------------------------------------------------- */
+/* A press in progress                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The "is a mouse button down on the list, and is a redraw owed?" machine.
+ *
+ * Here, DOM-free and injectable, rather than in `shell.ts`, because the whole
+ * defect below is a question of *when* one function is called and the suite
+ * cannot reach a service worker or a real press. Worker house rule 1, one
+ * process over: `shell.ts` keeps the three `addEventListener` lines and this
+ * keeps the decision.
+ *
+ * **The defect.** A redraw calls `viewEl.replaceChildren()`. A `click` is only
+ * dispatched when mousedown and mouseup land on the *same* element, so a redraw
+ * between the two deletes the element under the finger and the click fires on
+ * the nearest surviving ancestor: pressing a card's tick box logged
+ * `pointerdown` on the checkbox and `click` on the **row**, which opened the
+ * deadline screen instead of ticking anything.
+ *
+ * Deferring the redraw to `pointerup` is not enough, and that is the part worth
+ * remembering. `pointerup` is dispatched **before** `mouseup`, which is before
+ * `click`; a refresh started from the `pointerup` handler is a chain of
+ * `await`s, and every one of them resolves in a microtask that runs before the
+ * browser gets to dispatch `mouseup`. So the deferred draw wiped the element in
+ * exactly the gap the guard existed to protect — measured through Chrome's own
+ * input pipeline (`pointerup -> row--tick`, then `mouseup -> MAIN`), with the
+ * guard in place and working.
+ *
+ * So the release waits one **task**, not a microtask and not "the next await" —
+ * the same rule the 2026-09-18 menu fix ends on, from the other side. The press
+ * is still held for that task, so a redraw arriving between `pointerup` and
+ * `click` is held too; there is no window in the gesture where the list can be
+ * replaced.
+ *
+ * @param schedule how to wait one task. `setTimeout(run, 0)` in the page; a
+ *   recorder in a test, which is the only way to say "the click has not
+ *   happened yet" without a browser.
+ */
+export function createPressHold(schedule: (run: () => void) => void): {
+  begin: (insideList: boolean) => void;
+  hold: () => boolean;
+  release: (run: () => void) => void;
+} {
+  let pressing = false;
+  let owed = false;
+  let releasing = false;
+  return {
+    begin(insideList: boolean): void {
+      pressing = insideList;
+      owed = false;
+      releasing = false;
+    },
+    hold(): boolean {
+      if (!pressing) return false;
+      owed = true;
+      return true;
+    },
+    release(run: () => void): void {
+      // `pointerup` and `pointercancel` can both arrive for one gesture, and a
+      // second scheduled release would run the owed draw twice.
+      if (!pressing || releasing) return;
+      releasing = true;
+      schedule(() => {
+        pressing = false;
+        releasing = false;
+        if (!owed) return;
+        owed = false;
+        run();
+      });
+    },
+  };
+}

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Illini Dash UIUC Study Journal - Month</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&amp;family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-primary": "#b9c6eb",
+            "on-primary-container": "#828eb1",
+            "primary-fixed": "#d9e2ff",
+            "tertiary-fixed": "#ffdbd2",
+            "primary-container": "#1a2744",
+            "secondary-fixed-dim": "#d9c2b6",
+            "on-secondary-fixed-variant": "#53443a",
+            "on-background": "#1c1c17",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#3c0800",
+            "on-tertiary-container": "#df6e50",
+            "secondary-fixed": "#f6ded1",
+            "surface-container-high": "#ece8e0",
+            "secondary": "#6c5b51",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed": "#0d1b37",
+            "on-surface": "#1c1c17",
+            "surface-variant": "#e6e2da",
+            "surface": "#fdf9f1",
+            "outline": "#75777e",
+            "primary": "#04122e",
+            "outline-variant": "#c5c6ce",
+            "on-primary": "#ffffff",
+            "on-surface-variant": "#45464d",
+            "surface-container": "#f1ede6",
+            "error": "#ba1a1a",
+            "surface-dim": "#dddad2",
+            "secondary-container": "#f6ded1",
+            "on-primary-fixed-variant": "#3a4665",
+            "on-secondary-container": "#726157",
+            "on-secondary": "#ffffff",
+            "surface-container-highest": "#e6e2da",
+            "on-tertiary-fixed-variant": "#812811",
+            "surface-tint": "#515e7e",
+            "on-error": "#ffffff",
+            "on-secondary-fixed": "#251911",
+            "tertiary-container": "#520e00",
+            "inverse-surface": "#31302b",
+            "on-error-container": "#93000a",
+            "inverse-on-surface": "#f4f0e8",
+            "surface-bright": "#fdf9f1",
+            "primary-fixed-dim": "#b9c6eb",
+            "background": "#fdf9f1",
+            "error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#ffb4a2",
+            "tertiary": "#2e0500",
+            "surface-container-low": "#f7f3eb"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem",
+            "space-md": "1rem",
+            "margin": "2rem"
+          },
+          "fontFamily": {
+            "label-md": ["Newsreader"],
+            "body-lg": ["EB Garamond"],
+            "headline-lg-mobile": ["EB Garamond"],
+            "headline-lg": ["EB Garamond"],
+            "headline-xl": ["EB Garamond"],
+            "label-sm": ["Newsreader"],
+            "annotation-italic": ["EB Garamond"],
+            "headline-sm": ["EB Garamond"],
+            "body-sm": ["EB Garamond"],
+            "body-md": ["EB Garamond"],
+            "headline-xl-mobile": ["EB Garamond"],
+            "headline-md": ["EB Garamond"]
+          },
+          "fontSize": {
+            "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+            "body-lg": ["19px", {"lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "0em", "fontWeight": "500"}],
+            "headline-xl": ["42px", {"lineHeight": "50px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+            "annotation-italic": ["15px", {"lineHeight": "22px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+            "body-sm": ["14px", {"lineHeight": "22px", "letterSpacing": "0.015em", "fontWeight": "400"}],
+            "body-md": ["17px", {"lineHeight": "26px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-xl-mobile": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600"}]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .seyes-line {
+      background-image: linear-gradient(to bottom, transparent 25px, #e5decfa8 26px);
+      background-size: 100% 26px;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex justify-center selection:bg-secondary-container">
+<!-- Main 400px Popup Shell -->
+<div class="w-full max-w-[400px] min-h-screen bg-surface border-x border-outline-variant flex flex-col relative pb-16">
+<!-- TopAppBar from Shared Components JSON -->
+<header class="bg-surface text-primary border-b border-outline-variant shadow-sm transition-colors duration-150 ease-in-out flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto sticky top-0 z-40">
+<div class="flex items-center gap-2">
+<button aria-label="Study Journal Index" class="text-primary hover:bg-surface-container-high transition-colors p-1 rounded-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+</button>
+<h1 class="text-headline-sm font-headline-sm text-primary tracking-tight">Illini Dash UIUC Study Journal</h1>
+</div>
+<button aria-label="Settings" class="text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors p-1 rounded-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+</button>
+</header>
+<!-- Classical Archival Status Bar -->
+<section class="flex items-center justify-between px-space-md py-1.5 bg-surface-container-low border-b border-outline-variant text-label-sm font-label-sm text-secondary">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-700 animate-pulse"></span>
+<span class="tracking-wide">● 5 Connected</span>
+</div>
+<button class="text-primary hover:text-tertiary transition-colors flex items-center gap-1 tracking-wider uppercase font-semibold text-[10px]">
+<span>Sync Now</span>
+<span class="material-symbols-outlined text-[13px]">refresh</span>
+</button>
+</section>
+<!-- Calendar Month Navigator -->
+<section class="px-space-md pt-3 pb-2 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<h2 class="text-headline-md font-headline-md text-primary tracking-normal">September 2024</h2>
+</div>
+<div class="flex items-center gap-1">
+<button class="px-2 py-0.5 border border-outline-variant rounded-sm text-label-sm font-label-sm text-secondary hover:text-primary hover:border-primary transition-all">
+          Today
+        </button>
+<div class="flex items-center ml-1 border border-outline-variant rounded-sm bg-surface-container-low">
+<button aria-label="Previous Month" class="p-1 text-secondary hover:text-primary hover:bg-surface-container transition-colors flex items-center">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+</button>
+<span class="w-[1px] h-3 bg-outline-variant"></span>
+<button aria-label="Next Month" class="p-1 text-secondary hover:text-primary hover:bg-surface-container transition-colors flex items-center">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Month Grid Container (Classical 7x5 Scholar Codex) -->
+<main class="px-space-md flex-1">
+<div class="bg-surface-container-low border border-outline-variant rounded-sm shadow-sm p-2 mb-3">
+<!-- Weekday Headers -->
+<div class="grid grid-cols-7 text-center pb-1 mb-1 border-b border-outline-variant/60">
+<span class="text-label-sm font-label-sm text-secondary font-bold">S</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">M</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">T</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">W</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">T</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">F</span>
+<span class="text-label-sm font-label-sm text-secondary font-bold">S</span>
+</div>
+<!-- 7x5 Calendar Cells -->
+<div class="grid grid-cols-7 gap-y-1 text-center text-body-sm font-body-sm">
+<!-- Row 1: Sep 1 to Sep 7 -->
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">1</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">2</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">3</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">4</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">5</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">6</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">7</span>
+</div>
+<!-- Row 2: Sep 8 to Sep 14 -->
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">8</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">9</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">10</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">11</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">12</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">13</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">14</span>
+</div>
+<!-- Row 3: Sep 15 to Sep 21 -->
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">15</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">16</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">17</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">18</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">19</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">20</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">21</span>
+</div>
+<!-- Row 4: Sep 22 to Sep 28 (Day 22 Selected) -->
+<div class="h-10 flex flex-col items-center justify-start py-0.5 bg-secondary-container/60 border border-primary rounded-sm shadow-inner relative cursor-pointer">
+<span class="text-primary font-bold text-[14px]">22</span>
+<div class="flex gap-0.5 mt-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container" title="CS 225"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container" title="PHYS 212"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary" title="MATH 257"></span>
+</div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">23</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">24</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">25</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">26</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">27</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">28</span>
+</div>
+<!-- Row 5: Sep 29 to Oct 5 -->
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">29</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 hover:bg-surface-container transition-colors cursor-pointer rounded-sm">
+<span class="text-on-surface">30</span>
+<div class="flex gap-0.5 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span></div>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 opacity-40">
+<span class="text-on-surface-variant">1</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 opacity-40">
+<span class="text-on-surface-variant">2</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 opacity-40">
+<span class="text-on-surface-variant">3</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 opacity-40">
+<span class="text-on-surface-variant">4</span>
+</div>
+<div class="h-10 flex flex-col items-center justify-start py-0.5 opacity-40">
+<span class="text-on-surface-variant">5</span>
+</div>
+</div>
+<!-- Legend / Key -->
+<div class="mt-2 pt-1.5 border-t border-outline-variant/60 flex items-center justify-center gap-3 text-[10px] font-label-sm text-secondary">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> CS 225</span>
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span> PHYS 212</span>
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> MATH 257</span>
+</div>
+</div>
+<!-- Agenda Drawer / Pane for Tuesday, Sep 22 -->
+<section class="bg-surface-container-low border border-outline-variant rounded-sm p-3 shadow-sm">
+<div class="flex items-center justify-between pb-1.5 border-b border-outline-variant mb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">event_note</span>
+<h3 class="text-headline-sm font-headline-sm text-primary text-[16px] leading-tight">Agenda for Tuesday, Sep 22</h3>
+</div>
+<span class="text-label-sm font-label-sm text-secondary px-1.5 py-0.2 bg-surface-variant rounded">4 items</span>
+</div>
+<!-- Agenda List Entries -->
+<div class="space-y-2 text-body-sm font-body-sm">
+<!-- Item 1: PHYS 212 Overdue -->
+<div class="border-b border-outline-variant/50 pb-2 flex items-start justify-between gap-2 group">
+<div class="flex items-start gap-2">
+<div class="w-4 h-4 mt-0.5 rounded-[2px] border border-tertiary-container flex items-center justify-center bg-error-container/40 flex-shrink-0">
+<span class="material-symbols-outlined text-[12px] text-error">priority_high</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 rounded bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px]">PHYS 212</span>
+<span class="text-on-surface font-medium leading-tight">Discussion Quiz 3</span>
+</div>
+<p class="text-[12px] font-annotation-italic text-error leading-tight mt-0.5">Due Yesterday 11:59 PM · Overdue</p>
+</div>
+</div>
+<button aria-label="Details" class="text-secondary hover:text-primary p-0.5">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<!-- Item 2: CS 225 Daily Memory -->
+<div class="border-b border-outline-variant/50 pb-2 flex items-start justify-between gap-2 group">
+<div class="flex items-start gap-2">
+<div class="w-4 h-4 mt-0.5 rounded-[2px] border border-outline flex items-center justify-center flex-shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 rounded bg-primary-fixed text-on-primary-fixed-variant text-[10px]">CS 225</span>
+<span class="text-on-surface font-medium leading-tight">Daily Memory Checkpoint &amp; Survey</span>
+</div>
+<p class="text-[12px] font-annotation-italic text-secondary leading-tight mt-0.5">Untimed · EOD</p>
+</div>
+</div>
+<button aria-label="Details" class="text-secondary hover:text-primary p-0.5">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<!-- Item 3: MATH 257 HW5 -->
+<div class="border-b border-outline-variant/50 pb-2 flex items-start justify-between gap-2 group">
+<div class="flex items-start gap-2">
+<div class="w-4 h-4 mt-0.5 rounded-[2px] border border-outline flex items-center justify-center flex-shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 rounded bg-secondary-fixed text-on-secondary-fixed-variant text-[10px]">MATH 257</span>
+<span class="text-on-surface font-medium leading-tight">Homework 5: Orthogonality</span>
+</div>
+<p class="text-[12px] font-annotation-italic text-secondary leading-tight mt-0.5">Due 11:59 PM · 50 pts</p>
+</div>
+</div>
+<button aria-label="Details" class="text-secondary hover:text-primary p-0.5">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<!-- Item 4: CS 225 Practice Quiz -->
+<div class="flex items-start justify-between gap-2 group">
+<div class="flex items-start gap-2">
+<div class="w-4 h-4 mt-0.5 rounded-[2px] border border-primary flex items-center justify-center bg-primary-fixed/50 flex-shrink-0">
+<span class="material-symbols-outlined text-[12px] text-primary">check</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-label-sm font-label-sm px-1 rounded bg-primary-fixed text-on-primary-fixed-variant text-[10px]">CS 225</span>
+<span class="text-on-surface line-through opacity-70 font-medium leading-tight">PrairieLearn Practice Quiz</span>
+</div>
+<p class="text-[12px] font-annotation-italic text-secondary leading-tight mt-0.5">Due 11:59 AM · Completed</p>
+</div>
+</div>
+<button aria-label="Details" class="text-secondary hover:text-primary p-0.5">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Classical Colophon / Footer from Specs -->
+<div class="flex justify-between items-center px-1 py-3 text-label-sm font-label-sm text-secondary">
+<span class="flex items-center gap-1 text-[11px] font-annotation-italic">
+<span class="text-emerald-700">●</span> 5/5 ok
+        </span>
+<a class="text-primary hover:underline flex items-center gap-0.5 font-semibold text-[11px]" href="#ledger">
+          Needs-You Ledger <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</a>
+</div>
+</main>
+<!-- BottomNavBar from Shared Components JSON with 'Month' Tab Active -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm transition-all duration-150 ease-out">
+<!-- Tab 1: Today -->
+<a class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1" href="#today">
+<span class="material-symbols-outlined text-[18px]">today</span>
+<span class="text-label-sm font-label-sm text-[10px] mt-0.5">Today</span>
+</a>
+<!-- Tab 2: Week -->
+<a class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1" href="#week">
+<span class="material-symbols-outlined text-[18px]">calendar_view_week</span>
+<span class="text-label-sm font-label-sm text-[10px] mt-0.5">Week</span>
+</a>
+<!-- Tab 3: Month (MANDATORY ACTIVE STATE from JSON style_active_navigation) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-lg px-space-xs py-space-xs flex-1 shadow-sm font-semibold" href="#month">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+<span class="text-label-sm font-label-sm text-[10px] mt-0.5">Month</span>
+</a>
+<!-- Tab 4: No Date -->
+<a class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1" href="#nodate">
+<span class="material-symbols-outlined text-[18px]">event_busy</span>
+<span class="text-label-sm font-label-sm text-[10px] mt-0.5">No Date</span>
+</a>
+<!-- Tab 5: Exams -->
+<a class="flex flex-col items-center justify-center text-secondary px-space-xs py-space-xs hover:bg-surface-container hover:text-primary transition-colors flex-1" href="#exams">
+<span class="material-symbols-outlined text-[18px]">assignment</span>
+<span class="text-label-sm font-label-sm text-[10px] mt-0.5">Exams</span>
+</a>
+</nav>
+</div>
+</body></html>

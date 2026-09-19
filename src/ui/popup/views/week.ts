@@ -13,11 +13,12 @@
 
 import { allTimed, dayKey, quietDay, weekContents, weekStatus } from "../../../core/calendar.js";
 import type { Item } from "../../../sources/types.js";
-import { WEEK_MODE, anchorDate, viewEl } from "../state.js";
+import { WEEK_MODE, anchorDate, dateNavEl, state, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
 import { openAddEditor } from "../screens/editor.js";
 
 export function renderWeekView(items: Item[], now: Date, colours: Map<string, number>): void {
+  markThisWeek();
   for (const day of weekContents(items, anchorDate(now), now, WEEK_MODE)) {
     const card = document.createElement("div");
     card.className = "wrow";
@@ -88,4 +89,29 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
     card.append(head, box);
     viewEl.append(card);
   }
+}
+
+/**
+ * The navigator's right-hand pill, when the anchor is now.
+ *
+ * `renderDateNav` already builds the arrows, the range label and — once there
+ * is somewhere to come back from — a "Today" button, which is the same pill
+ * doing something. What it has no reason to build is the *other* state of it:
+ * the mock's "This Week", which says the range you are reading is the current
+ * one. So it is added here, where the view that wants it is drawn.
+ *
+ * Appended rather than built into the navigator because `renderDateNav`
+ * replaces its children on every draw and runs before this (popup.ts) — the
+ * month view re-appends its own control the same way, for the same reason.
+ *
+ * Only under the Classical design: it is that mock's element, and the other
+ * three designs have no place drawn for it.
+ */
+function markThisWeek(): void {
+  if (document.documentElement.dataset.design !== "classical") return;
+  if (state.dayOffset !== 0) return;
+  const pill = document.createElement("span");
+  pill.className = "datenav--week";
+  pill.textContent = "This Week";
+  dateNavEl.append(pill);
 }

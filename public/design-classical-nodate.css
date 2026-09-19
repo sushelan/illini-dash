@@ -1,0 +1,214 @@
+/* design-classical-nodate.css — the Classical calendar's nodate view.
+ *
+ * Scoped under `html[data-design="classical"]` like every rule in
+ * `design-classical.css`, which loads first and owns the tokens, the type
+ * scale, the shell, the tab bar and the shared card slip. Spend those here;
+ * do not restate them. One file per view so parallel work never collides in
+ * a single stylesheet.
+ *
+ * The invariants it may not break: `html` and `body` are never scroll
+ * containers, nothing takes a viewport unit or a percentage height, and no
+ * rule is keyed on window width. See the header of popup.css.
+ */
+
+/* ==========================================================================
+ * Measurements.
+ *
+ * The mock (`illini_dash_classical_calendar_no_date_view/code.html` and its
+ * `screen.png`) is drawn 597px wide with the markup's own `max-w-[400px]`
+ * ignored, so every number in it is at ~1.49x of this popup. 400/597 = 0.67,
+ * and that is the factor applied below — with two deliberate exceptions, both
+ * because a serif runs small for its nominal size:
+ *
+ *   mock                          scaled   used here
+ *   headline-md 24px  (title)     16.1     16px
+ *   annotation  15px  (lead)      10.1     10.5px  serifs run small
+ *   label-sm    11px  (headings)   7.4      9.5px  sans, and 7.4 is unreadable
+ *   body-sm     14px  (notes)      9.4     10.5px  serifs run small
+ *   space-sm     8px  (card pad)   5.4      7px    matches the shared slip
+ *   gap-2.5     10px  (stack)      6.7      7px    already `.nodate-stack`
+ *   hairline    32px  (w-8 rule)  21.5     22px
+ *
+ * Nothing here is keyed on window width, takes a viewport unit or a percentage
+ * height, and nothing touches `html`/`body`.
+ * ====================================================================== */
+
+/* --- the folio banner: title, count, lead, and a rule under it ----------- */
+html[data-design="classical"] .nodate-banner {
+  margin: 0 10px;
+  padding: 11px 0 9px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+}
+html[data-design="classical"] .nodate-banner--head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+html[data-design="classical"] .nodate-banner--title {
+  margin: 0; min-width: 0;
+  font-family: var(--serif);
+  font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px;
+  color: var(--brand-mark);
+}
+html[data-design="classical"] .nodate-banner--count {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--tint);
+  font-family: var(--sans);
+  font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
+  color: var(--muted);
+}
+/* The lead is the mock's annotation italic: the one sentence on the tab that
+   is the journal's own voice rather than a source's. */
+html[data-design="classical"] .nodate-banner--lead {
+  margin: 3px 0 0;
+  font-family: var(--serif);
+  font-size: 10.5px; font-style: italic; line-height: 1.45;
+  color: var(--muted);
+}
+
+/* --- a section heading: NAME ——— [n] ------------------------------------ */
+html[data-design="classical"] #view > .nodate-group--head {
+  /* 11px, not the shared 14px: this heading sits over cards inset 10px and the
+     mock aligns the two left edges. */
+  padding-inline: 11px;
+  margin: 11px 0 3px;
+}
+html[data-design="classical"] .nodate-group--name {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: .10em; text-transform: uppercase;
+  color: var(--muted);
+}
+/* The mock's short rule after the section name — a typesetter's dash, so the
+   label reads as a running head rather than as a row of its own. */
+html[data-design="classical"] .nodate-group--hair {
+  flex: none;
+  width: 22px; height: 1px;
+  background: var(--line);
+}
+html[data-design="classical"] .nodate-group--count {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--tint-strong);
+  font-family: var(--sans);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  color: var(--muted);
+}
+html[data-design="classical"] .nodate-group--note {
+  margin: 0 0 6px;
+  padding-inline: 11px;
+  font-family: var(--serif);
+  font-size: 10.5px; line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The classical double rule between the two sections: one hairline in the
+   structural line colour and a lighter one under it, 2px apart. */
+html[data-design="classical"] .nodate-rule {
+  height: 3px;
+  margin: 13px 10px 1px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--card-line);
+}
+
+/* --- the card ------------------------------------------------------------
+ *
+ * One slip per item, the row inside it flattened.
+ *
+ * `popup-views.css` already takes the fill and the lift off a nested `.row`,
+ * but `design-classical.css` rebuilds the row as a bordered white card under
+ * an id selector, which outranks it — so without this the tab draws a card
+ * inside a card, which is the one thing mock 2c does not do.
+ */
+html[data-design="classical"] .nodate-card {
+  padding: 7px 9px;
+  background: var(--surface-raised);
+  border: 1px solid var(--card-line);
+}
+html[data-design="classical"] #view .nodate-card > .row {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* The three answers, ruled off from the row the way the mock rules them off. */
+html[data-design="classical"] .nodate-actions {
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 7px 0 0;
+  border-top: 1px solid var(--line);
+}
+html[data-design="classical"] .nodate-actions .btn {
+  height: 24px;
+  padding: 0 7px;
+  font-size: 10.5px; font-weight: 600;
+}
+
+/* --- section 2: the row whose date could not be read ---------------------
+ *
+ * One hue, stated three times — the marker, the edge and the wash are all
+ * `--warn`, because "the deadline is unknown" is one fact. `--err` is reserved
+ * for late work, and nothing on this tab is late.
+ *
+ * The left bar is an inset shadow rather than a border so the card's text does
+ * not shift by 3px against the cards above it.
+ */
+html[data-design="classical"] .nodate-card--unread {
+  border-color: var(--warn);
+  background: var(--warn-wash);
+  box-shadow: inset 3px 0 0 var(--warn);
+  padding-left: 12px;
+}
+html[data-design="classical"] .nodate-flag {
+  display: flex; align-items: center;
+  margin-bottom: 5px;
+}
+/* `design-classical.css` paints every `.chip` in its course's ink, and this
+   chip is not about a course. Restated rather than reordered: the course rule
+   is two selectors deep and lives in a file this one may not edit. */
+html[data-design="classical"] .nodate-flag .chip-check {
+  gap: 4px;
+  height: 18px; padding: 0 7px;
+  border-radius: 3px;
+  background: var(--warn-wash-strong);
+  color: var(--warn);
+  font-family: var(--sans);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+}
+html[data-design="classical"] .nodate-flag .chip-check .icon {
+  width: 10px; height: 10px; flex: none;
+}
+
+/* The quoted source text: what the page actually printed, set as a quotation
+   on the page's own ground so it reads as evidence rather than as a field. */
+html[data-design="classical"] .nodate-source {
+  margin: 7px 0 0;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg);
+}
+html[data-design="classical"] .nodate-source--label {
+  display: block;
+  margin-bottom: 1px;
+  font-family: var(--sans);
+  font-size: 8.5px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted);
+}
+html[data-design="classical"] .nodate-source--text {
+  display: block;
+  font-family: var(--serif);
+  font-size: 11px; font-style: italic; line-height: 1.35;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
