@@ -493,4 +493,20 @@ describe('"Give it a date" for a source row (brief D3)', () => {
       studentDueOverride({ date: "2026-09-22", time: "5 PM" }, item, ZONE, APPLIED),
     ).toThrow(/HH:MM/);
   });
+
+  it("refuses a year outside this school year, so a typo cannot lose the row", () => {
+    // R3 B3: 2016-09-22 measured end to end — the row left the No date tab,
+    // matched no section and no board, and the only way to undo it was a
+    // screen opened by pressing a row that no longer appeared anywhere.
+    const item = undated();
+    expect(() => studentDueOverride({ date: "2016-09-22" }, item, ZONE, APPLIED)).toThrow(
+      /2016 is not this school year/,
+    );
+    expect(() => studentDueOverride({ date: "0226-09-22" }, item, ZONE, APPLIED)).toThrow(
+      ManualItemError,
+    );
+    // One year either side is a school year that straddles December.
+    expect(studentDueOverride({ date: "2027-01-15" }, item, ZONE, APPLIED).at).toMatch(/^2027-01-15/);
+    expect(studentDueOverride({ date: "2025-12-15" }, item, ZONE, APPLIED).at).toMatch(/^2025-12-15/);
+  });
 });

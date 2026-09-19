@@ -26,6 +26,7 @@ import {
   type SourceAction,
   actionFor,
   displayState,
+  footerLine,
   needsYouPill,
   sourceRows,
   staleNotice,
@@ -790,55 +791,23 @@ export function renderFooter(
   now: Date,
 ): void {
   footerEl.replaceChildren();
-  const summary = summarize(sources);
-  const total = summary.checkable.length;
-  const bad = summary.failing.length;
+  // One derivation, in core, mutation-tested: the first merged build carried
+  // a second copy here that said "4 sources" in green over three sources that
+  // had never been read (R3 B1). The strip prints what `footerLine` says.
+  const line = footerLine(sources, isSyncing(), now);
 
   const dot = document.createElement("i");
-  dot.className = "foot--dot";
+  dot.className = `foot--dot is-${line.dot}`;
 
   const count = document.createElement("span");
   count.className = "foot--count";
+  count.textContent = line.sources === "no sources" ? "No sources on" : line.sources;
 
   const when = document.createElement("span");
   when.className = "foot--when";
+  when.textContent = line.sources === "no sources" ? "switch one on in Settings" : line.synced;
 
-  let tone: "ok" | "warn" | "err" | "pending" = "ok";
-
-  if (total === 0) {
-    tone = "warn";
-    count.textContent = "No sources on";
-    when.textContent = "switch one on in Settings";
-    footerEl.classList.add("foot--warn");
-  } else {
-    count.textContent =
-      bad > 0
-        ? `${summary.ok.length} of ${total} sources`
-        : `${total} source${total === 1 ? "" : "s"}`;
-    // The newest success across every checkable source. One of them failing
-    // does not make the others' answers old, and a strip that said "not synced
-    // yet" because Gradescope was down would be describing the wrong thing.
-    const newest = summary.checkable
-      .map((source) => sources[source]?.lastSuccessAt)
-      .filter((at): at is string => typeof at === "string" && at !== "")
-      .map((at) => Date.parse(at))
-      .filter((at) => Number.isFinite(at))
-      .sort((a, b) => b - a)[0];
-    if (isSyncing()) {
-      tone = "pending";
-      when.textContent = "Syncing…";
-    } else if (newest === undefined) {
-      // "Not synced yet" and "synced, and it went badly" are different states
-      // and used to render identically. `pending` is a real state.
-      tone = "pending";
-      when.textContent = "not synced yet";
-    } else {
-      tone = bad > 0 ? "warn" : "ok";
-      when.textContent = `synced ${timeAgo(newest, now) ?? "just now"}`;
-    }
-    footerEl.classList.toggle("foot--warn", bad > 0);
-  }
-  dot.classList.add(`is-${tone}`);
+  footerEl.classList.toggle("foot--warn", line.tone === "warn" || line.tone === "err");
 
   const sep = document.createElement("span");
   sep.className = "foot--sep";

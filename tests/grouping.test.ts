@@ -725,8 +725,11 @@ describe("countdown (brief D4, mock 1a)", () => {
   });
 
   it("says how late, in the coarsest unit still true", () => {
-    // Mock 1b's week card: "1d late".
-    expect(c(at(2026, 8, 9, 23, 59))).toBe("1d late");
+    // Mock 1b's week card: "1d late" — once a whole day has elapsed. Eighteen
+    // hours is "18h late": the calendar turning over does not make it a day.
+    expect(c(at(2026, 8, 9, 23, 59))).toBe("18h late");
+    expect(c(at(2026, 8, 9, 17, 59))).toBe("1d late");
+    expect(c(at(2026, 8, 7, 12, 0))).toBe("3d late");
     expect(c(at(2026, 8, 10, 16, 0))).toBe("2h late");
     expect(c(at(2026, 8, 10, 17, 45))).toBe("15m late");
   });

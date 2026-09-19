@@ -280,6 +280,11 @@ describe("a manual row with no date (brief D11)", () => {
     expect(() => undated({ courseRaw: "" })).toThrow(ManualItemError);
   });
 
+  it("refuses a year outside this school year (R3 B3)", () => {
+    expect(() => make({ date: "2016-09-22" })).toThrow(/2016 is not this school year/);
+    expect(make({ date: "2027-01-15" }).dueAt).toMatch(/^2027-01-15/);
+  });
+
   it("refuses a time with no day, rather than dropping it silently", () => {
     // A time with no day is half a deadline and there is no honest instant to
     // build from it. A student who typed 5:00 PM and watched it vanish has no

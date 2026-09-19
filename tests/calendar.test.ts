@@ -1045,6 +1045,24 @@ describe("dayList (brief D6, mock 2a)", () => {
     expect(rows.map((r) => r.anchor.assumed)).toEqual([false, true]);
   });
 
+  it("puts a stated instant before an assumed one at the same minute, whatever the titles", () => {
+    // The timed/untimed seam, not a tie within a group: `dayContents` sorts
+    // stated rows by title and assumed rows by title, and the two groups are
+    // concatenated stated-first. A second title tie-break across the seam
+    // would interleave them (R3 M6 — the case the deleted tie-break's
+    // survival was really about). Titles chosen so alphabetical order gives
+    // the wrong answer (mutation house rule 10).
+    const rows = dayList(
+      [
+        item({ title: "Alpha (assumed)", dueAt: at(2026, 8, 22, 23, 59), timeAssumed: true }),
+        item({ title: "Zebra (stated)", dueAt: at(2026, 8, 22, 23, 59) }),
+      ],
+      DAY,
+      NOW,
+    );
+    expect(rows.map((r) => r.item.title)).toEqual(["Zebra (stated)", "Alpha (assumed)"]);
+  });
+
   it("uses dayContents' visibility rules, so a hidden row stays hidden", () => {
     expect(
       dayList([item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 22, 9) })], DAY, NOW),
@@ -1783,7 +1801,13 @@ describe("weekStatus (brief D5, mock 1b)", () => {
   });
 
   it("says how late rather than EOD for an overdue invented time", () => {
+    // Elapsed time: 23:59 yesterday read at 18:00 is 18 hours late, and the
+    // calendar turning over does not make it a day (R3 L9). Mock 1b's "1d late"
+    // is a deadline a full day gone.
     expect(weekStatus(item({ dueAt: at(2026, 8, 9, 23, 59), timeAssumed: true }), NOW)).toBe(
+      "18h late",
+    );
+    expect(weekStatus(item({ dueAt: at(2026, 8, 9, 17, 0), timeAssumed: true }), NOW)).toBe(
       "1d late",
     );
   });

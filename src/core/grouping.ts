@@ -392,7 +392,9 @@ export function countdown(
   const minutes = Math.floor(abs / 60_000);
 
   if (delta < 0) {
-    if (days >= 1) return `${days}d late`;
+    // Elapsed time, not calendar days: 23:00 read at 01:00 is two hours late,
+    // and "1d late" there is not true (R3 L9).
+    if (hours >= 24) return `${Math.floor(hours / 24)}d late`;
     if (hours >= 1) return `${hours}h late`;
     return `${minutes}m late`;
   }

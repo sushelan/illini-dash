@@ -616,6 +616,17 @@ describe("the zone/DST path is pinned, not assumed", () => {
     expect(() =>
       wallClockToIso({ year: 2026, month: 2, day: 30, hour: 12, minute: 0 }, "America/Chicago"),
     ).toThrow(ParseError);
+  });
+
+  it("writes a whole-minute offset even where the zone's history is fractional", () => {
+    // Chicago's local mean time before 1883 is -5:50:36; unrounded that came
+    // out as "-05:50.60000000000002", which Date.parse rejects (R3 B3).
+    const iso = wallClockToIso({ year: 1880, month: 6, day: 1, hour: 12, minute: 0 }, "America/Chicago");
+    expect(iso).toMatch(/[+-]\d\d:\d\d$/);
+    expect(Number.isFinite(Date.parse(iso))).toBe(true);
+  });
+
+  it("throws on a month that does not exist", () => {
     expect(() =>
       wallClockToIso({ year: 2026, month: 13, day: 1, hour: 12, minute: 0 }, "America/Chicago"),
     ).toThrow(ParseError);

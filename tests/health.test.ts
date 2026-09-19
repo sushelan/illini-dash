@@ -745,17 +745,29 @@ describe("needsYouPill (brief D2)", () => {
     expect(cold).toEqual({ kind: "pending", tone: "pending", text: "Not synced yet" });
   });
 
-  it("stops being pending as soon as one source has actually answered", () => {
-    // One real attempt is enough to make the counts describe something; the
-    // sources still waiting are named on the Needs-you screen, not in the pill.
+  it("is never green while a source has not been read (worker rule 2)", () => {
+    // CLAUDE.md: "A green dot must mean 'I fetched, and it was fine' — never
+    // 'I did not fetch'." A source just switched on is pending until its first
+    // attempt; the pill says how many are waiting rather than "All clear"
+    // over a list this extension has not read (R3 B2). The earlier version of
+    // this test asserted "clear" here, which was the bug, pinned.
     expect(
       pill({
         sources: sources({
           gradescope: status(),
           canvas: status({ source: "canvas", state: "pending", lastAttemptAt: undefined }),
         }),
-      }).kind,
-    ).toBe("clear");
+      }),
+    ).toEqual({ kind: "pending", tone: "pending", text: "1 not read yet" });
+  });
+
+  it("still says late or needs-you over a pending source: those are real", () => {
+    const mixed = sources({
+      gradescope: status(),
+      canvas: status({ source: "canvas", state: "pending", lastAttemptAt: undefined }),
+    });
+    expect(pill({ sources: mixed, overdue: 2 }).text).toBe("2 late");
+    expect(pill({ sources: mixed, suggestions: 1 }).text).toBe("1 needs you");
   });
 
   it("never claims anything about a source nobody switched on", () => {
@@ -802,7 +814,15 @@ describe("needsYouPill (brief D2)", () => {
      */
     const noAction = status({ source: "site", state: "needs_login" });
     expect(actionFor("site", "needs_login", noAction.loginUrl)).toBeUndefined();
-    expect(pill({ sources: sources({ site: noAction, gradescope: status() }) }).kind).toBe("clear");
+    // Not counted — but not green either. "All clear" is a claim, and a source
+    // that is signed out with nothing to press is still a source that did not
+    // answer (R3 M7). The footer beside it says "1 of 2 sources"; the pill
+    // must not contradict it.
+    expect(pill({ sources: sources({ site: noAction, gradescope: status() }) })).toEqual({
+      kind: "needs-you",
+      tone: "warn",
+      text: "Something needs a look",
+    });
   });
 });
 

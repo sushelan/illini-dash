@@ -26,6 +26,7 @@ import { courseColours, coursesIn } from "../../../core/calendar.js";
 import { movedByText } from "../../../core/suggest.js";
 import { googleCalendarUrl } from "../../../core/ics.js";
 import { sameCourse } from "../../../core/dedupe.js";
+import { STUDENT_POST_ID } from "../../../core/overrides.js";
 import { unreadableDeadline, unreadableSummary } from "../../../core/quality.js";
 import { iconButton } from "../../icons.js";
 import type { Item, Status } from "../../../sources/types.js";
@@ -238,12 +239,30 @@ function renderDeadlineScreen(item: Item, now: Date): HTMLElement {
   const moved = movedByText(item) ?? movedText(item);
   if (moved) {
     const note = el("div", "dl--moved");
-    note.append(el("div", "dl--moved-head", "Moved by an announcement"));
+    // Two producers since D3: a post, or the student ("Give it a date"). One
+    // comparison tells them apart (R3 M4).
+    const byStudent = item.movedBy?.postId === STUDENT_POST_ID;
+    note.append(el("div", "dl--moved-head", byStudent ? "You set this date" : "Moved by an announcement"));
     const line = el("div", "dl--moved-text", moved);
-    if (item.movedBy?.reason) line.title = item.movedBy.reason;
+    if (item.movedBy?.reason && !byStudent) line.title = item.movedBy.reason;
     note.append(line);
-    // Only an override written by a post can be taken back: `movedFrom` is
-    // derived per sync and has nothing behind it to undo.
+    // A date the student set outranks the source's for as long as it stands
+    // (R3 M5 — open decision in PROGRESS). Until that is decided, the screen
+    // at least says when the source now disagrees, so the override is never
+    // silent.
+    if (byStudent) {
+      for (const member of item.members) {
+        if (member.dueAt === undefined || member.dueAt === item.dueAt) continue;
+        const at = Date.parse(member.dueAt);
+        if (!Number.isFinite(at)) continue;
+        const says = new Date(at).toLocaleString(undefined, {
+          month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+        });
+        note.append(el("div", "dl--moved-text", `${SOURCE_NAME[member.source]} says ${says}`));
+      }
+    }
+    // Only an override can be taken back: `movedFrom` is derived per sync and
+    // has nothing behind it to undo.
     if (item.movedBy) {
       const undo = document.createElement("button");
       undo.type = "button";

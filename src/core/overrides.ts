@@ -161,7 +161,7 @@ export function studentDueOverride(
   zone: string,
   now: string,
 ): DueOverride {
-  const { at, timeAssumed } = statedInstant(stated.date, stated.time, zone);
+  const { at, timeAssumed } = statedInstant(stated.date, stated.time, zone, now);
   return {
     at,
     // Only when there was one. "from" drives "moved Tue → Fri"; an item that

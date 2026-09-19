@@ -161,21 +161,16 @@ export function writeStored(key: string, value: string): void {
 export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams"];
 
 /**
- * The names on the strip.
- *
- * D1 renames Day to **Today** and will add `nodate` ("No date") once
- * `core/calendar.ts` carries it; until then `attention` keeps its tab, because
- * dropping it before its replacement exists would lose the only route to the
- * undated rows. The strip is five equal columns either way, so the swap is a
- * line in this table rather than a layout change.
+ * The names on the strip (brief D1). Day reads as **Today**; the old Attention
+ * tab is gone — its undated half is the No date tab, its late half and its
+ * suggestions are on the Needs-you screen the pill opens.
  */
-export const VIEW_LABEL: Record<string, string> = {
+export const VIEW_LABEL: Record<ViewName, string> = {
   day: "Today",
   week: "Week",
   month: "Month",
   nodate: "No date",
   exams: "Exams",
-  attention: "Attention",
 };
 
 /**

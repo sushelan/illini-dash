@@ -913,7 +913,10 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
     report =
       `${action.kind} ${JSON.stringify(item.title.slice(0, 40))} ` +
       `keys=[${memberKeysOf(item).join(", ")}] ` +
-      `hidden=${store.overrides.hiddenKeys.length} done=${store.overrides.doneKeys.length}`;
+      `hidden=${store.overrides.hiddenKeys.length} done=${store.overrides.doneKeys.length}` +
+      (action.kind === "set-due"
+        ? ` due=${JSON.stringify(action.date)}${action.time ? " " + action.time : ""} dueOverrides=${Object.keys(store.overrides.dueOverrides ?? {}).length}`
+        : "");
   });
   if (report) console.log(`[illini-dash] ${report}`);
   if (missing) {

@@ -181,8 +181,7 @@ function render(
 
   renderTabs({
     exams: examCount(items, now),
-    // Plus the suggestions: each one is a question waiting for an answer, and a
-    // tab that does not count them is a tab nobody opens to find them.
+    // Rows waiting on a date (D3). Suggestions are counted by the pill, not here.
     nodate: noDateCount(owed, now),
   });
   renderHiddenNote();

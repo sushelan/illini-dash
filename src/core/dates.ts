@@ -165,6 +165,10 @@ export function wallClockToIso(
   const naive = Date.UTC(year, month - 1, day, hour, minute, second);
   let offset = zoneOffsetMinutes(new Date(naive), timeZone);
   offset = zoneOffsetMinutes(new Date(naive - offset * 60_000), timeZone);
+  // Whole minutes: a pre-1883 local-mean-time offset comes back fractional
+  // (-350.6 for Chicago) and formatted as "-05:50.60000000000002", which
+  // Date.parse then rejects (R3 B3).
+  offset = Math.round(offset);
 
   const sign = offset >= 0 ? "+" : "-";
   const abs = Math.abs(offset);

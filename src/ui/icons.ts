@@ -64,7 +64,6 @@ export const ICON_PATHS = {
   "tab-week": "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
   "tab-month": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",
   "tab-exams": "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
-  "tab-attention": "M8 2a4 4 0 0 0-4 4c0 3-1 4-1 4h10s-1-1-1-4a4 4 0 0 0-4-4zM7 13h2",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

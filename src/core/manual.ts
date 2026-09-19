@@ -168,14 +168,31 @@ function parseUrl(raw: string): string {
  * `DueOverride.timeAssumed` field on a correction — and both need it for the
  * same reason (worker house rule 3).
  */
+/**
+ * How far from now a student-typed year may be. A typo'd year (2016 for 2026)
+ * takes the row out of every tab — past the overdue window, past the horizon,
+ * onto the Month tab a hundred presses away — and nothing prunes it (R3 B3).
+ * One year either side covers a school year that straddles December.
+ */
+export const YEAR_SLACK = 1;
+
 export function statedInstant(
   date: string,
   time: string | undefined,
   zone: string,
+  now?: string,
 ): { at: string; timeAssumed: boolean } {
   const rawDate = text(date);
   const rawTime = text(time);
   const parts = parseDate(rawDate);
+  if (now !== undefined) {
+    const thisYear = new Date(now).getFullYear();
+    if (Math.abs(parts.year - thisYear) > YEAR_SLACK) {
+      throw new ManualItemError(
+        `${parts.year} is not this school year. Give the date as YYYY-MM-DD, like ${thisYear}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}.`,
+      );
+    }
+  }
   // A blank time is not midnight. §4.5 fills 23:59 for a course page that
   // prints a bare date and marks it assumed; a student who typed only a day is
   // in exactly that position, and the mark is what keeps §5.3 from ranking this
@@ -237,7 +254,7 @@ function fieldsOf(
       throw new ManualItemError("Give this a date, or clear the time as well as the date.");
     }
   } else {
-    const stated = statedInstant(rawDate, rawTime, zone);
+    const stated = statedInstant(rawDate, rawTime, zone, now);
     dueAt = stated.at;
     if (stated.timeAssumed) extra["timeAssumed"] = "true";
 

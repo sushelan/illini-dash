@@ -321,13 +321,17 @@ swapped to `noDateCount`, so the file still compiles; one `OverrideAction` membe
 (`set-due`) in `src/messages.ts`; one `else if` in `background.ts`'s `applyOverride`
 calling the two core functions.
 
-**Mutation survivors, classified.** `dayList`'s title tie-break was *redundant*
-(`dayContents` already breaks its ties by title and `Array#sort` is stable) — deleted.
-Its NaN guard "survived" because the input never reached it (mutation house rule 4) — the
-test now uses two untimed rows named so the concatenation answers wrongly. `todayBoard`'s
-"today before the rest of the week" and `weekStatus`'s "done before late ok" are both
-*unreachable* as differences, because `sectionFor` and `itemTone` already decide them;
-both kept, with a comment at the line saying so.
+**Mutation survivors, classified — corrected by review R3.** `dayList`'s title
+tie-break was deleted, rightly, but the first note called it *redundant*, and it was not:
+re-adding it survives the suite because the case it changes — a stated 23:59 and an
+assumed 23:59 on one day, titled so alphabetical order contradicts stated-first — was
+*untested*. That test exists now. Its NaN guard "survived" because the input never reached
+it (mutation house rule 4) — the test uses two untimed rows named so the concatenation
+answers wrongly. `todayBoard`'s "today before the rest of the week" and `weekStatus`'s
+"done before late ok" are *equivalent mutants*, not merely unreached: `sectionFor` never
+files a past instant under Today and `itemTone` returns one value, so no input can tell
+the mutated line from the original. They say nothing about the suite and are kept with a
+comment at the line.
 
 **One deliberate deviation from the mock**, in `quietState`: "All 8 sources answered
 2 min ago" rather than "2 minutes ago", reusing `timeAgo` instead of adding a third

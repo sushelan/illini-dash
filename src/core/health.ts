@@ -528,6 +528,21 @@ export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
   const needsYou = actionable + suggestions;
   if (needsYou > 0) return { kind: "needs-you", tone: "warn", text: `${needsYou} needs you` };
 
+  // Never green over a fetch that did not happen (worker rule 2). A source
+  // just switched on is `pending` until its first attempt, and "All clear"
+  // beside it would be a claim about a list this extension has not read yet
+  // (R3 B2). Late and needs-you above are real whatever else is pending; this
+  // is only what the pill may say when nothing is asking.
+  if (summary.pending.length > 0) {
+    const n = summary.pending.length;
+    return { kind: "pending", tone: "pending", text: `${n} not read yet` };
+  }
+  // A failure with nothing to press is still a failure: it gets no count, but
+  // it does not get a green pill either (R3 M7).
+  if (summary.failing.length > 0) {
+    return { kind: "needs-you", tone: "warn", text: "Something needs a look" };
+  }
+
   return { kind: "clear", tone: "ok", text: "All clear" };
 }
 
