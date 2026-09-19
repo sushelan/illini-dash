@@ -34,13 +34,7 @@ import {
   type ViewName,
 } from "../core/calendar.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
-import {
-  alertCount,
-  emptyStateFor,
-  sourceAlertCount,
-  sourcesToRecheck,
-  type NavigatedAt,
-} from "../core/health.js";
+import { alertCount, emptyStateFor, sourcesToRecheck, type NavigatedAt } from "../core/health.js";
 import { SOURCE_NAME } from "../core/names.js";
 import { DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
 import { SYNC_SPINNER_CAP_MS } from "../core/sync.js";
@@ -325,10 +319,6 @@ function render(
       suggestions: state.currentSuggestions.length,
       undated: noDateCount(owed, now),
     }),
-    // The sources with a button on them, which is the half of the old Alerts
-    // badge that went with the list (2026-09-19). Derived by `actionFor`, so
-    // the badge and the buttons on the tab cannot disagree.
-    sources: sourceAlertCount(sources),
   });
   renderHiddenNote();
   // The header bar is sticky, so without this the tabs slide under it and

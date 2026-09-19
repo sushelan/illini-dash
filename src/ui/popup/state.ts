@@ -162,15 +162,25 @@ export function writeStored(key: string, value: string): void {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The strip, left to right. **Sources** joined it on 2026-09-19.
+ * The strip, left to right. Five tabs, and **Sources is not one of them**.
  *
- * It is last on purpose: the first four tabs are the student's work and the
- * fifth is this extension's own plumbing — "a source with a button on it sits
- * below the student's own work" (the Alerts note), one level out. It is a tab
- * rather than a panel because a panel in this popup is a thing that opens
- * below the 600px fold, which is UI house rule 8's whole subject.
+ * It was, for about an hour on 2026-09-19, and Sushi took it off: "theres alr
+ * a sources tab at the top, no need for one at the bottom right." The thing at
+ * the top is the footer strip — `● 4 sources · synced just now` — which is a
+ * button that selects the Sources view, and which is the control he meant all
+ * along ("in the sources tab **after i click on it at the top of the popup**").
+ * A sixth tab for it was a second door to a room with one occupant.
+ *
+ * So `sources` stays a `ViewName` and a view `render` can draw; what it does
+ * not have is a stop on the strip. `SELECTABLE_VIEWS` is what may be *stored*
+ * and restored, because a student who closes the popup on Sources should find
+ * it there — the strip and the set of reachable views are two different
+ * questions, and conflating them is what made this a tab in the first place.
  */
-export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams", "sources"];
+export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams"];
+
+/** Every view the popup can open, strip or no strip. */
+export const SELECTABLE_VIEWS: ViewName[] = [...VIEWS, "sources"];
 
 /**
  * The names on the strip (brief D1). Day reads as **Today**.
@@ -196,8 +206,9 @@ export const VIEW_LABEL: Record<ViewName, string> = {
   // navigation uses ... Title Case").
   nodate: "Alerts",
   exams: "Exams",
-  // The health of the four sources and the two observers, expanded. The
-  // footer strip's own sentence is the other way in.
+  // No tab wears this one: the footer strip's own sentence is how it is
+  // reached. It is here because `renderTabs`, `findFocusTarget` and the
+  // full view's title all look a view's name up by it.
   sources: "Sources",
 };
 
@@ -214,7 +225,10 @@ export const FULL_VIEW_ONLY: ReadonlySet<ViewName> = new Set<ViewName>();
 
 export function storedView(): ViewName {
   const raw = readStored(VIEW_KEY);
-  return VIEWS.includes(raw as ViewName) ? (raw as ViewName) : "day";
+  // `SELECTABLE_VIEWS`, not `VIEWS`: Sources has no tab and is still a view
+  // the popup was last showing. A stored name from another build — the old
+  // `"attention"` — is in neither list and falls back to Today.
+  return SELECTABLE_VIEWS.includes(raw as ViewName) ? (raw as ViewName) : "day";
 }
 
 export function hiddenCourses(): Set<string> {

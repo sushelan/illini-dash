@@ -28,7 +28,11 @@
   const targets = {
     health: ".foot--health",
     deadline: "#view a.row, #view .row",
-    editor: '#actions button[aria-label="Add a deadline"]',
+    // The floating "+" on `<body>`, since the bar's one was removed on
+    // 2026-09-19 ("theres already one at the bottom right"). `QUICK_FAB_SELECTOR`
+    // in `src/ui/popup/shell.ts` is the one spelling of this class, and
+    // `tests/preview-acceptance.test.ts` holds this string against it.
+    editor: '.qfab',
   };
 
   /** The retry interval, and the wait before the first attempt. */

@@ -141,12 +141,19 @@ describe("every preview open= target resolves against the rendered popup", () =>
     expect(el).toBe(popup.document.getElementById("footer")!.firstElementChild);
   });
 
-  it("presses the header's Add button for the editor", () => {
+  it("presses the floating + for the editor", () => {
+    // The bar's "+" was removed on 2026-09-19 ("theres already one at the
+    // bottom right"), and a harness target that outlives the control it names
+    // is UI house rule 4's finding — `open=health` went on pressing `.pill`
+    // for a day. So the target is held against `QUICK_FAB_SELECTOR`, the one
+    // place that class is spelled.
     shell.renderActions();
+    expect(targets["editor"]).toBe(shell.QUICK_FAB_SELECTOR);
     const el = popup.document.querySelector(targets["editor"]!);
     expect(el, `?editor=1 matched nothing: ${targets["editor"]}`).not.toBeNull();
     expect(el!.getAttribute("aria-label")).toBe("Add a deadline");
-    expect(el!.parentElement!.id).toBe("actions");
+    // On `<body>`, not in the bar: it is drawn once and survives every redraw.
+    expect(el!.parentElement).toBe(popup.document.body);
   });
 
   it("presses a real row for the deadline screen", () => {

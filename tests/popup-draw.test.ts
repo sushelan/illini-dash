@@ -22,6 +22,7 @@
  * and `document.activeElement` reads it back. A press is two plain events on
  * the document, which is all `shell.ts`'s capture-phase listeners read.
  */
+import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
@@ -189,7 +190,30 @@ globals["chrome"] = {
   tabs: { create: () => undefined },
 };
 
-const { VIEW_LABEL, app, state } = await import("../src/ui/popup/state.js");
+const { MENU_CLASS, VIEW_LABEL, app, state } = await import("../src/ui/popup/state.js");
+
+/**
+ * The rules of one stylesheet, as `{selector, decls}` — the same reader
+ * `row-order.test.ts` uses, because what a rule says is the only thing a
+ * document with no layout engine can check about it.
+ */
+const rulesOf = (path: string): { selector: string; decls: Record<string, string> }[] => {
+  const css = readFileSync(new URL(`../public/${path}`, import.meta.url), "utf8").replace(
+    /\/\*[\s\S]*?\*\//g,
+    "",
+  );
+  const out: { selector: string; decls: Record<string, string> }[] = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const decls: Record<string, string> = {};
+    for (const decl of match[2]!.split(";")) {
+      const colon = decl.indexOf(":");
+      if (colon === -1) continue;
+      decls[decl.slice(0, colon).trim()] = decl.slice(colon + 1).trim();
+    }
+    out.push({ selector: match[1]!.trim().replace(/\s+/g, " "), decls });
+  }
+  return out;
+};
 const shell = await import("../src/ui/popup/shell.js");
 await import("../src/ui/popup.js");
 
@@ -288,18 +312,18 @@ describe("I02 — a screen opened or closed by a held press focuses the right co
   });
 
   /*
-   * The footer's source button selects the **Sources** tab (2026-09-19).
+   * The footer's source button opens **Sources**, which has no tab.
    *
-   * It used to open the Needs-you *screen* in front of the calendar, and this
-   * test pinned ‹ back returning focus to the rebuilt footer button. There is
-   * no screen and no ‹ back any more: the source list is its own tab (Sushi:
-   * "the sources page in alerts should be in the sources tab after i click on
-   * it at the top of the popup"), so the button is a second way to reach a tab
-   * that is already on the strip. What has to stay true is that the press
-   * leaves no `.screen-bar` behind and that focus lands on the tab the draw
-   * rebuilt rather than on `<body>` (I01).
+   * It used to open the Needs-you *screen* in front of the calendar; then, for
+   * about an hour on 2026-09-19, a sixth tab. Sushi took the tab off — "theres
+   * alr a sources tab at the top, no need for one at the bottom right" — and
+   * the thing at the top is this button. So the press has to do three things
+   * that a tab would otherwise have done for it: draw the view, leave no
+   * `.screen-bar` behind, and put focus somewhere real. There is no tab to
+   * focus, so the draw returns it to the rebuilt button (I01's mechanism,
+   * applied to a view with no stop on the strip).
    */
-  it("selects the Sources tab from the footer's source button, and focuses it", async () => {
+  it("opens Sources from the footer's source button, and keeps focus on it", async () => {
     shell.selectTab("day");
     await settle();
     const health = document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!;
@@ -309,12 +333,19 @@ describe("I02 — a screen opened or closed by a held press focuses the right co
     expect(state.view).toBe("sources");
     expect(view().querySelector(".screen-bar")).toBeNull();
     expect(view().querySelector(".sources")).not.toBeNull();
-    const tab = tabs().querySelector<HTMLElement>("[role='tab'][aria-selected='true']")!;
-    expect(tab.textContent).toContain(VIEW_LABEL.sources);
-    expect(document.activeElement).toBe(tab);
-    expect(
-      document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!.getAttribute("aria-pressed"),
-    ).toBe("true");
+    // No sixth tab, and no tab selected while Sources is showing.
+    const labels = [...tabs().querySelectorAll("[role='tab']")].map((t) => t.textContent);
+    expect(labels.length).toBe(5);
+    expect(labels.some((label) => label?.includes(VIEW_LABEL.sources))).toBe(false);
+    expect(tabs().querySelector("[role='tab'][aria-selected='true']")).toBeNull();
+    // Focus is on the strip's button, rebuilt by the draw — not on `<body>`.
+    const rebuilt = document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!;
+    expect(rebuilt).not.toBe(health);
+    expect(document.activeElement).toBe(rebuilt);
+    expect(rebuilt.getAttribute("aria-pressed")).toBe("true");
+    // Back to a tab, so the next test starts on the strip.
+    shell.selectTab("week");
+    await settle();
   });
 });
 
@@ -901,23 +932,58 @@ describe("the floating +", () => {
   });
 });
 
-describe("the header's + is still the complete form", () => {
-  it("opens the screen, with the fields the quick panel drops", async () => {
-    // Pressed, not called: which of the two forms the bar's "+" opens is the
-    // decision, and a direct call to `openFullAdd` would pass whatever it did.
-    const header = document.querySelector<HTMLElement>("#actions .btn-boxed")!;
-    expect(header.getAttribute("aria-label")).toBe("Add a deadline");
-    click(header);
+describe("the bar has no +, and the floating one is on every tab", () => {
+  /*
+   * Sushi, 2026-09-19: "theres no need to have a + at the top right to add cuz
+   * theres already one at the bottom right." Two controls for one destination
+   * is the `#ledger` strip's defect; the buried one is the one nobody presses,
+   * and here the *bar's* was the buried one.
+   */
+  it("draws no add button in the header", async () => {
+    shell.selectTab("day");
     await settle();
-    const form = view().querySelector<HTMLElement>(".editor")!;
-    expect(form).not.toBeNull();
-    expect(form.classList.contains("editor--quick")).toBe(false);
-    expect(fieldsOf(form)).toEqual([
-      "title", "courseRaw", "kind", "date", "time", "noDate", "endTime", "url",
-    ]);
-    expect(state.screen?.kind).toBe("editor");
-    app.closeEditor();
+    const actions = document.getElementById("actions")!;
+    const labels = [...actions.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
+    expect(labels).not.toContain("Add a deadline");
+    // The three that stay: the full view, the ⋯ and the gear.
+    expect(labels).toEqual(["Open full view", "More", "Settings"]);
+  });
+
+  it("shows the floating + on the tabs the bar's + used to serve", () => {
+    /*
+     * Drawn once on `<body>` and shown by CSS off `body[data-view]`, so what a
+     * test without a layout engine can read is the rule. It used to name the
+     * three calendar tabs; Alerts, Exams and Sources had only the bar's "+",
+     * and removing that would have left them with no way to type a row at all.
+     */
+    const rules = rulesOf("popup-screens.css");
+    const shown = rules.find(
+      (rule) => rule.selector.trim() === ".qfab" && rule.decls["display"] === "inline-flex",
+    );
+    expect(shown, "`.qfab` is shown unconditionally").toBeTruthy();
+    // …and still hidden over a sub-screen and on first run, which is the whole
+    // of what may hide it.
+    const hidden = rules.filter((rule) => /\.qfab/.test(rule.selector) && rule.decls["display"] === "none");
+    expect(hidden.length).toBe(1);
+    expect(hidden[0]!.selector).toContain("[data-screen]");
+    expect(hidden[0]!.selector).toContain(".setup");
+    // No rule keys the "+" on a particular tab any more.
+    expect(rules.filter((rule) => /data-view.*\.qfab/.test(rule.selector))).toEqual([]);
+  });
+
+  it("has no Settings entry in the header ⋯, because the gear is beside it", async () => {
+    // "theres alr a settings button so theres no need for one in the 3 dots."
+    const more = document.querySelector<HTMLElement>('#actions button[aria-label="More"]')!;
+    click(more);
     await settle();
+    const menu = document.querySelector<HTMLElement>(`.${MENU_CLASS}`)!;
+    const labels = [...menu.querySelectorAll(".menu-item")].map((e) => e.textContent);
+    expect(labels).not.toContain("Settings");
+    // The two that name Settings *sections* stay: neither is reachable from
+    // the gear without scrolling a 4000px page.
+    expect(labels).toContain("Google Calendar…");
+    expect(labels).toContain("Appearance…");
+    shell.closeMenus();
   });
 });
 

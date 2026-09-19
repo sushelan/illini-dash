@@ -520,10 +520,17 @@ body[data-tabs-bottom] > #tabs { margin-top: auto; }
  * `bottom` is written by `placeQuickFab`, which is the only thing that knows
  * whether this design's tab strip is under the list or over it.
  */
-.qfab { display: none; }
-body[data-view="day"] .qfab,
-body[data-view="week"] .qfab,
-body[data-view="month"] .qfab {
+/*
+ * On every tab since 2026-09-19, not the three calendar ones.
+ *
+ * The bar's "+" was the add that Alerts, Exams and Sources had, and it is gone
+ * ("theres already one at the bottom right"), so this is the only add there
+ * is and it has to be everywhere the list is. A sub-screen still hides it —
+ * the rule below is last at the same specificity — because a "+" over the
+ * deadline screen would add a row to a list that is not on show, and the
+ * first-run screen hides it too: there is nothing to add to yet.
+ */
+.qfab {
   display: inline-flex;
   position: fixed;
   right: 12px; bottom: 12px;
@@ -532,7 +539,7 @@ body[data-view="month"] .qfab {
   box-shadow: 0 3px 12px var(--shadow);
 }
 .qfab svg { width: 18px; height: 18px; }
-body[data-screen] .qfab { display: none; }
+body[data-screen] .qfab, .setup .qfab { display: none; }
 
 /* ---- the panel ---- */
 

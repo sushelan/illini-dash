@@ -2,10 +2,44 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2280 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2282 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Three duplicate controls removed — 2026-09-19
+
+All one objection, made three times about one screenshot: two controls for one
+destination, and the buried one is the one nobody presses (the `#ledger` rule).
+
+- **No Sources tab.** "Theres alr a sources tab at the top, no need for one at the
+  bottom right." The thing at the top is the footer strip — `● 4 sources · synced just
+  now` — which selects the Sources view, and which is the control he meant in the first
+  place ("in the sources tab *after i click on it at the top of the popup*"). `sources`
+  stays a `ViewName` and a view; what it loses is a stop on the strip. `VIEWS` is the
+  strip, `SELECTABLE_VIEWS` is what may be stored and restored — two questions that were
+  one, which is how it became a tab. `selectTab` now asks for focus on the **footer
+  button** for any view with no tab, or the draw leaves the keyboard on a `<body>` it
+  just emptied (I01's mechanism, one case further out).
+- **No "+" in the bar.** "Theres no need to have a + at the top right to add cuz theres
+  already one at the bottom right." The floating "+" is drawn on **every** tab now, not
+  the three calendar ones, because the bar's was the only add Alerts, Exams and Sources
+  had. What goes with it is the complete *form* (`openFullAdd` is gone): Kind, the end
+  time, the link and "No date yet" are not on the four-field panel Sushi asked for, and
+  they are still on **Edit** — a row you typed carries the full panel behind its ⋯. The
+  order is add, then edit, rather than choose a form before you start. Said out loud
+  here because it is the one thing this removal costs.
+- **No "Settings" in the header ⋯.** The gear is one element to its right. "Google
+  Calendar…" and "Appearance…" stay: the first opens a *section* of a 4000px page that
+  nothing else can address, the second is a panel that exists nowhere else.
+- The harness followed the control again (UI rule 4): `?editor=1` presses `.qfab`, and
+  `tests/preview-acceptance.test.ts` holds that string against `QUICK_FAB_SELECTOR` so
+  a moved control fails a test instead of silently changing what the screenshots mean.
+- Mutation-checked: putting `sources` back on the strip, and asking for tab focus on a
+  view with no tab, each failed the suite on their own. Measured in the real preview
+  document in dark — header is `[Open full view] [More] [Settings]`, five tabs, the "+"
+  at `bottom: 65px` clear of the strip, and the footer press lands on Sources with no
+  tab selected and focus on the button.
 
 ## The No date card loses its three buttons — 2026-09-19
 

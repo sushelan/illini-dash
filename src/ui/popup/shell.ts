@@ -300,24 +300,21 @@ export function renderActions(): void {
   }
 
   /*
-   * The "+", first, because adding is now something this window does.
+   * No "+" on the bar (2026-09-19).
    *
-   * Sushi: "maybe also just a + icon as well for a general event addition."
-   * It prefills the day being *viewed* rather than today — pressing it while
-   * looking at next Tuesday and getting a form dated today is the same class of
-   * surprise as a calendar that jumps back to now when you scroll it.
+   * Sushi, on the real popup: "theres no need to have a + at the top right to
+   * add cuz theres already one at the bottom right." He is right, and it is
+   * the `#ledger` rule again — one destination, two controls, and the buried
+   * one is the one nobody presses. The floating "+" is the add now, and it is
+   * drawn on **every** tab rather than the three calendar ones, so Alerts,
+   * Exams and Sources keep a way to type a row.
+   *
+   * What went with it is the *complete* form (`openFullAdd`): Kind, the end
+   * time, the link and "No date yet" are not on the four-field panel Sushi
+   * asked for ("date, time, name, course, and add/cancel"). They are still on
+   * **Edit** — a row you typed carries the full panel behind its ⋯ — so the
+   * order is add, then edit, rather than choose a form before you start.
    */
-  const addButton = iconButton("plus", "Add a deadline");
-  addButton.classList.add("btn-boxed");
-  addButton.addEventListener("click", (event) => {
-    // Otherwise `document`'s own click listener closes the panel this opens.
-    event.stopPropagation();
-    // The *complete* form, as a screen. Since 2026-09-19 the "+" on the list is
-    // the five-field panel, and this is the only add Alerts and Exams have —
-    // and the only route to Kind, the end time, the link and "No date yet".
-    app.openFullAdd();
-  });
-  actionsEl.append(addButton);
 
   const more = iconButton("more", "More");
   more.setAttribute("aria-haspopup", "menu");
@@ -627,10 +624,18 @@ function openHeaderMenu(anchor: HTMLElement): void {
     openAppearance(anchor);
   });
 
-  add("Settings", "settings", () => {
-    closeMenus();
-    openOptions();
-  });
+  /*
+   * No "Settings" entry (2026-09-19).
+   *
+   * The gear is in the bar, one element to the right of the ⋯ this menu hangs
+   * off — "theres alr a settings button so theres no need for one in the 3
+   * dots at the top". The same removal, for the same reason, as "Open full
+   * view" above it.
+   *
+   * "Google Calendar…" and "Appearance…" stay, and are not duplicates of it:
+   * the first opens *a section* of Settings that nothing else can address, and
+   * the second is a panel that only exists here.
+   */
 
   document.body.append(menu);
   placeFloating(menu, anchor, "right");
@@ -843,7 +848,13 @@ export function selectTab(name: ViewName): void {
    * the second ArrowRight did nothing (I01, 2026-09-19). The draw that rebuilds
    * the strip puts focus on the selected tab (popup/focus.ts).
    */
-  requestFocus({ kind: "tab", view: name });
+  /*
+   * …unless the view has no tab. Sources is selected from the footer strip's
+   * own button, so that is what the draw must put focus back on — a request
+   * for a tab that `renderTabs` never draws finds nothing, and focus is left
+   * on a `<body>` the redraw just emptied, which is I01 all over again.
+   */
+  requestFocus(VIEWS.includes(name) ? { kind: "tab", view: name } : { kind: "footer-health" });
   void app.refresh();
 }
 

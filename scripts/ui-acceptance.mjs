@@ -43,7 +43,7 @@ export const STATES = [
   { id: "stress-week", query: "tab=week&dataset=stress" },
   { id: "empty", query: "tab=day&dataset=empty" },
   { id: "sources", query: "tab=nodate&dataset=stress", press: ".foot--health" },
-  { id: "editor", query: "tab=day&dataset=reference", press: '#actions button[aria-label="Add a deadline"]' },
+  { id: "editor", query: "tab=day&dataset=reference", press: '.qfab' },
   { id: "deadline", query: "tab=day&dataset=reference", press: "#view .row" },
   { id: "setup", query: "setup=1&dataset=empty" },
   { id: "network", query: "fail=network&dataset=stress" },
