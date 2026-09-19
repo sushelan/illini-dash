@@ -61,7 +61,16 @@ const SHOTS = [
   { name: "popup-day", query: "tab=day", size: [400, 600] },
   { name: "popup-week", query: "tab=week", size: [400, 600] },
   { name: "popup-exams", query: "tab=exams", size: [400, 600] },
-  { name: "popup-attention", query: "tab=attention", size: [400, 600] },
+  /*
+   * The two tabs D3 and D6 added, which nothing else can reach.
+   *
+   * `popup-month` used to be full-view-only, so the 400px month had never been
+   * captured at all; `popup-nodate` replaces `popup-attention`, whose tab no
+   * longer exists (a stored `"attention"` falls back to `day`, which would have
+   * made that shot a second copy of `popup-day` with no way to tell).
+   */
+  { name: "popup-month", query: "tab=month", size: [400, 600] },
+  { name: "popup-nodate", query: "tab=nodate", size: [400, 600] },
   /*
    * The two failure states, which were unreachable in the harness.
    *
@@ -74,11 +83,12 @@ const SHOTS = [
    * The health popover, on the tab whose list is shortest.
    *
    * It shipped clipped half way down its fifth row and no shot could show it,
-   * because opening it takes a click. Attention is the right tab to check on:
-   * the shorter the page, the shorter the popup window Chrome measures, and the
-   * less room a floating panel has.
+   * because opening it takes a click. No date is the right tab to check on
+   * (it inherits this from Attention, which it replaced): the shorter the page,
+   * the shorter the popup window Chrome measures, and the less room a floating
+   * panel has.
    */
-  { name: "popup-sources", query: "tab=attention&open=health", size: [400, 600] },
+  { name: "popup-sources", query: "tab=nodate&open=health", size: [400, 600] },
   { name: "popup-unreachable", query: "tab=day&fail=network", size: [400, 600] },
   { name: "popup-unreadable", query: "tab=day&fail=parse", size: [400, 600] },
   { name: "popup-setup", query: "tab=day&setup=1", size: [400, 600] },
@@ -103,7 +113,7 @@ const SHOTS = [
   { name: "options-sitelogin", query: "page=options&fail=sitelogin", size: [1280, 1600] },
   { name: "components", query: "page=components", size: [960, 1700] },
   { name: "full-exams", query: "tab=exams&view=full", size: [1280, 800] },
-  { name: "full-attention", query: "tab=attention&view=full", size: [1280, 800] },
+  { name: "full-nodate", query: "tab=nodate&view=full", size: [1280, 800] },
   /*
    * Store assets, which are one file each rather than a dark and a light one.
    *

@@ -127,3 +127,91 @@
   color: var(--brand-mark); cursor: pointer; white-space: nowrap;
 }
 .mfull:hover { text-decoration: underline; }
+
+/* ==========================================================================
+ * The No date tab (D3, mock 2c), and the Exams board
+ * ====================================================================== */
+
+/*
+ * An explainer above a list: what this screen is, in one paragraph.
+ *
+ * Shared by the No date tab and the empty exam board, because they are the same
+ * object — a card of prose that answers "why does this screen look like this".
+ * Quieter than a row card: it is read once and then never again.
+ */
+.view-note {
+  margin: 12px 10px;
+  padding: 10px 12px;
+  font-size: 11.5px; line-height: 1.5; font-weight: 400;
+  color: var(--fg);
+  box-shadow: none;
+}
+
+/* `#view` has no padding of its own — every view states its own gutter — and a
+   heading dropped straight into it would sit hard against the window edge
+   while the cards under it are inset. 14px is the card's 10px plus the
+   `.section-head` 4px that aligns its text with the card's text. */
+#view > .section-head { padding-inline: 14px; }
+#view > .section-head:first-child { padding-top: 12px; }
+
+.nodate-stack { display: flex; flex-direction: column; gap: 7px; padding: 0 10px; }
+.nodate-card { padding: 4px 6px 8px; }
+/*
+ * The three answers, under the row they answer.
+ *
+ * `flex-wrap`, because "Give it a date" is the longest label on the tab and a
+ * student's own course name can widen the chip beside it — at 400px the third
+ * button wraps rather than pushing the card past the window. Height is the
+ * popup's recurring bug; width is the other one, and both come from assuming a
+ * line fits.
+ */
+.nodate-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 8px 5px 0;
+}
+.nodate-actions .btn { height: 29px; }
+
+/*
+ * "check" — the amber mark on a row whose date could not be read.
+ *
+ * `--warn`, not `--err`: the deadline is not wrong, it is unknown, and this
+ * tab's other rows are undated for reasons nobody is at fault for. Fully
+ * spelled rather than leaning on `.chip`, so it cannot change colour when the
+ * chip in the row beside it does.
+ */
+.chip-check {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 8px;
+  border: 0; border-radius: 999px;
+  background: var(--warn-wash-strong); color: var(--warn);
+  font-size: 10px; font-weight: 600; line-height: 1;
+  white-space: nowrap; cursor: help;
+}
+
+/* "Add something by hand · no site lists it". A whole card that is a button. */
+.nodate-add {
+  display: flex; align-items: center; gap: 9px;
+  width: calc(100% - 20px); margin: 12px 10px 0;
+  padding: 11px 12px;
+  font: inherit; color: var(--fg); text-align: left;
+  cursor: pointer;
+}
+.nodate-add:hover { background: var(--hover); }
+.nodate-add .icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.nodate-add--label { flex: 1; font-size: 11.5px; font-weight: 600; }
+.nodate-add .muted { font-size: 10.5px; font-weight: 500; }
+
+/*
+ * The exam board: the same headings and the same rows, in the card language.
+ *
+ * `.section-head` replaces the `h2.section` this view used, so a group of exams
+ * is labelled exactly like a group of anything else. What each section *says*
+ * is unchanged — "Not booked" still leads, still carries its count, and still
+ * draws the booking window under the title.
+ */
+.exam-stack { display: flex; flex-direction: column; gap: 6px; padding: 0 10px; }
+.exam-stack + .section-head { padding-top: 14px; }
+/* "Not booked" is the one heading on this screen that names a problem rather
+   than an inventory, so it keeps the red `h2.section--err` gave it. */
+.section-head--err { color: var(--err); }
+.section-head--err > :last-child:not(:first-child) { color: var(--err); font-weight: 700; }

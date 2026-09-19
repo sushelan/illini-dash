@@ -1,30 +1,23 @@
 /**
- * The Attention tab: what a post suggested, what is overdue, and what has no
- * usable date.
+ * The suggestion rows a post produced (§4.6), and what the row calls each
+ * observer.
  *
- * **Kept as it was.** D2 and D3 split this in two — the overdue rows and the
- * suggestions move into the Needs you screen behind the header pill, and the
- * undated ones become the No date tab — and this file goes when both exist.
- * Until then it is the only route to either, so it stays whole.
+ * Lifted out of `views/attention.ts` unchanged when D3 split that tab in two.
+ * The undated half became `views/nodate.ts`; these rows belong to the Needs-you
+ * screen behind the header pill (D2), which is another file again — so they
+ * wait here rather than being rewritten twice.
+ *
+ * `renderSuggestions` appends to `viewEl` exactly as it did on the Attention
+ * tab, and is exported so the Needs-you screen can call it.
  */
 
-import { type AttentionName, attentionGroups, isActionable } from "../../../core/calendar.js";
-import { courseLabel } from "../../../core/names.js";
-import { icon } from "../../icons.js";
-import type { Item, Suggestion } from "../../../sources/types.js";
-import { state, viewEl } from "../state.js";
-import { renderRow } from "../rows.js";
-import { applySuggestionRequest } from "../shell.js";
-
-const ATTENTION_NOTE: Record<AttentionName, string> = {
-  Overdue: "Past its deadline in the last week.",
-  "Couldn't read":
-    "The source printed a date this extension could not make sense of, so these have no place on the calendar. They are the deadlines it is least sure about.",
-  "No date at all": "Listed by a source with no deadline on it anywhere.",
-};
+import { courseLabel } from "../../core/names.js";
+import type { Suggestion } from "../../sources/types.js";
+import { state, viewEl } from "./state.js";
+import { applySuggestionRequest } from "./shell.js";
 
 /** What the row calls each observer. "from a Campuswire post". */
-const SUGGESTION_SOURCE: Record<Suggestion["source"], string> = {
+export const SUGGESTION_SOURCE: Record<Suggestion["source"], string> = {
   piazza: "Piazza post",
   campuswire: "Campuswire post",
   paste: "pasted post",
@@ -42,7 +35,7 @@ const SUGGESTION_SOURCE: Record<Suggestion["source"], string> = {
  * line, and the sentence the instructor actually typed is the evidence a
  * student wants only when they doubt the row.
  */
-function renderSuggestions(suggestions: readonly Suggestion[]): void {
+export function renderSuggestions(suggestions: readonly Suggestion[]): void {
   if (suggestions.length === 0) return;
   const heading = document.createElement("h2");
   heading.className = "section";
@@ -168,66 +161,4 @@ function renderSuggestions(suggestions: readonly Suggestion[]): void {
     row.title = suggestion.context;
     viewEl.append(row);
   }
-}
-
-export function renderAttentionView(
-  items: Item[],
-  now: Date,
-  colours: Map<string, number>,
-  suggestions: readonly Suggestion[] = [],
-): void {
-  renderSuggestions(suggestions);
-  const groups = attentionGroups(items, now);
-  if (groups.length === 0) {
-    // Only when there is genuinely nothing to answer. A suggestion *is*
-    // something needing attention, and "Nothing needs attention." printed under
-    // one is the silent-empty failure with a sentence attached.
-    if (suggestions.length > 0) return;
-    const empty = document.createElement("p");
-    empty.className = "muted empty";
-    empty.textContent = "Nothing needs attention.";
-    viewEl.append(empty);
-    return;
-  }
-  for (const group of groups) {
-    if (!isActionable(group.name)) {
-      // Folded away. It never empties — undated rows accumulate all semester —
-      // so left open it buries the two groups that are actually asking for
-      // something. Still here, because dropping a row a source listed is the
-      // silent loss §11 ranks worst.
-      viewEl.append(renderFoldedGroup(group, now, colours));
-      continue;
-    }
-    const heading = document.createElement("h2");
-    heading.className = "section";
-    if (group.name === "Couldn't read") heading.classList.add("section--err");
-    heading.textContent = `${group.name} (${group.items.length})`;
-    heading.title = ATTENTION_NOTE[group.name];
-    viewEl.append(heading);
-    for (const item of group.items) {
-      viewEl.append(renderRow(item, now, "Needs attention", undefined, colours));
-    }
-  }
-}
-
-function renderFoldedGroup(
-  group: { name: AttentionName; items: Item[] },
-  now: Date,
-  colours: Map<string, number>,
-): HTMLElement {
-  const fold = document.createElement("details");
-  fold.className = "fold";
-  const summary = document.createElement("summary");
-  summary.className = "fold--summary";
-  // An SVG chevron rather than "▸ " as `content`: a text glyph is whatever the
-  // installed font has, and this one sat on the text baseline rather than on
-  // the label's centre.
-  summary.append(icon("right"), document.createTextNode(`${group.name} (${group.items.length})`));
-  summary.title = ATTENTION_NOTE[group.name];
-  fold.append(summary);
-
-  for (const item of group.items) {
-    fold.append(renderRow(item, now, "Needs attention", undefined, colours));
-  }
-  return fold;
 }

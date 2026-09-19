@@ -72,7 +72,7 @@ import { renderDayView, resetDayGrid } from "./popup/views/day.js";
 import { renderWeekView } from "./popup/views/week.js";
 import { renderMonthView } from "./popup/views/month.js";
 import { renderExamsView } from "./popup/views/exams.js";
-import { renderAttentionView } from "./popup/views/attention.js";
+import { renderNoDateView } from "./popup/views/nodate.js";
 import { renderSetup } from "./popup/screens/setup.js";
 import {
   deleteManual,
@@ -168,9 +168,9 @@ function render(
   renderDateNav(nav.label, nav.step);
 
   if (state.view === "nodate") {
-    // Interim: the No date tab draws the old Attention renderer until its own
-    // view lands (brief D3). Suggestions and Overdue move to the Needs-you screen.
-    renderAttentionView(owed, now, colours, state.currentSuggestions);
+    // The undated half of the old Attention tab (D3). Overdue and the
+    // suggestions are the Needs-you screen's, behind the header pill (D2).
+    renderNoDateView(owed, now, colours);
     makeRowsNavigable();
     return;
   }
