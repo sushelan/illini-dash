@@ -58,6 +58,7 @@ import {
 import {
   drawIsHeld,
   makeRowsNavigable,
+  renderHiddenNote,
   renderActions,
   renderBanners,
   renderDateNav,
@@ -165,6 +166,7 @@ function render(
    */
   if (needsYouIsOpen()) {
     renderNeedsYou(items, sources, state.currentSuggestions, now);
+    makeRowsNavigable();
     return;
   }
 
@@ -182,6 +184,7 @@ function render(
     // tab that does not count them is a tab nobody opens to find them.
     nodate: noDateCount(owed, now),
   });
+  renderHiddenNote();
   // The header bar is sticky, so without this the tabs slide under it and
   // switching views means scrolling back to the top of the list. Measured
   // rather than hard-coded: the bar's height is a font metric.

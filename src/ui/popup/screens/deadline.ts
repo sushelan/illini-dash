@@ -539,6 +539,13 @@ function openScreenMenu(item: Item, anchor: HTMLElement): void {
    * place for. The entry exists here because this screen is where a student is
    * standing when they decide a row is wrong (inventory §W).
    */
+  // Renaming lives in Settings › Courses with the rest of the course tools
+  // (brief D8 lists it here; the rename itself is `renameCourse` in Options).
+  add("Rename course…", "settings", () => {
+    closeMenus();
+    void chrome.tabs.create({ url: chrome.runtime.getURL("options.html#sec-courses") });
+  });
+
   add("Report this page…", "warning", () => {
     closeMenus();
     void chrome.tabs.create({ url: chrome.runtime.getURL("options.html#sec-help") });

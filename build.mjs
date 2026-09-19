@@ -1,5 +1,5 @@
 import { build, context } from "esbuild";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
 const outdir = "dist";
@@ -39,7 +39,29 @@ const observerOptions = {
   format: "iife",
 };
 
+/**
+ * A merge marker in a stylesheet is not a syntax error the browser reports: CSS
+ * error recovery swallows it *and the next rule*, which on 2026-09-19 was the
+ * one hiding the tab strip behind the Needs-you screen (review R1, finding 1).
+ * So the build refuses to copy a static file that carries one.
+ */
+async function refuseConflictMarkers(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) {
+      await refuseConflictMarkers(path);
+      continue;
+    }
+    if (!/\.(css|html|json|js|md)$/.test(entry.name)) continue;
+    const text = await readFile(path, "utf8");
+    if (/^(<<<<<<<|=======|>>>>>>>)(\s|$)/m.test(text)) {
+      throw new Error(`${path} contains a merge conflict marker`);
+    }
+  }
+}
+
 async function copyStatic() {
+  await refuseConflictMarkers("public");
   await cp("public", outdir, { recursive: true });
   await cp("adapters", `${outdir}/adapters`, { recursive: true });
 }

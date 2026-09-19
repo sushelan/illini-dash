@@ -398,6 +398,11 @@ export function createEditor(options: EditorOptions): Editor {
     // Focus goes to the field being complained about, so a refusal on a form
     // that has scrolled is not a red sentence somewhere off screen.
     const control = field ? (grid.querySelector(`[data-field="${field}"]`) as HTMLElement | null) : null;
+    // A field folded under "More" has to be unfolded before its refusal can be
+    // read — `<details>` hides its content from focus as well as from sight
+    // (R1 F120: four of manual.ts's sentences were being swallowed).
+    const fold = control?.closest("details");
+    if (fold) fold.open = true;
     control?.focus();
   };
 

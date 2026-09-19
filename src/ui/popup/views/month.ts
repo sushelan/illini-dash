@@ -113,12 +113,14 @@ export function renderMonthView(items: Item[], now: Date, colours: Map<string, n
       more.className = "mmore";
       more.textContent = `+${cell.items.length - MONTH_CELL_ROWS} more`;
       more.addEventListener("click", () => {
-        // The day view is where the rest fits, so go there rather than growing
-        // a cell that would push five other weeks off the screen.
+        // The week is where the rest fits, so go there rather than growing a
+        // cell that would push five other weeks off the screen. The week, not
+        // Today: since D4 Today is anchored on now and reads no offset (R1
+        // F100), while the week is drawn from `anchorDate`, which does.
         state.dayOffset = Math.round(
           (cell.date.getTime() - startOfDay(now).getTime()) / 86_400_000,
         );
-        state.view = "day";
+        state.view = "week";
         writeStored(VIEW_KEY, state.view);
         void app.refresh();
       });

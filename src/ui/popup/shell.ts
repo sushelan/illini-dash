@@ -146,7 +146,11 @@ export function renderHealth(
   const text = document.createElement("span");
   text.className = "pill--text";
   text.textContent = pill.text;
-  button.append(dot, text);
+  // The chevron says "this opens something" (inventory F13); the screen it
+  // opens is in flow, so `aria-expanded` rather than `aria-haspopup`.
+  const chevron = icon("down");
+  chevron.classList.add("pill--chevron");
+  button.append(dot, text, chevron);
 
   button.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -485,6 +489,7 @@ function openAppearance(anchor: HTMLElement): void {
   closeMenus();
   const panel = document.createElement("div");
   panel.className = `${MENU_CLASS} popover popover--wide`;
+  panel.dataset["survivesRedraw"] = "";
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "Appearance");
   panel.addEventListener("click", (event) => event.stopPropagation());
@@ -868,6 +873,33 @@ export function renderFooter(
  * count of what it is hiding. A filter that silently removes work is the
  * failure §11 ranks worst, and this one persists across popup opens.
  */
+/**
+ * One line that says courses are off, while any are (inventory F35).
+ *
+ * The Courses menu is the only place a course is switched off since D9, and a
+ * menu closes; a list that is quietly missing a course is the silent-empty
+ * failure with a checkbox behind it. So the strip that used to hold the chips
+ * holds one sentence and one button instead, and only while it is true.
+ */
+export function renderHiddenNote(): void {
+  filtersEl.replaceChildren();
+  const count = state.hidden.size;
+  if (count === 0) return;
+  const note = document.createElement("span");
+  note.className = "fnote";
+  note.textContent = count === 1 ? "1 course hidden" : `${count} courses hidden`;
+  const show = document.createElement("button");
+  show.type = "button";
+  show.className = "btn btn-sm";
+  show.textContent = "Show all";
+  show.addEventListener("click", () => {
+    state.hidden.clear();
+    writeStored(HIDDEN_KEY, JSON.stringify([]));
+    void app.refresh();
+  });
+  filtersEl.append(note, show);
+}
+
 export function renderFilters(items: Item[], colours: Map<string, number>): void {
   filtersEl.replaceChildren();
   const courses = coursesIn(items);
@@ -980,7 +1012,12 @@ export function renderDateNav(label: string, step: number): void {
  * `isDirty` is still read, for the confirmation on Escape.
  */
 export function drawIsHeld(): boolean {
-  if (document.querySelector(MENU_SELECTOR)) {
+  const open = document.querySelector<HTMLElement>(MENU_SELECTOR);
+  // A row menu is anchored to a row the redraw would replace, so the redraw
+  // waits. The Appearance panel is anchored to the header, which no redraw
+  // touches, and its two row tweaks are *for* watching the list change under
+  // it (R1 seam 4: a tweak did nothing until the panel was dismissed).
+  if (open && !("survivesRedraw" in open.dataset)) {
     state.redrawAfterMenu = true;
     return true;
   }
