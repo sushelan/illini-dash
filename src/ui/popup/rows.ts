@@ -32,7 +32,7 @@ import { iconButton } from "../icons.js";
 import { TWEAKS_EVENT } from "../theme-panel.js";
 import type { Item } from "../../sources/types.js";
 import { app, readTweaks, safeUrl, state } from "./state.js";
-import { applyOverrideAction, applySuggestionRequest, openRowMenu } from "./shell.js";
+import { applySuggestionRequest, openRowMenu } from "./shell.js";
 
 /** Said on the row rather than over a band of rows (brief D4). */
 const ASSUMED_NOTE =
@@ -452,50 +452,18 @@ export function renderRow(
   row.append(dot, main, when, menu);
 
   /*
-   * The card slip's checkbox — "tick it off", which is the mock's whole
-   * gesture and the reason a card is worth its height.
+   * One trailing control per row, and it is the ⋯.
    *
-   * It does exactly what the ⋯ menu's **Mark done** does, through the same
-   * `applyOverrideAction`, so there is one code path to the store and not two
-   * that can disagree about what "done" means. Two of the five sources can
-   * never report completion, so this is the control a student reaches for most
-   * and it was two presses deep.
+   * The card used to carry a checkbox of its own here, and the Month's agenda
+   * row a `›` as well, so a row ended in a tick, a ⋯ and a chevron at once
+   * (Sushi, 2026-09-19: "you have 3 dots, a checkbox and an arrow, pick one
+   * bro. just pick the 3 dots."). Nothing is lost: **Mark done** is the ⋯
+   * menu's first item after Open, and the tick only ever called the same
+   * `applyOverrideAction`.
    *
-   * A real `<input type="checkbox">`, not a styled `<span>`: it has to answer
-   * the space bar, take focus, and announce its state, and none of that is
-   * worth reimplementing. `preventDefault`/`stopPropagation` on the click
-   * because the card is an `<a>` — without them, ticking a box opens
-   * Gradescope (the same defect the undo button above already had).
+   * The No Date card's own "Tick off" button is a different control on a
+   * different line and stays.
    */
-  if (asCard) {
-    const tick = document.createElement("input");
-    tick.type = "checkbox";
-    tick.className = "row--tick";
-    tick.checked = item.done === true;
-    /*
-     * The second half of "the box does not work", and the half no event trace
-     * shows: the ⋯ trigger is `position: absolute` and overlaps the box. A
-     * positioned element paints above a static one whatever the source order,
-     * so 9 of the box's 15 rows were the ⋯ button — measured in the real
-     * document, tick at [349,180,15,15], menu at [343,186,24,24]. Aim at the
-     * middle of the square you can see and you press ⋯.
-     *
-     * `position: relative` and nothing else: two positioned siblings with
-     * `z-index: auto` paint in source order, and the box is appended after the
-     * menu. It moves nothing — a relatively positioned grid item with no
-     * offsets occupies exactly the box it already had — so this is not a change
-     * to the design, and it is here rather than in the stylesheet because it is
-     * a hit-testing fact about these two elements rather than a look.
-     */
-    tick.style.position = "relative";
-    tick.title = item.done ? "Put this back — not done" : "Tick this off";
-    tick.setAttribute("aria-label", `${item.done ? "Not done" : "Done"}: ${item.title}`);
-    tick.addEventListener("click", (event) => {
-      event.stopPropagation();
-      applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id });
-    });
-    row.append(tick);
-  }
 
   for (const detail of details) {
     const line = document.createElement("span");

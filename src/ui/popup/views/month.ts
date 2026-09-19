@@ -28,7 +28,7 @@ import {
   startOfDay,
 } from "../../../core/calendar.js";
 import { courseLabel } from "../../../core/names.js";
-import { iconButton } from "../../icons.js";
+import { icon, iconButton } from "../../icons.js";
 import type { Item } from "../../../sources/types.js";
 import {
   UNTIMED_NOTE,
@@ -439,6 +439,16 @@ function paintDayList(
     month: "short",
     day: "numeric",
   })}`;
+  /*
+   * The mock's `event_note`, ahead of the words.
+   *
+   * Prepended after the text rather than appended before it, because
+   * `textContent =` replaces every child — writing the glyph first would throw
+   * it away. It is an `<svg>`, so it carries no text of its own and
+   * `when.textContent` is still exactly the heading; it is `aria-hidden` from
+   * `icon()`, which is right for a glyph that only repeats the word beside it.
+   */
+  when.prepend(icon("event-note"));
   const count = document.createElement("span");
   count.textContent = `${placed.length} ${placed.length === 1 ? "item" : "items"}`;
   heading.append(when, count);
@@ -472,18 +482,13 @@ function renderDayRow(placed: PlacedItem, now: Date, colours: Map<string, number
   const row = renderRow(placed.item, now, undefined, { primary }, colours);
   if (placed.anchor.assumed) row.title = UNTIMED_NOTE;
   /*
-   * The `›` the spec puts at the end of an agenda row (§5).
+   * No `›` at the end of the line.
    *
-   * Decorative, and `aria-hidden` for that reason: the row is already a link
-   * to its source and carries a ⋯ that is the real control, so a second thing
-   * at the end of the line that announces itself would be one more stop in the
-   * tab order promising something it does not do. It is the mock's affordance
-   * — "this row goes somewhere" — and nothing else.
+   * §5's agenda row drew one, and with the card's checkbox it made three
+   * trailing controls on one row (Sushi, 2026-09-19: "pick one bro. just pick
+   * the 3 dots."). It was `aria-hidden` decoration — the row is already a link
+   * and the ⋯ is the real control — so removing it removes nothing a student
+   * could press.
    */
-  const chev = document.createElement("span");
-  chev.className = "row--chev";
-  chev.textContent = "\u203a";
-  chev.setAttribute("aria-hidden", "true");
-  row.append(chev);
   return row;
 }

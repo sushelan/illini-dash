@@ -145,6 +145,12 @@
   position: absolute; inset: 0 auto 0 0; width: 4px;
   background: var(--course, var(--accent));
 }
+/* And because it is positioned rather than a border, it reserves nothing: any
+   row with less than ~8px of left padding draws its own text underneath it.
+   The card's 8–11px insets have the room; the two flush rows — the Classical
+   week entry (`padding: 6px 0`) and its Month agenda row (`7px 1px`) — did not,
+   and each makes its own room with `:has(> .row--edge)` in its sheet. A new
+   view that flattens the row's left padding has to do the same. */
 
 /* popup.css gives every `.row[class*="course-"]` a 3px border and 9px of left
    padding, which is the ruled list's vocabulary. A card states its course with

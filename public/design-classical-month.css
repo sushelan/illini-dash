@@ -1,69 +1,15 @@
-/* design-classical-month.css — the Classical calendar's month view.
- *
- * Scoped under `html[data-design="classical"]` like every rule in
- * `design-classical.css`, which loads first and owns the tokens, the type
- * scale, the shell, the tab bar and the shared card slip. Spend those here;
- * do not restate them. One file per view so parallel work never collides in
- * a single stylesheet.
- *
- * The invariants it may not break: `html` and `body` are never scroll
- * containers, nothing takes a viewport unit or a percentage height, and no
- * rule is keyed on window width. See the header of popup.css.
- */
-
-/* ==========================================================================
- * What was measured for 400px
- *
- * The mock is drawn ~700px wide with a `px-4` gutter and a `p-2` card, so its
- * seven columns get (700 − 32 − 16) / 7 ≈ 93px each. The popup is 400 with the
- * 10px gutters `popup-views.css` already gives `.mdow`/`.mdots`, so the card is
- * 380 wide; the 6px of card padding added below leaves (380 − 2 − 12) / 7 =
- * 52.3px a column. That is 0.56 of the mock, and nothing here is scaled by
- * 0.56: a 5px dot does not survive being multiplied by anything, and a serif
- * numeral under 11px stops being legible before it stops fitting. So the type
- * is reduced by eye to the smallest size that still reads and the *cell* takes
- * the whole reduction — h-10 (40px) becomes a 38px minimum, which over five
- * rows is 190px of the ~600px Chrome will give this popup, leaving the agenda
- * box its four rows without the document needing to scroll for the first one.
- *
- * Three dots plus a "+2" is the widest a cell gets: 3 × 5 + 2 × 2 + 13 = 32px
- * inside 52, so the cap in `monthDots` is still the binding constraint and not
- * the column.
- * ====================================================================== */
-
-/* --------------------------------------------------------------------------
- * 1. The grid is one card, ruled, not a lattice
- *
- * The mock draws a single bordered leaf with a hairline under the weekday
- * initials and another above the key, and *no* lines between the cells: a
- * month in a journal is ruled at the head and footed at the foot, not squared
- * like a ledger. The popup's three elements — `.mdow`, `.mdots`, `.mlegend` —
- * are stacked into that one leaf by each taking the part of the border it is
- * adjacent to, so no wrapper element is needed and the grid columns stay
- * exactly where `renderDotMonth` put them.
- * ----------------------------------------------------------------------- */
-/* --------------------------------------------------------------------------
- * 0. The one colour §5 names that the token file does not
- *
- * The selected cell sits on `--bg-active-tab` (#f2e9dc). `design-classical.css`
- * maps that spec surface onto `--tint-strong`, which is the token to spend —
- * but the *outline* is `--ink-navy` on it, and in dark that pair has to be
- * restated rather than inherited: `--tint-strong` darkens while the navy
- * lightens to the gold. Both halves are named here so no bare hex appears in a
- * rule and the dark end is not an afterthought.
- * ----------------------------------------------------------------------- */
+/* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
+ * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
 html[data-design="classical"] {
-  --month-sel-bg:   #f2e9dc;
-  --month-sel-edge: #1a2744;
+  --month-sel-bg:   var(--bg-active-tab);
+  --month-sel-edge: var(--primary);
+  --month-badge-bg: #e6e2da;           /* mock: bg-surface-variant, on the agenda count */
 }
 html[data-design="classical"]:root.is-dark {
-  /* Lifted ~14 points off `#221e18` rather than dropped 12 off the paper: the
-     eye is far less sensitive to lightening near-black (CLAUDE.md's tint
-     note), so the same alpha would have been invisible. */
   --month-sel-bg:   #332b20;
   --month-sel-edge: #d7ab61;
+  --month-badge-bg: var(--bg-hover);   /* #2d2820 — the same one step off the card, lit for dark */
 }
-
 html[data-design="classical"] .mdow,
 html[data-design="classical"] .mdots,
 html[data-design="classical"] .mlegend {
@@ -79,162 +25,155 @@ html[data-design="classical"] .mdow {
   border-radius: 3px 3px 0 0;
   padding-block: 1px;
 }
+/*
+ * mock: the cell grid is `grid grid-cols-7 gap-y-1` — 4px of the card's own
+ * surface between the weeks, and no rule anywhere inside the grid.
+ *
+ * Safe to gap because `.mday` below sets `border: 0`: the base sheet's
+ * `border-top`/`border-left` per cell (and the `:nth-child` rules that trim
+ * them at the card's edges) are already off under this design, so a row gap
+ * cannot leave a line hanging in mid-air.
+ */
 html[data-design="classical"] .mdots {
   border-top: 0; border-bottom: 0;
   border-radius: 0;
+  row-gap: 4px;                /* mock: gap-y-1 */
 }
-/* §5's weekday initials: `S M T W T F S` at 11px serif semibold, `--ink-muted`
-   — the serif, not the sans the rest of the popup's small caps take, because
-   these are seven letters and not a letter-spaced label. The hairline under
-   them is `.mdow`'s bottom border above. */
 html[data-design="classical"] .mdow div {
   padding: 4px 0;
-  font-family: var(--serif);
-  font-size: 11px; font-weight: 600; letter-spacing: .04em;
-  color: var(--muted);
+  font-family: var(--label);   /* mock: font-label-sm is Newsreader, not EB Garamond */
+  font-size: 11px; line-height: 16px;   /* mock: text-label-sm 11px/16px */
+  font-weight: 700;            /* mock: font-bold, over label-sm's own 600 */
+  letter-spacing: .08em;       /* mock: label-sm tracking */
+  color: var(--muted);         /* mock: text-secondary #6c5b51 */
 }
-
-/* No lattice. The cell keeps its column and loses its rules. */
-/*
- * §5's cell: ~32px, not the 38 this file first chose.
- *
- * Measured in the real document before it was changed: the tallest cell is one
- * with dots and a `+N`, and its content is the numeral (12px, `line-height: 1`)
- * + the gap + the dot row + the padding. The dot row is 8px, not 4 — the `+N`
- * marker is 8px type on the same baseline as the dots and it, not the dot,
- * sets that row's height. So 12 + 2 + 8 + 7 = 29px of content in a 32px box,
- * with 3px to spare; nothing clips, and the `+N` was measured unclipped at
- * this size too.
- *
- * Six rows of 32 against six of 38 gives the agenda box 36px back in a window
- * Chrome caps at 600.
- */
 html[data-design="classical"] .mday {
-  min-height: 32px;
+  min-height: 40px;
   gap: 2px;
   padding: 4px 0 3px;
   border: 0;
   border-radius: 4px;
 }
-/* The number is the serif, at the mock's weight: this is the one numeral on
-   the tab a student reads rather than scans. */
-/* §5: the number, centred, at 12px serif. The one numeral on the tab a
-   student reads rather than scans. */
 html[data-design="classical"] .mday--num {
   font-family: var(--serif);
   font-size: 12px; font-weight: 500; line-height: 1;
   color: var(--fg);
 }
-/* §5: dots at 4px with `gap-0.5`. The 5px of `popup-views.css` is a fifth of
-   the 2px gap beside it and crowded four-dot days at 52px columns. */
 html[data-design="classical"] .mday--dots { gap: 2px; }
-
-/*
- * Today's numeral is a numeral, not a 20px disc.
- *
- * `design-classical.css` already took the fill off it ("a disc on a vellum
- * ground reads as a hole punched in the paper") but left the 20px box and the
- * 20px line-height `popup-views.css` gave it to be round. That box, not the
- * dots, was what held the cell open: measured at the 32px minimum, every cell
- * in today's week came out 37px tall — 20 + 2 + an 8px `+N` row + 7 of padding
- * — because a grid row is as tall as its tallest cell. With the numeral back
- * on its own line the week that holds today is 32 like the other five.
- */
 html[data-design="classical"] .mday--today .mday--num {
   width: auto; height: auto; line-height: 1;
 }
-html[data-design="classical"] .mday .mdot { width: 4px; height: 4px; }
-/* A neighbouring month is present because the grid is rectangular, and says so
-   by being faint — the mock's `opacity-40`, kept as a colour rather than an
-   opacity so the dots under it do not fade with it. */
+html[data-design="classical"] .mday .mdot { width: 6px; height: 6px; }
 html[data-design="classical"] .mday--out .mday--num { color: var(--muted); opacity: .5; }
-
-/*
- * Today, and the day that is open, are two different statements.
- *
- * `design-classical.css` gives them the same `--today-tint` fill, which in the
- * mock is true of the *selected* cell only: today is stated by the ink on the
- * numeral. Distinguishing them matters here because the popup opens with today
- * selected — with one treatment for both, the first thing the student sees is
- * a month in which today and the open day are indistinguishable, and paging to
- * another month leaves an outline with no explanation on the 1st.
- */
 html[data-design="classical"] .mday--today { background: none; }
 html[data-design="classical"] .mday--today .mday--num {
   color: var(--brand-mark); font-weight: 700;
 }
-/* The open day: the mock's ruled box — a hairline in the ink, on the tint,
-   with the small radius the design gives every rectangle. `inset`, so opening
-   a day costs no layout and the row below it does not move. */
-/* §5's selected cell: an `--ink-navy` border on `--bg-active-tab`, 4px radius.
-   `inset`, so opening a day costs no layout and the row below it does not
-   move. */
+/*
+ * mock: `bg-secondary-container/60 border border-primary rounded-sm`.
+ *
+ * Sixty percent of the peach, not the solid swatch: `color-mix` with
+ * `transparent` yields `rgba(246, 222, 209, .6)`, which composites against
+ * `.mdots`'s own `--surface` — the mock's `surface-container-low`, the same
+ * thing the `/60` is over there.
+ *
+ * The edge stays an inset shadow rather than the mock's real `border`: a
+ * border would make this cell 2px taller than the other six in its row, and a
+ * grid row is as tall as its tallest cell.
+ */
 html[data-design="classical"] .mday--on {
-  background: var(--month-sel-bg);
+  background: color-mix(in srgb, var(--month-sel-bg) 60%, transparent);
   box-shadow: inset 0 0 0 1px var(--month-sel-edge);
   border-radius: 4px;
 }
-
-/* --------------------------------------------------------------------------
- * 2. The key
+/*
+ * Dark takes the swatch at full strength.
  *
- * New to the popup: the grid spends eight course inks and, without this, says
- * nothing about which is which. It is the foot of the grid's leaf, so it
- * carries the card's bottom border and its lower corners.
+ * A wash does different work at each end of the range: the light mix drops the
+ * card 1/13/16 points out of 255, while 60% of #332b20 over #221e18 lifts it
+ * only 10/8/5 — and the eye reads a lightening near black far more weakly than
+ * the same arithmetic darkening white. 100% lifts it 17/13/8, which is the
+ * closer of the two to what light does.
  *
- * `flex-wrap`, centred: three courses measure ~190px of the 366 available and
- * the mock centres them on one line, but a student with six classes gets two
- * lines rather than a clipped key — the one failure mode a legend cannot have.
- * ----------------------------------------------------------------------- */
+ * Its own declaration rather than a `--month-sel-mix` var inside the
+ * `color-mix()` above: if a var ever failed to substitute there the whole
+ * `background` would drop to `unset` and the selected day would lose its fill
+ * silently, which is the worse failure of the two.
+ */
+html[data-design="classical"]:root.is-dark .mday--on { background: var(--month-sel-bg); }
 html[data-design="classical"] .mlegend {
   display: flex; flex-wrap: wrap;
   align-items: center; justify-content: center;
   gap: 3px 10px;
   box-sizing: border-box;
-  margin: 0 10px;
+  margin: 0 16px;
   padding-block: 6px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--card-line);
   border-radius: 0 0 3px 3px;
 }
-/* Empty until a course has a dot on screen: an empty bordered strip under an
-   empty month is a box with nothing in it, which reads as a missing feature. */
 html[data-design="classical"] .mlegend:empty { display: none; }
-/* `:has`, because the key is the element *after* the grid and a sibling
-   combinator only reaches forwards — the grid has to close the leaf itself
-   when the key is not there to. */
 html[data-design="classical"] #view:has(.mlegend:empty) .mdots {
   border-bottom: 1px solid var(--card-line);
   border-radius: 0 0 3px 3px;
 }
-/* §5: the legend is 10px mono, `--ink-muted`. */
 html[data-design="classical"] .mlegend--item {
   display: inline-flex; align-items: center; gap: 4px;
   font-family: var(--mono);
   font-size: 10px; font-weight: 600; letter-spacing: 0;
   color: var(--muted);
 }
-/* 4px rather than the grid's 5px: beside text, a dot reads as a bullet and a
-   bullet the size of the cap height crowds the code it belongs to. */
-html[data-design="classical"] .mlegend--item .mdot { width: 4px; height: 4px; }
-
-/* --------------------------------------------------------------------------
- * 2b. The month's running head
+html[data-design="classical"] .mlegend--item .mdot { width: 6px; height: 6px; }
+/*
+ * mock: the navigator is `px-space-md pt-3 pb-2`, and its title is
+ * `h2.text-headline-md text-primary`.
  *
- * §5 sets `September 2026` at 20px serif bold and puts a joined `‹ | ›` beside
- * it. `design-classical.css` owns `.datenav--label` for every tab (19px/600),
- * so the size is restated here under the month's own body attribute rather
- * than edited there.
- *
- * Scoped `:not(.view-full)`: the same navigator is the wide tab's running head,
- * where it has room for its own arrangement and `.mfull` is not drawn at all.
- *
- * The arrows: the shell builds `‹ label ›`, one either side. They are joined
- * into one segmented control with `order` — the DOM, and therefore the tab
- * order and what a screen reader reads, is untouched; only the paint moves.
- * ----------------------------------------------------------------------- */
+ * The bar's own 8px plus the label's own 2px put the "S" of "September" at
+ * x=10, half a gutter in from every other thing on this view — `.mdow`,
+ * `.mdots`, `.mlegend` and `.mday-list` all sit at 16. So the gutter moves onto
+ * the bar, where it belongs, and the label gives its 2px back. That also lands
+ * the ‹ › pair 16px off the right edge, which is the other half of `px-space-md`.
+ */
+html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav {
+  padding-inline: 16px;        /* mock: px-space-md */
+  /*
+   * One hairline under the navigator, not two. The mock's navigator section is
+   * `px-space-md pt-3 pb-2` with no rule of its own; the grid card's own top
+   * border is the line the eye reads. `.datenav`'s `border-bottom` landed 1px
+   * above `.mdow`'s `border-top` — a full-bleed rule at the bar's foot and the
+   * card's rule directly under it, 2px of hairline where the mock has 1. It
+   * also cost the 24px title half a pixel: the bar is `height: 32px;
+   * box-sizing: border-box`, so a 1px border left 31px of content box to centre
+   * a 32px line in, and the label hung 0.5px above the bar at both ends.
+   */
+  border-bottom: 0;            /* mock: the navigator section has no rule */
+  /*
+   * The chevrons are one control, so nothing shows between them.
+   *
+   * `popup.css` gives `.datenav` `gap: 2px`, and this sheet's `border-right: 0`
+   * on the left button assumed the two boxes were touching. They were not: 2px
+   * of page ground painted at x=358–359, and the left ‹ read as a three-sided
+   * box with its right side open. The mock wraps both buttons in one bordered
+   * `div` with a `w-[1px]` divider between them; closing the column gap leaves
+   * the right button's own left border doing exactly that job.
+   *
+   * `column-gap`, not `gap`: the row's other members set their own spacing —
+   * `.datenav--label` has `margin-right: auto` and `.mfull` a 7px margin-left —
+   * so the only distance this removes is the one between the two buttons.
+   */
+  column-gap: 0;               /* mock: the pair is a single bordered box */
+}
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav--label {
-  font-size: 20px; font-weight: 700;
+  padding-inline: 0;
+  /* mock: `h2.text-headline-md font-headline-md text-primary tracking-normal`,
+     24px/32px at weight 600 — the token's own weight, with no `font-bold` on
+     the element the way Today's folio date has. 700 was the value this view
+     shipped with and was called out of scope when the gutter moved; it is a
+     finding now. 32px is also exactly `.datenav`'s height, so the title stops
+     overhanging the bar by 2.6px at each end the way 1.55 inherited from
+     `body` did. */
+  font-size: 24px; line-height: 32px; font-weight: 600;
+  color: var(--brand-mark);    /* mock: text-primary #04122e */
   margin-right: auto;
 }
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .btn-icon {
@@ -245,7 +184,6 @@ html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav >
 }
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .btn-icon:first-child {
   border-radius: 4px 0 0 4px;
-  /* The two halves share one rule down the middle rather than drawing two. */
   border-right: 0;
 }
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .btn-icon:last-child {
@@ -253,98 +191,86 @@ html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav >
   border-radius: 0 4px 4px 0;
 }
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .mfull { order: 1; }
-
-/* --------------------------------------------------------------------------
- * 3. The agenda for the open day
- *
- * The mock puts the tapped day's items in a leaf of their own, headed in the
- * serif and closed with a count — the facing page to the grid rather than a
- * list that happens to be underneath it. `.mday-list` is that leaf.
- * ----------------------------------------------------------------------- */
+/*
+ * mock: the agenda is a `section` —
+ * `bg-surface-container-low border border-outline-variant rounded-sm p-3` —
+ * the same card the grid above it is drawn as. It had been flattened to
+ * nothing by a later `background: transparent; border: 0; padding: 0` at the
+ * foot of this file.
+ */
 html[data-design="classical"] .mday-list {
   box-sizing: border-box;
-  margin: 10px;
-  padding: 8px 9px;
-  border: 1px solid var(--card-line);
+  margin: 16px;
+  padding: 12px;                       /* mock: p-3 */
+  border: 1px solid var(--card-line);  /* mock: border-outline-variant #c5c6ce */
   border-radius: 3px;
-  background: var(--surface);
+  background: var(--surface);          /* mock: bg-surface-container-low #f7f3eb */
 }
-/*
- * The heading is a title, not a section label.
- *
- * `.section-head` is 10px of letter-spaced uppercase sans everywhere else in
- * the popup, and the mock sets this one in the serif at the size the folio
- * uses — because it names a *day*, which is the thing the grid above it was
- * for. The count stays in the sans, in the small chip the mock puts it in.
- */
 html[data-design="classical"] .mday-list .section-head {
-  margin: 0 0 6px;
-  padding: 0 0 6px;
-  border-bottom: 1px solid var(--line);
+  align-items: center;                 /* mock: items-center — the badge centres on the 16px title */
+  margin: 0 0 8px;                     /* mock: mb-2 */
+  padding: 0 0 6px;                    /* mock: pb-1.5 */
+  border-bottom: 1px solid var(--line);   /* mock: border-b border-outline-variant */
   gap: 8px;
 }
+/*
+ * mock: `event_note` at 16px then
+ * `h3.text-headline-sm font-headline-sm text-primary text-[16px] leading-tight`,
+ * the pair in a `flex items-center gap-1.5`.
+ *
+ * The flex row is stated here rather than left to the unscoped
+ * `.section-head > span:first-child` in `design-classical-today.css`: that file
+ * is another lane's, and this heading now depends on the row to align its
+ * glyph. `text-overflow` does not survive a flex container — the long-locale
+ * fallback is the clip `overflow: hidden` gives, which is what it already was,
+ * since that unscoped rule has been making this span `inline-flex` all along.
+ */
 html[data-design="classical"] .mday-list .section-head > :first-child {
+  display: inline-flex; align-items: center; gap: 6px;   /* mock: flex items-center gap-1.5 */
   min-width: 0;
-  font-family: var(--serif);
-  /* §5: 14px serif semibold, `--ink-navy`. */
-  font-size: 14px; font-weight: 600; letter-spacing: -.1px; text-transform: none;
-  color: var(--brand-mark);
+  font-family: var(--serif);           /* mock: font-headline-sm is EB Garamond */
+  font-size: 16px; line-height: 1.25;  /* mock: text-[16px] leading-tight, over headline-sm's 20px */
+  font-weight: 600; letter-spacing: -.1px; text-transform: none;
+  color: var(--brand-mark);            /* mock: text-primary, and the glyph takes it by currentColor */
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-design="classical"] .mday-list .section-head .icon {
+  flex: none;                          /* the glyph keeps its size when a long weekday squeezes the row */
+  width: 16px; height: 16px;           /* mock: material-symbols text-[16px]; the shared rule is 18px */
 }
 html[data-design="classical"] .mday-list .section-head > :last-child:not(:first-child) {
   flex: none;
-  padding: 1px 5px;
-  border-radius: 2px;
-  background: var(--tint-strong);
-  color: var(--muted);
+  padding: 1px 6px;                    /* mock: px-1.5 py-0.2 */
+  border-radius: 2px;                  /* mock: rounded — the theme's DEFAULT, .125rem */
+  background: var(--month-badge-bg);   /* mock: bg-surface-variant, not the peach --tint-strong */
+  color: var(--muted);                 /* mock: text-secondary */
+  /* mock: text-label-sm — Newsreader 11px and the family come from the shell's
+     own `.section-head > :last-child` rule; these are the rest of the token. */
+  font-weight: 600; line-height: 16px; letter-spacing: .08em;
 }
-
-/*
- * Inside the leaf, a row is an entry, not a slip.
- *
- * `design-classical.css` draws every `#view .row` as a bordered card on the
- * ground, which is right where rows sit *on* the page. These sit on a leaf
- * already, and a bordered card inside a bordered card is the second box the
- * mock does not draw: its agenda items are separated by hairlines and nothing
- * else. Only the frame changes — the grid, the order, the tick and the type
- * are the shared card slip's, untouched.
- */
 html[data-design="classical"] .mday-list .mday-rows { gap: 0; }
 html[data-design="classical"] #view .mday-list .row {
   margin: 0;
   padding: 7px 1px;
+  /* `padding-left` is 1px, and `.row--edge` — the D14 course-hue bar, off by
+     default but on in some profiles — is 4px wide at `inset: 0 auto 0 0`. The
+     course code drew *under* it: measured at 400px, code left 30 against the
+     bar's right edge at 33 (Sushi, 2026-09-19: "the course number is too close
+     to the colored outline on the left"). The row only makes room when the bar
+     is actually there, so the default keeps its flush 1px. */
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: none;
 }
+html[data-design="classical"] #view .mday-list .row:has(> .row--edge) { padding-left: 9px; }
 html[data-design="classical"] #view .mday-list .row:last-child { border-bottom: 0; }
-/* Overdue keeps its one hue and gives up the field it was stated on: a wash
-   behind a hairline-ruled entry would be a block of colour with no edge. */
 html[data-design="classical"] #view .mday-list .row-overdue { background: none; }
 html[data-design="classical"] .mday-list .empty { padding: 2px 1px 4px; }
+/* No fourth column: the agenda row's `›` and the card's checkbox are both
+   gone (Sushi, 2026-09-19 — "pick one bro. just pick the 3 dots."), so the row
+   is the base card's own `"main tick menu"` grid and says so by not
+   redeclaring it. */
 
-/* --------------------------------------------------------------------------
- * 4. The `›` at the end of an agenda row (§5)
- *
- * Built in `month.ts`, decorative here: the row's `⋯` is the control, and a
- * second thing that looks pressable at the end of the same line is the bug
- * that would follow from making this one focusable. It is the mock's affordance
- * — "this row goes somewhere" — drawn in the faint ink and taken out of the
- * accessibility tree, so what a screen reader reads is unchanged.
- */
-html[data-design="classical"] #view .mday-list .row {
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  grid-template-areas:
-    "main tick menu chev"
-    "when when when when";
-}
-html[data-design="classical"] #view .mday-list .row--chev {
-  grid-area: chev;
-  align-self: center;
-  flex: none;
-  margin-left: 2px;
-  font-family: var(--serif);
-  font-size: 13px; line-height: 1;
-  color: var(--muted);
-}
+html[data-design="classical"] .mdow, html[data-design="classical"] .mdots { margin-inline: 16px; }
+html[data-design="classical"] .mday--num { font-size: 14px; }
