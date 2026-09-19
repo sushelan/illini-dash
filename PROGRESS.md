@@ -7,6 +7,34 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Live: "the button click to Light doesn't work", and the popup opens dark — 2026-09-19
+
+Sushi, on the merged redesign: the colour scheme did not match the mock, and in Appearance
+the press on **Light** did nothing. Both real, both mine.
+
+**Light.** The Appearance panel is a `.menu-surface`, and `trapMenuKeys` closes a panel
+when focus leaves it: `relatedTarget` if the event has one, otherwise one task later. A
+press on the **label** — non-focusable — blurs the radio at mousedown with no
+`relatedTarget`; the radio regains focus only at the click, which comes at mouseup. A
+machine press is over in 0ms, so the task ran after the click and every harness passed
+(three synthetic presses, one CDP click with no hold). A human press holds for 80–150ms:
+the task ran in the middle, saw `<body>`, removed the panel, and the release landed on a
+row underneath. Reproduced with a 26ms held press in the browser pane and with a 120ms
+real press through Chrome's input pipeline (`scripts/held-press.mjs`, new: old build → panel
+closed at mousedown, mode unchanged; fixed build → Light and Neutral apply, an outside
+press still closes, the row menu's Hide still logs its request). The fix: a mousedown on
+non-focusable chrome inside a panel does not move focus at all (`preventDefault`), and the
+"has focus left" decision is never taken while a press that started inside the panel is
+held. CLAUDE.md UI rule 5 now says so.
+
+**The palette.** The mocks are light — pale blue ground, white cards — and have no dark
+version. The workers built that palette exactly; Sushi's machine is dark and the mode
+defaulted to *system*, so the popup opened on the pre-redesign dark palette, which nobody
+had redesigned, and read as "you didn't match the colour scheme at all". `DEFAULT_MODE` is
+`light` now: the popup opens on the design, Appearance › Dark is one press away. A dark
+variant of the mock is still to be designed (cards lifted off a deep blue ground) if Sushi
+wants one — it is a decision, not a fix.
+
 ## Wave 12: the popup redesign, merged and reviewed — 2026-09-19
 
 **The popup is the soft-card design from Sushi's Claude Design project** (mocks 1a–1f,

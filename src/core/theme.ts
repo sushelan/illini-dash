@@ -88,7 +88,14 @@ export const MODES: { name: ModeName; label: string; hint: string }[] = [
   { name: "dark", label: "Dark", hint: "Always dark, whatever the computer says" },
 ];
 
-export const DEFAULT_MODE: ModeName = "system";
+/**
+ * Light, since the redesign (2026-09-19). The mocks Sushi approved are light —
+ * pale blue ground, white cards — and there is no dark version of them yet;
+ * a dark machine opening on "system" got the pre-redesign dark palette and
+ * read as "you didn't match the colour scheme at all". The popup opens on the
+ * design; Appearance › Dark is one press away.
+ */
+export const DEFAULT_MODE: ModeName = "light";
 
 /** Its own key: changing the palette must not reset the mode, or the reverse. */
 export const MODE_KEY = "illini-dash.mode";

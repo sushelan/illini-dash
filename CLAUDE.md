@@ -326,7 +326,15 @@ Sushi's time, which is the resource this project has least of.
 5. **A synthetic `.click()` is not a press.** It fires no `pointerdown`, no `mousedown`, no
    focus change, and no default action. Every harness check of the row menu passed while
    the real menu was unusable. Where a defect is about *pressing* something, a JS-driven
-   click proves nothing.
+   click proves nothing. **And a machine press is not a human press either**: a full
+   `pointerdown → mousedown → mouseup → click` sequence dispatched from JS, or a CDP click
+   with no hold, is over in 0ms. A human holds for 80–150ms, and anything decided in a
+   task between mousedown and mouseup — the Appearance panel's "has focus left?" —
+   happens *during* a human press and never during a machine one (2026-09-19, "Light"
+   did nothing for Sushi and worked in every harness). `scripts/held-press.mjs` presses
+   through Chrome's own input pipeline and holds; run it before and after, like a
+   mutation check. Never decide anything about focus while a press that started inside
+   the panel is still held.
 
 6. **And the preview pane's coordinates are not the page's.** Driving real mouse events at
    it produced "the menu never opens" — because the click landed in dead space. That was

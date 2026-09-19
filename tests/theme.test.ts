@@ -107,8 +107,11 @@ describe("light or dark", () => {
    * not have a light calendar and one on a light machine could not have a dark
    * one.
    */
-  it("follows the machine unless told otherwise", () => {
-    expect(DEFAULT_MODE).toBe("system");
+  it("opens on the design's light palette unless told otherwise", () => {
+    // Since the redesign (2026-09-19): the approved mocks are light and have no
+    // dark version yet, so a dark machine on "system" opened on a palette
+    // nobody had designed. `system` still works, it is just not the default.
+    expect(DEFAULT_MODE).toBe("light");
     expect(resolveDark("system", true)).toBe(true);
     expect(resolveDark("system", false)).toBe(false);
   });

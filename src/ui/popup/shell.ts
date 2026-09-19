@@ -1014,11 +1014,14 @@ export function drawIsHeld(): boolean {
  * Needs-you screen is open" and is nobody's panel (R2 M6).
  */
 const menuAnchors = new WeakMap<Element, HTMLElement>();
+/** Listeners a panel put on `window`, taken off when it closes. */
+const menuCleanups = new WeakMap<Element, () => void>();
 
 export function closeMenus(): void {
   const open = [...document.querySelectorAll<HTMLElement>(MENU_SELECTOR)];
   for (const panel of open) {
     menuAnchors.get(panel)?.removeAttribute("aria-expanded");
+    menuCleanups.get(panel)?.();
     panel.remove();
   }
   // The room a panel asked for is given back the moment it closes, or the popup
@@ -1239,19 +1242,66 @@ export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
    * harness passed (UI house rule 5).
    *
    * `relatedTarget` is the element *gaining* focus and is known during the
-   * event itself. A press on non-focusable menu chrome reports none, so that
-   * case waits one task — a task, not a microtask — for focus to settle.
+   * event itself. A press on non-focusable menu chrome reports none.
+   *
+   * **And one task is not enough either** (2026-09-19, the Appearance panel).
+   * A mousedown on a `<label>` — not focusable — blurs the radio that has
+   * focus, with no `relatedTarget`; the radio only regains focus on the
+   * *click*, which comes at mouseup. A machine press is over in 0ms and a
+   * task queued at mousedown runs after the click, so every harness passed.
+   * A human press holds for 80–150ms, so the task ran in the middle of it,
+   * saw `<body>`, and removed the panel before mouseup; the release landed on
+   * a row underneath and "Light" never applied. Reproduced with a 26ms held
+   * press, which is the check to use (UI house rule 5).
+   *
+   * Two rules follow, and both are needed. A press on non-focusable chrome
+   * inside the menu must not move focus at all — `preventDefault` on that
+   * mousedown, which keeps focus where it was and still lets the click
+   * activate the label. And the decision "has focus really left" is never
+   * taken while a press that started inside the menu is still held: it waits
+   * for the release, then one task, then looks.
    */
+  let pressing = false;
+  menu.addEventListener(
+    "mousedown",
+    (event) => {
+      pressing = true;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target && !target.closest("input, button, select, textarea, a[href], [tabindex]")) {
+        event.preventDefault();
+      }
+    },
+    true,
+  );
+  const released = () => {
+    pressing = false;
+  };
+  window.addEventListener("mouseup", released, true);
+  window.addEventListener("pointercancel", released, true);
+  window.addEventListener("dragend", released, true);
+  menuCleanups.set(menu, () => {
+    window.removeEventListener("mouseup", released, true);
+    window.removeEventListener("pointercancel", released, true);
+    window.removeEventListener("dragend", released, true);
+  });
+
   menu.addEventListener("focusout", (event) => {
     const next = event.relatedTarget;
     if (next instanceof Node && menu.contains(next)) return;
-    setTimeout(() => {
-      if (!menu.isConnected || menu.contains(document.activeElement)) return;
+    const settle = () => {
+      if (!menu.isConnected) return;
+      if (pressing) {
+        // A press is in flight; where focus lands is decided by its release.
+        setTimeout(settle, 30);
+        return;
+      }
+      if (menu.contains(document.activeElement)) return;
       // Through `closeMenus`, never `menu.remove()`: that is what consumes
       // `redrawAfterMenu` and gives back the body's min-height (R2 M2).
       closeMenus();
       anchor.removeAttribute("aria-expanded");
-    }, 0);
+    };
+    setTimeout(settle, 0);
   });
 
   focusAt(0);
