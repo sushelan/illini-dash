@@ -144,10 +144,10 @@ export const DARK_CLASS = "is-dark";
  *   says urgency is carried by *text* — "in 4h", red once it is past — so the
  *   edge is decoration, and off by default because it turns a list of white
  *   cards into eight competing colours.
- * - `showSourceNames` drops the "· Gradescope" from every row. On by default:
- *   a student who is looking at a row and wondering whether to trust it wants
- *   to know who said so, and the same title from two sources is the case §5.3
- *   exists for. Hiding it is a preference, not a default.
+ * - `showSourceNames` adds the "· Gradescope" to every row. Off by default
+ *   since 2026-09-19 (Sushi: "there's just too much information being shown");
+ *   who said so is one click away on the deadline screen, and the toggle
+ *   stays for a student who wants it on every row.
  *
  * `localStorage`, like the theme and the mode, and for the same two reasons:
  * they are per-device display preferences, and they have to be readable before
@@ -159,7 +159,7 @@ export interface Tweaks {
   showSourceNames: boolean;
 }
 
-export const DEFAULT_TWEAKS: Tweaks = { urgencyEdge: false, showSourceNames: true };
+export const DEFAULT_TWEAKS: Tweaks = { urgencyEdge: false, showSourceNames: false };
 
 /**
  * One key per tweak, like `THEME_KEY` and `MODE_KEY`.
@@ -183,8 +183,8 @@ export const TWEAK_KEYS: Record<keyof Tweaks, string> = {
  * likelier mistake than one that passed a boolean.
  *
  * **Anything else falls back to the default rather than to `false`.**
- * `Boolean(stored)` would read a missing `showSourceNames` as "off" and silently
- * strip the source from every row on a fresh install — the defect worker rule 8
+ * `Boolean(stored)` would read a missing `urgencyEdge` as "off" whatever the
+ * default said, and a stored `"yes"` as "on" — the defect worker rule 8
  * describes, one origin over: a stored value is data from another build, not a
  * typed object.
  */

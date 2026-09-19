@@ -7,6 +7,63 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Popup: less on screen — pill removed, booking banner removed, footer opens Needs you — 2026-09-19
+
+Sushi on the merged redesign: "I don't even know what All clear means", "there's just too
+much information being shown", "remove the pill". The header pill is gone. Late work is
+being moved to the top of the Today tab and source health already lives in the footer
+strip, so the pill's every branch restated something on screen a second time, and its best
+case spent three words saying nothing a student could press. The **Needs you** screen it
+opened is unchanged and now opens from the footer strip's source text — a toggle, keyboard
+reachable, `aria-expanded`, carrying the per-source "which site was read, and when"
+tooltip the pill used to hold; `Sync now` stays its own control. The booking banner went
+with it: §4.4 pinned one amber line above the tabs per unbooked exam, and the Exams tab
+already lists exactly those rows under "Not booked" with the same window text, the same
+link and a tab badge counting them (`examCount` is `examBoard().unbooked.length`). The
+stale-source sign-in banner, the notifications-blocked banner and the undo banner stay.
+`needsYouPill` stays in `core/health.ts` with its tests, marked unused by the UI.
+
+Brief D2, D9 and D10 are rewritten to the new truth rather than annotated. The
+Today-as-schedule and Week-one-line work is in flight in parallel and will be recorded
+separately.
+
+One thing to fold in when `public/popup.css` is free: the footer button carries its reset
+inline (`.foot--health` — flex, `flex: 1`, `min-width: 0`, no border/background, inherited
+font) because that file belonged to another worker while this landed. The pill's own CSS
+is now dead: `.pill`, `.pill--text`, `.pill--dot`, `.pill--chevron`, `.pill .icon`,
+`.pill:hover`, `.pill.is-*` in `public/ui.css`, plus `#health .pill` and the two
+`.theme-contrast .pill.is-*` rules in `public/popup.css`. (`.mpill--*` is the month grid
+and stays.)
+
+## Popup: Today as a timeline, Week as one-line rows — 2026-09-19
+
+Sushi, on the merged redesign: "I look at everything for today and whether anything is
+late. Next up is way too loud. I'd like the day tab to look like a schedule for the day;
+anything due at the EOD appears at the top. 11:59 should be EOD. Agenda with collapsed
+gaps. For week each item per day is too large. There's just too much information."
+
+`core/calendar.ts` gained `todaySchedule`: **Late** (unfinished, deadline passed — today's
+9 AM row included), **By end of day** (no stated time, or stated 11 PM or later), then the
+timed rows in clock order. A row appears in at most one band; the day boundary and the
+end-of-day threshold stay in `dayContents`, not copied. Seven mutations, all killed. The
+grouped `todayBoard` (Next up / Also today / Tomorrow / This week) and its nine tests are
+deleted. Today draws the timed band as a timeline: clock column, a 2px rail with the
+course dot on it, a "now" bar, a dotted break where more than two hours are skipped, no
+empty hours (the axis §0 ruled out is still out). Rows on Today and Week are one 28px
+line — dot, title, code, status — with no source name, no room, no relative-plus-clock
+pair; the week's nested chips and today-tint are gone, today's date column carries a 3px
+accent edge instead. Source names default off (`DEFAULT_TWEAKS`, one spelling in core).
+First row on a busy Today with one banner: 146px from the top. 2076 tests, typecheck and
+build green; verified in `preview-popup.html`, dark first, with real pointer presses.
+
+Two things fell out along the way. `npm run shots` had been writing light captures under
+dark names since `DEFAULT_MODE` became light (`popup-day-dark.png` and `-light.png` were
+byte-identical); it now seeds `illini-dash.mode` per end. And `acceptSuggestion` dropped
+the suggestion's `courseCode`, so a class whose display name carried no code could never
+merge with its coded rows; it is carried through `ManualInput` now, three mutations
+killed. The "Distributed Systems" row in the captures was the preview harness's rename
+demo on CS 424, not a source defect; the demo course is renamed so it stops looking like one.
+
 ## Live: "the button click to Light doesn't work", and the popup opens dark — 2026-09-19
 
 Sushi, on the merged redesign: the colour scheme did not match the mock, and in Appearance

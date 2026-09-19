@@ -22,10 +22,10 @@ import {
   undoDueOverride,
   unhideItem,
 } from "../src/core/overrides.js";
-import { applyRetention, dedupe } from "../src/core/dedupe.js";
+import { applyRetention, dedupe, sameCourse } from "../src/core/dedupe.js";
 import { anchorOf, attentionGroups, dayKey, dayList, noDateCount } from "../src/core/calendar.js";
 import { unreadableDeadline } from "../src/core/quality.js";
-import { ManualItemError } from "../src/core/manual.js";
+import { ManualItemError, newManualItem } from "../src/core/manual.js";
 import type { DueOverride, Item, Overrides, RawItem, Suggestion } from "../src/sources/types.js";
 
 const NO_OVERRIDES: Overrides = {
@@ -356,6 +356,53 @@ describe("accepting and dismissing a suggestion", () => {
   it("gives a course-less suggestion a course, because a row cannot have none", () => {
     const loose = { ...suggestion, courseRaw: "" };
     expect(acceptSuggestion([loose], "s1", "America/Chicago")!.input.courseRaw).toBe("From a post");
+  });
+
+  it("carries the class's course code through, so the row can merge (§5.1)", () => {
+    /*
+     * A Piazza/Campuswire class is addressed by its display name, and that name
+     * need not carry a code — the class's `courseCodes` do. Dropping the code
+     * here gives the accepted row `courseCode: undefined`, and `sameCourse`
+     * reads "codes on one side only" as *not* the same course, so the row can
+     * never merge with the student's CS 425 rows and the Merge picker never
+     * offers it.
+     */
+    const bare = { ...suggestion, courseRaw: "Distributed Systems", courseCode: "CS425" };
+    const accepted = acceptSuggestion([bare], "s1", "America/Chicago")!;
+    expect(accepted.input.courseCode).toBe("CS425");
+
+    const row = newManualItem(accepted.input, "2026-09-18T13:00:00.000Z", "America/Chicago");
+    expect(row.courseCode).toBe("CS425");
+    expect(row.courseRaw).toBe("Distributed Systems");
+    const gradescope: RawItem = {
+      source: "gradescope",
+      sourceId: "g1",
+      courseRaw: "CS425 ECE428 Fall 2026",
+      courseCode: "CS425",
+      title: "Quiz 1",
+      kind: "quiz",
+      status: "unknown",
+      fetchedAt: "2026-09-18T13:00:00.000Z",
+    };
+    expect(sameCourse(row, gradescope)).toBe(true);
+  });
+
+  it("derives from the name when the class stated no code", () => {
+    const { courseCode: _dropped, ...rest } = suggestion;
+    const named = { ...rest, courseRaw: "CS 357 — Numerical Methods" };
+    const accepted = acceptSuggestion([named], "s1", "America/Chicago")!;
+    expect(accepted.input.courseCode).toBeUndefined();
+    expect(
+      newManualItem(accepted.input, "2026-09-18T13:00:00.000Z", "America/Chicago").courseCode,
+    ).toBe("CS357");
+  });
+
+  it("does not pass on a course code of \"\"", () => {
+    // House rule 5: `""` is a string, not a code. Passed on, it would sit in
+    // `ManualInput` as a stated value and shadow the derivation behind it.
+    const blank = { ...suggestion, courseRaw: "CS 357 — Numerical Methods", courseCode: "" };
+    const accepted = acceptSuggestion([blank], "s1", "America/Chicago")!;
+    expect("courseCode" in accepted.input).toBe(false);
   });
 
   it("answers undefined for an id that is no longer on the list", () => {

@@ -90,6 +90,34 @@ describe("newManualItem — the row it builds", () => {
     expect(item.courseRaw).toBe("CS 357 — Numerical Methods");
   });
 
+  it("prefers a stated course code over the one the name would derive", () => {
+    /*
+     * The fixture is deliberately impossible: no real class is displayed as
+     * "ECE 428 — Distributed Systems" while its own `courseCodes` say CS425
+     * (parser house rule 10). A realistic pair — a bare "Distributed Systems"
+     * with `courseCode: "CS425"` — cannot tell "prefer the stated code" from
+     * "prefer the derived one", because the derivation returns `undefined`
+     * there and both orders answer CS425. Only a *disagreement* separates them,
+     * so one is written down here and nowhere in a fixture.
+     */
+    const item = make({ courseRaw: "ECE 428 — Distributed Systems", courseCode: "CS425" });
+    expect(item.courseCode).toBe("CS425");
+    expect(item.courseRaw).toBe("ECE 428 — Distributed Systems");
+  });
+
+  it("falls back to the name when no code was stated", () => {
+    expect(make({ courseRaw: "CS 357 — Numerical Methods" }).courseCode).toBe("CS357");
+  });
+
+  it("treats a stated code of \"\" as nothing stated, not as a code", () => {
+    // House rule 5: `""` passes `typeof x === "string"` and would shadow the
+    // fallback behind it, leaving a row whose code matches no other row's.
+    expect(make({ courseRaw: "CS 357 — Numerical Methods", courseCode: "" }).courseCode).toBe(
+      "CS357",
+    );
+    expect(make({ courseRaw: "Marching Illini", courseCode: "   " }).courseCode).toBeUndefined();
+  });
+
   it("leaves the code off a course name no rule can read", () => {
     const item = make({ courseRaw: "Marching Illini" });
     expect(item.courseCode).toBeUndefined();

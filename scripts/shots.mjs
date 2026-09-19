@@ -215,7 +215,20 @@ async function capture(chrome, port, { name, query, size, fixed }, dark) {
     `--screenshot=${file}`,
   ];
   args.push(`--blink-settings=preferredColorScheme=${dark ? 0 : 1}`);
-  args.push(`http://127.0.0.1:${port}/shot.html?${query}${designArg ? `&design=${designArg}` : ""}`);
+  /*
+   * `mode=` as well as the blink setting, and both for each end.
+   *
+   * The blink setting alone was enough while the mode defaulted to "system".
+   * `DEFAULT_MODE` became "light" on 2026-09-19, and every `*-dark.png` here
+   * quietly became a light capture under a dark name — a verification step that
+   * cannot tell the two cases apart, which is the thing this file exists to
+   * stop. `shot.html` seeds the key; the blink setting stays so that a "system"
+   * profile still resolves the right way.
+   */
+  args.push(
+    `http://127.0.0.1:${port}/shot.html?${query}&mode=${dark ? "dark" : "light"}` +
+      `${designArg ? `&design=${designArg}` : ""}`,
+  );
 
   const child = spawn(chrome, args, { stdio: "ignore" });
   const done = new Promise((resolve) => child.on("exit", resolve));

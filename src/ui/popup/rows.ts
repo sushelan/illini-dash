@@ -8,11 +8,12 @@
  *
  * **The shape is mock 1a's (brief D7).** `[course dot] Title / CODE · Source ·
  * detail` on the left, `relative / clock` on the right, on a white
- * `--surface-raised` card. Three variants, one function:
+ * `--surface-raised` card. Two shapes, one function:
  *
  *   default   the card above.
- *   hero      mock 1a's "Next up": kicker, fine countdown, 14.5px title.
- *   compact   the week's day card — code, title, one status word.
+ *   compact   one line — `[dot] Title CODE [status]` — used by the Week's day
+ *             cards and by Today's schedule. Sushi, 2026-09-19: "each item per
+ *             day is too large … there's just too much information being shown".
  *
  * Everything the ruled row carried is still here; it moved lines rather than
  * disappearing. The qualifiers that are one short phrase (source, room, "opens
@@ -38,10 +39,8 @@ const ASSUMED_NOTE =
   "The course site gives a date but no time. Check the course page for the cutoff.";
 
 export interface RowOptions {
-  /** The week's day card: code, title, status word, nothing else. */
+  /** One line: dot, title, code, one status word. Today and the Week. */
   compact?: boolean;
-  /** Mock 1a's "Next up" card. */
-  hero?: boolean;
   /** A word that replaces the countdown — `weekStatus`, in the week. */
   status?: string;
 }
@@ -87,7 +86,6 @@ export function renderRow(
   row.className = "row";
   // A div row joins the roving ring too (R2 L3); `makeRowsNavigable` rolls it.
   if (!url) row.tabIndex = -1;
-  if (options.hero) row.classList.add("row--hero");
   if (options.compact) row.classList.add("row--compact");
   if (url && row instanceof HTMLAnchorElement) {
     row.href = url;
@@ -212,6 +210,8 @@ export function renderRow(
   }[] = [];
 
   const anchor = anchorOf(item, now);
+  /** The clock column holds a real stated hour, not "no date" or "end of day". */
+  let statedClock = false;
   const unreadable = unreadableDeadline(item);
   if (unreadable.length > 0) {
     // A row whose date could not be read says so, rather than reading "no date"
@@ -254,6 +254,7 @@ export function renderRow(
     meta.push(assumed);
   } else {
     due.textContent = clockOf(anchor.at);
+    statedClock = true;
   }
 
   if (options.status !== undefined) {
@@ -262,17 +263,40 @@ export function renderRow(
     // so a countdown beside it would be a second answer to one question.
     rel.textContent = options.status;
   } else if (anchor !== undefined && unreadable.length === 0 && dueText === undefined) {
-    rel.textContent = countdown(anchor.at, now, options.hero ? "fine" : "coarse");
+    rel.textContent = countdown(anchor.at, now, "coarse");
   }
+  /** Inside a day of now — before it as well as after, which the colour wants. */
+  const soonest = anchor !== undefined && anchor.at - now.getTime() < 86_400_000;
+  /*
+   * "in 16h" and "8:00 PM" are the same fact twice (Sushi, 2026-09-19: "there's
+   * just too much information being shown"), so only one of them is drawn — and
+   * which one depends on what the other would have told you.
+   *
+   * Inside a day the hour is the useful half: "8:00 PM" is where you have to be,
+   * and "in 4h" is arithmetic you can do from the clock on your own screen.
+   * Beyond a day the hour is the useless half — an 11:59 PM three days out says
+   * nothing a student acts on — so the relative keeps the slot.
+   *
+   * Only a *stated* clock collapses, and only while the instant is still ahead.
+   * "no date", "unreadable", "end of day" and the exam board's own `dueText` are
+   * not the countdown said twice — and neither is "2h late" beside "8:00 AM",
+   * where the relative is the half that says the row is *overdue* and the clock
+   * says only when it went by. A late row keeps both.
+   */
+  const ahead = anchor !== undefined && anchor.at >= now.getTime();
+  if (statedClock && ahead && options.status === undefined && rel.textContent) {
+    if (soonest) rel.textContent = "";
+    else due.textContent = "";
+  }
+
   if (rel.textContent) {
     // Red once it is past, accent inside a day, muted after that. Urgency is
     // carried by this text (the mock's own note), which is why the course edge
     // beside it is a tweak and off by default.
     const late = tone === "overdue" || rel.textContent.endsWith("late");
-    const soon = anchor !== undefined && anchor.at - now.getTime() < 86_400_000;
     if (tone === "done") rel.classList.add("row--rel-done");
     else if (late) rel.classList.add("row--rel-late");
-    else if (soon) rel.classList.add("row--rel-soon");
+    else if (soonest) rel.classList.add("row--rel-soon");
   }
 
   if (dueText === undefined && unreadable.length === 0 && anchor?.opening !== true) {
@@ -343,14 +367,31 @@ export function renderRow(
 
   /* ---- assembly --------------------------------------------------------- */
 
+  const dot = document.createElement("span");
+  dot.className = "row--dot";
+
   if (options.compact) {
-    // The week's card: 44px of date on the left of it already, and a status
-    // word on the right. Everything else is on the Today tab or one press away.
+    /*
+     * One line, 28px: `[dot] Title  CODE  [room]  [status]`.
+     *
+     * The shape Today and the Week now share (Sushi, 2026-09-19: "each item per
+     * day is too large", "there's just too much information being shown"). What
+     * it drops is the meta line entire — the source name, the relative text, the
+     * "time assumed" marker, "+N more" — none of which is lost: a press opens
+     * the deadline screen, which states every one of them (D8).
+     *
+     * The exam room goes too (Sushi, 2026-09-19, on the first build of this
+     * row). It had been kept back as the one qualifier with a *wrong* answer,
+     * but "Grainger Library · Room 57…" is a second clause competing with the
+     * title on a 400px line, and the two surfaces a student reads a room off —
+     * the Exams tab and the deadline screen — both still carry it in full.
+     */
     const short = document.createElement("b");
     short.className = "row--code";
     short.textContent = code;
-    row.append(short, title, rel, menu);
-    if (item.forCredit === false) title.after(practice);
+    row.append(dot, title, short);
+    if (item.forCredit === false) row.append(practice);
+    row.append(rel, menu);
     return row;
   }
 
@@ -367,38 +408,20 @@ export function renderRow(
   for (const part of meta) metaLine.append(sep(), part);
   if (item.forCredit === false) metaLine.append(sep(), practice);
 
-  if (options.hero) {
-    const head = document.createElement("span");
-    head.className = "row--kicker";
-    const kicker = document.createElement("span");
-    kicker.className = "row--kicker-text";
-    kicker.textContent = "Next up";
-    const rule = document.createElement("span");
-    rule.className = "row--kicker-rule";
-    head.append(kicker, rule, rel);
-    row.append(head, title, metaLine, menu);
-    // The hero states its own clock on the meta line: it has one line for
-    // "when", and a second column beside a 14.5px title would take the title's
-    // width to repeat what the countdown already said.
-    if (due.textContent) metaLine.append(sep(), due);
-  } else {
-    // D14, off by default: a 4px course-hue edge. An absolutely positioned
-    // child rather than a border, so switching it on does not move the text.
-    if (state.tweaks.urgencyEdge) {
-      const edge = document.createElement("span");
-      edge.className = "row--edge";
-      row.append(edge);
-    }
-    const dot = document.createElement("span");
-    dot.className = "row--dot";
-    const main = document.createElement("span");
-    main.className = "row--main";
-    main.append(title, metaLine);
-    const when = document.createElement("span");
-    when.className = "row--when";
-    when.append(rel, due);
-    row.append(dot, main, when, menu);
+  // D14, off by default: a 4px course-hue edge. An absolutely positioned
+  // child rather than a border, so switching it on does not move the text.
+  if (state.tweaks.urgencyEdge) {
+    const edge = document.createElement("span");
+    edge.className = "row--edge";
+    row.append(edge);
   }
+  const main = document.createElement("span");
+  main.className = "row--main";
+  main.append(title, metaLine);
+  const when = document.createElement("span");
+  when.className = "row--when";
+  when.append(rel, due);
+  row.append(dot, main, when, menu);
 
   for (const detail of details) {
     const line = document.createElement("span");

@@ -205,7 +205,6 @@ html.view-full,
  * long sentence. Mock 1a/2a puts the two together, and it reads as one group
  * that is about *state* beside a name that is not.
  */
-#health .pill { min-width: 0; margin-left: auto; }
 .setup--brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .wordmark {
   flex: none;
@@ -865,8 +864,6 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 /* High contrast gives the health dot a shape as well as a colour, because a
    coloured dot alone is the exact signal the rest of that theme exists to
    avoid. It is one dot now rather than six, so this is one rule rather than five. */
-.theme-contrast .pill.is-warn .pill--dot { border-radius: 1px; transform: rotate(45deg); }
-.theme-contrast .pill.is-err .pill--dot { border-radius: 1px; }
 .theme-contrast .srow--dot.is-warn { border-radius: 1px; transform: rotate(45deg); }
 .theme-contrast .srow--dot.is-err { border-radius: 1px; }
 .theme-contrast .srow--dot.is-off { border-radius: 1px; height: 3px; }
@@ -1151,6 +1148,14 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .foot--dot.is-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
 .foot--count { font-weight: 600; color: var(--fg); flex: none; white-space: nowrap; }
 .foot--sep { flex: none; opacity: .55; }
+/* The dot, the count and the clock as one press: it opens the Needs-you
+   screen, which is where the header pill used to send you (2026-09-19). */
+.foot--health {
+  display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
+  font: inherit; color: inherit; background: none; border: 0; padding: 2px 4px; margin: 0 -4px;
+  text-align: left; cursor: pointer; border-radius: 5px;
+}
+.foot--health:hover, .foot--health[aria-expanded="true"] { background: var(--hover); }
 /* The one thing here that may shrink. A 45-character course name is not on
    this line; "synced 14 minutes ago" is about as long as it gets. */
 .foot--when { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

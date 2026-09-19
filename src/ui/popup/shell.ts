@@ -8,10 +8,13 @@
  *
  * The shape is D9/D10 of docs/design/brief.md:
  *
- *     [mark] Illini Dash            [pill] [+] [⋯]
+ *     [mark] Illini Dash                  [+] [⋯]
  *     ┌ Today │ Week │ Month │ Exams │ Attention ┐
  *     …
- *     [dot] 8 sources · synced 2m ago · Sync now
+ *     [dot] 8 sources · synced 2m ago    Sync now
+ *
+ * The header's health pill went on 2026-09-19 (see `renderHealth`), and the
+ * footer's source text took over opening the Needs-you screen it used to open.
  *
  * What it replaces on either end is the same failure twice. The header used to
  * carry five icon buttons in 400px beside a sentence that needed every pixel
@@ -22,18 +25,16 @@
  */
 
 import {
-  type NeedsYouPill,
   type SourceAction,
   actionFor,
   displayState,
   footerLine,
-  needsYouPill,
   sourceRows,
   staleNotice,
   summarize,
 } from "../../core/health.js";
 import { courseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
-import { bookings, coursesIn, overdueItems } from "../../core/calendar.js";
+import { coursesIn } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
 import { downloadIcs } from "../download.js";
@@ -74,94 +75,31 @@ import {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The header: the mark and the name on the left, the pill and two controls on
- * the right (D9).
+ * The header: the mark and the name on the left, `+` and `⋯` on the right (D9).
  *
  * What it replaces is six 9px dots and, 800px below them, a line of prose
  * restating what the dots meant. The dots were a colour-only signal (shapes
  * existed only in the High-contrast theme), the one that was clickable looked
  * exactly like the five that were not, and nobody scrolled to the line.
  *
- * Everything the pill says comes from `needsYouPill` (D2), which derives every
- * branch from `summarize()` — so it cannot claim "All clear" over sources that
- * were never fetched. `healthPill` is still the wording for *which* source
- * broke, and the Needs-you screen is where that is printed, one row each.
+ * **The health pill is gone from the bar (2026-09-19).** It was the fourth
+ * thing on screen saying something about state, and its own best case said
+ * "All clear" — three words that named nothing a student could act on, over a
+ * list that already shows what is due. Late work is now the first thing on the
+ * Today tab and source health is the footer strip, so the pill had nothing
+ * left to say that was not already said twice. The Needs-you screen it used to
+ * open is now opened by the footer's source text (`renderFooter`).
  *
- * **The pill's action button is gone from the bar.** It existed because the
- * pill was the only thing up here that could be pressed and "Gradescope
- * couldn't be reached" had nowhere to send you. The same button is still one
- * press away, in the source list the pill opens, and at 400px a second control
- * beside the sentence costs the sentence the words that say what is wrong.
+ * The parameters are kept because two call sites in `popup.ts` pass them and
+ * the header is where a future summary would go; nothing here reads them.
  */
 export function renderHealth(
-  sources: Record<Source, SourceStatus>,
-  items: Item[],
-  now: Date,
+  _sources: Record<Source, SourceStatus>,
+  _items: Item[],
+  _now: Date,
 ): void {
   healthEl.replaceChildren();
   healthEl.append(appMark(), renderWordmark());
-
-  /*
-   * One derivation, in core, for what the pill says (D2).
-   *
-   * `isSyncing()` rather than a second sentence written here: a sync in flight
-   * outranks whatever the store still holds, because the store keeps the *last*
-   * outcome and a real sync is five to ten seconds of the pill asserting the
-   * thing the click is in the middle of fixing. `needsYouPill` owns that
-   * branch, and every branch below it, so the pill cannot say "All clear" about
-   * sources that were never fetched (worker rule 2).
-   *
-   * The counts are the screen's own: `overdueItems` is the Overdue group by the
-   * same rule the screen draws, and the suggestions are the rows waiting for a
-   * yes. A pill that counted differently from the screen it opens would be two
-   * copies of one decision, and the copy is always the one that goes stale.
-   */
-  const pill: NeedsYouPill = needsYouPill({
-    sources,
-    syncing: isSyncing(),
-    overdue: overdueItems(items, now).length,
-    suggestions: state.currentSuggestions.length,
-  });
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `pill is-${pill.tone}`;
-  button.dataset["kind"] = pill.kind;
-  // Still a button that opens something, and still says whether that thing is
-  // open — the screen it opens is in document flow rather than a dialog, which
-  // is what `aria-haspopup` would promise.
-  button.setAttribute("aria-expanded", state.screen?.kind === "needs-you" ? "true" : "false");
-  /*
-   * The per-source facts, kept as the tooltip (inventory C).
-   *
-   * They were the popover's whole content, and the popover is gone — but "which
-   * site was read, and when" is a question a student asks without wanting to
-   * change anything, and making them open a screen to read it is a worse trade
-   * than a hover. `sourceRows` is the same list the screen draws, so the two can
-   * never disagree.
-   */
-  button.title = pillTooltip(sources, now);
-
-  const dot = document.createElement("i");
-  dot.className = "pill--dot";
-  const text = document.createElement("span");
-  text.className = "pill--text";
-  text.textContent = pill.text;
-  // The chevron says "this opens something" (inventory F13); the screen it
-  // opens is in flow, so `aria-expanded` rather than `aria-haspopup`.
-  const chevron = icon("down");
-  chevron.classList.add("pill--chevron");
-  button.append(dot, text, chevron);
-
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    // A toggle, not an opener: pressing it a second time is the one gesture
-    // everybody tries to dismiss what it opened with, and for a month that was
-    // the gesture that could not work.
-    if (state.screen?.kind === "needs-you") app.closeNeedsYou();
-    else app.openNeedsYou();
-  });
-  healthEl.append(button);
 }
 
 /**
@@ -171,8 +109,14 @@ export function renderHealth(
  * facts are `sourceRows`', including the exact stamp and the site's own error
  * message, which is the difference between "the cookie is not reaching us" and
  * "the page says something we misread".
+ *
+ * It hung off the header pill until 2026-09-19 and now hangs off the footer's
+ * source button, because "which site was read, and when" is a question a
+ * student asks without wanting to change anything, and making them open a
+ * screen to read it is a worse trade than a hover. `sourceRows` is the same
+ * list the screen draws, so the two can never disagree.
  */
-function pillTooltip(sources: Record<Source, SourceStatus>, now: Date): string {
+function sourcesTooltip(sources: Record<Source, SourceStatus>, now: Date): string {
   const lines = sourceRows(sources, now).map((row) => {
     const when = row.lastReadExact ? ` · last read ${row.lastReadExact}` : "";
     const err = row.lastError ? ` (${row.lastError})` : "";
@@ -188,8 +132,8 @@ function pillTooltip(sources: Record<Source, SourceStatus>, now: Date): string {
  * A popup has no title bar and a tab's is four words of browser chrome, so
  * without this there is nothing on screen that says what the thing is — and the
  * full view is a page a student may land on from an install with no context at
- * all. `flex: none`, so it never gives up its width; the pill beside it is what
- * shrinks, and it has an ellipsis for exactly that.
+ * all. `flex: none`, so it never gives up its width; since the pill went it has
+ * the whole left side of the bar to itself.
  */
 function renderWordmark(): HTMLElement {
   const mark = document.createElement("span");
@@ -685,22 +629,17 @@ export function renderBanners(stateIn: {
     });
   }
 
-  // §4.4: a booking window closes whether or not the student has looked, so it
-  // is pinned above the tabs rather than filed under Exams. One line now: the
-  // title, the window and the word "not booked" all fit on one at 12px.
-  for (const item of bookings(stateIn.items)) {
-    const title = item.title.replace(/^Book a slot:\s*/i, "");
-    const url = safeUrl(item.url);
-    const window_ = bookingWindowRange(item);
-    // Not "· not booked" as well: an amber banner with a button reading Book on
-    // it has already said that, and the words cost the course title its width.
-    banners.push({
-      tone: "warn",
-      glyph: "tab-exams",
-      text: window_ ? `${title} · ${window_}` : `${title} · not booked`,
-      ...(url ? { action: { label: "Book", run: () => chrome.tabs.create({ url }) } } : {}),
-    });
-  }
+  /*
+   * There is no booking banner any more (2026-09-19).
+   *
+   * §4.4 pinned one above the tabs per unbooked exam, on the argument that a
+   * booking window closes whether or not the student has looked. With three
+   * open windows that is three permanent amber lines above every tab, in a
+   * 600px window, restating rows the Exams tab already carries under a "Not
+   * booked" heading with the same window text and the same link — and the
+   * Exams tab wears a badge counting exactly them (`examCount` is
+   * `examBoard().unbooked.length`), so nothing is unannounced.
+   */
 
   for (const banner of banners) bannersEl.append(renderBanner(banner));
 }
@@ -748,29 +687,18 @@ export function showStatus(text: string | undefined): void {
   statusEl.append(renderBanner({ tone: "err", glyph: "warning", text }));
 }
 
-/**
- * "sessions Sep 22–24", for the banner.
- *
- * The month is written once. `Sep 22–Sep 24` spends eight characters restating
- * it, on the one line where the course title is competing for every one.
- */
-function bookingWindowRange(item: Item): string | undefined {
-  const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
-  const end = item.members.find((m) => m.extra?.["windowEnd"])?.extra?.["windowEnd"];
-  if (!start || !end) return undefined;
-  const from = new Date(start);
-  const to = new Date(end);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return undefined;
-  const month = from.toLocaleDateString(undefined, { month: "short" });
-  const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
-  return sameMonth
-    ? `sessions ${month} ${from.getDate()}\u2013${to.getDate()}`
-    : `sessions ${month} ${from.getDate()}\u2013${to.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-}
-
 /* -------------------------------------------------------------------------- */
 /* The footer strip                                                            */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * The class on the footer's source button, and the only spelling of it.
+ *
+ * One constant, because a selector and the class it matches disagreeing is a
+ * guard that is dead from the day it is written (UI rule 7) — and the Needs-you
+ * screen restores focus to this button when it closes.
+ */
+export const FOOT_HEALTH_CLASS = "foot--health";
 
 /**
  * `[dot] 8 sources · synced 2m ago · Sync now` (D10).
@@ -785,6 +713,15 @@ function bookingWindowRange(item: Item): string | undefined {
  * `lastSuccessAt` across the sources that are checkable — not `lastSyncAt`,
  * which the loop writes whether or not anything succeeded, and which is exactly
  * how the old status line came to read "Synced 10:32" over four failures.
+ *
+ * **The source text is the button that opens Needs you (2026-09-19).** It was
+ * the header pill's job, and the pill is gone; without this the screen that
+ * holds late work, the suggestions waiting for a yes and every per-source
+ * action would have no entry point at all. It is the right place for it: the
+ * strip is already the sentence about the sources, so pressing it to read the
+ * rest of that sentence is the gesture the line invites. Toggling, like the
+ * pill did — pressing a second time is what everybody tries first to dismiss
+ * what they opened. The hover text is `sourcesTooltip`, moved across with it.
  */
 export function renderFooter(
   sources: Record<Source, SourceStatus>,
@@ -813,6 +750,23 @@ export function renderFooter(
   sep.className = "foot--sep";
   sep.textContent = "·";
 
+  // The dot, the count and the clock, as one press (`.foot--health`).
+  const health = document.createElement("button");
+  health.type = "button";
+  health.className = FOOT_HEALTH_CLASS;
+  // The screen it opens is in document flow rather than a dialog, so
+  // `aria-expanded` rather than the popup `aria-haspopup` would promise.
+  health.setAttribute("aria-expanded", state.screen?.kind === "needs-you" ? "true" : "false");
+  health.title = sourcesTooltip(sources, now);
+  health.append(dot, count, sep, when);
+  health.addEventListener("click", (event) => {
+    event.stopPropagation();
+    // Nothing async behind this press — it swaps `#view` for a screen on the
+    // next redraw — so there is no "Applying…" to show (UI rule 4).
+    if (state.screen?.kind === "needs-you") app.closeNeedsYou();
+    else app.openNeedsYou();
+  });
+
   /*
    * The sync button, moved off the header (D10).
    *
@@ -831,7 +785,7 @@ export function renderFooter(
     void app.runSync();
   });
 
-  footerEl.append(dot, count, sep, when, sync);
+  footerEl.append(health, sync);
 }
 
 /* -------------------------------------------------------------------------- */

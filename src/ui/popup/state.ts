@@ -203,14 +203,18 @@ export function hiddenCourses(): Set<string> {
 /**
  * The two row tweaks (brief D14), from `localStorage` or their defaults.
  *
- * `normalizeTweaks` owns the fallback, so a key written by a later build or
- * lost to a cleared origin cannot leave a row half-drawn: `readStored` answers
- * `undefined` for a missing key and `undefined` is not `false`, which is the
- * distinction that keeps `showSourceNames` on for a fresh install.
+ * `normalizeTweaks` owns the parsing, so a key written by a later build or lost
+ * to a cleared origin cannot leave a row half-drawn. Both switches are off for a
+ * fresh install as of 2026-09-19.
  */
 export function readTweaks(): Tweaks {
   return normalizeTweaks({
     urgencyEdge: readStored(TWEAK_KEYS.urgencyEdge),
+    // D14, flipped off 2026-09-19 ("there's just too much information being
+    // shown"). The toggle stays, so it can be turned back on; only the
+    // unset case changes, and `normalizeTweaks` still owns the parsing —
+    // `"false"` goes in where nothing is stored rather than a second
+    // default living beside `DEFAULT_TWEAKS`.
     showSourceNames: readStored(TWEAK_KEYS.showSourceNames),
   });
 }

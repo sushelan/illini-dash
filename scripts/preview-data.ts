@@ -501,7 +501,7 @@ const sources = {
           // One course renamed and one not, so both halves of the control are
           // visible at once: a filled box beside an empty one whose placeholder
           // is the derived label.
-          courseNames: { CS424: "Distributed Systems" },
+          courseNames: { CS424: "Real-Time Systems" },
           // Switched on and having actually read something, because the state
           // worth looking at in the preview is the one the row derives rather
           // than the one the switch asserts.
@@ -594,7 +594,7 @@ const sources = {
         // where that state belongs.
         return { type: "state", items, sources, notificationsBlocked: false,
                  suggestions: PREVIEW_SUGGESTIONS,
-                 courseNames: stale ? undefined : { CS424: "Distributed Systems" },
+                 courseNames: stale ? undefined : { CS424: "Real-Time Systems" },
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
                              hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
                  lastSyncAt: new Date().toISOString() };

@@ -249,6 +249,15 @@ export function acceptSuggestion(
       // suggestion from a post with no course hint would be un-addable — the
       // one outcome a one-click control must not have.
       courseRaw: suggestion.courseRaw || "From a post",
+      // The code the post's class *had*, not one re-read out of its name. A
+      // class displayed as a bare "Distributed Systems" carries `CS425` here
+      // and nothing in `courseRaw`, and without this the accepted row gets no
+      // `courseCode` at all — which `sameCourse` treats as "codes on one side
+      // only" and refuses to merge, and which the Merge picker never offers.
+      // Guarded rather than spread unconditionally: `""` is not a code, and
+      // setting it would shadow the derivation in `fieldsOf` behind a value
+      // that matches nothing (house rule 5).
+      ...(suggestion.courseCode ? { courseCode: suggestion.courseCode } : {}),
       date,
       ...(suggestion.timeAssumed ? {} : { time }),
       // The words the post used, kept on the row. A month later "MP3" in the

@@ -159,12 +159,12 @@ describe("light or dark", () => {
 });
 
 describe("tweaks (brief D14)", () => {
-  it("is off for the edge and on for the source names", () => {
+  it("is off for the edge and off for the source names", () => {
     // The mock's own note: urgency is carried by *text* — "in 4h", red once it
-    // is past — so the edge is decoration. And a student wondering whether to
-    // trust a row wants to know who said so, which is the case §5.3 exists for.
-    expect(normalizeTweaks({})).toEqual({ urgencyEdge: false, showSourceNames: true });
-    expect(DEFAULT_TWEAKS).toEqual({ urgencyEdge: false, showSourceNames: true });
+    // is past — so the edge is decoration. Source names went off on 2026-09-19
+    // ("too much information being shown"); the deadline screen still says who.
+    expect(normalizeTweaks({})).toEqual({ urgencyEdge: false, showSourceNames: false });
+    expect(DEFAULT_TWEAKS).toEqual({ urgencyEdge: false, showSourceNames: false });
   });
 
   it("reads what localStorage actually returns, which is strings", () => {
@@ -193,8 +193,8 @@ describe("tweaks (brief D14)", () => {
   });
 
   it("reads each tweak independently, so one junk value cannot spend the other", () => {
-    expect(normalizeTweaks({ urgencyEdge: "true", showSourceNames: "maybe" })).toEqual({
-      urgencyEdge: true,
+    expect(normalizeTweaks({ urgencyEdge: "maybe", showSourceNames: "true" })).toEqual({
+      urgencyEdge: false,
       showSourceNames: true,
     });
   });

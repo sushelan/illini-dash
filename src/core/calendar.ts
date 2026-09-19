@@ -26,7 +26,7 @@
  */
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
-import { countdown, liveDeadline, sectionFor } from "./grouping.js";
+import { countdown, liveDeadline } from "./grouping.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -256,7 +256,7 @@ export function sinkDone(placed: PlacedItem[], now: Date): PlacedItem[] {
 /**
  * The rule itself, over whatever shape the caller holds.
  *
- * `sinkDone` and `todayBoard` both need it and hold different rows — one a
+ * `sinkDone` and `todaySchedule` both need it and hold different rows — one a
  * `PlacedItem`, one a bare `Item`. Written twice, the two would drift and each
  * would hide the other from its mutations, which is the `resolveColumn`
  * finding; written once, "finished work goes last" has a single definition and
@@ -660,163 +660,85 @@ export function monthCells(items: Item[], anchor: Date, now: Date): MonthCell[] 
 }
 
 /* -------------------------------------------------------------------------- */
-/* Today, as a grouped list (brief D4, mock 1a)                                */
+/* Today, as a schedule for the day (Sushi, 2026-09-19)                        */
 /* -------------------------------------------------------------------------- */
 
-export interface TodayBoard {
+/** Said once above the late rows, the way `END_OF_DAY_HEADING` is. */
+export const LATE_HEADING = "Late";
+
+/**
+ * Today, in the three bands Sushi decided on 2026-09-19.
+ *
+ * "Today is a schedule for the day. Late work at the top, then anything due by
+ * end of day (no time stated, OR a stated time at/after 11:00 PM — 11:59 PM is
+ * functionally end of day), then everything timed in clock order with gaps
+ * collapsed (an agenda, not an hour rail)."
+ *
+ * Every boundary in that sentence already has an owner, so none of them is
+ * written again here: `dayContents` owns "is this today" and
+ * `END_OF_DAY_MINUTES`, `overdueItems` owns "is this late", `doneLast` owns
+ * "finished work goes last". A second copy of any of them is the `resolveColumn`
+ * finding — two spellings of one decision, each hiding the other's mutations.
+ */
+export interface TodaySchedule {
   /**
-   * The hero: the soonest thing still owed.
+   * Unfinished work whose deadline has passed, from today or the past week.
    *
-   * Absent when there is nothing open inside a week — which is the quiet state
-   * (`quietState` in `health.ts`), not an empty hero card.
+   * `overdueItems` exactly, which includes this morning's 9 AM quiz as readily
+   * as Tuesday's — "is anything late" is the second thing looked for and a row
+   * that went by at 9 AM is the commonest answer to it. Those rows are taken out
+   * of the two bands below rather than drawn in both places, so a row never
+   * appears twice on one screen.
    */
-  nextUp?: Item;
+  late: Item[];
   /**
-   * Whether the hero is today's or merely the soonest one there is.
+   * Today's rows with no stated time, then today's stated end-of-day rows.
    *
-   * The card says "Next up" either way, and the two mean very different things:
-   * one is "get this done before bed", the other is "there is nothing today".
-   * Deciding it here rather than in the renderer keeps the two halves of that
-   * sentence — the word and the countdown — from disagreeing.
+   * Assumed first because an invented 11:59 PM can be hiding a 5 PM cutoff and a
+   * stated one cannot — the same ranking `agendaRows` puts `UNTIMED_HEADING`
+   * above the axis for (worker house rule 3). Finished rows sink, because this
+   * band is a list of what is still owed by bedtime rather than a record of when
+   * things happened.
    */
-  nextUpWhen?: "today" | "soon";
-  /** Today's remaining rows, events and finished work included. */
-  alsoToday: Item[];
-  tomorrow: Item[];
-  /** Through Sunday, capped. */
-  thisWeek: Item[];
-  /** How many of this week did not fit. The heading says "N more". */
-  weekMore: number;
+  endOfDay: Item[];
+  /**
+   * Today's rows with a stated clock before `END_OF_DAY_MINUTES`, in clock order.
+   *
+   * Finished rows stay where they are: a schedule is a record of the day, and a
+   * struck-through 9 AM quiz sitting under 11 AM would be a claim that it
+   * happened at 11. A finished row is never `late` either, so nothing sinks and
+   * nothing is taken away.
+   */
+  timed: PlacedItem[];
 }
 
-/**
- * How many of this week's rows the card shows before the heading counts.
- *
- * Five, because the three groups above it already fill a 600px popup on a busy
- * Tuesday and the week's tail is the part a student scrolls past. The rest is
- * one tap away on the Week tab.
- */
-export const WEEK_PREVIEW_ROWS = 5;
-
-/** How far ahead the hero will look when today holds nothing open. */
-const NEXT_UP_WINDOW_DAYS = 7;
-
-/** The instant a row sits at for ordering: its deadline, or when it opens. */
-function orderingInstant(item: Item, now: Date): number | undefined {
-  return anchorOf(item, now)?.at;
-}
-
-/**
- * Whether this row is something still owed, as opposed to something drawn.
- *
- * The hero is an instruction — "do this next" — so it can only be work. An
- * event is something that happens and a booking is a window; finished work is
- * finished. All three still appear in `alsoToday`, because a day's list is a
- * record of the day and a hero is a single thing to do.
- */
-function isOwed(item: Item, now: Date): boolean {
-  const tone = itemTone(item, now);
-  return tone !== "done" && tone !== "event" && tone !== "booking";
-}
-
-/**
- * The Today tab, as the mock draws it (brief D4).
- *
- * Grouped by §8.1's own sections rather than by a second set of boundaries:
- * `sectionFor` already owns "is this today", "is this tomorrow" and "is this
- * before Sunday", including the cases that are quietly wrong for a week at a
- * time — a late window still open, an opening time with no deadline yet, an
- * event that is over. A second copy of `endOfWeek` here is the defect this
- * project keeps finding.
- *
- * Finished work sinks in every group rather than being dropped: the calendar
- * decision of 2026-09-18 ("show it struck through, including hand-ticked
- * rows") applies to a day's list for the same reason it applies to a day's
- * square — a group with nothing in it asserts that nothing was due.
- */
-export function todayBoard(rawItems: Item[], now: Date): TodayBoard {
-  const items = notHidden(rawItems);
-  const today: Item[] = [];
-  const tomorrow: Item[] = [];
-  const week: Item[] = [];
-
-  for (const item of items) {
-    switch (sectionFor(item, now)) {
-      case "Today":
-        today.push(item);
-        break;
-      case "Tomorrow":
-        tomorrow.push(item);
-        break;
-      case "This week":
-        week.push(item);
-        break;
-      default:
-        break;
-    }
-  }
-
-  const soonest = (list: Item[]) =>
-    list
-      .filter((item) => isOwed(item, now))
-      .reduce<Item | undefined>((best, item) => {
-        const at = orderingInstant(item, now);
-        if (at === undefined || at < now.getTime()) return best;
-        const bestAt = best === undefined ? undefined : orderingInstant(best, now);
-        return bestAt === undefined || at < bestAt ? item : best;
-      }, undefined);
+export function todaySchedule(rawItems: Item[], now: Date): TodaySchedule {
+  const contents = dayContents(rawItems, now, now);
 
   /*
-   * Today first, and only then the rest of the week — "next up" on a day that
-   * has something left to do is that thing. The window is a week because past
-   * that "next up" is not an instruction, it is trivia.
+   * `overdueItems` decides late, and the other two bands subtract it.
    *
-   * Unreachable as a *difference*, and kept anyway: widening the first pool to
-   * `[...today, ...tomorrow]` fails nothing, because `sectionFor` never files a
-   * past instant under "Today", so every open row today is earlier than every
-   * row tomorrow and `soonest` would pick the same one. It stays because it
-   * states the rule the second branch depends on — that the look-ahead is a
-   * fallback and not a merge — and because the day `sectionFor`'s boundaries
-   * move, the two stop agreeing silently (mutation house rule 2, *unreachable*).
+   * It is every unfinished row whose instant has gone inside a week, which on
+   * today includes this morning's 9 AM quiz. Sushi's call (2026-09-19) is that
+   * such a row is late first and 9 AM second — "is anything late" is the second
+   * thing this screen is read for. Subtracting by object identity keeps the
+   * three bands disjoint without asking a second time what "late" means; the
+   * alternative, re-deriving it from the clock here, is the `resolveColumn`
+   * finding with two copies that drift.
    */
-  let nextUp = soonest(today);
-  let nextUpWhen: "today" | "soon" | undefined = nextUp ? "today" : undefined;
-  if (nextUp === undefined) {
-    const horizon = now.getTime() + NEXT_UP_WINDOW_DAYS * 86_400_000;
-    // Not `[...tomorrow, ...week]`: on a Sunday "this week" is empty by §8.1's
-    // own definition (it runs *through* Sunday), and the hero would vanish on
-    // the one evening a student is most likely to be looking ahead.
-    nextUp = soonest(
-      items.filter((item) => {
-        const at = orderingInstant(item, now);
-        return at !== undefined && at > now.getTime() && at <= horizon;
-      }),
-    );
-    if (nextUp) nextUpWhen = "soon";
-  }
+  const late = overdueItems(rawItems, now);
+  const isLate = new Set<Item>(late);
 
-  const order = (list: Item[]) =>
-    doneLast(
-      [...list].sort(
-        (a, b) =>
-          (orderingInstant(a, now) ?? Number.POSITIVE_INFINITY) -
-            (orderingInstant(b, now) ?? Number.POSITIVE_INFINITY) ||
-          a.title.localeCompare(b.title),
+  return {
+    late,
+    endOfDay: doneLast(
+      [...contents.untimed, ...contents.endOfDay.map((placed) => placed.item)].filter(
+        (item) => !isLate.has(item),
       ),
       now,
       (item) => item,
-    );
-
-  const without = (list: Item[]) => order(list.filter((item) => item !== nextUp));
-  const rest = without(week);
-
-  return {
-    ...(nextUp ? { nextUp } : {}),
-    ...(nextUpWhen ? { nextUpWhen } : {}),
-    alsoToday: without(today),
-    tomorrow: without(tomorrow),
-    thisWeek: rest.slice(0, WEEK_PREVIEW_ROWS),
-    weekMore: Math.max(0, rest.length - WEEK_PREVIEW_ROWS),
+    ),
+    timed: contents.timed.flat().filter((placed) => !isLate.has(placed.item)),
   };
 }
 

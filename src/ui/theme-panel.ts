@@ -246,6 +246,11 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
 export function storedTweaks(): Tweaks {
   return normalizeTweaks({
     urgencyEdge: read(TWEAK_KEYS.urgencyEdge),
+    // D14, flipped off 2026-09-19 ("there's just too much information being
+    // shown"). The toggle stays, so it can be turned back on; only the
+    // unset case changes, and `normalizeTweaks` still owns the parsing —
+    // `"false"` goes in where nothing is stored rather than a second
+    // default living beside `DEFAULT_TWEAKS`.
     showSourceNames: read(TWEAK_KEYS.showSourceNames),
   });
 }

@@ -1,6 +1,6 @@
 /**
  * "Needs you" (brief D2, mock 1e): everything that is asking the student for
- * something, on one screen behind the header pill.
+ * something, on one screen behind the footer strip.
  *
  * It replaces the health popover, and the replacement is the point. A popover
  * is a floating panel, and a floating panel contributes no height to the box
@@ -14,8 +14,9 @@
  * was a post's claim waiting for a yes or a no; the popover was a source with a
  * button on it. All three are "something is waiting for you", and a student who
  * wants to know whether anything is has been made to look in three places to
- * find out. The header pill answers that in three words (`needsYouPill`), and
- * this is what it opens.
+ * find out. The header pill used to answer that in three words and open this;
+ * the pill went on 2026-09-19 (too much on screen, and "All clear" named
+ * nothing), so the footer strip's source text opens it instead.
  *
  * Every count and every sentence about a source is derived from an attempt that
  * happened — `sourceRows`, `staleNotice` and `actionFor`, the same three
@@ -36,6 +37,7 @@ import type { Item, Source, SourceStatus, Suggestion } from "../../../sources/ty
 import { MENU_SELECTOR, app, state, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
 import {
+  FOOT_HEALTH_CLASS,
   actionButton,
   applyOverrideAction,
   applySuggestionRequest,
@@ -67,7 +69,7 @@ export function needsYouIsOpen(): boolean {
  */
 export function openNeedsYou(): void {
   if (needsYouIsOpen()) return;
-  // Whatever menu the pill's own click left open. A menu placed against the
+  // Whatever menu the opening click left open. A menu placed against the
   // header would hang over a screen that has just replaced the document.
   closeMenus();
   state.screen = { kind: "needs-you" };
@@ -97,11 +99,12 @@ export function closeNeedsYou(): void {
   if (!needsYouIsOpen()) return;
   leaveNeedsYou();
   void app.refresh().then(() => {
-    // The pill is rebuilt by the redraw, so this has to run after it — focusing
-    // the old button would put focus on an element no longer in the document,
-    // which Chrome resolves to `<body>` and a keyboard user reads as "focus
-    // vanished".
-    document.querySelector<HTMLElement>(".pill")?.focus();
+    // The footer is rebuilt by the redraw, so this has to run after it —
+    // focusing the old button would put focus on an element no longer in the
+    // document, which Chrome resolves to `<body>` and a keyboard user reads as
+    // "focus vanished". One constant for the class and the selector (UI rule 7);
+    // this was `.pill` until the header pill went on 2026-09-19.
+    document.querySelector<HTMLElement>(`.${FOOT_HEALTH_CLASS}`)?.focus();
   });
 }
 

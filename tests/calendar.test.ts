@@ -31,8 +31,8 @@ import {
   minutesInto,
   MONTH_CELL_ROWS,
   monthCells,
-  todayBoard,
-  WEEK_PREVIEW_ROWS,
+  todaySchedule,
+  END_OF_DAY_MINUTES,
   MONTH_DOT_CAP,
   monthDots,
   dayList,
@@ -820,119 +820,129 @@ describe("attentionGroups", () => {
   });
 });
 
-describe("todayBoard (brief D4, mock 1a)", () => {
-  // NOW is Thursday 2026-09-10, 6:00 PM. Sunday is the 13th.
-  it("leads with the soonest thing still owed today", () => {
-    const board = todayBoard(
+describe("todaySchedule (Sushi, 2026-09-19)", () => {
+  // "Today is a schedule for the day. Late work at the top, then anything due
+  // by end of day (no time stated, OR a stated time at/after 11:00 PM — 11:59
+  // PM is functionally end of day), then everything timed in clock order with
+  // gaps collapsed (an agenda, not an hour rail)."
+  //
+  // NOW is Thursday 2026-09-10, 6:00 PM.
+
+  it("partitions a realistic day into late, end-of-day and timed", () => {
+    const rows = [
+      item({ title: "yesterday", dueAt: at(2026, 8, 9, 12) }),
+      item({ title: "no time posted", dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }),
+      item({ title: "stated 11:59", dueAt: at(2026, 8, 10, 23, 59) }),
+      // Exactly END_OF_DAY_MINUTES (23 * 60), the inclusive edge.
+      item({ title: "stated 11:00", dueAt: at(2026, 8, 10, 23, 0) }),
+      // 22:59 — one minute under the threshold. A deliberately unrealistic
+      // deadline (nobody sets 10:59 PM), chosen because a realistic value on
+      // either side of 23:00 cannot tell `>=` from `>` (parser house rule 10).
+      item({ title: "stated 10:59", dueAt: at(2026, 8, 10, 22, 59) }),
+      item({ title: "nine am", dueAt: at(2026, 8, 10, 9, 0) }),
+      item({ title: "eight pm", dueAt: at(2026, 8, 10, 20, 0) }),
+      item({ title: "tomorrow", dueAt: at(2026, 8, 11, 12) }),
+      item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 10, 20, 0) }),
+    ];
+    const schedule = todaySchedule(rows, NOW);
+
+    expect(END_OF_DAY_MINUTES).toBe(23 * 60);
+    // Most-recently-overdue first, which is `overdueItems`' own order: this
+    // morning's 9 AM row is late as surely as yesterday's (Sushi, 2026-09-19).
+    expect(schedule.late.map((i) => i.title)).toEqual(["nine am", "yesterday"]);
+    expect(schedule.endOfDay.map((i) => i.title)).toEqual([
+      "no time posted",
+      "stated 11:00",
+      "stated 11:59",
+    ]);
+    // No "nine am": it is in `late`, and a row is never drawn twice.
+    expect(schedule.timed.map((p) => p.item.title)).toEqual(["eight pm", "stated 10:59"]);
+  });
+
+  it("puts assumed times above stated end-of-day ones", () => {
+    // An invented 11:59 PM can be hiding a 5 PM cutoff; a stated one cannot.
+    const schedule = todaySchedule(
       [
-        item({ title: "MP1 Report", dueAt: at(2026, 8, 10, 23, 59) }),
-        item({ title: "Quiz 1", dueAt: at(2026, 8, 10, 21, 0) }),
-        item({ title: "tomorrow", dueAt: at(2026, 8, 11, 23, 59) }),
-        item({ title: "saturday", dueAt: at(2026, 8, 12, 23, 59) }),
+        item({ title: "stated", dueAt: at(2026, 8, 10, 23, 30) }),
+        item({ title: "assumed", dueAt: at(2026, 8, 10, 23, 59), timeAssumed: true }),
       ],
       NOW,
     );
-    expect(board.nextUp?.title).toBe("Quiz 1");
-    expect(board.nextUpWhen).toBe("today");
-    expect(board.alsoToday.map((i) => i.title)).toEqual(["MP1 Report"]);
-    expect(board.tomorrow.map((i) => i.title)).toEqual(["tomorrow"]);
-    expect(board.thisWeek.map((i) => i.title)).toEqual(["saturday"]);
-    expect(board.weekMore).toBe(0);
+    expect(schedule.endOfDay.map((i) => i.title)).toEqual(["assumed", "stated"]);
   });
 
-  it("looks ahead a week when today has nothing left, and says so", () => {
-    const board = todayBoard([item({ title: "GPS4", dueAt: at(2026, 8, 12, 23, 59) })], NOW);
-    expect(board.nextUp?.title).toBe("GPS4");
-    expect(board.nextUpWhen).toBe("soon");
-    // And it is not repeated in the group it came out of.
-    expect(board.thisWeek).toEqual([]);
-  });
-
-  it("has no hero when nothing open falls inside a week", () => {
-    const board = todayBoard([item({ title: "Final", dueAt: at(2026, 9, 20, 23) })], NOW);
-    expect(board.nextUp).toBeUndefined();
-    expect(board.nextUpWhen).toBeUndefined();
-  });
-
-  it("never makes an event, a booking or finished work the hero", () => {
-    // The hero is an instruction. An event is something that happens, a
-    // booking is a window, and finished work is finished — but all three are
-    // still part of the day's record.
-    const board = todayBoard(
+  it("sinks finished work to the bottom of end-of-day, and only there", () => {
+    const schedule = todaySchedule(
       [
-        item({ title: "office hours", kind: "event", dueAt: at(2026, 8, 10, 19) }),
-        item({ title: "handed in", done: true, dueAt: at(2026, 8, 10, 20) }),
-        item({ title: "MP1", dueAt: at(2026, 8, 10, 23, 59) }),
+        item({
+          title: "assumed done",
+          dueAt: at(2026, 8, 10, 23, 59),
+          timeAssumed: true,
+          done: true,
+        }),
+        item({ title: "stated open", dueAt: at(2026, 8, 10, 23, 30) }),
       ],
       NOW,
     );
-    expect(board.nextUp?.title).toBe("MP1");
-    expect(board.alsoToday.map((i) => i.title)).toEqual(["office hours", "handed in"]);
+    // Done sinks below a *stated* row it would otherwise outrank.
+    expect(schedule.endOfDay.map((i) => i.title)).toEqual(["stated open", "assumed done"]);
   });
 
-  it("sinks finished work to the bottom of every group", () => {
-    // The same argument as `sinkDone`'s: a struck-through row must not sit
-    // above the one thing still owed, and in a capped group it must not push
-    // it out of sight altogether.
-    const board = todayBoard(
+  it("keeps finished work in chronological position in the timed band", () => {
+    // A schedule is a record of the day: a handed-in 9 AM quiz shown under
+    // 8 PM would be a claim that it happened at 8. It is finished, so it is not
+    // `late` either — only unfinished rows are subtracted from this band.
+    const schedule = todaySchedule(
       [
-        item({ title: "hero", dueAt: at(2026, 8, 10, 23) }),
-        item({ title: "done early", done: true, dueAt: at(2026, 8, 11, 9) }),
-        item({ title: "open late", dueAt: at(2026, 8, 11, 23) }),
+        item({ title: "seven pm", dueAt: at(2026, 8, 10, 19) }),
+        item({ title: "nine done", done: true, dueAt: at(2026, 8, 10, 9) }),
+        item({ title: "eight pm", dueAt: at(2026, 8, 10, 20) }),
       ],
       NOW,
     );
-    expect(board.tomorrow.map((i) => i.title)).toEqual(["open late", "done early"]);
+    expect(schedule.late).toEqual([]);
+    expect(schedule.timed.map((p) => p.item.title)).toEqual([
+      "nine done",
+      "seven pm",
+      "eight pm",
+    ]);
   });
 
-  it("caps this week at five rows and counts the rest", () => {
-    const week = Array.from({ length: 8 }, (_, i) =>
-      item({ title: `w${i}`, dueAt: at(2026, 8, 12, 9 + i) }),
-    );
-    const board = todayBoard(week, NOW);
-    expect(WEEK_PREVIEW_ROWS).toBe(5);
-    // One of the eight becomes the hero, leaving seven: five shown, two more.
-    expect(board.nextUp?.title).toBe("w0");
-    expect(board.thisWeek).toHaveLength(5);
-    expect(board.weekMore).toBe(2);
+  it("shows a late row in late and nowhere else", () => {
+    const rows = [item({ title: "yesterday", dueAt: at(2026, 8, 9, 12) })];
+    const schedule = todaySchedule(rows, NOW);
+    expect(schedule.late.map((i) => i.title)).toEqual(["yesterday"]);
+    expect(schedule.endOfDay).toEqual([]);
+    expect(schedule.timed).toEqual([]);
   });
 
-  it("uses §8.1's own section boundaries rather than a second copy", () => {
-    // Overdue, Later and unreadable rows all belong to other surfaces; a second
-    // `endOfWeek` here is the defect this project keeps finding.
-    const board = todayBoard(
-      [
-        item({ title: "overdue", dueAt: at(2026, 8, 9, 12) }),
-        item({ title: "later", dueAt: at(2026, 8, 30, 12) }),
-        item({ title: "unreadable", members: [member({ unparsedDueDate: "?" })] }),
-      ],
-      NOW,
-    );
-    expect(board.alsoToday).toEqual([]);
-    expect(board.tomorrow).toEqual([]);
-    expect(board.thisWeek).toEqual([]);
-    expect(board.nextUp).toBeUndefined();
+  it("puts this morning's unfinished row in Late, not in the timed band", () => {
+    // Sushi, 2026-09-19: "is anything late" is the second thing this screen is
+    // read for, and a row that went by at 9 AM this morning is the commonest
+    // answer to it. It leaves the schedule entirely rather than being drawn in
+    // both places.
+    const schedule = todaySchedule([item({ title: "nine am", dueAt: at(2026, 8, 10, 9) })], NOW);
+    expect(schedule.late.map((i) => i.title)).toEqual(["nine am"]);
+    expect(schedule.timed).toEqual([]);
+    expect(schedule.endOfDay).toEqual([]);
   });
 
-  it("never draws a hidden row", () => {
-    const board = todayBoard(
-      [item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 10, 23) })],
-      NOW,
+  it("takes a late end-of-day row out of the end-of-day band too", () => {
+    // The only hour at which a row can be both: after 11 PM, today's own
+    // end-of-day band is in the past, so a stated 11:00 PM is `overdueItems`'
+    // as well as `dayContents`'. Before that the subtraction is unreachable on
+    // this band, which is why the clock here is 11:30 PM rather than NOW.
+    const lateEvening = new Date(2026, 8, 10, 23, 30);
+    const schedule = todaySchedule(
+      [item({ title: "stated 11:00", dueAt: at(2026, 8, 10, 23, 0) })],
+      lateEvening,
     );
-    expect(board.nextUp).toBeUndefined();
-    expect(board.alsoToday).toEqual([]);
+    expect(schedule.late.map((i) => i.title)).toEqual(["stated 11:00"]);
+    expect(schedule.endOfDay).toEqual([]);
   });
 
-  it("orders each group by instant", () => {
-    const board = todayBoard(
-      [
-        item({ title: "late", dueAt: at(2026, 8, 11, 23) }),
-        item({ title: "early", dueAt: at(2026, 8, 11, 9) }),
-        item({ title: "hero", dueAt: at(2026, 8, 10, 20) }),
-      ],
-      NOW,
-    );
-    expect(board.tomorrow.map((i) => i.title)).toEqual(["early", "late"]);
+  it("returns three empty bands for an empty day", () => {
+    expect(todaySchedule([], NOW)).toEqual({ late: [], endOfDay: [], timed: [] });
   });
 });
 

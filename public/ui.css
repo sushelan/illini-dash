@@ -409,34 +409,6 @@
 }
 .chip-count.is-warn { background: var(--warn-wash); color: var(--warn); }
 
-/* ---- the health pill ---- */
-
-/*
- * What the popup's six 9px dots become. It is a `<button>` in every state —
- * including the healthy one — because "which sources, and when" is a question
- * worth answering on a good day too, and a control that only appears when
- * something is broken is a control nobody has learned.
- */
-.pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  box-sizing: border-box;
-  height: 24px; padding: 0 7px; max-width: 100%;
-  font: inherit; font-size: 11px; font-weight: 600; line-height: 1;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: var(--surface); color: var(--fg);
-  cursor: pointer; white-space: nowrap; overflow: hidden;
-}
-.pill:hover { background: var(--hover); }
-.pill--text { overflow: hidden; text-overflow: ellipsis; }
-.pill .icon { width: 12px; height: 12px; flex: none; color: var(--muted); }
-.pill--dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
-.pill.is-ok .pill--dot { background: var(--ok); }
-.pill.is-warn .pill--dot { background: var(--warn); }
-.pill.is-err .pill--dot { background: var(--err); }
-/* Never fetched is hollow, not filled: at a glance it must read as neither
-   healthy nor broken, because neither is known yet (worker house rule 2). */
-.pill.is-pending .pill--dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
-
 /* ---- banners ---- */
 
 /*

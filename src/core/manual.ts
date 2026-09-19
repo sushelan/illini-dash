@@ -39,6 +39,23 @@ export interface ManualInput {
    * already sits — and giving it a date later is an ordinary edit, so the hide,
    * the tick and the merge survive it (`editManualItem` keeps the `sourceId`).
    */
+  /**
+   * The course code the *source* stated, when it stated one.
+   *
+   * Optional, and only ever set by `acceptSuggestion`: the editor collects a
+   * name, not a code. A Piazza or Campuswire class is addressed by its display
+   * name, which need not carry a code at all — a class called "Distributed
+   * Systems" whose `courseCodes` held `CS425` used to produce an accepted row
+   * with no `courseCode`, and `sameCourse` (codes on one side only → false) can
+   * never merge that with the student's CS 425 rows, nor can the Merge picker
+   * offer it. So a code the source knew is carried through rather than
+   * re-derived from a name that never had it.
+   *
+   * Preferred over `extractCourseCode(courseRaw)` when present: it is stated,
+   * and the derivation is a guess at the same thing (worker house rule 3, the
+   * general form — a value this code invented never outranks one a source gave).
+   */
+  courseCode?: string;
   date?: string;
   /** `HH:MM`, 24-hour, in `zone`. Blank means "no time was given". */
   time?: string;
@@ -281,7 +298,11 @@ function fieldsOf(
   if (note !== "") extra["note"] = note;
 
   const url = text(input.url);
-  const courseCode = extractCourseCode(courseRaw);
+  // Stated beats derived. `text` first, so a `""` carried in by an older build
+  // cannot shadow the fallback behind it (house rule 5: `typeof x === "string"`
+  // is not validation).
+  const statedCode = text(input.courseCode);
+  const courseCode = statedCode !== "" ? statedCode : extractCourseCode(courseRaw);
 
   return {
     courseRaw,

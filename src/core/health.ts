@@ -496,6 +496,10 @@ export interface NeedsYouInput {
  * `healthPill` stays exactly as it is: it still owns the wording for *which*
  * source is broken, which the Needs-you screen (D2) prints per row.
  */
+// Unused by the UI since 2026-09-19: the header pill it fed was removed (too
+// much on screen, and "All clear" named nothing to act on). Kept, with its
+// tests, because the derivation is the one place that ranks late work against
+// sources needing the student, and the pill may come back.
 export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
   const { sources, syncing, overdue, suggestions } = input;
 

@@ -231,6 +231,17 @@ writeFileSync(
       try {
         if (q.has("tab")) localStorage.setItem("illini-dash.view", q.get("tab"));
         if (q.has("theme")) localStorage.setItem("illini-dash.theme", q.get("theme"));
+        /*
+         * The light/dark end, stated rather than inferred.
+         *
+         * It used to be left to \`preferredColorScheme\`, because the mode
+         * defaulted to "system". \`DEFAULT_MODE\` became "light" on 2026-09-19
+         * so the popup opens on the mock's palette — and from that moment every
+         * \`*-dark.png\` in docs/ux/after was a light capture with "dark" in its
+         * name. That is the exact failure the dark-first rule exists to prevent,
+         * so the mode is now seeded like the view and the palette.
+         */
+        if (q.has("mode")) localStorage.setItem("illini-dash.mode", q.get("mode"));
         if (q.has("design")) localStorage.setItem("illini-dash.design", q.get("design"));
         else localStorage.removeItem("illini-dash.design");
         if (q.has("hidden")) localStorage.setItem("illini-dash.hiddenCourses", q.get("hidden"));
@@ -248,7 +259,7 @@ writeFileSync(
       // sent on, so a shot asking for a section further down the Settings page
       // silently came out at the top.
       const hash = q.get("hash") ? "#" + q.get("hash") : "";
-      for (const key of ["page", "tab", "theme", "hidden", "hash", "design"]) q.delete(key);
+      for (const key of ["page", "tab", "theme", "mode", "hidden", "hash", "design"]) q.delete(key);
       location.replace(page + (q.toString() ? "?" + q.toString() : "") + hash);
     </script>
   </body>
