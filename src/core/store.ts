@@ -308,7 +308,9 @@ export interface ObserverState {
   state?: PiazzaHealth;
   /** When a fetch was last attempted, successful or not. */
   lastAttemptAt?: string;
-  /** Why the last attempt failed, in the words the row shows. */
+  /** Why the last attempt failed, in the words the row shows — or, since the
+   * 2026-09-18 trace, a *successful* run's caveat ("1 of 4 classes couldn't be
+   * read"), because `migrateObservers` keeps no structured field for one. */
   lastError?: string;
   /** The enrolment list, cached from the class page and refreshed daily. */
   classes?: PiazzaClass[];

@@ -131,12 +131,18 @@ here is a parsing mistake, and no fixture could have caught any of it.
    assumed (`extra.timeAssumed`) and make every precedence rule prefer a stated value.
    The general form: whenever a default is filled in, ask what downstream code will treat
    it as authoritative.
-4. **Every store writer goes through the queue, and the queue is re-entrant.** A writer
-   that bypasses it loses whatever the user just clicked — a sync holds the queue across
-   all of its fetches, so an unqueued write is read and then overwritten seconds later,
-   with no error and a control that springs back. A queue that is *not* re-entrant
-   deadlocks the moment one queued path calls another (`sync` → `reschedule` →
-   `fireNotification`), and it deadlocks permanently.
+4. **Every store writer goes through the queue, the queue is strictly exclusive, and no
+   section holds it across a fetch.** A writer that bypasses it loses whatever the user
+   just clicked. So does a queue that lets a concurrent caller through: the first fix for
+   the `sync` → `reschedule` → `fireNotification` deadlock made the queue "re-entrant"
+   with a global flag, and a flag cannot tell a nested call from a concurrent one — every
+   click that landed during a sync's fetches ran unqueued and was overwritten by the sync's
+   older snapshot, silently, with a mutation-checked test pinning the mechanism (found by
+   the 2026-09-18 trace). The obligations now: a section never calls `withStore` again
+   (nested is a deadlock by design, and `SLOW_HOLD_MS` names a section that outstays 2s in
+   the console), and anything that fetches is plan → fetch → apply — a short hold to read
+   what the fetch needs, no hold across the network, a short hold that applies onto a
+   *fresh* store (`syncOnce`, `runPiazza`, `gcalPush`).
 5. **Log both branches of any decision the user will have to debug.** A silent early
    return in the registry seed made "already seeded, all healthy" and "the seed never ran"
    identical in the console. That ambiguity cost two rounds of the user's time in the

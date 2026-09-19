@@ -30,6 +30,7 @@ import {
 } from "../core/campuswire.js";
 import {
   describePiazza,
+  piazzaChipState,
   PIAZZA_LOGIN_URL,
   PIAZZA_MATCH,
   type PiazzaFacts,
@@ -1123,8 +1124,7 @@ async function renderOptions(): Promise<void> {
    * use colour as the scanning signal, which left this row's failure legible
    * only word by word. The words still come from `describePiazza`.
    */
-  const pzState = (): string =>
-    piazza?.enabled === true ? (piazza.state ?? "pending") : "disabled";
+  const pzState = (): string => piazzaChipState(piazza);
   const pzChip = stateChip(
     pzState(),
     undefined,

@@ -322,6 +322,8 @@ export interface PostPayload {
   id: string;
   source: "campuswire";
   courseHint?: string;
+  /** The post's title, for the title a suggestion falls back to. */
+  subject?: string;
   postedAt: string;
   text: string;
 }
@@ -361,6 +363,7 @@ export function postsToSend(posts: readonly ObservedPost[], options: SendOptions
       id: post.id,
       source: "campuswire",
       ...(post.courseHint ? { courseHint: post.courseHint } : {}),
+      ...(post.title.trim() !== "" ? { subject: post.title } : {}),
       postedAt: post.postedAt,
       // The title carried in front of the body, because an instructor routinely
       // puts the only subject in it ("Proj-CNN Mini Extension" over a body that

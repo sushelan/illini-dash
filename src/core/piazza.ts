@@ -995,6 +995,8 @@ export interface PostPayload {
    * included. The ingest side must match an item on **any** of them.
    */
   courseCodes?: string[];
+  /** The note's subject line, for the title a suggestion falls back to. */
+  subject?: string;
   postedAt: string;
   text: string;
 }
@@ -1092,6 +1094,7 @@ export function postsToSend(posts: readonly ObservedPost[], options: SendOptions
       ...(post.courseCodes && post.courseCodes.length > 0
         ? { courseCodes: [...post.courseCodes] }
         : {}),
+      ...(post.subject.trim() !== "" ? { subject: post.subject } : {}),
       postedAt,
       text: post.text,
     });
@@ -1294,6 +1297,12 @@ export interface PiazzaFacts {
 export interface PiazzaPoll {
   nid: string;
   courseHint: string;
+  /**
+   * Every code of the class, primary first (`PiazzaClass.courseCodes`). Carried
+   * so the feed's posts can name both halves of a cross-listing — the codes were
+   * computed, stored and validated for a day without ever reaching a post.
+   */
+  courseCodes?: string[];
   sinceNr?: number;
 }
 
@@ -1338,6 +1347,7 @@ export function classesToPoll(
       return {
         nid: entry.nid,
         courseHint: entry.courseRaw,
+        ...(entry.courseCodes.length > 0 ? { courseCodes: [...entry.courseCodes] } : {}),
         ...(typeof since === "number" && Number.isInteger(since) ? { sinceNr: since } : {}),
       };
     });
@@ -1951,6 +1961,18 @@ function when(at: string, now: Date): string {
  * switch the student has merely flipped says "nothing read yet", which is the
  * difference between "it is broken" and "wait for the next sync".
  */
+/**
+ * The tone of the Settings chip, from the same facts the words come from.
+ *
+ * In core so it is pinned: the page used to spell this inline with a hardcoded
+ * "disabled", which painted "Couldn't be read" the grey of "Off". `lastError`
+ * is deliberately not consulted — since the trace it also carries a successful
+ * run's caveat ("1 of 4 classes couldn't be read"), and a caveat is not an error.
+ */
+export function piazzaChipState(facts: PiazzaFacts | undefined): string {
+  return facts?.enabled === true ? (facts.state ?? "pending") : "disabled";
+}
+
 export function describePiazza(facts: PiazzaFacts | undefined, now: Date = new Date()): string {
   if (!facts?.enabled) return "Off";
   if (facts.state === "needs_login") return "Sign in needed";

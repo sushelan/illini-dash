@@ -2,10 +2,67 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1783 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1900 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 8: the trace's 41 findings, fixed by four workers — 2026-09-18 night
+
+**1783 → 1900 tests.** Four workers by file territory, merged with one conflict (both
+had appended to the same findings doc); the seams between them — the class's codes and
+the note's subject travelling from the poll plan into the payload, the chip's tone in
+core, the worker stating the "html omitted" decision positively — wired by hand and
+pinned afterwards.
+
+**The queue (high effort).** `createStoreQueue` is strictly exclusive; the re-entrancy
+flag and the four tests that pinned it are gone, replaced by the opposite test (a caller
+arriving mid-section waits, and its write survives) and a `SLOW_HOLD_MS` warning that
+names a section outstaying 2s. Nothing holds the queue across a fetch any more:
+`core/sync.ts` gained `planSync` / `fetchSync` / `applySync` and `syncOnce`, which is the
+whole plan → fetch → apply orchestration *in core* so the load-bearing second `load()` is
+testable; `runPiazza`, the registry refresh and `gcalPush` have the same shape; `runPiazza`
+has an in-flight promise its three callers join. Worker rule 4 rewritten (not annotated),
+docs/gcal.md's push bullet likewise.
+
+**Piazza honesty, in one contract.** `PiazzaResult` carries `requests`, `classesPolled`,
+`classFailures`, `bodiesRead`, `bodiesFailed`; `applyPiazzaResult` is assigned, never
+spread (a spread cannot delete a key, which is how every recovery kept its four-hour
+`nextAttemptAt`). No request → `pending` with "On · no class in this term"; a class that
+failed → the caveat beside the counts; every body refused → "25 posts couldn't be
+opened"; nothing new → "checked 10:32, nothing new". A failed body no longer settles its
+post: transient failures hold `lastNr` below the post, refusals give up at the snippet
+with a reason. A per-class 403 is that class's failure, not a sign-out (`feedSignedOut`);
+`needs_login` gets `PIAZZA_LOGIN_GRACE` free retries before the ladder; one bad nid falls
+back to the bare `/class` URL; a navigation elsewhere is a `recheck`, not `manual`, for
+Piazza.
+
+**Parsing.** `courseCodes` finally reaches the post (both halves of a cross-listing);
+`lastNr` stops below a post refused for an unreadable field; a bad numeric entity costs
+its character, not the feed; HTML comments go with their contents; a `>` inside a quoted
+attribute no longer eats text; `instructorNote` travels and a classmate's pinned note is
+held back with its reason (policy, flagged for Sushi); a re-read body's `postedAt` is the
+version's own instant (amendment); the chip's tone comes from `piazzaChipState`; compat
+normalises `observers.piazza`.
+
+**Grammar and suggestions.** `released` never moves a deadline; a carried subject
+reaches the next sentence only and never crosses a paragraph; ingest matches items on
+any of the post's codes; "EOD <date>" resolves; `alreadySuggested` is per course. From
+the live list: **a deadline already past when read is recorded and never offered** (three
+of the seven were), a title never carries Markdown and never is a sentence, a generic
+phrase subject ("Google Form", "See Demo") yields to the post's subject, and the row says
+*which* post: "from the Piazza post “MP1 Demo Sign-up Sheet”" (`Suggestion.postSubject`,
+additive).
+
+**The author.** An older worker's missing `html` is named as such (`htmlOmitted`
+stated positively by the worker); a malformed selector costs its proposal, not the run;
+`repeatedStructures` is bounded and measured; the tbody spelling outranks the header one;
+the skeleton's summary and the schema's enum come from one inventory; "Use this one"
+re-enables and says what failed.
+
+**Open, and Sushi's:** whether a classmate's pinned note may raise a suggestion (never a
+move); whether `event` mentions should also never move; the `PIAZZA_LOGIN_GRACE = 4`
+guess; `recheck` still overriding the ladder for the five hosted sources.
 
 ## Wave 7: the HW1 deadline reaches the student; a seven-segment trace — 2026-09-18 night
 
@@ -2289,6 +2346,10 @@ back with a "Put back" button for anyone legitimately enrolled across two terms.
 - **Piazza (docs/piazza-findings.md)** — a post's modification signal is the last
   create/update entry of the feed entry's `log[]`, not `modified`, which moves on every
   follow-up. (2026-09-18, from both captures.)
+- **Piazza (docs/piazza-findings.md)** — a re-read body's `postedAt` is the version's own
+  `history[0].created`, not the post's creation; relative phrases in an edit resolve
+  against the edit. And a per-class 403 is that class's failure, not the session's.
+  (2026-09-18, from both captures and the trace.)
 
 ## §12 open questions
 - ~~1. PrairieLearn access-details in fetched HTML~~ — **yes**, resolved 2026-09-03.

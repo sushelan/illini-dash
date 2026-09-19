@@ -1352,6 +1352,10 @@ describe("what the detected message says about its page", () => {
     const line = modelStatusLine(page.outcome);
     expect(line).toContain("chrome://extensions");
     expect(line).toContain("missing: html");
+    // The worker states the size decision positively now, so an absent `html`
+    // is the worker alone; the old hedge about a large page would send the
+    // student looking at the wrong thing.
+    expect(line).not.toContain("too large");
   });
 
   it("keeps the size sentence for a worker that says it dropped a large page", () => {

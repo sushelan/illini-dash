@@ -1275,20 +1275,9 @@ export function modelStatusLine(outcome: ModelOutcome): string {
     case "empty-page":
       return "That page came back empty, so there was nothing to show Chrome's built-in model.";
     case "stale-worker":
-      /*
-       * The reload first, the size second.
-       *
-       * Both are true of an absent `html`, and only one of them is something
-       * the student can act on — the other is a 2MB page nobody has ever
-       * captured (the largest so far is 33KB). Once `background.ts` sends
-       * `htmlOmitted`, this branch means the worker alone and the second
-       * sentence can go.
-       */
-      return (
-        `${staleWorkerNotice(outcome.missing)} ` +
-        `(If it is already up to date, that page was too large to carry: the limit is ` +
-        `${Math.round(MAX_AUTHOR_HTML / 1_000_000)} MB.)`
-      );
+      // The worker now states the size decision positively (`htmlOmitted`), so
+      // an absent `html` means the worker alone: it predates this page.
+      return staleWorkerNotice(outcome.missing);
     case "proposed":
       return (
         `Chrome's built-in model proposed an entry (${attemptCount(outcome.attempts)}). ` +

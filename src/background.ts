@@ -1531,6 +1531,7 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
           const posts = parseFeed(json, {
             nid: entry.nid,
             courseHint: entry.courseHint,
+            ...(entry.courseCodes ? { courseCodes: entry.courseCodes } : {}),
             fetchedAt: new Date().toISOString(),
           });
           /*
@@ -1558,7 +1559,9 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
            * the rest of the term is the repeating fetch §6 exists to stop.
            */
           const needed = postsNeedingBody(send.sent, planned.seenPosts);
-          const batch = bodyBatch(needed.fetch, posts, MAX_BODIES_PER_SYNC);
+          // `send.held`: the mark stays below a post refused for an unreadable
+          // field, so it is offered again rather than skipped for the term.
+          const batch = bodyBatch(needed.fetch, posts, MAX_BODIES_PER_SYNC, send.held);
           if (batch.deferred > 0) {
             console.log(
               `[piazza] ${entry.courseHint}: ${batch.deferred} more new note(s) deferred to the ` +
@@ -1919,7 +1922,13 @@ chrome.runtime.onMessage.addListener(
             // has the same bytes to summarise and to validate a proposal
             // against. `htmlForAuthoring` owns the size decision; nothing here
             // decides anything (worker rule 1).
-            html: htmlForAuthoring(result.body),
+            // Stated positively: a message drops an `undefined` field with its
+            // key, so an absent `html` alone cannot tell "too large" from "an
+            // older worker that never sent one" (worker rule 8).
+            ...(((html) =>
+              html === undefined
+                ? { htmlOmitted: result.body.length === 0 ? ("empty" as const) : ("too-large" as const) }
+                : { html })(htmlForAuthoring(result.body))),
           } as const;
         })(),
       );

@@ -216,6 +216,11 @@ export type Response =
        * decision and the branch says so on screen rather than failing quietly.
        */
       html?: string;
+      /**
+       * Why `html` is absent, when it is: the worker chose. An absent `html`
+       * with no `htmlOmitted` means the worker predates this field.
+       */
+      htmlOmitted?: "too-large" | "empty";
     }
   | {
       type: "setup";

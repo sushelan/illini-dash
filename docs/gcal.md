@@ -120,9 +120,12 @@ state with its own sentence, not an error.
 - **`PATCH`, never `PUT`.** `events.update` replaces the resource and drops
   `extendedProperties` — one call and every event on the calendar becomes an orphan this
   extension can neither find nor delete.
-- **The push is started outside the store queue's hold.** `gcalPush` takes the queue
-  itself; starting it from inside a sync's hold would run its first section re-entrantly
-  and let the rest continue unqueued, which is worker rule 4's exact defect.
+- **The push holds the queue for no request.** `gcalPush` takes no outer hold at all:
+  it projects from a short read, talks to Google with the queue free, and each write goes
+  back through `writeGcal`, which loads fresh. A sync that lands mid-push can change the
+  list it projected; nothing is lost, at most one deadline waits for the next push. Since
+  the queue became strictly exclusive (2026-09-18), starting a push from inside a held
+  section would deadlock rather than run re-entrantly — which is why it never does.
 
 ### What it costs
 

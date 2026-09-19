@@ -40,6 +40,7 @@ import {
   piazzaNeedsRecheck,
   planPiazza,
   postBodyRequest,
+  piazzaChipState,
   postsToSend,
   readerUpgrade,
   readerVersionOf,
@@ -454,7 +455,9 @@ describe("planPiazza", () => {
       { granted: true, now: NOW },
     );
     expect(fresh.refreshClasses).toBe(false);
-    expect(fresh.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw }]);
+    expect(fresh.poll).toEqual([
+      { nid: NID, courseHint: CS425.courseRaw, courseCodes: ["CS425", "ECE428"] },
+    ]);
     const stale = planPiazza(
       { enabled: true, classes: [CS425], classesFetchedAt: "2026-09-16T09:00:00-05:00" },
       { granted: true, now: NOW },
@@ -462,9 +465,15 @@ describe("planPiazza", () => {
     expect(stale.refreshClasses).toBe(true);
   });
 
-  it("polls this term's classes only, from where it left off", () => {
+  it("polls this term's classes only, from where it left off, with every code", () => {
+    // Both halves of the cross-listing travel to the feed: `courseCodes` was
+    // computed, stored and validated for a day without ever reaching a post,
+    // so an ECE 428 Gradescope item could not be moved by a CS 425 note.
     expect(classesToPoll([CS425, OLD], { [NID]: 184 })).toEqual([
-      { nid: NID, courseHint: CS425.courseRaw, sinceNr: 184 },
+      { nid: NID, courseHint: CS425.courseRaw, courseCodes: ["CS425", "ECE428"], sinceNr: 184 },
+    ]);
+    expect(classesToPoll([{ ...CS425, courseCodes: [] }], {})).toEqual([
+      { nid: NID, courseHint: CS425.courseRaw },
     ]);
   });
 
@@ -880,6 +889,31 @@ describe("postsToSend carries the posts, not only the payloads", () => {
     expect(plan.sent.every((post) => post.nr > 100)).toBe(true);
     expect(plan.sent.every((post) => post.kind === "note")).toBe(true);
   });
+
+  it("carries the note's subject, which is the title a suggestion falls back to", () => {
+    // The grammar's `postSubjectOf` reads `subject` first and the text's first
+    // line only when it is absent; a payload without it would turn "fill out
+    // the Google Form by 9/20" into a row called "Google Form" for ever.
+    const plan = postsToSend(posts());
+    const withSubject = plan.payloads.filter((payload) => typeof payload.subject === "string");
+    expect(withSubject).toHaveLength(plan.payloads.length);
+    expect(withSubject.every((payload) => payload.subject!.trim() !== "")).toBe(true);
+    expect(plan.payloads.map((p) => p.subject)).toEqual(plan.sent.map((p) => p.subject));
+  });
+});
+
+describe("piazzaChipState", () => {
+  it("paints an error red, a caveat not at all, and a switched-off row disabled", () => {
+    // The page used to spell this inline with a hardcoded "disabled" tone, so
+    // "Couldn't be read" wore the grey of "Off". `lastError` is ignored on
+    // purpose: since the trace it also carries a successful run's caveat.
+    const base = { enabled: true, state: "ok", lastError: "1 of 4 classes couldn't be read" };
+    expect(piazzaChipState(base as never)).toBe("ok");
+    expect(piazzaChipState({ ...base, state: "error" } as never)).toBe("error");
+    expect(piazzaChipState({ ...base, state: undefined } as never)).toBe("pending");
+    expect(piazzaChipState({ ...base, enabled: false } as never)).toBe("disabled");
+    expect(piazzaChipState(undefined)).toBe("disabled");
+  });
 });
 
 describe("bodyBatch", () => {
@@ -1265,7 +1299,7 @@ describe("the reader version", () => {
     expect(plan.rereadAll).toBe(true);
     // The first half of the upgrade: with `lastNr` ignored, the feed offers
     // every post again. Leaving `sinceNr` on would re-read nothing at all.
-    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw }]);
+    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw, courseCodes: ["CS425", "ECE428"] }]);
     expect(plan.reason).toContain("reader 1");
     expect(plan.reason).toContain(`reader ${PIAZZA_READER_VERSION}`);
   });
@@ -1275,7 +1309,7 @@ describe("the reader version", () => {
     // `rereadAll` that stayed on would re-read 25 bodies every half hour for ever.
     const plan = planPiazza(stored({ readerVersion: 2 }), { granted: true, now: NOW });
     expect(plan.rereadAll).toBeUndefined();
-    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw, sinceNr: 184 }]);
+    expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw, courseCodes: ["CS425", "ECE428"], sinceNr: 184 }]);
     expect(plan.reason).not.toContain("reader");
   });
 
