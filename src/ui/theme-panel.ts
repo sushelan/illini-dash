@@ -63,6 +63,14 @@ function write(key: string, value: string): void {
   }
 }
 
+function remove(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // As above. Nothing stored is the default, which is what is being asked for.
+  }
+}
+
 /** The stored choice, or the default. Never throws. */
 export function storedTheme(): ThemeName {
   return normalizeTheme(read(THEME_KEY));
@@ -239,7 +247,91 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
   }
   host.append(rows);
   host.append(renderModePanel());
+  host.append(renderDesignPanel());
   host.append(renderTweakPanel());
+}
+
+/**
+ * The visual language, beside the palette and the mode.
+ *
+ * It exists because the alternative was a console. The choice has lived in
+ * `localStorage` since the explorations were scaffolded and nothing on screen
+ * could set it, so turning one on meant opening devtools on the full view and
+ * typing a `setItem` — and *reloading the extension card does not do it*, which
+ * is the first thing anyone tries and the one thing that cannot work. A setting
+ * with no surface is a setting nobody has.
+ *
+ * Only the designs that have rules in them are offered. Three of the four
+ * stylesheets are still one-line stubs, and a picker whose options are
+ * indistinguishable is worse than no picker: it says the click did nothing.
+ * They join the list below when they have something to show.
+ */
+const DESIGN_CHOICES: { value: string; label: string; hint: string }[] = [
+  { value: "", label: "Default", hint: "The shipped design" },
+  {
+    value: "classical",
+    label: "Classical calendar",
+    hint: "Vellum and a serif, with the tabs at the foot of the window",
+  },
+];
+
+function renderDesignPanel(): HTMLElement {
+  const chosen = document.documentElement.dataset.design ?? "";
+  const wrap = document.createElement("div");
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Visual language";
+  wrap.append(heading);
+
+  const rows = document.createElement("div");
+  rows.className = "rows";
+  for (const design of DESIGN_CHOICES) {
+    const row = document.createElement("label");
+    row.className = "srow2 themerow";
+    row.htmlFor = `design-${design.value || "default"}`;
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "design";
+    radio.id = `design-${design.value || "default"}`;
+    radio.className = "srow2--lead";
+    radio.checked = design.value === chosen;
+    radio.addEventListener("change", () => {
+      /*
+       * Written, then applied from what was written — not from `design.value`.
+       *
+       * `applyDesign` is the one function that decides whether a stored string
+       * is a design, and routing the click through it means the picker cannot
+       * set a value the loader would refuse. Two copies of that decision is how
+       * a radio ends up selected for a design that never applies.
+       */
+      if (design.value) write(DESIGN_KEY, design.value);
+      else remove(DESIGN_KEY);
+      applyDesign(document.documentElement);
+    });
+
+    const label = document.createElement("span");
+    label.className = "srow2--name";
+    label.textContent = design.label;
+    const hint = document.createElement("span");
+    hint.className = "srow2--hint";
+    hint.textContent = design.hint;
+
+    /*
+     * No swatches on these rows, unlike the palette rows above.
+     *
+     * A theme is a set of classes, so a swatch inside the page can wear one and
+     * paint itself. A design is an attribute on the **root** and a stylesheet
+     * that only `popup.html` links — so a swatch here would inherit the tokens
+     * of the page it is sitting in and preview whatever is already on screen.
+     * A preview that shows the wrong thing is worse than no preview; the popup
+     * itself changes under the click, which is the real one.
+     */
+    row.append(radio, label, hint);
+    rows.append(row);
+  }
+  wrap.append(rows);
+  return wrap;
 }
 
 /** The stored tweaks, or their defaults. Never throws. */

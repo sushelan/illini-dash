@@ -47,8 +47,16 @@ on screen: `renderTabs` now builds a glyph per tab (an icon is markup, so it bel
 
 **Caveats, both Sushi's call.** (1) No webfont is bundled — an extension cannot fetch
 Google Fonts under its own CSP — so Georgia draws, not Garamond; bundling one `.woff2`
-into `public/fonts/classical/` is a ten-minute follow-up. (2) There is still **no picker
-UI** for the design switch (there never was); it is set per device in `localStorage`.
+into `public/fonts/classical/` is a ten-minute follow-up. (2) ~~There is still no picker
+UI~~ — **there is now**: Settings › Appearance › *Visual language*, beside the palette and
+the mode. Added the same day, because the honest answer to "why can't I just reload the
+card" was that a design lives in `localStorage` and reloading the card reloads the
+*build* — so turning one on meant devtools and a `setItem`, and the first thing anyone
+tries is the one thing that cannot work. The rows carry no swatch: a theme is a class a
+swatch can wear, a design is an attribute on the root plus a stylesheet only `popup.html`
+links, so a swatch there would preview the page it is sitting in. Only designs with rules
+in them are listed — the other three stylesheets are still one-line stubs, and a picker
+whose options look identical says the click did nothing.
 
 Captured dark and light to `docs/ux/design/classical/`. 2076 tests pass.
 
