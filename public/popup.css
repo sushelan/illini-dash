@@ -664,21 +664,6 @@ h2.section {
 }
 .mmore:hover { color: var(--fg); }
 
-/* ---- booking, pinned above the tabs ---- */
-.book {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-bottom: 1px solid var(--line);
-  background: var(--warn-wash);
-}
-.book--text { flex: 1; min-width: 0; font-size: 12px; }
-.book--text b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.book--text span { display: block; color: var(--muted); font-size: 11px; }
-.book--go {
-  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
-  color: var(--warn); background: none;
-  border: 1px solid var(--warn); border-radius: 5px; padding: 3px 8px; white-space: nowrap;
-}
-
 /* ---- rows inside a calendar ---- */
 .grid--stack .row, .witems .row, .band .row {
   border-left: 3px solid var(--course, transparent);
