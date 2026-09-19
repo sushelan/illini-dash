@@ -525,3 +525,13 @@ course**, so two classes announcing "HW2 is due Friday" in one sync collided —
 list back in, so the second class's deadline was dropped as a duplicate and, its post
 stamped read on the same pass, never offered again. The comparison is now keyed on the
 course as well, and the skipped reason names it.
+
+## Policy: classmate-written pinned notes are ignored (Sushi, 2026-09-19)
+
+A pinned note is not always staff's: the CS 425 feed has classmate posts pinned by staff
+("Search for Teammates!", tagged `pin` and `student`, no `instructor-note`). Six of the 29
+notes on Sushi's install are of this kind. The reader holds them back with the reason
+"a classmate's note", and Sushi's decision is that they stay unread — not read as
+suggestions either. `includeStudentNotes` remains the switch if that ever changes; the
+held-back count is in the console line, so a class whose staff post through a student
+account would show up there rather than vanish silently.

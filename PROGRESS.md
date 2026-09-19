@@ -7,6 +7,27 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Live: the Attention tab after reader 3; classmate notes stay ignored — 2026-09-19
+
+**Decision (Sushi):** classmate-written pinned notes are **ignored** — not read for
+deadlines at all. `includeStudentNotes` stays off; the six held-back CS 425 notes stay
+held. Recorded in docs/piazza-findings.md as policy, not as a gap.
+
+**The tab, read as evidence.** Five rows. Four are from the first run, in the old wording
+("from a Piazza post"): MP1 Report (Mon 14 Sep), Code Submission Instructions (Sun 13
+Sep), Google Form (Sun 20 Sep), MP2 (Sun 27 Sep) — the three 11 Sep rows have aged out
+of `SUGGESTION_PAST_DAYS`, and the 13th and 14th will follow, but they were *found* on
+the 18th already past, which wave 8's rule now refuses at ingest and nothing yet refuses
+in the store. The one new row is the body stage's: Sun 20 Sep, titled with the post's
+whole subject — "MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1
+report on Gradescope)" — and the grey line quoting the same subject in full underneath.
+The fallback to the subject fired (right: the phrase subject was generic), but a
+sentence-length subject as a title, repeated verbatim one line below, is the next thing a
+student notices. Two small fixes queued: the store prunes a stored suggestion whose
+instant precedes its `createdAt` (found already past, from before the ingest rule), and a
+subject-derived title is cut at its first parenthetical, colon or dash while the "from"
+line carries the full subject only when it adds something.
+
 ## Live: reader 3 reads 23 bodies; the debounce and the diff hold — 2026-09-19
 
 Sushi's console on build 20260919T052601, read as evidence (worker rule 7). In order:
