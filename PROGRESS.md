@@ -2,10 +2,29 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1939 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1970 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 10: the page is read without the model — 2026-09-19
+
+**1939 → 1970 tests.** Third live run of the author on ECE 411: "only 1 of 3 rows carried
+a readable date" — schema-valid, grounded proposals that kept choosing small groups,
+because the inventory ranked by row count and said nothing about dates. Now every
+inventory group carries `dated` — rows readable *by the runner's own date reader*, with
+TBD/TBA counted apart as pending, one sample line, and the label convention (every label
+ending in *due*: `Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due`, character for
+character the shipped entry's `dueLabel`) — and ranks by dated share first, so ECE 411's
+`#mp-information ul.simple > li` is first instead of fourth. The retry names the top
+three dated groups. And **the deterministic proposer reads labelled lists**: a group with
+≥3 rows, ≥80% of its stated rows dated, a due-label convention and an enclosing heading
+becomes a `list` candidate run through the real runner; over the capture it matches the
+same sixteen elements as `ece411-fa26-mp` by identity and yields the same items. The
+model is no longer consulted for that page at all. `noCandidateReason` names both shapes
+it reads and says what it did find. The syllabus exam list stays hand-written: its labels
+are the exams' names, not a due convention, and the clock sits in a nested `<li>`
+(amendment in docs/ece411-findings.md).
 
 ## Wave 11: the Attention tab, tidied — 2026-09-19
 
