@@ -81,8 +81,10 @@ import {
  * existed only in the High-contrast theme), the one that was clickable looked
  * exactly like the five that were not, and nobody scrolled to the line.
  *
- * Everything the pill says comes from `healthPill`, which derives it from
- * `summarize()` — so it cannot claim a source is fine when nothing was fetched.
+ * Everything the pill says comes from `needsYouPill` (D2), which derives every
+ * branch from `summarize()` — so it cannot claim "All clear" over sources that
+ * were never fetched. `healthPill` is still the wording for *which* source
+ * broke, and the Needs-you screen is where that is printed, one row each.
  *
  * **The pill's action button is gone from the bar.** It existed because the
  * pill was the only thing up here that could be pressed and "Gradescope

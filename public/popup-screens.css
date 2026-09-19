@@ -33,7 +33,17 @@
  */
 .needsyou #tabs,
 .needsyou #filters,
-.needsyou #nav { display: none; }
+.needsyou #nav,
+/*
+ * …and the banners, which on this screen are the same fact twice.
+ *
+ * The stale-source banner is the sentence this screen opens with, drawn from
+ * the same `staleNotice`; leaving both on screen means the first two lines of
+ * the Needs-you screen say "Gradescope signed you out" one above the other. The
+ * booking strip goes with them — a booking window is the calendar's business,
+ * and it comes straight back on ‹ back.
+ */
+.needsyou #banners { display: none; }
 
 /* ---- Needs you (D2, mock 1e) -------------------------------------------- */
 
@@ -106,8 +116,20 @@
 .needsyou--source-detail.is-err { color: var(--err); }
 .needsyou--source .btn { flex: none; }
 
-/* The provenance line on a suggestion row: one clipped line, always. A
-   suggestion whose buttons wrap below the fold is one nobody answers. */
+/*
+ * A suggestion's bottom line: provenance, then Add and Ignore, on one row.
+ *
+ * `.row--detail` is one clipped line of prose, so without this the buttons are
+ * laid out *over* the sentence — which is what the first dark capture of this
+ * screen showed. In `popup-screens.css` rather than as inline styles on the
+ * element, which is where it lived while `popup.css` was owned by another
+ * change.
+ */
+.needsyou .row--suggestion-actions { display: flex; align-items: center; gap: 6px; }
+.needsyou .row--suggestion-actions .btn { flex: none; }
+
+/* The provenance itself: one clipped line, always. A suggestion whose buttons
+   wrap below the fold is one nobody answers. */
 .needsyou--from {
   flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -125,14 +147,21 @@
 
 /* ---- First run (D12, mock 1d) ------------------------------------------- */
 
-.setup--page { padding: 18px 14px 16px; display: flex; flex-direction: column; }
-.setup--mark { margin-bottom: 12px; }
-.setup--mark .appmark { width: 34px; height: 34px; border-radius: 7px; }
+/*
+ * Tighter than the mock's 20px, because the mock is a card on a page and this
+ * is a 600px window: at the mock's spacing "Find my deadlines" sat 687px down,
+ * and the one control that has to be found was the one below the fold (UI rule
+ * 8). Every value below is the mock's minus a couple of pixels; nothing is a
+ * percentage and nothing is a viewport unit.
+ */
+.setup--page { padding: 14px 14px 14px; display: flex; flex-direction: column; }
+.setup--mark { margin-bottom: 8px; }
+.setup--mark .appmark { width: 30px; height: 30px; border-radius: 7px; }
 .setup--title {
-  font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25;
+  font-size: 17px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25;
   color: var(--brand-mark); margin: 0 0 6px;
 }
-.setup--blurb { font-size: 12.5px; line-height: 1.55; color: var(--muted); margin: 0 0 16px; }
+.setup--blurb { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 0 0 12px; }
 
 /* Same list card as the source list, so the two screens read as one object. */
 .setup--list {
@@ -144,7 +173,7 @@
 }
 .setup--row {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 13px; margin: 0; border: 0;
+  padding: 9px 12px; margin: 0; border: 0;
   background: var(--surface-raised);
   flex-wrap: wrap;
 }
@@ -157,8 +186,8 @@
    nothing on it to switch — only somewhere to go. */
 .setup--row-quiet .setup--name { font-weight: 500; }
 .setup--states { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-.setup--summary { font-size: 11.5px; color: var(--muted); margin: 12px 0 0; }
-.setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.setup--summary { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; }
+.setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 /* The primary button is the one thing on this screen that has to be found, so
    it takes the width the mock gives it rather than shrinking to its label. */
 .setup--go { flex: 1 1 auto; justify-content: center; height: 40px; font-size: 13px; }
