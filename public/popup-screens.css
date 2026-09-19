@@ -12,3 +12,156 @@
  * to decide the popup's size, so a width media query can feed itself. See the
  * header of popup.css.
  */
+
+/* === W4: needs-you + setup =============================================== */
+/*
+ * Two screens, one shape: a `.screen` in document flow, a `.section-head` over
+ * each group, and one list card per group. Nothing here is positioned, has a
+ * percentage height or a viewport unit, and nothing is keyed on window width —
+ * the whole screen sizes from its content, which is the only thing Chrome can
+ * measure to open the popup at the right height (UI rule 8).
+ *
+ * Every colour is a token from `ui.css`.
+ */
+
+/* ---- the shell, while a screen owns the document ------------------------ */
+/*
+ * The tab strip, the course chips and the date navigator all describe the
+ * calendar underneath, and none of them is answerable from the Needs-you
+ * screen. Hidden rather than emptied, for the same reason `.setup` hides them:
+ * an empty tab strip is still 42px of a 600px window.
+ */
+.needsyou #tabs,
+.needsyou #filters,
+.needsyou #nav { display: none; }
+
+/* ---- Needs you (D2, mock 1e) -------------------------------------------- */
+
+/*
+ * The amber sentence, full-bleed across the screen's padding.
+ *
+ * The negative margin is what makes it read as a bar rather than as a card with
+ * an amber fill — mock 1e runs it edge to edge under the header, where a banner
+ * belongs. `--warn-wash-strong` rather than `--warn-wash`: a tint does
+ * different work at each end of the range, and this one has to carry a border
+ * against the page ground in both modes.
+ */
+.needsyou--notice {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 -10px 12px; padding: 10px 13px;
+  background: var(--warn-wash-strong);
+  border-top: 1px solid var(--card-line);
+  border-bottom: 1px solid var(--card-line);
+}
+.needsyou--notice-glyph { width: 15px; height: 15px; flex: none; color: var(--warn); }
+.needsyou--notice-text { flex: 1; min-width: 0; font-size: 11.5px; line-height: 1.35; }
+.needsyou--notice .btn { flex: none; }
+
+.needsyou--group { margin-bottom: 14px; }
+.needsyou--group:last-child { margin-bottom: 0; }
+
+/* A late row and its two answers, as one block the eye reads together. */
+.needsyou--item { margin-bottom: 8px; }
+.needsyou--actions {
+  display: flex; gap: 6px; align-items: center;
+  padding: 5px 4px 0;
+}
+
+/*
+ * The source list: hairline-separated rows inside one rounded card.
+ *
+ * The 1px gaps are the card's own background showing through, which is how the
+ * mock draws it — a `border-bottom` per row would need a `:last-child` rule and
+ * would sit inside the radius at the corners.
+ */
+.needsyou--list {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--card-line);
+  border: 1px solid var(--card-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.needsyou--source {
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 10px; align-items: center;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+}
+.needsyou--dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.needsyou--dot.is-ok { background: var(--ok); }
+.needsyou--dot.is-warn { background: var(--warn); }
+.needsyou--dot.is-err { background: var(--err); }
+.needsyou--dot.is-off { background: var(--line); }
+.needsyou--dot.is-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.needsyou--source-text { min-width: 0; }
+.needsyou--source-name {
+  font-size: 12.5px; font-weight: 600; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.needsyou--source-detail {
+  margin-top: 2px; font-size: 10.5px; line-height: 1.4; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.needsyou--source-detail.is-warn { color: var(--warn); }
+.needsyou--source-detail.is-err { color: var(--err); }
+.needsyou--source .btn { flex: none; }
+
+/* The provenance line on a suggestion row: one clipped line, always. A
+   suggestion whose buttons wrap below the fold is one nobody answers. */
+.needsyou--from {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.needsyou--clear { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
+.needsyou--kept { margin: 12px 0 0; font-size: 11.5px; line-height: 1.5; }
+.needsyou--kept b { font-weight: 600; }
+
+/* The same shapes in the High-contrast theme, which gives its states a form as
+   well as a colour — a dot in five colours is a colour-only signal. */
+.theme-contrast .needsyou--dot.is-warn { border-radius: 1px; transform: rotate(45deg); }
+.theme-contrast .needsyou--dot.is-err { border-radius: 1px; }
+.theme-contrast .needsyou--dot.is-off { border-radius: 1px; height: 3px; }
+
+/* ---- First run (D12, mock 1d) ------------------------------------------- */
+
+.setup--page { padding: 18px 14px 16px; display: flex; flex-direction: column; }
+.setup--mark { margin-bottom: 12px; }
+.setup--mark .appmark { width: 34px; height: 34px; border-radius: 7px; }
+.setup--title {
+  font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25;
+  color: var(--brand-mark); margin: 0 0 6px;
+}
+.setup--blurb { font-size: 12.5px; line-height: 1.55; color: var(--muted); margin: 0 0 16px; }
+
+/* Same list card as the source list, so the two screens read as one object. */
+.setup--list {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--card-line);
+  border: 1px solid var(--card-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.setup--row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px; margin: 0; border: 0;
+  background: var(--surface-raised);
+  flex-wrap: wrap;
+}
+/* The name and its sentence take the row's width; the switch and the chips sit
+   at either end of what is left. `flex-basis` rather than a grid column, so a
+   long chip wraps under the line rather than squeezing the name to nothing. */
+.setup--label { flex: 1 1 150px; min-width: 0; cursor: pointer; }
+.setup--row-quiet .setup--label { cursor: default; }
+/* A line that names something set up elsewhere. Quieter, because there is
+   nothing on it to switch — only somewhere to go. */
+.setup--row-quiet .setup--name { font-weight: 500; }
+.setup--states { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.setup--summary { font-size: 11.5px; color: var(--muted); margin: 12px 0 0; }
+.setup--actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+/* The primary button is the one thing on this screen that has to be found, so
+   it takes the width the mock gives it rather than shrinking to its label. */
+.setup--go { flex: 1 1 auto; justify-content: center; height: 40px; font-size: 13px; }
+.setup--note { font-size: 10.5px; color: var(--muted); text-align: center; margin: 9px 0 0; }
+
+.pincard--glyph { color: var(--accent); }

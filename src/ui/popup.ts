@@ -75,6 +75,12 @@ import { renderExamsView } from "./popup/views/exams.js";
 import { renderAttentionView } from "./popup/views/attention.js";
 import { renderSetup } from "./popup/screens/setup.js";
 import {
+  closeNeedsYou,
+  needsYouIsOpen,
+  openNeedsYou,
+  renderNeedsYou,
+} from "./popup/screens/needs-you.js";
+import {
   deleteManual,
   openAddEditor,
   openEditEditor,
@@ -143,6 +149,20 @@ function render(
   // from the view rather than from a media query, because Chrome lays the
   // document out to decide the popup's width and a width rule can feed itself.
   document.body.dataset["view"] = state.view;
+
+  /*
+   * The Needs-you screen (D2) takes the document over, in flow.
+   *
+   * Before the tabs and the date nav rather than after: those describe the
+   * calendar underneath and none of them is answerable from the screen, so
+   * `.needsyou` hides them the way `.setup` hides them. Redrawn on every pass
+   * rather than held — everything on it is a claim about the store, and a
+   * frozen one keeps asserting a failure a sync has already fixed.
+   */
+  if (needsYouIsOpen()) {
+    renderNeedsYou(items, sources, state.currentSuggestions, now);
+    return;
+  }
 
   // Two lists, because the calendar and the Attention tab are asking different
   // questions. A grid says what was on a day, so finished work belongs on it,
@@ -275,7 +295,7 @@ async function draw(): Promise<void> {
     sources: fromWorker.sources,
     ...(fromWorker.lastSyncAt ? { lastSyncAt: fromWorker.lastSyncAt } : {}),
   };
-  renderHealth(fromWorker.sources, fromWorker.lastSyncAt, now);
+  renderHealth(fromWorker.sources, fromWorker.items, now);
   renderBanners(fromWorker);
   render(fromWorker.items, fromWorker.settings ?? DEFAULT_SETTINGS, fromWorker.sources, now);
   // Last, because it reports on what the draw above just read — and because it
@@ -364,7 +384,7 @@ async function runSync(): Promise<void> {
 function repaintChrome(): void {
   if (!state.lastHealth) return;
   const now = new Date();
-  renderHealth(state.lastHealth.sources, state.lastHealth.lastSyncAt, now);
+  renderHealth(state.lastHealth.sources, state.currentItems, now);
   renderFooter(state.lastHealth.sources, now);
 }
 
@@ -420,15 +440,16 @@ app.openAddEditor = () => openAddEditor();
 app.openEditEditor = openEditEditor;
 app.deleteManual = deleteManual;
 app.undoDelete = undoDelete;
-// Interim stubs until the screens land (brief D8, D3, D2): a row still opens
-// its page, "Give it a date" opens the add form, the pill opens the popover.
+// Interim stubs until the screens land (brief D8, D3): a row still opens its
+// page and "Give it a date" opens the add form. The pill's screen is real.
 app.openDeadline = (item) => {
   const url = safeUrl(item.url);
   if (url) chrome.tabs.create({ url });
 };
 app.openGiveDate = (item) =>
   openAddEditor({ values: { title: item.title, courseRaw: item.courseLabel } });
-app.openNeedsYou = () => document.querySelector<HTMLElement>(".pill")?.click();
+app.openNeedsYou = openNeedsYou;
+app.closeNeedsYou = closeNeedsYou;
 
 renderActions();
 void refresh();

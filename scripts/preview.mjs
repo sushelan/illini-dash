@@ -115,6 +115,8 @@ const epilogue = `
   // the editor is now the tallest thing this document can grow by. It is a
   // synthetic click and proves nothing about *pressing* the button (UI house
   // rule 5) — it only gets the harness into the state.
+  // \`?open=health\` presses the header pill, which since D2 opens the
+  // Needs-you screen rather than the popover it used to.
   const target = q.get("open") === "health"
     ? ".pill"
     : q.has("editor")
