@@ -141,22 +141,59 @@ confirms 9/20/2026, and a contradicting "10/3 (Fri)" is refused as a 0.55 `other
 same reason the prefix produces. Both halves are pinned in `tests/piazza-real.test.ts`; the
 whole 1,742-test suite was green before and after, so no existing reading changed.
 
-### Amendment (2026-09-18): the reader version, and posts read at their snippets
+### Amendment (2026-09-18, corrected 2026-09-19): the reader version, and posts read at their snippets
 
 Sushi's first live sync marked all 29 notes read with the **snippet** reader: `seenPosts`
 holds a key per post and `lastNr` holds the top of each class's feed, and neither says
 *how much of the post was read*. The body stage would therefore never have fetched one of
 them, and the HW1 deadline above would never have arrived.
 
-So `PIAZZA_READER_VERSION` (2 — whole bodies; 1 — `content_snipet`) is stored beside the
-posts it read, absent meaning 1. When the stored version is older, `planPiazza` says so,
-drops every `sinceNr`, and carries `rereadAll`; the worker then, once and inside the write
-that carries what it read, drops every `seenPosts` key starting `piazza:` (and no other —
-the map is shared with Campuswire and the paste box), resets `lastNr`, logs
-`reader upgraded 1 → 2: re-reading N posts in full`, and stamps the new version. The stamp
+So `PIAZZA_READER_VERSION` is stored beside the posts it read, absent meaning 1
+(1 — `content_snipet`; 2 — whole bodies, **burnt**, see below; 3 — whole bodies, this
+build). When the stored version is older, `planPiazza` says so and carries three things
+that must agree, because shipping two of them is exactly what went wrong:
+
+1. `poll` with every `sinceNr` dropped, so the feed offers every post again;
+2. `seenPostsForFetch`, the seen marks **the fetch filters with** — the store's map with
+   every `piazza:` key removed (and no other key: the map is shared with Campuswire and
+   the paste box), computed by the same `readerUpgrade` the write uses;
+3. `rereadAll`, the flag the write and the log lines read.
+
+The worker passes `plan.seenPostsForFetch` to both `postsToSend` and `postsNeedingBody`
+and holds no other copy of the marks, then — once, and inside the write that carries what
+it read — drops those keys for real, resets `lastNr`, logs
+`reader upgraded N → 3: re-reading N posts in full`, and stamps the new version. The stamp
 is never written before the fetch succeeds, so a crash mid-way re-runs the upgrade rather
 than skipping it, and `MAX_BODIES_PER_SYNC` still bounds it: a 106-post class re-reads 25
 bodies a sync until it catches up.
+
+**Why 2 is burnt.** The build that shipped reader 2 (20260919T002513) carried only (1) and
+(3). The fetch still filtered with the store's pre-upgrade `seenPosts`, so every post was
+"already read", nothing was fetched — and the write then dropped the marks and stamped
+`readerVersion: 2` anyway. The order was inverted: the upgrade cleared the marks *after*
+the only fetch that could have used the clearing. Sushi's console said both halves of it in
+one breath, and the two sentences contradicted each other:
+
+```
+[piazza] polling 2 classes — every post here was read by reader 1, and this build is reader 2: re-reading them in full
+[piazza] CS 425 / ECE 428: Distributed Systems: 107 post(s) in the feed, 0 new note(s) to read, 20 already read
+[piazza] reader upgraded 1 → 2: re-reading 29 posts in full
+[piazza] 2 classes, 2 request(s), 0 new notes, 0 moved, 0 suggested
+```
+
+A store saying 2 therefore proves nothing about whether its posts were read in full, so it
+must be re-read exactly like a store saying 1 — which is what this build being reader 3
+says. The number is spent; it is never reused.
+
+Two things follow that are not the fix itself. The per-class line now comes from
+`feedLine` in core and says "N note(s) to re-read" when the plan is a re-read, so it can no
+longer contradict the plan's own sentence (and it keeps the "already read" clause on that
+branch as a tripwire: after `seenPostsForFetch` it is structurally 0). And the existing
+reader-version tests passed throughout, because they tested the plan and the write
+separately and the defect was in neither — the fetch between them. `tests/piazza.test.ts`
+now drives plan → `postsToSend` → `postsNeedingBody` → `bodyBatch` in the worker's order
+over the real feed capture and a store with every post marked read by an older reader, and
+mutating `seenPostsForFetch` back to the raw store marks fails it.
 
 ### Amendment (2026-09-18): which feed field says a post was edited
 

@@ -64,8 +64,20 @@ export const FEED_LIMIT = 150;
  * the `lastNr` cap, so a 106-post class costs 25 bodies a sync until it catches
  * up rather than 106 at once. Absent in the store means 1: the field was added
  * after the reader it names.
+ *
+ * **2 is burnt.** Version 2 was the whole-body reader, and it is still what this
+ * build reads — but the upgrade that was supposed to make it happen ran in the
+ * wrong order: the plan dropped `sinceNr`, the *fetch* still filtered against
+ * the store's pre-upgrade `seenPosts`, so every post was "already read" and
+ * nothing was fetched — and the apply stage then dropped the marks and stamped
+ * `readerVersion: 2` anyway. Sushi's real install (build 20260919T002513) now
+ * says reader 2 over 23 posts nobody ever opened, and no plan that compares
+ * against 2 will ever offer to read them. The number is therefore spent: a
+ * store saying 2 must be re-read exactly like a store saying 1, which is what
+ * bumping this to 3 says. `seenPostsForFetch` on the plan is the fix that stops
+ * it recurring — see `planPiazza`.
  */
-export const PIAZZA_READER_VERSION = 2;
+export const PIAZZA_READER_VERSION = 3;
 /** Every `seenPosts` key this source owns. `piazza:<nid>:<nr>`, from `parseFeed`. */
 export const PIAZZA_POST_PREFIX = "piazza:";
 /** How long a fetched class list is trusted before it is read again. */
@@ -1326,6 +1338,24 @@ export interface PiazzaPlan {
    */
   rereadAll?: true;
   /**
+   * The seen marks the **fetch** must filter with — the only ones on this plan.
+   *
+   * `rereadAll` used to be the whole answer, and it was half of one. The poll
+   * had its `sinceNr` dropped, but `postsToSend` and `postsNeedingBody` were
+   * still handed the store's `seenPosts` straight off disk, so every post was
+   * "already read", nothing was fetched, and the apply stage then dropped the
+   * marks and stamped the new reader over posts nobody had opened. It was live
+   * for one build and cost a real install its whole re-read (see
+   * `PIAZZA_READER_VERSION`).
+   *
+   * So the view is computed here, once, by the same `readerUpgrade` the write
+   * uses — one spelling of one decision (mutation rule 3) — and the plan
+   * carries no other seen-marks field, so the fetch has nothing else to reach
+   * for. When `rereadAll`, every `piazza:` key is gone; otherwise it is the
+   * store's map unchanged.
+   */
+  seenPostsForFetch: Record<string, string>;
+  /**
    * The state to record when `fetch` is false and the reason is not "off".
    *
    * A switch the student flipped is not a reading, and neither is a permission
@@ -1374,6 +1404,35 @@ export function classListLine(classes: readonly PiazzaClass[], poll: readonly Pi
   return (
     `class list: ${classes.length} enrolment(s), ${poll.length} in this term` +
     (each.length === 0 ? "" : ` (${each.join("; ")})`)
+  );
+}
+
+/**
+ * The line one class's poll logs, in the words its plan chose.
+ *
+ * In core because it is the plan's own claim read back: the run that burnt
+ * reader 2 announced "re-reading them in full" and then printed "0 new note(s)
+ * to read, 20 already read" for every class, and the two sentences contradicted
+ * each other in the one console that could have caught it the same evening. A
+ * re-read says *re-read*, so a run that re-reads nothing cannot be mistaken for
+ * an ordinary quiet sync.
+ *
+ * The "already read" clause stays on the re-read branch deliberately: after
+ * `seenPostsForFetch` it is structurally 0, so if it is ever non-zero there the
+ * line prints the defect ("0 note(s) to re-read, 20 already read") rather than
+ * hiding it.
+ */
+export function feedLine(input: {
+  courseHint: string;
+  feedCount: number;
+  toRead: number;
+  alreadyRead: number;
+  rereadAll?: boolean;
+}): string {
+  const what = input.rereadAll === true ? "note(s) to re-read" : "new note(s) to read";
+  return (
+    `${input.courseHint}: ${input.feedCount} post(s) in the feed, ${input.toRead} ${what}` +
+    (input.alreadyRead > 0 ? `, ${input.alreadyRead} already read` : "")
   );
 }
 
@@ -1450,19 +1509,34 @@ export async function readClassList(
  */
 export function planPiazza(
   facts: PiazzaFacts | undefined,
-  ctx: { granted: boolean; now: Date; trigger?: "manual" | "scheduled" | "popup" },
+  ctx: {
+    granted: boolean;
+    now: Date;
+    trigger?: "manual" | "scheduled" | "popup";
+    /** The store's `seenPosts`, so the plan can state the view the fetch uses. */
+    seenPosts?: Record<string, string>;
+  },
 ): PiazzaPlan {
   const rereadAll = readerVersionOf(facts) < PIAZZA_READER_VERSION;
-  // The upgrade's first half: with `lastNr` ignored, the feed offers every post
-  // again. Its second half — dropping the `seenPosts` marks so `ingestPost`
-  // will look at them — is a write, and belongs to the worker.
+  // The upgrade has three halves, and shipping two of them is what burnt reader
+  // 2. One: with `lastNr` ignored, the feed offers every post again. Two: the
+  // seen marks the fetch filters with must be the *post*-upgrade ones, which is
+  // `seenPostsForFetch` below — computed here, before any request, rather than
+  // by the write that happens after the only fetch that could have used it.
+  // Three: dropping the marks for real, which is a write and is the worker's.
   const poll = classesToPoll(facts?.classes, rereadAll ? undefined : facts?.lastNr);
+  const seenPostsForFetch = rereadAll
+    ? readerUpgrade(ctx.seenPosts, readerVersionOf(facts)).seenPosts
+    : { ...(ctx.seenPosts ?? {}) };
+  /** Every branch below carries it, so no branch can forget to. */
+  const base = { seenPostsForFetch };
 
   if (facts?.enabled !== true) {
-    return { fetch: false, refreshClasses: false, poll: [], reason: "off" };
+    return { ...base, fetch: false, refreshClasses: false, poll: [], reason: "off" };
   }
   if (!ctx.granted) {
     return {
+      ...base,
       fetch: false,
       refreshClasses: false,
       poll: [],
@@ -1483,6 +1557,7 @@ export function planPiazza(
     // §6's ladder. A manual sync is the student saying to try now, which is
     // also the sync a failing source most needs.
     return {
+      ...base,
       fetch: false,
       refreshClasses: false,
       poll: [],
@@ -1507,6 +1582,7 @@ export function planPiazza(
     ctx.now.getTime() - Date.parse(attempted) < POPUP_DEBOUNCE_MS
   ) {
     return {
+      ...base,
       fetch: false,
       refreshClasses: false,
       poll: [],
@@ -1542,6 +1618,7 @@ export function planPiazza(
     : `polling ${poll.length} class${poll.length === 1 ? "" : "es"}`;
 
   return {
+    ...base,
     fetch: true,
     refreshClasses,
     poll,
