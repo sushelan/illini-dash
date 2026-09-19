@@ -62,12 +62,17 @@ export function renderNoDateView(items: Item[], now: Date, colours: Map<string, 
   head.className = "nodate-banner--head";
   const title = document.createElement("h2");
   title.className = "nodate-banner--title";
-  title.textContent = "Undated & unparsed";
+  // §6's own words. "Items" rather than a bare "Undated & unparsed" because
+  // the header is the one place the tab names what is on it.
+  title.textContent = "Undated & Unparsed Items";
   head.append(title);
   if (total > 0) {
     const count = document.createElement("span");
     count.className = "nodate-banner--count";
-    count.textContent = total === 1 ? "1 item" : `${total} items`;
+    // §6: `4 tasks`. A task is the thing a student can end — which is what the
+    // three buttons under each card are for — and "items" was this tab's word
+    // for the same set before the spec named it.
+    count.textContent = total === 1 ? "1 task" : `${total} tasks`;
     head.append(count);
   }
   const lead = document.createElement("p");
@@ -94,8 +99,13 @@ export function renderNoDateView(items: Item[], now: Date, colours: Map<string, 
    * distinction survived, which is nowhere a student looks.
    */
   let first = true;
+  // §6 numbers the sections — `SECTION 1 · NO DATE AT ALL`. The ordinal counts
+  // the sections actually drawn, not the position in `groups`: with the first
+  // group empty, a hard-coded "2" would be the only section on screen.
+  let ordinal = 0;
   for (const group of groups) {
     if (group.items.length === 0) continue;
+    ordinal += 1;
     if (!first) {
       // The mock's classical double rule between the two sections.
       const rule = document.createElement("div");
@@ -108,16 +118,30 @@ export function renderNoDateView(items: Item[], now: Date, colours: Map<string, 
     heading.className = "section-head nodate-group--head";
     const label = document.createElement("span");
     label.className = "nodate-group--name";
+    const ord = document.createElement("span");
+    ord.className = "nodate-group--ord";
+    ord.textContent = `Section ${ordinal} \u00B7`;
     const name = document.createElement("span");
     name.textContent = group.name;
     const hair = document.createElement("span");
     hair.className = "nodate-group--hair";
-    label.append(name, hair);
+    label.append(ord, name, hair);
     const count = document.createElement("span");
     count.className = "nodate-group--count";
     // "3 items", not "3": the mock counts in words because the number sits over
     // two sections and a bare digit beside a heading reads as an index.
-    count.textContent = group.items.length === 1 ? "1 item" : `${group.items.length} items`;
+    //
+    // §6 counts section 2 in `1 ambiguous` rather than in items, and that is a
+    // true statement about it: every row in "Couldn't read" is one whose date
+    // text this extension could not resolve. Section 1's rows are not ambiguous
+    // — they have no date text at all — so they keep the plain count.
+    const n = group.items.length;
+    count.textContent =
+      group.name === "Couldn't read"
+        ? `${n} ambiguous`
+        : n === 1
+          ? "1 item"
+          : `${n} items`;
     heading.append(label, count);
 
     const groupNote = document.createElement("p");
@@ -197,7 +221,9 @@ function renderNoDateCard(
     box.className = "nodate-source";
     const boxLabel = document.createElement("span");
     boxLabel.className = "nodate-source--label";
-    boxLabel.textContent = "Source text";
+    // §6: `SOURCE TEXT: "…"`, one line of running text rather than a field and
+    // a value — the colon is what makes the quotation read as evidence.
+    boxLabel.textContent = "Source text:";
     const text = document.createElement("span");
     text.className = "nodate-source--text";
     // `textContent`, never markup: the string came off a page this extension
@@ -212,11 +238,14 @@ function renderNoDateCard(
 
   const give = document.createElement("button");
   give.type = "button";
-  // Filled on an unreadable card, outlined on an undated one (mock 2c): the
-  // unreadable row is the only one on the tab where a date exists and this
-  // extension lost it, so it is the one the student is actually being asked to
-  // repair.
-  give.className = unreadable.length > 0 ? "btn btn-sm btn-primary" : "btn btn-sm btn-secondary";
+  /*
+   * One appearance for all three (§6): white ground, `#dcd4c3` edge, 4px
+   * radius, 10px serif — they differ only in ink. An earlier pass filled this
+   * one on the unreadable card, which made the row with the *least* certain
+   * date carry the loudest control on the tab; §6 gives the emphasis to the
+   * ink instead, and the card's peach edge is what marks the row.
+   */
+  give.className = "btn btn-sm btn-secondary nodate-act nodate-act--give";
   give.textContent = "Give it a date";
   give.title = "Put a date on this yourself. The source's own answer is kept underneath.";
   // Not an override sent from here: it opens the editor prefilled, and the
@@ -226,7 +255,7 @@ function renderNoDateCard(
 
   const tick = document.createElement("button");
   tick.type = "button";
-  tick.className = "btn btn-sm btn-secondary";
+  tick.className = "btn btn-sm btn-secondary nodate-act nodate-act--tick";
   tick.textContent = "Tick off";
   tick.title = "Mark this done, so it stops asking";
   // `applyOverrideAction` owns the round trip: it writes "Applying…" onto the
@@ -238,7 +267,7 @@ function renderNoDateCard(
 
   const hide = document.createElement("button");
   hide.type = "button";
-  hide.className = "btn btn-sm btn-secondary";
+  hide.className = "btn btn-sm btn-secondary nodate-act nodate-act--hide";
   hide.textContent = "Hide";
   hide.title = "Take this off the list entirely";
   hide.addEventListener("click", () => {

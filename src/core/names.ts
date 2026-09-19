@@ -19,6 +19,7 @@
  * whichever is shorter.
  */
 
+import { extractCourseCode } from "./normalize.js";
 import type { Source } from "../sources/types.js";
 
 /**
@@ -239,4 +240,23 @@ export function fullStamp(at: Date | number | string | undefined): string | unde
   const then = typeof at === "string" ? Date.parse(at) : at instanceof Date ? at.getTime() : at;
   if (!Number.isFinite(then)) return undefined;
   return new Date(then).toLocaleString();
+}
+
+/**
+ * The department a course label belongs to: `CS357` → `CS`, `stat_425_120248`
+ * → `STAT`, an instructor's free text → `undefined`.
+ *
+ * `extractCourseCode` is §5.1's reading of what a course code is, including
+ * the underscore-separated Gradescope form and cross-listings; this is the
+ * letters off the front of its answer and nothing more. Writing a second
+ * regex here would be a second copy of that decision — mutation rule 3 — and
+ * the two would drift the first time a source invented a new separator.
+ *
+ * `undefined` is the honest answer for a label with no code in it. A caller
+ * that needs a colour for one has to say what it does with that, rather than
+ * being handed a fake department that could collide with a real one.
+ */
+export function courseDepartment(label: string): string | undefined {
+  const code = extractCourseCode(label);
+  return code ? /^[A-Z]+/.exec(code)![0] : undefined;
 }

@@ -10,3 +10,156 @@
  * keyed on window width, and nothing in the popup is `position: fixed`.
  * See the header of popup.css.
  */
+
+/* --------------------------------------------------------------------------
+ * 0. The three colours §2 names that the palette had no token for
+ *
+ * Each gets a light value and a dark one, because a colour with only a light
+ * half is a colour nobody on this project's one machine will ever see
+ * correctly. The dark values are not the light ones with an alpha: a wash
+ * composites toward its own luminance, and lifting a near-black takes about
+ * twice the step that darkening a near-white does.
+ *
+ * Everything else §2 asks for already has a token and is spent, not restated:
+ * `--ink-navy` is `--brand-mark` (navy in light, the gold accent in dark, which
+ * is the ink this design's structure is drawn in at that end), `--forest-green`
+ * is `--ok`, `--border-rule` is `--line`, `--ink-muted` is `--muted` and
+ * `--bg-parchment` is `--bg`.
+ * ----------------------------------------------------------------------- */
+/*
+ * No token block here.
+ *
+ * `--bg-subbar`, `--border-subtle` and `--bg-active-tab` were declared in this
+ * file *and* in `design-classical.css`, with three different dark values
+ * (#201c16 vs #221e18, #332c22 vs #322c23, #352c21 vs #332a20). This sheet
+ * loads later, so its copies won — silently, and only in dark, which is the
+ * mode nobody would have caught it in from a light screenshot.
+ *
+ * That is the "two copies of one decision" failure this project has already
+ * had in CSS twice. The values live in `design-classical.css` with the rest of
+ * §1's palette; this file spends them and declares nothing.
+ */
+
+/* --------------------------------------------------------------------------
+ * 1. The mark: the book, not the squircle
+ *
+ * `renderHealth` draws both and this picks. The default rule is unscoped on
+ * purpose — it is the one place in this file that speaks for the other three
+ * designs, and all it says is "the mark this design introduced is not yours".
+ * ----------------------------------------------------------------------- */
+.appmark-book { display: none; }
+html[data-design="classical"] #health .appmark { display: none; }
+html[data-design="classical"] #health .appmark-book {
+  display: block;
+  flex: none;
+  color: var(--brand-mark);
+}
+html[data-design="classical"] #health { align-items: center; gap: 8px; }
+
+/* The wordmark, at §2's weight and tracking. `design-classical.css` already
+   sets the size; this states the two it does not. */
+html[data-design="classical"] .wordmark {
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--brand-mark);
+}
+
+/* --------------------------------------------------------------------------
+ * 2. The health & sync bar — the footer strip, moved to the top
+ *
+ * A second strip was the alternative and was refused. "How many sources are
+ * healthy" is derived once, in `core/health.ts`, and printed once, by
+ * `renderFooter` — a second bar means either a second derivation (worker
+ * rule 2: the first merged build had one, and it said "4 sources" in green over
+ * three that had never been read) or two elements rendering one string, which
+ * is the same bug waiting for one of them to be updated alone. So this is the
+ * same element, the same call and the same words; only its `order` and its
+ * type change.
+ *
+ * `order`, not `position: fixed` and not a move in the markup. The document is
+ * a flex column, so `.bar` at -2 and the strip at -1 put it under the header
+ * while both stay in flow and keep contributing their height to the box Chrome
+ * measures. `position: static` undoes the sticky it needs at the foot: sticky
+ * to the *top* here would be the same pixels, since nothing above it scrolls
+ * away, and would add a stacking context for nothing.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] .bar { order: -2; }
+html[data-design="classical"] #footer {
+  order: -1;
+  position: static;
+  min-height: 28px;
+  padding: 3px 16px;
+  gap: 8px;
+  background: var(--bg-subbar);
+  border-top: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+/* The warn wash layered over the sub-bar's own ground rather than the
+   surface `popup.css` names — the strip is opaque here too, and a translucent
+   one under the header would show the header's rule through the sentence. */
+html[data-design="classical"] #footer.foot--warn {
+  background-color: var(--bg-subbar);
+}
+html[data-design="classical"] .foot--dot { width: 6px; height: 6px; }
+html[data-design="classical"] .foot--dot.is-ok { background: var(--ok); }
+/* 11px, and the count no heavier than the clock beside it: this is a caption
+   under the title, and a 600-weight number in it reads as a second heading. */
+html[data-design="classical"] .foot--health {
+  font-family: var(--label);
+  font-size: 11px;
+  color: var(--muted);
+}
+html[data-design="classical"] .foot--count {
+  font-weight: 500;
+  color: var(--muted);
+}
+/* The sync control: the glyph `renderFooter` always draws, shown only here. */
+.foot--sync .icon { display: none; }
+html[data-design="classical"] .foot--sync {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--serif);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-mark);
+}
+html[data-design="classical"] .foot--sync .icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+/* `Sync Now`, §2's capitalisation, without a second spelling of the string in
+   the TypeScript — the label is one element so the transform reaches the words
+   and not the glyph, and "Syncing…" is unaffected by it. */
+html[data-design="classical"] .foot--sync-label { text-transform: capitalize; }
+
+/* --------------------------------------------------------------------------
+ * 3. The tab strip — §2's metrics
+ *
+ * 48px, a 17px glyph over a 10px letter-spaced uppercase label, and a 2px
+ * marker along the top of the selected tab.
+ *
+ * The marker is an inset `box-shadow`, not `border-top`. A border is 2px of
+ * box on one tab out of five, so the selected tab would be 2px shorter inside
+ * than its neighbours and the whole strip's height would change as the marker
+ * moved; the shadow paints the same two pixels and costs no layout. The strip
+ * is the popup's last 48px and height is this popup's recurring bug.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] .tab {
+  height: 48px;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+html[data-design="classical"] .tab--label { line-height: 1.1; }
+html[data-design="classical"] .tab[aria-selected="true"] {
+  background: var(--bg-active-tab);
+  color: var(--brand-mark);
+  font-weight: 700;
+  box-shadow: inset 0 2px 0 var(--brand-mark);
+}
+html[data-design="classical"] .tab:not([aria-selected="true"]) { color: var(--muted); }
+html[data-design="classical"] .tab:not([aria-selected="true"]):hover { background: var(--tint); }

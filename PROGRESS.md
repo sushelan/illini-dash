@@ -7,6 +7,78 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Classical Calendar: the alignment pass against the pixel spec — 2026-09-19
+
+Sushi wrote the design out as a spec — tokens, metrics, per-view DOM — and asked whether
+the build matched. It matched in materials and structure and missed most of the numbers.
+`docs/design/classical-spec.md` is that spec, written down so six agents could read his
+words rather than my paraphrase, along with the refusals and the two contradictions.
+
+Six workers, one goal each, disjoint files: the shell, the tokens and type, the course
+colours, Today, Week+Month, and No date+Exams. Every lane held. 2089 tests.
+
+### What the pass actually found
+
+Most of the value was not in setting numbers. It was in **rules that had never applied**:
+
+- Three of my own `design-classical.css` rules were dead because `popup-rows.css` and
+  `popup-views.css` anchor on `#view`, and an id beats any number of classes. The overdue
+  `Due:` line, the late band's count badge and the Exams `Action Required` badge had all
+  been rendering `--muted` since the day they were written.
+- The week sheet's entire "Corrections against the mock" block — the shaded day gutter,
+  its rule, the title size — was one specificity step under the `#view` rules *earlier in
+  the same file*. It had never drawn.
+- `--bg-subbar`, `--border-subtle` and `--bg-active-tab` ended up declared in two sheets
+  with **three different dark values**. The later sheet won, silently, and only in dark.
+  Deleted; the values live in `design-classical.css` with the rest of §1.
+
+**The structural lesson: `#view` in the base sheet defeats the layering it sits in.** Six
+stylesheets load in order precisely so a later one may override; an id in the first one
+means every later sheet has to escalate to match, and the ones that forget are invisible.
+The ids are still there — un-anchoring them at the end of a pass would move every rule
+that has since escalated against them, unverified. Next change to that file starts by
+removing them.
+
+### Other findings worth keeping
+
+- `border: 1px solid` on a checkbox **computes back as white**: Chrome discards an author
+  border on an `appearance: auto` control. A `box-shadow` ring is what actually draws.
+  The dead declaration was deleted rather than left looking correct.
+- The active tab's 2px marker is `box-shadow: inset`, not `border-top` — a border makes
+  the selected tab 2px shorter inside than its neighbours and lets the strip's height
+  move with the selection. Height is this popup's recurring bug.
+- The month's 32px cell was blocked not by the dots but by **today's numeral**, still a
+  20px round box from `popup-views.css`; a grid row is as tall as its tallest cell, so
+  today's week measured 37px at a 32px minimum.
+- The 52px week column costs the title track nothing — 200.13 → 202.33px — because §4
+  puts the padding on the columns rather than on the card.
+- Google serves JetBrains Mono as a distinct file per weight, unlike EB Garamond and
+  Newsreader, which came back byte-identical because they are variable files.
+- `--amber-gold` is 3.6:1 on parchment and `--warn` is drawn as 11px text, so light keeps
+  a darkened pigment for text and the gold exists as its own token for rules.
+- Course colours are keyed by **department**, computed per course rather than by walking
+  a list, so enrolling in one more course no longer repaints the rest. Two mutation
+  findings on the way: a fixture ordered `CS, PHYS, MATH` made an index-assigning
+  mutation indistinguishable from the fix, and a second mutation survived only because no
+  realistic department hashes onto slots 0–2 — `PHIL103`, `AE202` and `SOC100` are in the
+  fixture because they are adversarial, not because anyone takes them.
+
+### Deliberate departures from the spec, each stated once
+
+The sub-bar keeps `5 of 6 sources · synced just now` rather than the spec's literal
+`5 Connected`: the count is derived once in `core/health.ts` from attempts that happened,
+and a second wording would be a second owner (worker rule 2). The filled
+`Give it a date` on an ambiguous card was dropped — it put the loudest control on the row
+with the least certain date. The exams card's terracotta went to amber: terracotta is
+this design's *late* ink and nothing on an unbooked card is late. And the five labels the
+data cannot justify stay refused.
+
+### Known flake
+
+`tests/skeleton.test.ts` has a 2000ms perf budget that two agents independently tripped
+at 2058ms and 2213ms while other agents were building. It passes alone and in a clean
+run. The budget is tight enough to fail for reasons unrelated to the code.
+
 ## Classical Calendar is the design, and the fonts are bundled — 2026-09-19
 
 It stopped being an exploration. `applyDesign` returns `classical` when nothing is

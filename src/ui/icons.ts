@@ -83,6 +83,25 @@ export const ICON_PATHS = {
   "tab-nodate": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6.5 9.5l3 3M9.5 9.5l-3 3",
 } as const;
 
+/**
+ * The open book, the Classical design's mark — on a 24 grid, not this file's 16.
+ *
+ * Kept out of `ICON_PATHS` deliberately. Every entry there is a 16×16 viewBox
+ * by contract (`icon()` hard-codes it), and these two paths are the spec's own
+ * coordinates on a 24 box; putting them in the table would mean either
+ * rewriting the curves — which is how a mark stops being the mark — or leaving
+ * a member of the table that `icon()` draws wrong. They are a pair, they are
+ * only ever drawn together, and `bookMark()` is the only thing that reads them.
+ *
+ * Verbatim from `docs/design/classical-spec.md` §2: two leaves meeting at a
+ * spine, stroked in `currentColor` so the bar's ink carries it (navy in light,
+ * the gold accent in dark).
+ */
+const BOOK_PATHS = [
+  "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z",
+  "M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z",
+] as const;
+
 export type IconName = keyof typeof ICON_PATHS;
 
 /**
@@ -177,5 +196,44 @@ export function appMark(): SVGElement {
   tick.setAttribute("stroke-linejoin", "round");
 
   svg.append(plate, bar, tick);
+  return svg;
+}
+
+/**
+ * The Classical bar's mark: the book glyph, 16px, in the bar's own ink.
+ *
+ * A second function rather than a branch inside `appMark()`, because that mark
+ * is shared with the options page and the full view's own chrome and none of
+ * those is being restyled this pass — a branch there would move a graphic on
+ * three surfaces to fix one.
+ *
+ * Both are rendered, always, and the stylesheet picks: `design-classical-shell.css`
+ * hides this one by default and swaps the pair under
+ * `html[data-design="classical"]`. The alternative was asking
+ * `dataset.design` here, and the design picker changes that attribute without
+ * redrawing the popup — so the wrong mark would stay on screen until something
+ * else happened to redraw the header.
+ *
+ * `currentColor`, unlike `appMark`: this is a line drawing that sits in a bar
+ * of navy type and reads as part of it, and the dark half of the palette has
+ * no navy at all.
+ */
+export function bookMark(): SVGElement {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.6");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("appmark-book");
+  for (const d of BOOK_PATHS) {
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
   return svg;
 }

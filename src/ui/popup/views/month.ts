@@ -6,7 +6,7 @@
  * window that has the width for it.
  *
  * The **popup** (D6, mock 2a) cannot carry a word in a seventh of 400px, so it
- * draws weight rather than titles — one 5px dot per deadline in the course hue,
+ * draws weight rather than titles — one 4px dot per deadline in the course hue,
  * capped at `MONTH_DOT_CAP` — and the titles live under the grid, for the one
  * day the student taps. That is what took `month` out of `FULL_VIEW_ONLY`: the
  * tab was full-view-only because of the pills, not because of the month.
@@ -310,7 +310,7 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
  * The key under the grid: one coloured dot and one course code per course the
  * grid is actually showing a dot for.
  *
- * A dot is 5px of colour with no text on it, so without this the grid says
+ * A dot is 4px of colour with no text on it, so without this the grid says
  * "three things are due that week" and nothing about *which class* — which is
  * the question the colour was spent to answer. It is drawn from the cells
  * rather than from `items`, so the key names exactly the hues on screen and
@@ -366,7 +366,7 @@ function renderDotCell(
     day: "numeric",
   });
   const due = cell.dots.length + cell.more;
-  // A dot is 5px and carries no text at all, so the cell has to say what it
+  // A dot is 4px and carries no text at all, so the cell has to say what it
   // means to somebody who cannot see it — and to anybody hovering it.
   box.title = due === 0 ? `${named} — nothing due` : `${named} — ${due} due`;
 
@@ -471,5 +471,19 @@ function renderDayRow(placed: PlacedItem, now: Date, colours: Map<string, number
       : `${placed.anchor.opening ? "opens " : ""}${clockOf(placed.anchor.at)}`;
   const row = renderRow(placed.item, now, undefined, { primary }, colours);
   if (placed.anchor.assumed) row.title = UNTIMED_NOTE;
+  /*
+   * The `›` the spec puts at the end of an agenda row (§5).
+   *
+   * Decorative, and `aria-hidden` for that reason: the row is already a link
+   * to its source and carries a ⋯ that is the real control, so a second thing
+   * at the end of the line that announces itself would be one more stop in the
+   * tab order promising something it does not do. It is the mock's affordance
+   * — "this row goes somewhere" — and nothing else.
+   */
+  const chev = document.createElement("span");
+  chev.className = "row--chev";
+  chev.textContent = "\u203a";
+  chev.setAttribute("aria-hidden", "true");
+  row.append(chev);
   return row;
 }

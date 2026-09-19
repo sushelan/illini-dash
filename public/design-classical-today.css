@@ -10,3 +10,260 @@
  * keyed on window width, and nothing in the popup is `position: fixed`.
  * See the header of popup.css.
  */
+
+/* --------------------------------------------------------------------------
+ * 0. The colours §3 names that `design-classical.css` has no token for.
+ *
+ * Four of them, each with a dark half — Sushi's machine is dark, and a wash
+ * composites toward its own luminance, so the dark values are picked against
+ * `--bg` (#1a1713) rather than derived from the light ones with an alpha.
+ *
+ * `--ink-navy` itself is **not** here: `--primary` already is it in light, and
+ * in dark it is the gold that this palette substitutes wherever navy would be
+ * invisible on a brown-black. The spec's "solid navy pill, white text" is a
+ * *role* — the one high-contrast block on the paper — and `--primary` /
+ * `--primary-ink` is that role already stated once, in both modes.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"]:root {
+  /* §3.1, the items pill's ground: `--border-subtle`, a shade under `--tint`. */
+  --today-pill-bg: #ede7dc;
+  /* §3.4, the rail. Warmer and lighter than `--line` — it is a drawn stroke,
+     not a divider, and the spec names it separately for that reason. */
+  --today-rail: #dcd4c3;
+  /* §3.2, the count badge's edge: peach, a step in from `--err`. */
+  --today-badge-line: #f2cebe;
+  /* §3.2, `--terracotta-border` — the overdue card's edge, which is softer
+     than the terracotta the heading and the tick box are drawn in. */
+  --today-overdue-line: #f5dcd2;
+  /* §3.2, the overdue title's ink. Navy on paper; in dark, navy is unreadable
+     and the *parchment* body ink is what "the strongest ink here" means. */
+  --today-ink-strong: #1a2744;
+}
+html[data-design="classical"]:root.is-dark {
+  --today-pill-bg: #302a21;
+  --today-rail: #453c2e;
+  --today-badge-line: #5c3527;
+  --today-overdue-line: #4e3527;
+  --today-ink-strong: #ece4d4;
+}
+
+/* --------------------------------------------------------------------------
+ * 1. The date subheader (§3.1)
+ *
+ * `20px serif bold` and an items pill beside it. No semester annotation: the
+ * spec refuses `Fall Semester 2024` outright — no term is stored, and §11 says
+ * a label no source justifies is worse than a plainer true one.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] .folio--date {
+  font-size: 20px;
+  font-weight: 700;
+}
+/* `4 ITEMS`: 10px mono, tracking-widest, uppercase, on `#ede7dc`, `px-1.5
+   py-0.5`, 4px radius. The uppercase and the tracking were already here; what
+   was missing is that it is a *pill* — plain text beside a 20px heading reads
+   as a subtitle of it rather than as a tally of what is below. */
+html[data-design="classical"] .folio--count {
+  font-size: 10px;
+  letter-spacing: .12em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--today-pill-bg);
+  color: var(--muted);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+ * 2. The bands and their cards (§3.2, §3.3)
+ * ----------------------------------------------------------------------- */
+/* `p-2.5`. The shared slip is padded for a list of many; a day's schedule is
+   short enough to give each card the spec's own 10px. Scoped to Today's two
+   containers so the Week's and the Exams' slips keep theirs. */
+html[data-design="classical"] #view .tsection .row,
+html[data-design="classical"] #view .timeline .row {
+  padding: 10px;
+}
+
+/* The late band's count, as a badge rather than a word: overdue wash inside a
+   peach edge. `.section-head--err` (set by `today.ts`) already carries the
+   terracotta heading and the bold count; this is the box around it. */
+html[data-design="classical"] .tsection--late .section-head > :last-child:not(:first-child) {
+  padding: 1px 6px;
+  border: 1px solid var(--today-badge-line);
+  border-radius: 4px;
+  background: var(--err-wash);
+  /* Terracotta, restated. `popup-views.css` gives `.section-head--err`'s count
+     `--err` already, but `design-classical.css` paints every band's count
+     `--muted` through a selector one class deeper, so the shared rule lost and
+     the badge measured grey inside a peach edge. */
+  color: var(--err);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+
+/* The overdue card's edge is `--terracotta-border`, not `--terracotta`: the
+   sheet before this one painted the edge in the same full-strength hue as the
+   heading, which makes a card that shouts as loudly as the band above it. */
+html[data-design="classical"] #view .row.row-overdue {
+  border-color: var(--today-overdue-line);
+}
+/* Title 15px serif semibold; the size is the scale's already, the weight and
+   the ink are the spec's. */
+html[data-design="classical"] #view .row.row-overdue .row--title {
+  font-weight: 600;
+  color: var(--today-ink-strong);
+}
+/* `Due: Yesterday 11:59 PM` — 11px serif, terracotta. `--err` is already on
+   `.row--due` here; the size is what makes it a subline rather than a column. */
+html[data-design="classical"] #view .row.row-overdue .row--when {
+  font-size: 11px;
+}
+
+/*
+ * The overdue course pill: **solid `--ink-navy`, white text** — and only here.
+ *
+ * Everywhere else the badge is the course's own wash, which is the "colour-code
+ * the classes" half of the design; on the one band that is about lateness the
+ * spec asks for the opposite, a solid block, because on a terracotta wash a
+ * pale course tint disappears. `.chip` and `.row--code` both, because they are
+ * one decision ("which class is this?") in two elements and styling one left
+ * half the popup treated and half not.
+ *
+ * In dark, `--primary` is the **gold**, not the navy, and `--primary-ink` is
+ * the near-black ground — the substitution this palette already makes wherever
+ * navy would vanish on a brown-black. So the pill stays what the spec is
+ * actually asking for, the one solid high-contrast block on the card, in both
+ * modes; it is simply not navy in the mode where navy cannot be seen.
+ *
+ * `:not(.chip-practice)`: the practice chip is deliberately the one unfilled
+ * badge, so "this is not for credit" survives the badge treatment.
+ */
+html[data-design="classical"] #view .row.row-overdue .chip:not(.chip-practice),
+html[data-design="classical"] #view .row.row-overdue .row--code {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-color: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+}
+
+/*
+ * The overdue tick box: 16px square with a terracotta edge.
+ *
+ * The edge is a `box-shadow`, not a `border`, and that is measured rather than
+ * preferred: a checkbox left at `appearance: auto` paints its own control, and
+ * Chrome discards an author `border` on it — `border: 1px solid var(--err)`
+ * computed back as `rgb(255, 255, 255)` in the real document. A declaration
+ * that cannot win is not defence, it is a second thing to read, so it is gone
+ * and the ring is the edge. `appearance: none` would take the border back at
+ * the price of the native tick, the space bar and the announced state, which
+ * is not a trade a 1px ring is worth.
+ *
+ * `accent-color` carries the tick itself, so ticking the one card that is
+ * about lateness does not paint it in the design's structural hue.
+ */
+html[data-design="classical"] #view .row.row-overdue .row--tick {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--err);
+  accent-color: var(--err);
+}
+
+/* --------------------------------------------------------------------------
+ * 3. The timeline rail (§3.4)
+ *
+ * Clocks left of the rail and cards right of it is the shared grid's doing
+ * already (`52px 16px minmax(0, 1fr)`); what §3.4 adds is the rail's own
+ * weight and colour, and an anchor that says the hour rather than only "here".
+ * ----------------------------------------------------------------------- */
+/* 1.5px of `#dcd4c3`, at full opacity. The shared sheet draws 2px of `--muted`
+   at 40% — chosen so the stroke would survive dark — which on vellum is a grey
+   line through a warm page. The token has a dark half instead, so the colour
+   can be the one the spec names in both modes. */
+html[data-design="classical"] .trail::before {
+  width: 1.5px;
+  margin-left: -.75px;
+  background: var(--today-rail);
+  opacity: 1;
+}
+html[data-design="classical"] .tgap .trail::before {
+  width: 0;
+  margin-left: -.75px;
+  background: none;
+  border-left: 1.5px dotted var(--today-rail);
+}
+/* The dot's ring is the page ground, so it reads as sitting *on* the stroke;
+   with the rail now a hairline the ring is what separates two close rows. */
+html[data-design="classical"] .tdot {
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/*
+ * `Now · 11:14 AM`, on an ink pill.
+ *
+ * The bar the shared sheet draws answers "where along this am I" and nothing
+ * else; against a rail whose every other line is a clock, the anchor has to be
+ * a clock too. The mark becomes a filled disc so the ink reads as one object
+ * crossing the rail rather than as a dash with a caption.
+ *
+ * The 11px fixed height goes: it was sized for a bar, and a pill that
+ * overflows its line is the popup's own recurring bug (a menu below the fold,
+ * a panel with no height to measure). The line is allowed to be as tall as
+ * what is in it.
+ */
+html[data-design="classical"] .tnow {
+  height: auto;
+  align-items: center;
+  margin: 3px 0 5px;
+}
+html[data-design="classical"] .tnow--mark {
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+/*
+ * Built by every design, drawn by this one.
+ *
+ * `today.ts` appends the label unconditionally — a render function that asks
+ * which design is on is a second copy of the choice the stylesheet already
+ * makes — so the default is `display: none` and this sheet turns it on. That
+ * keeps it out of the accessibility tree of the designs that were not drawn
+ * with it, which `visibility` or an opacity would not.
+ */
+#view .tnow--label { display: none; }
+html[data-design="classical"] #view .tnow--label {
+  display: inline-block;
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-family: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.5;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * `Due: Yesterday 11:59 PM` in terracotta, and the reason it needs saying here.
+ *
+ * `design-classical.css` already asks for it (`.row-overdue .row--due`), but
+ * `popup-rows.css` paints the same element through `#view .row--due` — an id
+ * beats any number of classes, so the shared sheet won and the overdue subline
+ * measured as `--muted` in the real document. Stated at the same id depth, in
+ * the file that loads last, it lands. `.row--rel` with it: on the card the two
+ * are one sentence ("11:59 PM · 4h late") and half a sentence in a second
+ * colour is worse than either colour.
+ */
+html[data-design="classical"] #view .row.row-overdue .row--due,
+html[data-design="classical"] #view .row.row-overdue .row--rel {
+  color: var(--err);
+}

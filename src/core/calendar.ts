@@ -27,6 +27,7 @@
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import { countdown, liveDeadline } from "./grouping.js";
+import { courseDepartment } from "./names.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -1203,22 +1204,74 @@ export function weekStatus(item: Item, now: Date): string {
 export const COURSE_COLOURS = 8;
 
 /**
- * A colour per course, assigned across the courses that exist.
+ * The three departments the Classical spec names, and the slot each one owns.
  *
- * The first attempt hashed the label, which is stable by construction — and
- * collided on the six courses this student actually takes, giving four colours
- * for six courses. A legend with two courses the same colour is worse than no
- * legend, because it silently asserts something false.
+ * `docs/design/classical-spec.md` §1 prints the values: CS `#1a2744` on
+ * `#e8ecf4`, PHYS `#8e3519` on `#fbede8`, MATH a bronzed umber. Those are
+ * `--course-0`, `--course-1` and `--course-2` in `design-classical.css`, which
+ * is why the mapping is to *slot numbers* rather than to colours: the dark
+ * half of every slot lives in the stylesheet and only the stylesheet knows it.
+ */
+const SPEC_SLOTS: Record<string, number> = { CS: 0, PHYS: 1, MATH: 2 };
+
+/** The slots left for every other department. */
+const FALLBACK_START = Object.keys(SPEC_SLOTS).length;
+
+/** djb2. Any stable string hash does; this one is short and has no deps. */
+function hash(text: string): number {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
+  return h >>> 0;
+}
+
+/**
+ * A colour per course, keyed by the course's **department**.
  *
- * So the assignment runs over the sorted course list instead, which guarantees
- * distinct colours up to the size of the palette. The cost is real and worth
- * stating: adding a course repaints every course after it alphabetically. That
- * happens about twice a year, and a collision happens every time you look.
+ * Two earlier attempts and why neither stands:
+ *
+ * - *Hash the course label.* It collided on the six courses this student takes,
+ *   giving four colours for six courses.
+ * - *Walk the sorted course list and hand out 0..7.* Distinct by construction,
+ *   but it means CS 357 can come out plum while PHYS 214 comes out slate — the
+ *   opposite of what §1 prints — and adding one course repaints every course
+ *   after it alphabetically.
+ *
+ * The spec settles it: §1 is headed "keyed by DEPARTMENT, not by arrival
+ * order", and §4 and §5 ask for "department colours" on the week tag and
+ * "coloured by department" on the month dots.
+ *
+ * **Two courses in the same department therefore share a hue, on purpose.**
+ * The colour answers "whose is this" at a glance, and CS 225 and CS 357 are
+ * both CS; the row already prints the code for the finer answer. Giving them
+ * different hues would spend the palette's only three spec-fixed slots on
+ * telling apart two things the text already tells apart, and would put one of
+ * them somewhere §1 says CS is not.
+ *
+ * **The fallback is a pure hash, and that is a trade made deliberately.**
+ * A department the spec does not name (ECE, STAT, ME) lands on
+ * `3 + hash(dept) % 5`. Probing past an occupied slot would avoid more
+ * collisions, but the probe depends on which *other* departments are on the
+ * list, so enrolling in one more course would repaint the rest — the exact
+ * instability this function exists to remove. Stability beats collision
+ * avoidance, because a repaint happens on every change and a collision only
+ * when two of the five hashes meet.
+ *
+ * **A label with no readable code** (`bus_ilbc_open_249233`, or an
+ * instructor's free text) has no department, so the *label* is hashed into the
+ * same fallback range. It is stable, which is all that can be promised; the
+ * rename tool is the real fix, and this keeps the row from flickering until
+ * someone uses it.
  */
 export function courseColours(courses: readonly string[]): Map<string, number> {
-  const map = new Map<string, number>();
-  courses.forEach((course, index) => map.set(course, index % COURSE_COLOURS));
-  return map;
+  return new Map(courses.map((course) => [course, courseColour(course)]));
+}
+
+/** The slot one course owns, computed from that course alone. */
+export function courseColour(course: string): number {
+  const department = courseDepartment(course);
+  const pinned = department === undefined ? undefined : SPEC_SLOTS[department];
+  if (pinned !== undefined) return pinned;
+  return FALLBACK_START + (hash(department ?? course) % (COURSE_COLOURS - FALLBACK_START));
 }
 
 /** Every course present, in the order the chips are drawn. */

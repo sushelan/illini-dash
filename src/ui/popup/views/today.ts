@@ -68,7 +68,7 @@ export function renderTodayView(
   if (total > 0) viewEl.append(folio(now, total));
 
   if (day.late.length > 0) {
-    const band = section(LATE_HEADING, day.late.length);
+    const band = section(LATE_HEADING, day.late.length, "late");
     for (const item of day.late) {
       // `weekStatus` reads "1h late" / "2d late" on an overdue row and "late ok"
       // while a late window is still open. One formatter for the two screens
@@ -154,10 +154,28 @@ function timeline(
     const mark = document.createElement("span");
     mark.className = "tnow--mark";
     rail.append(mark);
+    /*
+     * The anchor's own words, `Now · 11:14 AM` (classical spec §3.4).
+     *
+     * The bar alone says "here" and not "when", and the rail's clocks are the
+     * only other times on the screen — so without the hour on it the marker
+     * cannot be read against them. `aria-hidden`, because the line already
+     * carries the sentence as its `aria-label` and a separator that announces
+     * its label *and* its text says the time twice.
+     *
+     * Every design builds it; only the Classical sheet draws it
+     * (`design-classical-today.css` hides it elsewhere), so no other design
+     * gains an element it was not drawn with.
+     */
+    const label = document.createElement("span");
+    label.className = "tnow--label";
+    label.textContent = `Now · ${clockOf(now.getTime())}`;
+    label.setAttribute("aria-hidden", "true");
+    el.append(label);
     // Announced, because the marker is the one thing on this screen that is
     // pure geometry: a screen reader gets the sentence instead of the bar.
     el.setAttribute("role", "separator");
-    el.setAttribute("aria-label", "Now");
+    el.setAttribute("aria-label", `Now, ${clockOf(now.getTime())}`);
     return el;
   };
 
@@ -198,11 +216,23 @@ function timeline(
 }
 
 /** One band: its heading, then its rows. */
-function section(label: string, count?: number): HTMLElement {
+function section(label: string, count?: number, tone?: "late"): HTMLElement {
   const band = document.createElement("div");
   band.className = "tsection";
   const head = document.createElement("p");
   head.className = "section-head";
+  /*
+   * The late band's heading is the one that is coloured (classical spec §3.2:
+   * the heading in terracotta, its count on the overdue wash inside a peach
+   * edge). `section-head--err` is the class `popup-views.css` already uses for
+   * exactly this — a band heading in `--err` — rather than a second spelling
+   * of it, and the band takes a modifier of its own so the count badge can be
+   * reached without a selector that also matches "By end of day".
+   */
+  if (tone === "late") {
+    band.classList.add("tsection--late");
+    head.classList.add("section-head--err");
+  }
   const name = document.createElement("span");
   name.textContent = label;
   head.append(name);

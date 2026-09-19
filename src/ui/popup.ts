@@ -118,10 +118,18 @@ function navFor(view_: ViewName, now: Date): { label: string; step: number } {
       const first = days[0]!.date;
       const last = days[6]!.date;
       const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      // "Sep 14 – 20" inside one month, "Sep 28 – Oct 4" across two: the
-      // second month name is only worth its width when it differs.
-      const end = first.getMonth() === last.getMonth() ? String(last.getDate()) : fmt(last);
-      return { label: `${fmt(first)} – ${end}`, step: 7 };
+      /*
+       * "Sep 20 – Sep 26", with the month repeated, per the Classical spec §4.
+       *
+       * This used to collapse to "Sep 14 – 20" inside one month, on the
+       * argument that the second month name is only worth its width when it
+       * differs. That is a good argument about width and the wrong one about
+       * this strip: the range is the page's running head, and a head that
+       * changes shape depending on where the month boundary falls reads as two
+       * different controls. The spec writes it out, and `renderDateNav` adds
+       * the year, so the label is one shape every week of the term.
+       */
+      return { label: `${fmt(first)} – ${fmt(last)}`, step: 7 };
     }
     case "month":
       return {

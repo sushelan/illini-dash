@@ -1250,24 +1250,72 @@ describe("overdueItems", () => {
 describe("courseColours", () => {
   const REAL = ["CS357", "CS411", "CS424", "CS425", "ECE374", "PHYS214"];
 
-  it("gives every course a different colour", () => {
-    // The first attempt hashed the label. It collided on exactly this list,
-    // producing four colours for six courses — a legend asserting that two
-    // courses are the same thing.
-    const colours = [...courseColours(REAL).values()];
-    expect(new Set(colours).size).toBe(REAL.length);
+  // classical-spec.md §1: "Academic Course Badges — keyed by DEPARTMENT, not by
+  // arrival order", with --cs-text #1a2744 (--course-0), --phys-text #8e3519
+  // (--course-1) and --math-text a bronzed umber (--course-2).
+  it("puts the three departments the spec names on the slots it names", () => {
+    // Deliberately *not* in the order the slots run (parser rule 10): with the
+    // three spec courses listed CS, PHYS, MATH, the old index-order assignment
+    // happened to produce 0, 1, 2 and this test could not tell the two apart.
+    const colours = courseColours(["MATH257", "PHYS214", "CS357"]);
+    expect(colours.get("CS357")).toBe(0);
+    expect(colours.get("PHYS214")).toBe(1);
+    expect(colours.get("MATH257")).toBe(2);
   });
 
-  it("depends on the set of courses, not the order they arrive in", () => {
-    // Sync order is not stable, so a palette assigned by first appearance
-    // repaints the whole calendar whenever anything changes.
-    const forward = courseColours([...REAL].sort());
-    const shuffled = courseColours([...REAL].sort());
-    for (const course of REAL) expect(shuffled.get(course), course).toBe(forward.get(course));
+  // §4: the week entry's course tag carries "department colours"; §5: the month
+  // dots are "coloured by department". The colour answers "whose is this", and
+  // both of these are CS — the code beside it makes the finer distinction.
+  it("gives two courses in one department the same hue", () => {
+    const colours = courseColours(REAL);
+    expect(colours.get("CS411")).toBe(colours.get("CS357"));
+    expect(colours.get("CS411")).toBe(0);
+  });
+
+  it("gives a department the same slot whatever else is on the list", () => {
+    // The defect this replaces: index order meant enrolling in one more course
+    // repainted every course after it, and CS could come out plum.
+    const before = courseColours(["ECE374", "PHYS214"]);
+    const after = courseColours(["CS357", "ECE374", "MATH257", "PHYS214", "STAT425"]);
+    expect(after.get("ECE374")).toBe(before.get("ECE374"));
+    expect(after.get("PHYS214")).toBe(before.get("PHYS214"));
+  });
+
+  it("reads the department out of a Gradescope-shaped name", () => {
+    expect(courseColours(["stat_425_120248_268442"]).get("stat_425_120248_268442")).toBe(
+      courseColours(["STAT425"]).get("STAT425"),
+    );
+  });
+
+  it("gives a name with no course code in it a stable slot rather than throwing", () => {
+    const name = "Kaufman office hours";
+    const colour = courseColours([name]).get(name);
+    expect(colour).toBe(courseColours(["CS357", name]).get(name));
+    expect(colour).toBeGreaterThanOrEqual(0);
+    expect(colour).toBeLessThan(COURSE_COLOURS);
+  });
+
+  it("keeps an unnamed department off the three slots the spec pins", () => {
+    // PHIL, AE and SOC are here because they are adversarial, not because Sushi
+    // takes them: their hashes land on 0, 1 and 2 modulo the whole palette, so
+    // they are the only inputs that can tell "hash into the spare slots" apart
+    // from "hash over all eight" and steal CS's, PHYS's or MATH's colour.
+    // Every realistic department already misses those slots by luck.
+    for (const course of [
+      "ECE374",
+      "STAT425",
+      "ME370",
+      "PHIL103",
+      "AE202",
+      "SOC100",
+      "Kaufman office hours",
+    ]) {
+      expect(courseColours([course]).get(course), course).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it("stays inside the palette when a course list runs long", () => {
-    const many = Array.from({ length: COURSE_COLOURS + 4 }, (_, i) => `C${i}`);
+    const many = Array.from({ length: COURSE_COLOURS + 4 }, (_, i) => `DEPT${i}101`);
     for (const colour of courseColours(many).values()) {
       expect(colour).toBeGreaterThanOrEqual(0);
       expect(colour).toBeLessThan(COURSE_COLOURS);

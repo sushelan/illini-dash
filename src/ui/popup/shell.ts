@@ -34,11 +34,11 @@ import {
   summarize,
 } from "../../core/health.js";
 import { courseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
-import { coursesIn } from "../../core/calendar.js";
+import { coursesIn, weekContents } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
 import { downloadIcs } from "../download.js";
-import { appMark, type IconName, icon, iconButton } from "../icons.js";
+import { appMark, bookMark, type IconName, icon, iconButton } from "../icons.js";
 import { renderThemePanel } from "../theme-panel.js";
 import { send, type OverrideAction, type Request } from "../../messages.js";
 import type { Item, Source, SourceState, SourceStatus } from "../../sources/types.js";
@@ -54,6 +54,7 @@ import {
   HANDOFF_KEY,
   HIDDEN_KEY,
   actionsEl,
+  anchorDate,
   app,
   bannersEl,
   createPressHold,
@@ -67,6 +68,7 @@ import {
   state,
   statusEl,
   tabsEl,
+  WEEK_MODE,
   viewEl,
   writeStored,
 } from "./state.js";
@@ -100,7 +102,12 @@ export function renderHealth(
   _now: Date,
 ): void {
   healthEl.replaceChildren();
-  healthEl.append(appMark(), renderWordmark());
+  // Both marks, every time; the stylesheet shows one. Classical wants the book
+  // glyph and every other design wants the squircle, and the design picker
+  // swaps `data-design` on the root without redrawing this bar — so a branch
+  // on the attribute here would leave the wrong mark on screen until something
+  // unrelated happened to call this function again. See `bookMark`.
+  healthEl.append(appMark(), bookMark(), renderWordmark());
 }
 
 /**
@@ -794,7 +801,19 @@ export function renderFooter(
   const sync = document.createElement("button");
   sync.type = "button";
   sync.className = "foot--sync";
-  sync.textContent = state.syncing ? "Syncing…" : "Sync now";
+  /*
+   * The glyph, drawn always and shown only under Classical.
+   *
+   * Same argument as the two marks in `renderHealth`: the stylesheet is the
+   * only thing that knows which design is on, and it is the only thing that
+   * stays right when the design changes under an open popup. The label keeps
+   * its own element so `text-transform` reaches the words and not the SVG.
+   */
+  sync.append(icon("sync"));
+  const syncLabel = document.createElement("span");
+  syncLabel.className = "foot--sync-label";
+  syncLabel.textContent = state.syncing ? "Syncing…" : "Sync now";
+  sync.append(syncLabel);
   sync.disabled = state.syncing;
   if (state.syncing) sync.dataset["busy"] = "true";
   sync.addEventListener("click", (event) => {
@@ -902,6 +921,29 @@ export function renderFilters(items: Item[], colours: Map<string, number>): void
  * "Today" appears only once there is somewhere to come back from. A button that
  * does nothing is a button that has to be read before it can be ignored.
  */
+/**
+ * The year the week on screen ends in — `Sep 20 – Sep 26, 2024` (spec §4).
+ *
+ * The month heading already carries its year and the day heading is anchored
+ * on today, so the week was the one running head that named a date with no
+ * year on it: `Sep 20 – 26` is the same seven words in 2024 and in 2026, and
+ * this navigator is the only thing on screen that says which one you stepped
+ * into.
+ *
+ * The **last** day's year, not the anchor's: the one week a year that straddles
+ * New Year is the one week where the two disagree, and the reader is looking at
+ * a range that ends in January. And it is `weekContents` that decides which
+ * seven days those are — the same call `navFor` makes to build the label — so
+ * this is a second *reader* of that decision rather than a second copy of it.
+ * A local "the anchor, plus six" would be exactly the second copy, and would
+ * drift the first time the week mode changes.
+ */
+function weekRangeYear(): number {
+  const now = new Date();
+  const days = weekContents([], anchorDate(now), now, WEEK_MODE);
+  return days[days.length - 1]!.date.getFullYear();
+}
+
 export function renderDateNav(label: string, step: number): void {
   dateNavEl.replaceChildren();
   dateNavEl.hidden = step === 0;
@@ -916,7 +958,7 @@ export function renderDateNav(label: string, step: number): void {
 
   const text = document.createElement("span");
   text.className = "datenav--label";
-  text.textContent = label;
+  text.textContent = step === 7 ? `${label}, ${weekRangeYear()}` : label;
 
   const forward = iconButton("right", "Forward");
   forward.classList.add("btn-sm");

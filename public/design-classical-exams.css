@@ -54,6 +54,36 @@
  * point of it.
  * ====================================================================== */
 
+
+/* ==========================================================================
+ * The four colours §7 names that `design-classical.css` has no token for.
+ *
+ * Every one carries a dark half, because Sushi's machine is dark and a
+ * light-only value would paint near-white paper onto a brown-black page. The
+ * dark halves sit on the token sheet's own warm dark ramp rather than being
+ * the light value with an alpha over it.
+ *
+ * §7's `--amber-gold` is *not* here: `--warn` is already that hue in both
+ * halves, so a fifth token would be the second copy of one decision.
+ * ====================================================================== */
+html[data-design="classical"] {
+  --ex-book-bg:   #fdfaf4;  /* §7's not-booked card ground */
+  --ex-book-edge: #ecdcca;  /* §7's not-booked card edge   */
+  --ex-cta-hover: #25375c;  /* §7's CTA hover              */
+  --ex-cta-dot:   #ea580c;  /* §7's 6px dot before the label */
+}
+html[data-design="classical"].is-dark {
+  --ex-book-bg:   #241f18;
+  --ex-book-edge: #43382a;
+  /* Lighter, not darker: the CTA's ground in dark is the gold, and a hover has
+     to move *away* from the page, which is the near-black. */
+  --ex-cta-hover: #e4bd78;
+  /* On the gold ground an orange dot disappears. The dark half is the same hue
+     driven down past the gold's luminance instead of up past the navy's, so
+     the dot is a mark on the button at both ends. */
+  --ex-cta-dot:   #7a2f0a;
+}
+
 /* ---- the running head --------------------------------------------------
  * `.folio` already carries the serif, the rule and the gutters. All this adds
  * is the mock's second hairline, which is what makes a heading read as a
@@ -80,9 +110,15 @@ html[data-design="classical"] .exam-head--label .icon {
   height: 12px;
   flex: none;
 }
-/* "Action required" is a badge, not a count: a filled chip of the same
-   terracotta `.section-head--err` already sets the words in. */
-html[data-design="classical"] .section-head--err .exam-head--note {
+/* §7: an `Action Required` badge **in terracotta**. A filled chip of the same
+   ink `.section-head--err` sets the label in — a badge, not a count.
+ *
+ * Under `#view`, because `design-classical.css` styles the right-hand span of
+ * a `.section-head` in `--muted` from an id selector, which outranked a plain
+ * class chain and left this reading in the same grey as `3 scheduled` — the
+ * one heading on the board that is not a count was the one drawn like one.
+ */
+html[data-design="classical"] #view .section-head--err .exam-head--note {
   padding: 1px 5px;
   border-radius: 3px;
   background: var(--err-wash);
@@ -91,31 +127,30 @@ html[data-design="classical"] .section-head--err .exam-head--note {
 }
 
 /* ---- the not-booked leaf ------------------------------------------------
- * The mock's terracotta-edged slip with a brass clip at its corner. The tone
- * is one hue stated twice — the edge and the wash are both `--err` — which is
- * the rule the overdue card in `design-classical.css` already follows.
+ * §7: a **4px top border in `--amber-gold`**, ground `#fdfaf4`, `#ecdcca`
+ * edge, `p-3`, 4px radius.
+ *
+ * What was here instead was a terracotta-edged slip with a brass clip drawn
+ * at its corner in a `::before`. Two things were wrong with it against §7:
+ * terracotta is this design's *late* ink and nothing on this card is late, and
+ * a 5px absolutely-positioned clip hanging 2px above the card is a decoration
+ * that the 4px rule says in type. The rule is also a thing Chrome measures,
+ * which the clip was not.
  */
 html[data-design="classical"] #view .row-booking {
-  position: relative;
-  border-color: var(--err);
-  background: var(--err-wash);
+  border: 1px solid var(--ex-book-edge);
+  border-top: 4px solid var(--warn);
+  border-radius: 4px;
+  background: var(--ex-book-bg);
+  padding: 12px;
 }
-/* The clip. `color-mix` rather than two hex literals: brass is the warn ink
-   with a highlight on it, and the warn ink is a token that differs in dark. */
-html[data-design="classical"] #view .row-booking::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: 18px;
-  width: 22px;
-  height: 5px;
-  border-radius: 2px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--warn) 62%, white) 0%,
-    var(--warn) 100%
-  );
-  box-shadow: 0 1px 2px var(--shadow);
+/* §7 sets this card's title a step above the others: 16px serif bold in
+   `--ink-navy` (the gold in dark, as everywhere). It is the one title on the
+   board attached to something the student has not done yet. */
+html[data-design="classical"] #view .row-booking .row--title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--brand-mark);
 }
 
 /* ---- a fact with a glyph in front --------------------------------------
@@ -140,6 +175,16 @@ html[data-design="classical"] #view .exam-line .icon {
 /* The room is the fact on this card most worth reading, so it is the one
    metadata line set in the page's ink rather than in the muted grey. */
 html[data-design="classical"] #view .exam-line .row--detail-exam {
+  color: var(--fg);
+  font-weight: 600;
+}
+/* `Window open:` — §7's label on the booking range. Quieter than the range it
+   introduces, so the dates are what is read. */
+html[data-design="classical"] #view .exam-line--label {
+  flex: none;
+  color: var(--muted);
+}
+html[data-design="classical"] #view .exam-line--label + .row--detail {
   color: var(--fg);
   font-weight: 600;
 }
@@ -254,14 +299,14 @@ html[data-design="classical"] #view .exam-reserve {
   color: var(--primary-ink);
   font-family: var(--serif);
   font-size: 12px;
-  font-weight: 700;
+  /* §7: "12px serif medium". */
+  font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
 }
 html[data-design="classical"] #view .exam-reserve:hover {
-  /* Darker in light, lighter in dark — one expression, because the mix is
-     toward the button's own ink rather than toward a fixed colour. */
-  background: color-mix(in srgb, var(--primary) 88%, var(--primary-ink));
+  background: var(--ex-cta-hover);
+  border-color: var(--ex-cta-hover);
 }
 html[data-design="classical"] #view .exam-reserve:focus-visible {
   outline: 2px solid var(--focus);
@@ -276,14 +321,14 @@ html[data-design="classical"] #view .exam-reserve--label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The mock's pinging dot. Terracotta reads on the navy in light and on the
-   gold in dark, which is the property that decided it over `--err-wash`. */
+/* §7's 6px dot before the label. See `--ex-cta-dot` above for why its dark
+   half is a *dark* orange rather than the light one. */
 html[data-design="classical"] #view .exam-reserve--dot {
   width: 6px;
   height: 6px;
+  background: var(--ex-cta-dot);
   flex: none;
   border-radius: 50%;
-  background: var(--err);
 }
 html[data-design="classical"] #view .exam-reserve--arrow {
   flex: none;

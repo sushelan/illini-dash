@@ -33,6 +33,35 @@
  * height, and nothing touches `html`/`body`.
  * ====================================================================== */
 
+
+/* ==========================================================================
+ * The five colours §6 names that `design-classical.css` has no token for.
+ *
+ * Scoped here rather than pushed into the token sheet: they are this view's,
+ * and the token sheet is owned elsewhere. Every one carries a dark half —
+ * Sushi's machine is dark, and a light-only value would paint a near-white
+ * button onto a brown-black page. The dark halves are the warm dark ramp the
+ * token sheet already uses (#1a1713 → #26221b → #3a3328), lifted by the same
+ * amount the light values are dropped below white rather than by the same
+ * alpha, because a wash composites toward its own luminance.
+ * ====================================================================== */
+html[data-design="classical"] {
+  --nd-act-rule:    #f0eae0;  /* §6's top rule over the three buttons        */
+  --nd-act-edge:    #dcd4c3;  /* §6's button edge                            */
+  --nd-act-hover:   #f7f2e8;  /* §6's `--bg-hover`                           */
+  --nd-peach:       #f5dcd2;  /* §6's peach edge on the ambiguous card       */
+  --nd-callout-bg:  #fcfaf5;  /* §6's callout ground                         */
+  --nd-callout-ink: #4a3b32;  /* §6's callout ink                            */
+}
+html[data-design="classical"].is-dark {
+  --nd-act-rule:    #332c22;
+  --nd-act-edge:    #453c2e;
+  --nd-act-hover:   #2f2920;
+  --nd-peach:       #7a4b39;
+  --nd-callout-bg:  #221d16;
+  --nd-callout-ink: #d9cdb8;
+}
+
 /* --- the folio banner: title, count, lead, and a rule under it ----------- */
 html[data-design="classical"] .nodate-banner {
   margin: 0 10px;
@@ -66,7 +95,8 @@ html[data-design="classical"] .nodate-banner--count {
 html[data-design="classical"] .nodate-banner--lead {
   margin: 3px 0 0;
   font-family: var(--serif);
-  font-size: 10.5px; font-style: italic; line-height: 1.45;
+  /* §6: 12px serif italic `--ink-muted`. */
+  font-size: 12px; font-style: italic; line-height: 1.4;
   color: var(--muted);
 }
 
@@ -77,13 +107,23 @@ html[data-design="classical"] #view > .nodate-group--head {
   padding-inline: 11px;
   margin: 11px 0 3px;
 }
+/* §6 sets these in the **mono** face, not the label serif: `SECTION 1 · NO
+   DATE AT ALL —— 3 items` is a running head with a number in it, and a
+   tracked mono is what makes the ordinal read as an index rather than as
+   part of the name. 10px, tracking-widest (`0.1em`), uppercase, `--ink-muted`. */
 html[data-design="classical"] .nodate-group--name {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   min-width: 0;
-  font-family: var(--sans);
-  font-size: 9.5px; font-weight: 700;
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 600;
   letter-spacing: .10em; text-transform: uppercase;
   color: var(--muted);
+}
+/* The ordinal is the same run of type, one step quieter so the section's own
+   name is what the eye lands on. */
+html[data-design="classical"] .nodate-group--ord {
+  flex: none;
+  opacity: .72;
 }
 /* The mock's short rule after the section name — a typesetter's dash, so the
    label reads as a running head rather than as a row of its own. */
@@ -92,13 +132,16 @@ html[data-design="classical"] .nodate-group--hair {
   width: 22px; height: 1px;
   background: var(--line);
 }
+/* `—— 3 items` / `—— 1 ambiguous`: the same mono run, so the heading is one
+   line of type broken by a rule rather than a label with a badge stuck on it. */
 html[data-design="classical"] .nodate-group--count {
   flex: none;
   padding: 1px 5px;
   border-radius: 3px;
   background: var(--tint-strong);
-  font-family: var(--sans);
-  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 html[data-design="classical"] .nodate-group--note {
@@ -142,16 +185,36 @@ html[data-design="classical"] #view .nodate-card > .row {
 /* The three answers, ruled off from the row the way the mock rules them off. */
 html[data-design="classical"] .nodate-actions {
   justify-content: flex-end;
+  /* They wrap rather than push the card past 400px. This is the property that
+     keeps that true — a card is a fixed 358px and three buttons at their widest
+     do not fit it, so the third drops to a second line instead of widening the
+     document Chrome measures. */
+  flex-wrap: wrap;
   gap: 5px;
   margin-top: 7px;
   padding: 7px 0 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--nd-act-rule);
 }
-html[data-design="classical"] .nodate-actions .btn {
+/* §6: white ground, `#dcd4c3` edge, 4px radius, 10px serif, hover
+   `--bg-hover`. The three differ only in ink — see the three rules below. */
+html[data-design="classical"] .nodate-actions .nodate-act {
   height: 24px;
   padding: 0 7px;
-  font-size: 10.5px; font-weight: 600;
+  border: 1px solid var(--nd-act-edge);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  font-family: var(--serif);
+  font-size: 10px; font-weight: 600;
 }
+html[data-design="classical"] .nodate-actions .nodate-act:hover {
+  background: var(--nd-act-hover);
+  border-color: var(--nd-act-edge);
+}
+/* `--ink-navy` in light; in dark the token sheet's `--brand-mark` is the gold
+   that stands in for it, which is the substitution the whole design makes. */
+html[data-design="classical"] .nodate-actions .nodate-act--give { color: var(--brand-mark); }
+html[data-design="classical"] .nodate-actions .nodate-act--tick { color: var(--ok); }
+html[data-design="classical"] .nodate-actions .nodate-act--hide { color: var(--muted); }
 
 /* --- section 2: the row whose date could not be read ---------------------
  *
@@ -162,11 +225,12 @@ html[data-design="classical"] .nodate-actions .btn {
  * The left bar is an inset shadow rather than a border so the card's text does
  * not shift by 3px against the cards above it.
  */
+/* §6 asks for one thing on this card: a **peach edge**. The wash and the
+   3px inset bar that used to be here stated the same fact twice more and left
+   the amber callout — which is the thing worth reading — with nothing to
+   stand out against. */
 html[data-design="classical"] .nodate-card--unread {
-  border-color: var(--warn);
-  background: var(--warn-wash);
-  box-shadow: inset 3px 0 0 var(--warn);
-  padding-left: 12px;
+  border-color: var(--nd-peach);
 }
 html[data-design="classical"] .nodate-flag {
   display: flex; align-items: center;
@@ -190,25 +254,34 @@ html[data-design="classical"] .nodate-flag .chip-check .icon {
 
 /* The quoted source text: what the page actually printed, set as a quotation
    on the page's own ground so it reads as evidence rather than as a field. */
+/* §6's callout: ground `#fcfaf5`, a **2px left border** in `--amber-gold`
+   (`--warn`, the token this design already draws that hue with), `p-2`, and
+   12px serif italic in `#4a3b32`. No box: a rule down one side is what marks a
+   quotation, and a four-sided border made it read as a field on a form.
+   `SOURCE TEXT:` runs into the quotation on one flow rather than sitting on a
+   line of its own. */
 html[data-design="classical"] .nodate-source {
   margin: 7px 0 0;
-  padding: 5px 7px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--bg);
+  padding: 8px;
+  border: 0;
+  border-left: 2px solid var(--warn);
+  border-radius: 0;
+  background: var(--nd-callout-bg);
+  font-family: var(--serif);
+  font-size: 12px; font-style: italic; line-height: 1.4;
+  color: var(--nd-callout-ink);
+  overflow-wrap: anywhere;
 }
 html[data-design="classical"] .nodate-source--label {
-  display: block;
-  margin-bottom: 1px;
-  font-family: var(--sans);
-  font-size: 8.5px; font-weight: 700;
-  letter-spacing: .09em; text-transform: uppercase;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-style: normal;
+  font-weight: 600;
+  /* 10px against the quotation's 12: the label names the box, the quotation is
+     what the page actually printed. */
+  font-size: 10px;
   color: var(--muted);
 }
 html[data-design="classical"] .nodate-source--text {
-  display: block;
-  font-family: var(--serif);
-  font-size: 11px; font-style: italic; line-height: 1.35;
-  color: var(--fg);
-  overflow-wrap: anywhere;
+  margin-left: 4px;
 }

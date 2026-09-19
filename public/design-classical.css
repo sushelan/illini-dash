@@ -46,47 +46,93 @@
  * this project's stylesheets have gone wrong before.
  * ----------------------------------------------------------------------- */
 html[data-design="classical"]:root {
+  /* ---- the spec's own names (§1), stated once ----
+   *
+   * These are the primitives. Everything under them is the name the rest of the
+   * popup already spends, defined in terms of one of these — so the spec can be
+   * read off the top of this block and nothing downstream has to be renamed.
+   *
+   * The build had a single `--surface` doing three of these jobs at once
+   * (#f7f3eb), which is why the column strips, the sync bar and the tab ground
+   * were all one shade where the spec draws three.
+   */
+  --bg-parchment:  #fdf9f1;  /* base extension window surface            */
+  --bg-card:       #ffffff;  /* crisp paper card                         */
+  --bg-card-tint:  #faf6ee;  /* column strips & inactive headers         */
+  --bg-subbar:     #fbf7ee;  /* sync bar and footer strip                */
+  --bg-active-tab: #f2e9dc;  /* active tab indicator & day selection     */
+  --bg-hover:      #f7f2e8;  /* row hover highlight                      */
+
+  --ink-navy:     #1a2744;  /* deep Prussian ink — brand / headers / active */
+  --ink-charcoal: #23272e;  /* primary body & card titles                   */
+  --ink-muted:    #6b665c;  /* aged umber — dates, subtitles, secondary     */
+  --ink-faint:    #9c9689;  /* tertiary placeholders, icons                 */
+
+  --border-rule:   #e6dfd1;  /* fine intaglio divider & card outline */
+  --border-subtle: #ede7dc;  /* header/footer dividing hairline      */
+
+  --terracotta:        #a64b2a;  /* overdue / late / urgent */
+  --terracotta-bg:     #fdf8f5;  /* overdue card wash       */
+  --terracotta-border: #f5dcd2;
+  --forest-green:      #2e6047;  /* connected / graded / done */
+  --amber-gold:        #b47a28;  /* warning / ambiguous date  */
+
   /* Surfaces. The ground is warm alabaster; a card is white paper on it. */
-  --bg: #fdf9f1;
-  --surface: #f7f3eb;
-  --surface-raised: #ffffff;
-  --line: #e6dfd1;
-  --card-line: #e0d8c7;
+  --bg: var(--bg-parchment);
+  /* `--surface` is spent by the tab strip and the sub-bars, so it is the
+     spec's `--bg-subbar`; the column strips take `--tint` below. The two
+     differ by one point out of 255 — naming them apart is about which
+     *decision* each one is, not about the shade. */
+  --surface: var(--bg-subbar);
+  --surface-raised: var(--bg-card);
+  --line: var(--border-rule);
+  --card-line: var(--border-rule);
   --card-shadow: 0 1px 2px rgba(60, 48, 28, .06);
   --shadow: rgba(60, 48, 28, .22);
 
   /* Ink. Prussian navy for headings and structure, charcoal for body. */
-  --fg: #23272e;
-  --muted: #6b665c;
+  --fg: var(--ink-charcoal);
+  --muted: var(--ink-muted);
 
   /* The brand is the navy, and the mark is the navy — this design has no
      orange in it. `--accent` doubles as the "this one" wash on a selected tab
      and the today marker, so it has to be the hue the design is *about*. */
-  --brand: #1a2744;
-  --brand-ink: #fdf9f1;
-  --brand-mark: #1a2744;
-  --accent: #1a2744;
-  --accent-ink: #fdf9f1;
+  --brand: var(--ink-navy);
+  --brand-ink: var(--bg-parchment);
+  --brand-mark: var(--ink-navy);
+  --accent: var(--ink-navy);
+  --accent-ink: var(--bg-parchment);
   --accent-wash: rgba(26, 39, 68, .10);
-  --primary: #1a2744;
-  --primary-ink: #fdf9f1;
-  --focus: #a64b2a;
+  --primary: var(--ink-navy);
+  --primary-ink: var(--bg-parchment);
+  --focus: var(--terracotta);
 
   /* Semantics, at the low saturation the rest of the palette is drawn at.
-     Terracotta is late, forest is done, gold is "you have to do something". */
-  --ok: #2e6047;
-  --warn: #8a5a15;
-  --err: #a64b2a;
-  --now: #a64b2a;
+     Terracotta is late, forest is done, gold is "you have to do something".
 
-  --tint: #f3ede2;
-  --tint-strong: #ebe3d4;
-  --hover: rgba(26, 39, 68, .055);
-  --today-tint: #f6e7db;
+     `--warn` is *not* `--amber-gold`. The spec's gold is a 4px top border and a
+     2px left rule (§7, §6); `--warn` is also set as 11px text, where #b47a28 on
+     parchment is 3.6:1 and fails AA. This is the same pigment darkened until it
+     is legible at the size this token is actually drawn at — the gold itself is
+     above, and the rules that draw a rule use it. */
+  --ok: var(--forest-green);
+  --warn: #8a5a15;
+  --err: var(--terracotta);
+  --now: var(--terracotta);
+
+  /* The strips, the hovers and the selections, each mapped to the spec surface
+     that names the same job. */
+  --tint: var(--bg-card-tint);
+  --tint-strong: var(--bg-active-tab);
+  /* Solid, not an alpha: the spec states a hover colour rather than a wash, and
+     a wash over a white card and over the parchment are two different shades of
+     the one hover. -8 points out of 255 against the card. */
+  --hover: var(--bg-hover);
+  --today-tint: var(--bg-active-tab);
   --warn-wash: rgba(180, 122, 40, .13);
   --warn-wash-strong: rgba(180, 122, 40, .20);
-  --err-wash: rgba(166, 75, 42, .10);
-  --pill-fill: #f3ede2;
+  --err-wash: var(--terracotta-bg);
+  --pill-fill: var(--border-subtle);
 
   /* ---- the course palette ----
    *
@@ -100,9 +146,18 @@ html[data-design="classical"]:root {
    * the darkest is 13.9:1 and the lightest (bronze) is 6.4:1, so a course code
    * set in any of them clears AA at the 10px the chip is drawn at.
    */
-  --course-0: #1a2744; --course-0-bg: #e8ecf4;  /* prussian  */
-  --course-1: #8e3519; --course-1-bg: #fbede8;  /* terracotta */
-  --course-2: #6b5326; --course-2-bg: #f1ead9;  /* bronze    */
+  /* The first three are the spec's three department badges (§1) verbatim —
+     `--cs-*`, `--phys-*`, `--math-*` — under the index names `courseIndex`
+     assigns. The bronze that stood at index 2 was close to the spec's bronzed
+     umber and not it (#6b5326/#f1ead9 against #4e4438/#eeebe5); the capture
+     wins, so these are the spec's. */
+  --cs-bg:   #e8ecf4; --cs-text:   #1a2744;
+  --phys-bg: #fbede8; --phys-text: #8e3519;
+  --math-bg: #eeebe5; --math-text: #4e4438;
+
+  --course-0: var(--cs-text);   --course-0-bg: var(--cs-bg);    /* prussian   */
+  --course-1: var(--phys-text); --course-1-bg: var(--phys-bg);  /* terracotta */
+  --course-2: var(--math-text); --course-2-bg: var(--math-bg);  /* umber      */
   --course-3: #2e6047; --course-3-bg: #e6f0e9;  /* forest    */
   --course-4: #6e2233; --course-4-bg: #f6e5e9;  /* oxblood   */
   --course-5: #4a3a6b; --course-5-bg: #eae7f2;  /* plum      */
@@ -123,48 +178,93 @@ html[data-design="classical"]:root {
  * near-black than to darkening a near-white. That is arithmetic, not taste.
  * ----------------------------------------------------------------------- */
 html[data-design="classical"]:root.is-dark {
-  --bg: #1a1713;
-  --surface: #221e18;
-  --surface-raised: #26221b;
-  --line: #3a3328;
-  --card-line: #3d3529;
+  /* ---- the same eleven spec names, at the other end of the range ----
+   *
+   * Every delta below is measured against the surface the token is drawn on,
+   * not chosen as an alpha. Light first, then dark, in points out of 255:
+   *
+   *   card-tint   vs card   −5   /  tint #262119 vs card #26221b   +12/+11/−2
+   *   subbar      vs bg     −2   /  #221e18 vs #1a1713             +8
+   *   active-tab  vs bg    −11   /  #332a20 vs #1a1713            +25
+   *   hover       vs card   −8   /  #2d2820 vs #26221b            +11
+   *   terracotta-bg vs card −5   /  #302420 vs #26221b            +10 (warm)
+   *
+   * Roughly double at every row, which is the arithmetic in the header comment
+   * rather than a taste: the eye reads a lightening of a near-black as about
+   * half the change it reads in a darkening of a near-white.
+   */
+  --bg-parchment:  #1a1713;
+  --bg-card:       #26221b;
+  --bg-card-tint:  #262119;
+  --bg-subbar:     #221e18;
+  --bg-active-tab: #332a20;
+  --bg-hover:      #2d2820;
+
+  /* The navy is invisible on a brown-black, so dark's structural ink is the
+     gold the light palette keeps for attention — the token keeps the role, not
+     the hue, because everything downstream spends it as "the brand ink". */
+  --ink-navy:     #d7ab61;
+  --ink-charcoal: #ece4d4;
+  --ink-muted:    #a89c86;
+  --ink-faint:    #7d7361;
+
+  --border-rule:   #3a3328;
+  --border-subtle: #322c23;
+
+  --terracotta:        #d98a68;
+  --terracotta-bg:     #302420;
+  --terracotta-border: #4a3229;
+  --forest-green:      #7ab393;
+  --amber-gold:        #d7ab61;
+
+  --bg: var(--bg-parchment);
+  --surface: var(--bg-subbar);
+  --surface-raised: var(--bg-card);
+  --line: var(--border-rule);
+  --card-line: var(--border-rule);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, .45);
   --shadow: rgba(0, 0, 0, .58);
 
-  --fg: #ece4d4;
-  --muted: #a89c86;
+  --fg: var(--ink-charcoal);
+  --muted: var(--ink-muted);
 
   /* Navy is invisible on a brown-black, so dark's structural hue is the gold
      the light palette uses for attention. Same move `ui.css` makes when its
      own `--brand` becomes unusable in dark: the accent is the one warm thing
      on the bar. */
-  --brand: #26221b;
-  --brand-ink: #ece4d4;
-  --brand-mark: #d7ab61;
-  --accent: #d7ab61;
-  --accent-ink: #1a1713;
+  --brand: var(--bg-card);
+  --brand-ink: var(--ink-charcoal);
+  --brand-mark: var(--ink-navy);
+  --accent: var(--ink-navy);
+  --accent-ink: var(--bg-parchment);
   --accent-wash: rgba(215, 171, 97, .18);
-  --primary: #d7ab61;
-  --primary-ink: #1a1713;
-  --focus: #d7ab61;
+  --primary: var(--ink-navy);
+  --primary-ink: var(--bg-parchment);
+  --focus: var(--ink-navy);
 
-  --ok: #7ab393;
-  --warn: #d7ab61;
-  --err: #d98a68;
-  --now: #d98a68;
+  --ok: var(--forest-green);
+  /* In dark the gold *is* legible as text (9.0:1 on #1a1713), so unlike light
+     there is no darkened variant — `--warn` and `--amber-gold` are one value. */
+  --warn: var(--amber-gold);
+  --err: var(--terracotta);
+  --now: var(--terracotta);
 
-  --tint: #262119;
-  --tint-strong: #2e281e;
-  --hover: rgba(236, 228, 212, .07);
-  --today-tint: #332a20;
+  --tint: var(--bg-card-tint);
+  --tint-strong: var(--bg-active-tab);
+  --hover: var(--bg-hover);
+  --today-tint: var(--bg-active-tab);
   --warn-wash: rgba(215, 171, 97, .14);
   --warn-wash-strong: rgba(215, 171, 97, .22);
-  --err-wash: rgba(217, 138, 104, .14);
-  --pill-fill: #2b2620;
+  --err-wash: var(--terracotta-bg);
+  --pill-fill: var(--border-subtle);
 
-  --course-0: #93aad8; --course-0-bg: #1d2434;
-  --course-1: #d98a68; --course-1-bg: #32211a;
-  --course-2: #c9b48c; --course-2-bg: #2b2418;
+  --cs-bg:   #1d2434; --cs-text:   #93aad8;
+  --phys-bg: #32211a; --phys-text: #d98a68;
+  --math-bg: #2b2418; --math-text: #c9b48c;
+
+  --course-0: var(--cs-text);   --course-0-bg: var(--cs-bg);
+  --course-1: var(--phys-text); --course-1-bg: var(--phys-bg);
+  --course-2: var(--math-text); --course-2-bg: var(--math-bg);
   --course-3: #79b596; --course-3-bg: #17281f;
   --course-4: #d98a9c; --course-4-bg: #2d1a20;
   --course-5: #a898d8; --course-5-bg: #211d32;
@@ -229,6 +329,29 @@ html[data-design="classical"]:root.is-dark {
   font-display: block;
 }
 
+/*
+ * The third face: JetBrains Mono, for the badges and the mono counts §1 asks
+ * for — the items pill, the course tags, the `TODAY` chip, the legend.
+ *
+ * `--mono` named a system stack until now, which on this machine resolves to
+ * SF Mono: a different width, a different figure design, and nothing the spec
+ * asked for. Naming a face you have not shipped is naming nothing, which is the
+ * defect that made this pass necessary.
+ *
+ * One file, 31KB, latin subset, `wght 400..700` variable. The three Google
+ * serves for 400 / 500 / 700 statically are *not* byte-identical here — each
+ * static instance is its own 21KB file — so the variable range is a genuine
+ * saving rather than the dedupe the two serifs got.
+ */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/classical/jetbrainsmono.woff2") format("woff2-variations"),
+       url("fonts/classical/jetbrainsmono.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: block;
+}
+
 html[data-design="classical"] {
   --serif: "EB Garamond", Georgia, "Times New Roman", serif;
   /*
@@ -248,7 +371,7 @@ html[data-design="classical"] {
    */
   --label: Newsreader, "EB Garamond", Georgia, serif;
   --sans: var(--label);
-  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 html[data-design="classical"] body { font-family: var(--serif); }
 
@@ -287,7 +410,7 @@ html[data-design="classical"] .row--title,
 html[data-design="classical"] .nodate-add--label {
   font-size: 15px; font-weight: 500; letter-spacing: 0;
 }
-html[data-design="classical"] .row--code { font-family: var(--label); font-size: 11px; }
+html[data-design="classical"] .row--code { font-family: var(--mono); font-size: 10px; }
 html[data-design="classical"] .row--due,
 html[data-design="classical"] .tclock,
 html[data-design="classical"] .mday--num,
@@ -297,8 +420,14 @@ html[data-design="classical"] .wday--num {
 /* The date navigator is the page's running head. */
 html[data-design="classical"] .datenav--label {
   font-family: var(--serif);
-  font-size: 19px; font-weight: 600; letter-spacing: -.1px;
+  font-size: 16px; font-weight: 600; letter-spacing: -.1px;
 }
+/* §4: the week navigator is 16px and "the range carries the year"; §5: the
+ * month's own header is `September 2024` at 20px. One element, two sizes, and
+ * no per-view class on any ancestor — but the month is the only view that puts
+ * a `Full view ↗` button inside the navigator, so `:has` names it without a
+ * line of TypeScript. */
+html[data-design="classical"] .datenav:has(.mfull) .datenav--label { font-size: 20px; }
 
 /* --------------------------------------------------------------------------
  * 4. The shell — and the tab strip at the foot
@@ -359,7 +488,7 @@ html[data-design="classical"] .tab {
   padding: 0 2px;
   border-radius: 0;
   font-family: var(--label);
-  font-size: 11.5px; font-weight: 500;
+  font-size: 10px; font-weight: 500;
   /*
    * Title Case, not uppercase.
    *
@@ -369,7 +498,7 @@ html[data-design="classical"] .tab {
    * small caps on five tabs reads as five headings rather than five places to
    * go. `VIEW_LABEL` already spells them the way the mock does.
    */
-  letter-spacing: .01em; text-transform: none;
+  letter-spacing: .06em; text-transform: uppercase;
 }
 html[data-design="classical"] .tabs .icon {
   display: block;
@@ -458,8 +587,8 @@ html[data-design="classical"] .chip-check { border-radius: 3px; }
  * — small caps set solid, which is a label rather than prose.
  */
 html[data-design="classical"] .chip {
-  font-family: var(--sans);
-  font-size: 11px; font-weight: 600; letter-spacing: .07em;
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
   border-radius: 3px; padding: 2px 6px;
   border-color: transparent;
   color: var(--course, var(--muted));
@@ -523,15 +652,18 @@ html[data-design="classical"] .wday {
 }
 html[data-design="classical"] .wday--num {
   font-family: var(--serif);
-  font-size: 22px; font-weight: 600; line-height: 1.05;
+  font-size: 20px; font-weight: 600; line-height: 1.05;
   color: var(--brand-mark);
 }
+/* §4: "weekday at 10px sans bold `--ink-muted` tracking-wider" — the grouped
+   rule above sets 11px/.10em for the section headings it shares a selector
+   with; this is the one of them the spec sizes itself. */
 html[data-design="classical"] .wday--dow {
-  font-size: 10.5px; font-weight: 600;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
 }
 html[data-design="classical"] .wday--today {
   font-family: var(--mono);
-  font-size: 8.5px; letter-spacing: .06em;
+  font-size: 8px; font-weight: 700; letter-spacing: .06em;
   border-radius: 2px;
 }
 
@@ -712,7 +844,7 @@ html[data-design="classical"] .folio {
 html[data-design="classical"] .folio--date {
   margin: 0; min-width: 0;
   font-family: var(--serif);
-  font-size: 21px; font-weight: 600; line-height: 1.15;
+  font-size: 20px; font-weight: 600; line-height: 1.15;
   letter-spacing: -.2px;
   color: var(--brand-mark);
   /* One line. "Wednesday, September 22" is the longest real value and measures
@@ -721,10 +853,15 @@ html[data-design="classical"] .folio--date {
      onto a second line and push the first card down. */
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* §3's items pill: "10px mono, tracking-widest, uppercase, `--ink-muted`, on
+   `#ede7dc`, `px-1.5 py-0.5`, 4px radius" — `#ede7dc` is `--pill-fill`. */
 html[data-design="classical"] .folio--count {
   flex: none;
-  font-family: var(--label);
-  font-size: 11px; font-weight: 600;
-  letter-spacing: .10em; text-transform: uppercase;
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--pill-fill);
   color: var(--muted);
 }

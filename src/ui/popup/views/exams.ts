@@ -71,7 +71,7 @@ export function renderExamsView(
         // and adds why it matters. With more than one there is a number to
         // carry, and "Action required" would be hiding it.
         board.unbooked.length === 1
-          ? "Action required"
+          ? "Action Required"
           : `${board.unbooked.length} to book`,
         "warning",
         "err",
@@ -98,11 +98,23 @@ export function renderExamsView(
         // "not booked" is a warning, not a clock: the mock puts
         // `notification_important` on this card and a `schedule` on the others.
         decorateExamRow(row, "warning", false);
-        // "sessions Sep 20–Sep 28" — the mock's "Window open:" line, which
-        // `bookingWindowText` already writes as the row's one detail. A range
-        // of days, so the mock's `date_range` rather than a clock.
+        /*
+         * §7's `Window open: …` line.
+         *
+         * `bookingWindowText` writes PrairieTest's own phrasing — "sessions
+         * Sep 29–Oct 1" — and §7 labels the same range. The label is prefixed
+         * rather than the text rewritten, and the source's own "sessions" is
+         * dropped only where it is there, so nothing is invented and nothing
+         * says the same word twice.
+         */
         const window = plainDetail(row);
-        if (window) row.append(examLine("tab-day", window));
+        if (window) {
+          window.textContent = window.textContent?.replace(/^sessions\s+/i, "") ?? "";
+          const label = document.createElement("span");
+          label.className = "exam-line--label";
+          label.textContent = "Window open:";
+          row.append(examLine("tab-day", label, window));
+        }
         const reserve = reserveButton(item);
         if (reserve) row.append(reserve);
       }
@@ -293,10 +305,10 @@ function plainDetail(row: HTMLElement): HTMLElement | null {
 }
 
 /** One glyph-led line across the card's grid. */
-function examLine(glyph: IconName, body: Node): HTMLElement {
+function examLine(glyph: IconName, ...body: Node[]): HTMLElement {
   const line = document.createElement("span");
   line.className = "exam-line";
-  line.append(icon(glyph), body);
+  line.append(icon(glyph), ...body);
   return line;
 }
 
