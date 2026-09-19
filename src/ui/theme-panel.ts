@@ -22,14 +22,28 @@ import {
   MODE_KEY,
   THEMES,
   THEME_KEY,
+  TWEAK_KEYS,
   allThemeClasses,
   normalizeMode,
   normalizeTheme,
+  normalizeTweaks,
   resolveDark,
   themeClass,
   type ModeName,
   type ThemeName,
+  type Tweaks,
 } from "../core/theme.js";
+
+/**
+ * Fired on `window` when a tweak changes, so the list can redraw itself.
+ *
+ * An event rather than a call: this panel is drawn in **two** documents — the
+ * options page and the popup's Appearance menu — and only one of them has a
+ * list of deadlines to redraw. Importing the popup's `app` here would make the
+ * settings page import the popup's state module, whose first line reaches for
+ * `#view`.
+ */
+export const TWEAKS_EVENT = "illini-dash:tweaks";
 
 function read(key: string): string | null {
   try {
@@ -204,6 +218,81 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
   }
   host.append(rows);
   host.append(renderModePanel());
+  host.append(renderTweakPanel());
+}
+
+/** The stored tweaks, or their defaults. Never throws. */
+export function storedTweaks(): Tweaks {
+  return normalizeTweaks({
+    urgencyEdge: read(TWEAK_KEYS.urgencyEdge),
+    showSourceNames: read(TWEAK_KEYS.showSourceNames),
+  });
+}
+
+/**
+ * Two switches for the rows themselves (brief D14).
+ *
+ * Here rather than in Settings for the reason `core/theme.ts` states: neither
+ * carries meaning. A tweak that could hide a deadline would be the colour
+ * picker's failure with a checkbox in front of it, and this panel is the one
+ * place where "it only changes how it looks" is the entry requirement.
+ *
+ * Real `<input type="checkbox">` elements, like the radios above: two
+ * independent switches are what a checkbox is, and a div would mean
+ * reimplementing the label association, the space key and the announcement.
+ */
+function renderTweakPanel(): HTMLElement {
+  const current = storedTweaks();
+  const wrap = document.createElement("div");
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Deadline rows";
+  wrap.append(heading);
+
+  const rows = document.createElement("div");
+  rows.className = "rows";
+  const switches: { key: keyof Tweaks; label: string; hint: string }[] = [
+    {
+      key: "urgencyEdge",
+      label: "Urgency edge",
+      hint: "A colour bar down the left of each row, in the course's colour",
+    },
+    {
+      key: "showSourceNames",
+      label: "Source names",
+      hint: "Say which site each deadline came from",
+    },
+  ];
+  for (const one of switches) {
+    const row = document.createElement("label");
+    row.className = "srow2 themerow";
+    row.htmlFor = `tweak-${one.key}`;
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.id = `tweak-${one.key}`;
+    box.className = "srow2--lead";
+    box.checked = current[one.key];
+    box.addEventListener("change", () => {
+      write(TWEAK_KEYS[one.key], String(box.checked));
+      // Applied under the click, like the palette and the mode. The list is in
+      // another part of the document — and on the options page, in another
+      // document entirely — so the change is announced rather than called.
+      window.dispatchEvent(new Event(TWEAKS_EVENT));
+    });
+
+    const label = document.createElement("span");
+    label.className = "srow2--name";
+    label.textContent = one.label;
+    const hint = document.createElement("span");
+    hint.className = "srow2--hint";
+    hint.textContent = one.hint;
+
+    row.append(box, label, hint);
+    rows.append(row);
+  }
+  wrap.append(rows);
+  return wrap;
 }
 
 /**

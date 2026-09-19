@@ -16,6 +16,7 @@
  */
 
 import { applyStoredTheme } from "../theme-panel.js";
+import { normalizeTweaks, TWEAK_KEYS, type Tweaks } from "../../core/theme.js";
 import { dayKey, startOfDay, type ViewName, type WeekMode } from "../../core/calendar.js";
 import type { Editor, EditorValues } from "../editor.js";
 import type { Item, Source, SourceStatus, Suggestion } from "../../sources/types.js";
@@ -205,6 +206,21 @@ export function hiddenCourses(): Set<string> {
 }
 
 /**
+ * The two row tweaks (brief D14), from `localStorage` or their defaults.
+ *
+ * `normalizeTweaks` owns the fallback, so a key written by a later build or
+ * lost to a cleared origin cannot leave a row half-drawn: `readStored` answers
+ * `undefined` for a missing key and `undefined` is not `false`, which is the
+ * distinction that keeps `showSourceNames` on for a fresh install.
+ */
+export function readTweaks(): Tweaks {
+  return normalizeTweaks({
+    urgencyEdge: readStored(TWEAK_KEYS.urgencyEdge),
+    showSourceNames: readStored(TWEAK_KEYS.showSourceNames),
+  });
+}
+
+/**
  * Seven days, starting today. In both windows.
  *
  * This was split — rolling in the popup, Sunday–Saturday in the tab, on the
@@ -260,6 +276,8 @@ export const state: {
   dayOffset: number;
   /** Courses the student switched off, from `HIDDEN_KEY`. */
   hidden: Set<string>;
+  /** The two per-device row tweaks (D14), re-read when the panel changes one. */
+  tweaks: Tweaks;
   /**
    * The student's own names for their courses, refreshed on every draw.
    *
@@ -363,6 +381,7 @@ export const state: {
   dayOffset: 0,
   screen: undefined,
   hidden: hiddenCourses(),
+  tweaks: readTweaks(),
   courseNames: {},
   currentItems: [],
   currentSuggestions: [],

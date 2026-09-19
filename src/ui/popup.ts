@@ -68,7 +68,7 @@ import {
   signInUrl,
 } from "./popup/shell.js";
 import { emptyNote } from "./popup/rows.js";
-import { renderDayView, resetDayGrid } from "./popup/views/day.js";
+import { renderTodayView } from "./popup/views/today.js";
 import { renderWeekView } from "./popup/views/week.js";
 import { renderMonthView } from "./popup/views/month.js";
 import { renderExamsView } from "./popup/views/exams.js";
@@ -106,14 +106,20 @@ function navFor(view_: ViewName, now: Date): { label: string; step: number } {
                 month: "short",
                 day: "numeric",
               }),
-        step: 1,
+        // No ‹ ›: Today is anchored to now (brief D4). Stepping the day was the
+        // navigator's only job here, and the week and the month are where a
+        // student moves through time now. `step: 0` hides `#nav`.
+        step: 0,
       };
     case "week": {
       const days = weekContents([], anchor, now, WEEK_MODE);
       const first = days[0]!.date;
       const last = days[6]!.date;
       const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      return { label: `${fmt(first)} – ${fmt(last)}`, step: 7 };
+      // "Sep 14 – 20" inside one month, "Sep 28 – Oct 4" across two: the
+      // second month name is only worth its width when it differs.
+      const end = first.getMonth() === last.getMonth() ? String(last.getDate()) : fmt(last);
+      return { label: `${fmt(first)} – ${end}`, step: 7 };
     }
     case "month":
       return {
@@ -141,10 +147,6 @@ function render(
   if (drawIsHeld()) return;
   state.currentItems = items;
   viewEl.replaceChildren();
-  // The grid that was on screen is gone with those children, and so is anything
-  // that was being dragged onto it. A draw only ever happens with no editor
-  // open (see `drawIsHeld`), so nothing is being typed that this discards.
-  resetDayGrid();
   delete viewEl.dataset["shape"];
   // What the full view's width cap keys off. A month may use 1400px; a list of
   // rows stops at 1100 so the clock does not end up a foot from the title. Set
@@ -245,7 +247,7 @@ function render(
     return;
   }
 
-  if (state.view === "day") renderDayView(onGrid, now, colours);
+  if (state.view === "day") renderTodayView(onGrid, now, colours, sources);
   else if (state.view === "week") renderWeekView(onGrid, now, colours);
   else renderMonthView(onGrid, now, colours);
   makeRowsNavigable();
