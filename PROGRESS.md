@@ -7,6 +7,65 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 12 / W0: popup.ts split, and the new shell — 2026-09-19
+
+**1970 tests, unchanged — the suite does not import the popup, so none of this is pinned
+by it.** Verified instead by `npm run typecheck`, `npm run build`, `npm run shots` in
+both modes (dark first), and by real pointer events in `dist/preview-popup.html`.
+
+**The split.** `src/ui/popup.ts` (3809 lines) became `src/ui/popup/` and a 523-line entry
+that owns `render` / `refresh` / `draw` / `runSync` / `recheckLogins` and the four
+listeners that keep an open window honest. `state.ts` holds the document's elements, the
+`localStorage` keys and one mutable `state` record; `shell.ts` the header, tabs, banners,
+`#status`, footer, every menu and `placeFloating` / `trapMenuKeys` / `drawIsHeld`;
+`rows.ts` the row; `views/{day,week,month,exams,attention}.ts` and
+`screens/{setup,editor}.ts` the rest. Every function moved whole with the comment that
+explains it. **The cycle it would otherwise have had is one object**: `state.ts` imports
+nothing local and carries `app` — `refresh`, `runSync`, `openAddEditor`, `openEditEditor`,
+`deleteManual`, `undoDelete` — assigned once at the bottom of the entry, so `shell` never
+imports a view or a screen.
+
+**The shell (D9, D10).** Header is `[mark] Illini Dash [pill] [+] [⋯]`: the mark is a new
+`appMark()` in `icons.ts`, drawn from `--brand-mark` and `--surface-raised` so it works in
+all six theme/mode combinations. Sync, full view, .ics and Settings came off the bar; the
+⋯ carries Open full view, Download .ics, Google Calendar…, Courses…, Appearance…,
+Settings. **Courses replaces the chip strip** — `renderFilters` is kept and reachable but
+no longer called, and `.filters:empty` collapses it. The tab strip is five `flex: 1`
+columns, so the strip's width is a function of the document rather than of the labels: a
+long label ellipses inside its fifth and can no longer push the popup to 800px. The
+footer is `position: sticky; bottom: 0` **in flow** — a fixed strip contributes no height
+and the document's height is all Chrome measures — and every word of it is derived from
+an attempt that happened: `summarize()` for the ratio, the newest `lastSuccessAt` across
+checkable sources for the clock, never `lastSyncAt` (worker rule 2). `#status` moved to
+the top of the document beside `#banners`, which retires the `scrollIntoView` that never
+worked on the week view (UI rule 3).
+
+**Measured** at 400×600, day tab, healthy: `html` 400px wide, `body.scrollWidth` 400, **0
+elements past x=401**; header 44, banners 66, tabs 42, date nav 32 — **184px before the
+first row**, against 210 before (the chip strip's 36 back, minus 10 of header and tabs) —
+footer 37, document 513. (`documentElement.scrollWidth` cannot be read as 400 in headless
+Chrome: macOS pins its minimum window to 500px, so it reports the viewport. `htmlW` and
+the right-edge sweep are the measurements that mean it.) D1's five labels need
+37/34/39/48/40px in a 74px column, so "No date" fits with 26px to spare.
+
+**Card language**, for the workers building on this: `.card`, `.card--dashed`,
+`.section-head`, `.screen` / `.screen-bar` in `popup.css`, documented in a block at the
+top of that file. Two new tokens in `ui.css` — `--card-line` and `--card-shadow` — with
+light, dark, Neutral, Neutral-dark, High-contrast and High-contrast-dark values.
+`popup-rows.css`, `popup-views.css`, `popup-screens.css` exist and are linked, empty but
+for a header, one per parallel worker.
+
+**Not preserved, deliberately:** the pill's inline action button (the same button is in
+the source list the pill opens, and at 400px a second control beside the sentence costs
+the sentence); the tab icons in the popup (five equal columns have no room for one, and
+the full view keeps them); the course chip strip (above). **Not built:** the header's
+Google Calendar entry opens Settings › Google Calendar rather than doing anything itself —
+the popup's actions bar never had a gcal control, and `gcal-connect` needs
+`getAuthToken({interactive: true})` from a page that stays open, which a popup is not.
+**Still wrong until D1 lands:** the fifth tab reads "Atten…" — "Attention" plus its badge
+needs 83px in a 74px column. It ellipses rather than pushing, which is the property that
+matters, and the label goes when `nodate` does.
+
 ## Wave 10: the page is read without the model — 2026-09-19
 
 **1939 → 1970 tests.** Third live run of the author on ECE 411: "only 1 of 3 rows carried
