@@ -2,10 +2,25 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1927 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1939 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 11: the Attention tab, tidied — 2026-09-19
+
+**1927 → 1939 tests.** The store prunes a suggestion whose instant precedes its
+`createdAt` — found already past, the store-side twin of wave 8's ingest rule, for rows
+written before it (Sushi's 13 and 14 Sep rows). A title that resolved to the post's whole
+subject is cut at its first spaced separator — " (", ": ", " — ", " – ", " - ", " + " — with
+a three-character floor, in `suggest.ts` (`rowTitle`), decided by *equality with the
+subject* rather than by which rung produced it, because the phrase scan can also reach
+into the subject line: "MP1 Demo Signups May have moved location (+ Reminder …)" becomes
+"MP1 Demo Signups May have moved location", the running post's subject becomes "HW1",
+"Proj-CNN Mini Extension" and "11:59" are untouched. The grey line quotes the post only
+when the subject adds something to the title. And the two reader-upgrade lines print
+one number, carried on the plan (`rereadCount`), pinned over the exact store shape that
+printed 0 live.
 
 ## Live: the Attention tab after reader 3; classmate notes stay ignored — 2026-09-19
 
