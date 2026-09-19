@@ -28,8 +28,18 @@ import type { Kind, RawItem } from "../sources/types.js";
 export interface ManualInput {
   title: string;
   courseRaw: string;
-  /** `YYYY-MM-DD`, in `zone`. */
-  date: string;
+  /**
+   * `YYYY-MM-DD`, in `zone`. Blank or absent means "no date yet".
+   *
+   * Optional since the editor grew a **No date yet** toggle (brief D11). A
+   * student who knows a thing exists and not when it is due had two options
+   * before: guess a date, which puts an invented deadline on the calendar and
+   * fires a reminder for it, or not record it at all. Both are worse than a row
+   * in the No date tab, which is where every *source* row in that position
+   * already sits — and giving it a date later is an ordinary edit, so the hide,
+   * the tick and the merge survive it (`editManualItem` keeps the `sourceId`).
+   */
+  date?: string;
   /** `HH:MM`, 24-hour, in `zone`. Blank means "no time was given". */
   time?: string;
   /** `HH:MM`, for work that occupies a span — an exam sitting, a lab. */
@@ -170,31 +180,51 @@ function fieldsOf(
   const kind = input.kind ?? "assignment";
   if (!KINDS.includes(kind)) throw new ManualItemError(`"${String(kind)}" is not a kind of work.`);
 
-  const date = parseDate(text(input.date));
+  const rawDate = text(input.date);
   const rawTime = text(input.time);
-  // A blank time is not midnight. §4.5 fills 23:59 for a course page that prints
-  // a bare date and marks it assumed; a student who typed only a day is in
-  // exactly that position, and the mark is what keeps §5.3 from ranking this
-  // invention above a stated Canvas deadline.
-  const timeAssumed = rawTime === "";
-  const time = timeAssumed ? ASSUMED_TIME : parseTime(rawTime, "time");
-  // `instantOf` rejects a date that does not exist (Feb 30, month 13), so the
-  // regex above does not have to know how long a month is.
-  const dueAt = instantOf({ ...date, ...time }, zone, text(input.date));
-
-  const extra: Record<string, string> = {};
-  if (timeAssumed) extra["timeAssumed"] = "true";
-
   const rawEnd = text(input.endTime);
-  if (rawEnd !== "") {
-    const endAt = instantOf({ ...date, ...parseTime(rawEnd, "end time") }, zone, text(input.date));
-    // Not `>=`: a span that ends when it starts is a moment, and the student
-    // meant one of the two. Saying so is cheaper than storing a zero-length
-    // exam sitting that every consumer then has to decide what to do with.
-    if (Date.parse(endAt) <= Date.parse(dueAt)) {
-      throw new ManualItemError("The end time has to be after the start time.");
+  const extra: Record<string, string> = {};
+  let dueAt: string | undefined;
+
+  if (rawDate === "") {
+    /*
+     * No date at all — and therefore no clock either.
+     *
+     * A time with no day is not a deadline, it is half of one, and there is no
+     * honest instant to build from it. Refused rather than dropped: a student
+     * who typed 5:00 PM and watched it vanish has no way to know why, which is
+     * the same argument `parseUrl` makes about a pasted link.
+     *
+     * No `timeAssumed` either. That flag says "this instant exists and we
+     * invented its clock" (worker house rule 3); there is no instant here, and
+     * marking one would hand every downstream reader a date to rank.
+     */
+    if (rawTime !== "" || rawEnd !== "") {
+      throw new ManualItemError("Give this a date, or clear the time as well as the date.");
     }
-    extra["endAt"] = endAt;
+  } else {
+    const date = parseDate(rawDate);
+    // A blank time is not midnight. §4.5 fills 23:59 for a course page that
+    // prints a bare date and marks it assumed; a student who typed only a day
+    // is in exactly that position, and the mark is what keeps §5.3 from ranking
+    // this invention above a stated Canvas deadline.
+    const timeAssumed = rawTime === "";
+    const time = timeAssumed ? ASSUMED_TIME : parseTime(rawTime, "time");
+    // `instantOf` rejects a date that does not exist (Feb 30, month 13), so the
+    // regex above does not have to know how long a month is.
+    dueAt = instantOf({ ...date, ...time }, zone, rawDate);
+    if (timeAssumed) extra["timeAssumed"] = "true";
+
+    if (rawEnd !== "") {
+      const endAt = instantOf({ ...date, ...parseTime(rawEnd, "end time") }, zone, rawDate);
+      // Not `>=`: a span that ends when it starts is a moment, and the student
+      // meant one of the two. Saying so is cheaper than storing a zero-length
+      // exam sitting that every consumer then has to decide what to do with.
+      if (Date.parse(endAt) <= Date.parse(dueAt)) {
+        throw new ManualItemError("The end time has to be after the start time.");
+      }
+      extra["endAt"] = endAt;
+    }
   }
 
   const note = text(input.note);
@@ -211,7 +241,9 @@ function fieldsOf(
     ...(courseCode ? { courseCode } : {}),
     title,
     kind,
-    dueAt,
+    // Omitted rather than set to `undefined`, so a store round trip through
+    // JSON cannot turn "no date" into a key that exists and holds nothing.
+    ...(dueAt !== undefined ? { dueAt } : {}),
     ...(url !== "" ? { url: parseUrl(url) } : {}),
     // Never `not_submitted`: nothing is watching this row, so the extension
     // cannot know. `unknown` is also what keeps `contradictsDone` quiet, so a

@@ -21,6 +21,11 @@ import {
   type ManualInput,
 } from "../src/core/manual.js";
 import { memberKey, type RawItem } from "../src/sources/types.js";
+import { attentionGroups, noDateCount } from "../src/core/calendar.js";
+import { dedupe } from "../src/core/dedupe.js";
+import { sectionFor } from "../src/core/grouping.js";
+import { badgeFor } from "../src/core/health.js";
+import { DEFAULT_SETTINGS, emptyStore } from "../src/core/store.js";
 
 const NOW = "2026-09-18T13:00:00.000Z";
 const ZONE = "America/Chicago";
@@ -243,5 +248,103 @@ describe("dedupeInput", () => {
 
   it("is still the fetched rows when nothing has been typed", () => {
     expect(dedupeInput({ "gradescope:1": fetched }, [])).toEqual([fetched]);
+  });
+});
+
+describe("a manual row with no date (brief D11)", () => {
+  const undated = (patch: Partial<ManualInput> = {}) =>
+    newManualItem({ title: "Read chapter 4", courseRaw: "CS 357", ...patch }, NOW, ZONE);
+
+  it("has no instant at all, rather than an invented one", () => {
+    /*
+     * The two things this must not become. `dueAt: undefined` and not a key
+     * holding nothing, so a store round trip through JSON cannot turn "no date"
+     * into something a reader has to interpret; and **no `timeAssumed`**, which
+     * says "this instant exists and we invented its clock" (worker house rule
+     * 3) and would hand §5.3 a date to rank.
+     */
+    const item = undated();
+    expect(item.dueAt).toBeUndefined();
+    expect(Object.keys(item)).not.toContain("dueAt");
+    expect(item.lateDueAt).toBeUndefined();
+    expect(item.extra?.["timeAssumed"]).toBeUndefined();
+  });
+
+  it("is a normal row otherwise, keyed and validated like any other", () => {
+    const item = undated({ note: "chapter 4 only", url: "https://example.edu/x" });
+    expect(item.source).toBe("manual");
+    expect(item.courseCode).toBe("CS357");
+    expect(item.status).toBe("unknown");
+    expect(item.extra?.["note"]).toBe("chapter 4 only");
+    expect(() => undated({ title: "  " })).toThrow(ManualItemError);
+    expect(() => undated({ courseRaw: "" })).toThrow(ManualItemError);
+  });
+
+  it("refuses a time with no day, rather than dropping it silently", () => {
+    // A time with no day is half a deadline and there is no honest instant to
+    // build from it. A student who typed 5:00 PM and watched it vanish has no
+    // way to know why — the same argument `parseUrl` makes about a link.
+    expect(() => undated({ time: "17:00" })).toThrow(ManualItemError);
+    expect(() => undated({ time: "17:00" })).toThrow(/Give this a date/);
+    expect(() => undated({ endTime: "19:00" })).toThrow(ManualItemError);
+  });
+
+  it("still refuses a bad date rather than treating it as no date", () => {
+    // The one failure that would make this change dangerous: a typo silently
+    // becoming an undated row, so the deadline the student typed is gone and
+    // nothing says so.
+    expect(() => newManualItem(input({ date: "2026-9-30" }), NOW, ZONE)).toThrow(ManualItemError);
+    expect(() => newManualItem(input({ date: "2026-09-31" }), NOW, ZONE)).toThrow(ManualItemError);
+  });
+
+  it("lands in the No date group, where every undated source row already sits", () => {
+    const item = undated();
+    const [built] = dedupe([item], emptyStore().overrides);
+    const groups = attentionGroups([built!], new Date(NOW));
+    expect(groups.map((g) => g.name)).toEqual(["No date at all"]);
+    expect(groups[0]!.items[0]!.title).toBe("Read chapter 4");
+    expect(noDateCount([built!], new Date(NOW))).toBe(1);
+  });
+
+  it("takes a date later without spending the hide, the tick or the merge", () => {
+    // `editManualItem` carries the `sourceId` over, and every override is keyed
+    // by memberKey — so "Give it a date" is an ordinary edit rather than a
+    // delete and an add.
+    const before = undated();
+    const after = editManualItem(
+      before,
+      { title: "Read chapter 4", courseRaw: "CS 357", date: "2026-09-30", time: "17:00" },
+      NOW,
+      ZONE,
+    );
+    expect(after.sourceId).toBe(before.sourceId);
+    expect(memberKey("manual", after.sourceId)).toBe(memberKey("manual", before.sourceId));
+    expect(after.dueAt).toBeDefined();
+    expect(after.extra?.["timeAssumed"]).toBeUndefined();
+
+    const [built] = dedupe([after], emptyStore().overrides);
+    expect(attentionGroups([built!], new Date(NOW))).toEqual([]);
+    expect(built!.dueAt).toBe(after.dueAt);
+  });
+
+  it("can have its date taken away again", () => {
+    const dated = newManualItem(input(), NOW, ZONE);
+    const cleared = editManualItem(dated, { title: "x", courseRaw: "CS 357" }, NOW, ZONE);
+    expect(cleared.dueAt).toBeUndefined();
+    expect(cleared.sourceId).toBe(dated.sourceId);
+  });
+
+  it("does not choke the store or the sync path", () => {
+    // Undated *source* rows have always existed, so this is a confirmation
+    // rather than a new guarantee — and the one place it could go wrong is the
+    // manual rows being merged in on a different path (`dedupeInput`).
+    const item = undated();
+    const store = emptyStore();
+    store.manualItems = [item];
+    const items = dedupe(dedupeInput(store.raw, store.manualItems), store.overrides);
+    expect(items.map((one) => one.title)).toEqual(["Read chapter 4"]);
+    expect(items[0]!.dueAt).toBeUndefined();
+    expect(sectionFor(items[0]!, new Date(NOW))).toBeUndefined();
+    expect(badgeFor(items, store.sources, DEFAULT_SETTINGS, new Date(NOW)).text).toBe("");
   });
 });
