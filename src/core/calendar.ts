@@ -647,6 +647,118 @@ export function monthCells(items: Item[], anchor: Date, now: Date): MonthCell[] 
 }
 
 /* -------------------------------------------------------------------------- */
+/* A month, in the popup (brief D6)                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How many dots a cell draws before it says "+N".
+ *
+ * Four rather than `MONTH_CELL_ROWS`'s three, because a dot is 5px and a row is
+ * a line of text: seven columns of a 400px popup leave about 50px per cell,
+ * which holds four dots and a gap. The two caps are separate constants because
+ * they answer the same question about two different drawings, and tying them
+ * together would make the full view's row cap move when the popup's dot size
+ * changed.
+ */
+export const MONTH_DOT_CAP = 4;
+
+export interface MonthDot {
+  /** The hue's key. `courseColours` turns it into one of eight. */
+  courseLabel: string;
+  /** Dimmed. Split out from `tone` because it is the only thing the dot draws. */
+  done: boolean;
+  tone: ItemTone;
+}
+
+export interface MonthDotCell {
+  date: Date;
+  /**
+   * A day of the neighbouring month, drawn because the grid is rectangular.
+   *
+   * `monthCells` calls the same thing `inMonth`. The name is inverted here
+   * because the popup's cell styles it — a cell is greyed when it is `outside`,
+   * and `!inMonth` in a template is the sort of thing that gets dropped.
+   */
+  outside: boolean;
+  isToday: boolean;
+  /** One per deadline, capped. Finished ones last (`sinkDone`). */
+  dots: MonthDot[];
+  /** How many did not fit. 0 when they all did. */
+  more: number;
+}
+
+/**
+ * The popup's month: weight per day, rather than titles per day (brief D6).
+ *
+ * `monthCells` was written for the full view, where a cell is 100px wide and
+ * can carry three titles. A 400px popup has no room for a word, so the cell
+ * carries *how much* rather than *what* — which is the only question a month
+ * answers anyway, and the reason the tab used to be full-view-only.
+ *
+ * Built on `monthCells` rather than beside it, so the calendar arithmetic — the
+ * leading and trailing days, which day is today, `sinkDone`'s ordering — has
+ * one implementation. Two copies of a month grid is the `resolveColumn` finding
+ * waiting to happen: the second drifts by a day and no test can reach it.
+ */
+export function monthDots(items: Item[], anchor: Date, now: Date): MonthDotCell[] {
+  return monthCells(items, anchor, now).map((cell) => {
+    const dots = cell.items.map((placed) => {
+      const tone = itemTone(placed.item, now);
+      return { courseLabel: placed.item.courseLabel, done: tone === "done", tone };
+    });
+    return {
+      date: cell.date,
+      outside: !cell.inMonth,
+      isToday: cell.isToday,
+      dots: dots.slice(0, MONTH_DOT_CAP),
+      more: Math.max(0, dots.length - MONTH_DOT_CAP),
+    };
+  });
+}
+
+/**
+ * The rows under a tapped day, soonest first (brief D6, mock 2a).
+ *
+ * `dayContents` is the source of truth for what is on a day, and this is the
+ * same set flattened: a timed row, an end-of-day row and a row whose time was
+ * never stated all belong in a list that has no hour axis to keep them apart.
+ * The untimed ones keep `assumed: true` so the caller still knows not to print
+ * "11:59 PM" over §4.5's invention (worker house rule 3).
+ *
+ * No cap and no `sinkDone`: the list is drawn under the grid with the whole
+ * popup to scroll in, so there is no row that gets pushed out of sight, and
+ * sinking finished work would only shuffle rows the student can already see.
+ */
+export function dayList(items: Item[], day: Date, now: Date): PlacedItem[] {
+  const contents = dayContents(items, day, now);
+  const placed = [
+    ...allTimed(contents),
+    ...contents.untimed.map((item) => ({
+      item,
+      anchor: { at: Date.parse(item.dueAt ?? ""), assumed: true, opening: false },
+    })),
+  ];
+  /*
+   * No title tie-break, deliberately.
+   *
+   * One was written here and mutating it away failed nothing: `dayContents`
+   * already breaks its own ties by title, inside each group, and `Array#sort`
+   * is stable — so a second copy of that rule cannot change an answer. Mutation
+   * house rule 2 calls that redundant rather than defensive, and a second copy
+   * would also be the *wrong* rule across groups, interleaving a stated 11:59
+   * with an invented one by title.
+   */
+  return placed.sort(
+    (a, b) =>
+      // A row whose instant will not parse sorts last rather than throwing the
+      // whole comparator into NaN, where every comparison is false and the
+      // order becomes whatever the sort implementation happens to do.
+      (Number.isNaN(a.anchor.at) ? 1 : 0) - (Number.isNaN(b.anchor.at) ? 1 : 0) ||
+      a.anchor.at - b.anchor.at,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Everything a grid cannot place                                              */
 /* -------------------------------------------------------------------------- */
 

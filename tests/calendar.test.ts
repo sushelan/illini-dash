@@ -31,6 +31,9 @@ import {
   minutesInto,
   MONTH_CELL_ROWS,
   monthCells,
+  MONTH_DOT_CAP,
+  monthDots,
+  dayList,
   NO_DATE_ORDER,
   noDateCount,
   noDateGroups,
@@ -810,6 +813,194 @@ describe("attentionGroups", () => {
 
   it("shows nothing on the badge when only undated rows exist", () => {
     expect(attentionCount([item({ title: "undated" })], NOW)).toBe(0);
+  });
+});
+
+describe("monthDots (brief D6)", () => {
+  const SEP = new Date(2026, 8, 15);
+
+  it("is the same grid as monthCells, with the neighbouring days named", () => {
+    const dots = monthDots([], SEP, NOW);
+    const cells = monthCells([], SEP, NOW);
+    expect(dots.map((d) => d.date.getTime())).toEqual(cells.map((c) => c.date.getTime()));
+    expect(dots.map((d) => d.outside)).toEqual(cells.map((c) => !c.inMonth));
+    expect(dots.filter((d) => d.outside).length).toBeGreaterThan(0);
+    expect(dots.filter((d) => d.isToday)).toHaveLength(1);
+  });
+
+  it("carries a dot per deadline, in the course's own hue", () => {
+    const dots = monthDots(
+      [
+        item({ title: "a", courseLabel: "CS357", dueAt: at(2026, 8, 15, 9) }),
+        item({ title: "b", courseLabel: "ECE374", dueAt: at(2026, 8, 15, 23, 59) }),
+      ],
+      SEP,
+      NOW,
+    );
+    const cell = dots.find((d) => d.date.getDate() === 15 && !d.outside)!;
+    expect(cell.dots.map((one) => one.courseLabel)).toEqual(["CS357", "ECE374"]);
+    expect(cell.more).toBe(0);
+  });
+
+  it("dims a finished deadline rather than dropping it", () => {
+    // The beta report this came from: "completed assignments from PrairieLearn
+    // don't show up in the calendar". A square with nothing in it asserts that
+    // nothing was due.
+    const cell = monthDots(
+      [item({ title: "handed in", done: true, dueAt: at(2026, 8, 15, 9) })],
+      SEP,
+      NOW,
+    ).find((d) => d.date.getDate() === 15 && !d.outside)!;
+    expect(cell.dots).toEqual([{ courseLabel: "CS357", done: true, tone: "done" }]);
+  });
+
+  it("caps at four dots and counts the rest", () => {
+    const many = Array.from({ length: 7 }, (_, i) =>
+      item({ title: `t${i}`, dueAt: at(2026, 8, 15, 9 + i) }),
+    );
+    const cell = monthDots(many, SEP, NOW).find((d) => d.date.getDate() === 15 && !d.outside)!;
+    expect(MONTH_DOT_CAP).toBe(4);
+    expect(cell.dots).toHaveLength(4);
+    expect(cell.more).toBe(3);
+  });
+
+  it("sinks finished work so the cap never hides the one thing still owed", () => {
+    // `sinkDone`'s whole reason: three struck-through pills can push the only
+    // open deadline out of a capped cell, and "which days are still heavy" is
+    // the one question a month answers.
+    const cell = monthDots(
+      [
+        item({ title: "d1", done: true, dueAt: at(2026, 8, 15, 8) }),
+        item({ title: "d2", done: true, dueAt: at(2026, 8, 15, 9) }),
+        item({ title: "d3", done: true, dueAt: at(2026, 8, 15, 10) }),
+        item({ title: "d4", done: true, dueAt: at(2026, 8, 15, 11) }),
+        item({ title: "open", courseLabel: "ECE374", dueAt: at(2026, 8, 15, 23) }),
+      ],
+      SEP,
+      NOW,
+    ).find((d) => d.date.getDate() === 15 && !d.outside)!;
+    expect(cell.dots[0]).toEqual({ courseLabel: "ECE374", done: false, tone: "open" });
+  });
+
+  it("never draws a hidden row", () => {
+    const cell = monthDots(
+      [item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 15, 9) })],
+      SEP,
+      NOW,
+    ).find((d) => d.date.getDate() === 15 && !d.outside)!;
+    expect(cell.dots).toEqual([]);
+  });
+});
+
+describe("dayList (brief D6, mock 2a)", () => {
+  const DAY = new Date(2026, 8, 22);
+
+  it("is everything on the day, soonest first", () => {
+    // Mock 2a's tapped day: "Tue, Sep 22 · 3 due", 11:00 PM before 11:59 PM.
+    const rows = dayList(
+      [
+        item({ title: "MP1 Report", dueAt: at(2026, 8, 22, 23, 59) }),
+        item({ title: "HW5", dueAt: at(2026, 8, 22, 23, 0) }),
+        item({ title: "L5", dueAt: at(2026, 8, 22, 9, 0) }),
+        item({ title: "elsewhere", dueAt: at(2026, 8, 23, 9, 0) }),
+      ],
+      DAY,
+      NOW,
+    );
+    expect(rows.map((r) => r.item.title)).toEqual(["L5", "HW5", "MP1 Report"]);
+  });
+
+  it("keeps a row whose time nobody stated, and says so", () => {
+    // Worker house rule 3: §4.5's 23:59 is this code's invention, and the
+    // caller must not print it as a clock.
+    const rows = dayList(
+      [
+        item({ title: "assumed", dueAt: at(2026, 8, 22, 23, 59), timeAssumed: true }),
+        item({ title: "stated", dueAt: at(2026, 8, 22, 21, 0) }),
+      ],
+      DAY,
+      NOW,
+    );
+    expect(rows.map((r) => r.item.title)).toEqual(["stated", "assumed"]);
+    expect(rows.map((r) => r.anchor.assumed)).toEqual([false, true]);
+  });
+
+  it("uses dayContents' visibility rules, so a hidden row stays hidden", () => {
+    expect(
+      dayList([item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 22, 9) })], DAY, NOW),
+    ).toEqual([]);
+  });
+
+  it("draws finished work rather than emptying the day", () => {
+    expect(
+      dayList([item({ title: "done", done: true, dueAt: at(2026, 8, 22, 9) })], DAY, NOW).map(
+        (r) => r.item.title,
+      ),
+    ).toEqual(["done"]);
+  });
+
+  it("orders two things on the same minute by title rather than at random", () => {
+    // Inherited from `dayContents`, which breaks its own ties by title, and
+    // kept by `Array#sort` being stable. Asserted here because it is part of
+    // this function's contract wherever it comes from — a month cell that
+    // reshuffles on every redraw is a month cell nobody trusts.
+    expect(
+      dayList(
+        [
+          item({ title: "b", dueAt: at(2026, 8, 22, 23, 59) }),
+          item({ title: "a", dueAt: at(2026, 8, 22, 23, 59) }),
+        ],
+        DAY,
+        NOW,
+      ).map((r) => r.item.title),
+    ).toEqual(["a", "b"]);
+  });
+
+  it("really sorts, rather than relying on dayContents' grouping order", () => {
+    /*
+     * A deliberately unrealistic row (house rule 10): §4.5's runner fills in
+     * **23:59** for a bare date, so every real `timeAssumed` row sorts last
+     * anyway and a concatenation of timed-then-untimed is indistinguishable
+     * from a sort. An assumed 9 AM is the input that tells them apart.
+     */
+    expect(
+      dayList(
+        [
+          item({ title: "stated 9 PM", dueAt: at(2026, 8, 22, 21, 0) }),
+          item({ title: "assumed 9 AM", dueAt: at(2026, 8, 22, 9, 0), timeAssumed: true }),
+        ],
+        DAY,
+        NOW,
+      ).map((r) => r.item.title),
+    ).toEqual(["assumed 9 AM", "stated 9 PM"]);
+  });
+
+  it("puts a row whose own dueAt will not parse last, rather than at random", () => {
+    /*
+     * Reachable, and not hypothetical: `liveDeadline` falls back to `lateDueAt`
+     * when `dueAt` is unreadable, so such a row is placed on the day by its
+     * late window — and then this function re-reads `dueAt` for the untimed
+     * half and gets NaN. Every comparison against NaN is false, so without the
+     * guard the order is whatever V8 happens to do with an inconsistent
+     * comparator. (`monthCells` builds its untimed anchors the same way.)
+     */
+    const rows = dayList(
+      [
+        // Both untimed, and named so `dayContents`' own title sort puts the
+        // broken one *first* — otherwise the concatenation already answers
+        // correctly and the guard is never reached (mutation house rule 4).
+        item({
+          title: "aaa broken",
+          dueAt: "not a date",
+          lateDueAt: at(2026, 8, 22, 10, 0),
+          timeAssumed: true,
+        }),
+        item({ title: "bbb real", dueAt: at(2026, 8, 22, 21, 0), timeAssumed: true }),
+      ],
+      DAY,
+      NOW,
+    );
+    expect(rows.map((r) => r.item.title)).toEqual(["bbb real", "aaa broken"]);
   });
 });
 
