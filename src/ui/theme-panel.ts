@@ -122,7 +122,28 @@ export function applyStoredTheme(): void {
   const root = document.documentElement;
   root.classList.remove(...allThemeClasses());
   root.classList.add(themeClass(storedTheme()));
+  applyDesign(root);
   applyMode();
+}
+
+/*
+ * The visual-language variant (2026-09-19 exploration): `timetable`, `rams` or
+ * `editorial`. Each is one stylesheet scoped under `html[data-design="…"]`,
+ * so with no value stored the page is exactly the shipped design. Per-device
+ * like the theme, and for the same reason: read before first paint, no worker
+ * round trip.
+ */
+const DESIGN_KEY = "illini-dash.design";
+const DESIGNS = ["timetable", "rams", "editorial"] as const;
+function applyDesign(root: HTMLElement): void {
+  let value: string | null = null;
+  try {
+    value = window.localStorage.getItem(DESIGN_KEY);
+  } catch {
+    value = null;
+  }
+  if (value && (DESIGNS as readonly string[]).includes(value)) root.dataset.design = value;
+  else delete root.dataset.design;
 }
 
 /*

@@ -231,6 +231,8 @@ writeFileSync(
       try {
         if (q.has("tab")) localStorage.setItem("illini-dash.view", q.get("tab"));
         if (q.has("theme")) localStorage.setItem("illini-dash.theme", q.get("theme"));
+        if (q.has("design")) localStorage.setItem("illini-dash.design", q.get("design"));
+        else localStorage.removeItem("illini-dash.design");
         if (q.has("hidden")) localStorage.setItem("illini-dash.hiddenCourses", q.get("hidden"));
       } catch {
         /* A profile with site data blocked. The page still renders its default. */
@@ -246,7 +248,7 @@ writeFileSync(
       // sent on, so a shot asking for a section further down the Settings page
       // silently came out at the top.
       const hash = q.get("hash") ? "#" + q.get("hash") : "";
-      for (const key of ["page", "tab", "theme", "hidden", "hash"]) q.delete(key);
+      for (const key of ["page", "tab", "theme", "hidden", "hash", "design"]) q.delete(key);
       location.replace(page + (q.toString() ? "?" + q.toString() : "") + hash);
     </script>
   </body>

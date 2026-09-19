@@ -43,7 +43,13 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const root = new URL("..", import.meta.url).pathname;
 const dist = join(root, "dist");
-const outDir = join(root, "docs", "ux", "after");
+// `--design=<name>` renders every shot under that visual-language variant and
+// writes to docs/ux/design/<name>/ instead, so the three explorations never
+// overwrite the shipped captures.
+const designArg = process.argv.find((a) => a.startsWith("--design="))?.slice("--design=".length);
+const outDir = designArg
+  ? join(root, "docs", "ux", "design", designArg)
+  : join(root, "docs", "ux", "after");
 
 const CHROME_CANDIDATES = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -209,7 +215,7 @@ async function capture(chrome, port, { name, query, size, fixed }, dark) {
     `--screenshot=${file}`,
   ];
   args.push(`--blink-settings=preferredColorScheme=${dark ? 0 : 1}`);
-  args.push(`http://127.0.0.1:${port}/shot.html?${query}`);
+  args.push(`http://127.0.0.1:${port}/shot.html?${query}${designArg ? `&design=${designArg}` : ""}`);
 
   const child = spawn(chrome, args, { stdio: "ignore" });
   const done = new Promise((resolve) => child.on("exit", resolve));
@@ -254,7 +260,7 @@ for (const dark of [true, false]) {
   }
 }
 server.close();
-console.log(`\n${taken - failures} shots -> docs/ux/after/`);
+console.log(`\n${taken - failures} shots -> ${outDir.slice(root.length)}/`);
 // Reported, not swallowed: a missing file here means a page threw while
 // drawing, and a script that exits 0 having written nothing is the silent
 // empty this project ranks worst.
