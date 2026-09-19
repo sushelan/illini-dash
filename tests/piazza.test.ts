@@ -442,6 +442,9 @@ describe("planPiazza", () => {
       poll: [],
       reason: "off",
       seenPostsForFetch: {},
+      // Nothing is being re-read, and the field says so rather than being
+      // absent: the apply stage reads it unconditionally.
+      rereadCount: 0,
     });
   });
 
@@ -1460,6 +1463,38 @@ describe("the reader version", () => {
       expect(needed.alreadyRead).toBe(0);
       expect(batch.batch).toEqual([]);
     });
+  });
+
+  it("announces the same number it applies, over a store with 29 marks", () => {
+    /*
+     * Sushi's console, 2026-09-19: the plan said it was re-reading a feed of
+     * notes and the write, seconds later, said *"reader upgraded 2 → 3:
+     * re-reading 0 posts in full"*. Both lines were true about what they
+     * counted and the pair was nonsense — the plan clears the `piazza:` marks
+     * for the fetch, so by the time the write counts what *it* drops there is
+     * nothing left to count. The count is the plan's, and both lines print it.
+     *
+     * 29 because that is the number the first live run read. The apply stage
+     * below is handed a store with **no** `piazza:` marks left, which is the
+     * shape that produced the 0 — a right implementation and the live wrong one
+     * are indistinguishable on a store that still has them (house rule 10).
+     */
+    const marks: Record<string, string> = { "campuswire:cs357:9": NOW_ISO };
+    for (let nr = 1; nr <= 29; nr += 1) marks[`piazza:${NID}:${nr}`] = "2026-09-17T10:00:00-05:00";
+    const plan = planPiazza(stored({ readerVersion: 2 }), {
+      granted: true,
+      now: NOW,
+      seenPosts: marks,
+    });
+    expect(plan.rereadAll).toBe(true);
+    expect(plan.rereadCount).toBe(29);
+    expect(plan.reason).toContain("re-reading 29 posts in full");
+
+    const applied = readerUpgrade(plan.seenPostsForFetch, 2, plan.rereadCount);
+    expect(applied.dropped).toBe(0);
+    expect(applied.message).toBe("reader upgraded 2 → 3: re-reading 29 posts in full");
+    // Both sentences, end to end, say the same number.
+    expect(plan.reason.endsWith(applied.message.split(": ")[1]!)).toBe(true);
   });
 
   it("says so even when there was nothing to drop", () => {

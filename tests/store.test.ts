@@ -333,9 +333,45 @@ describe("suggestions and the posts they came from", () => {
     // list whose entire job is what is still ahead.
     const past = { ...suggestion, at: "2026-09-09T23:59:00-05:00" };
     expect(migrate({ suggestions: [past] }, NOW).suggestions).toEqual([]);
-    // Six days past is still worth offering.
-    const recent = { ...suggestion, at: "2026-09-13T23:59:00-05:00" };
+    // Six days past is still worth offering — as long as it was ahead when it
+    // was found, which is the third clock's business below. Read on the 11th,
+    // due on the 13th: one clock at a time.
+    const recent = {
+      ...suggestion,
+      at: "2026-09-13T23:59:00-05:00",
+      createdAt: "2026-09-11T15:30:00-05:00",
+    };
     expect(migrate({ suggestions: [recent] }, NOW).suggestions).toHaveLength(1);
+  });
+
+  it("forgets a suggestion that was already past when it was found", () => {
+    /*
+     * The store-side twin of the ingest rule, for rows written before it.
+     *
+     * Sushi's Attention tab on the 19th still held two of these: read on the
+     * 18th, due on the 13th and the 14th. Both clocks above measure against
+     * *today*, so neither refuses one until a week has gone by — and the
+     * evidence that it was useless is on the row itself, the day it was made.
+     */
+    const found = { ...suggestion, at: "2026-09-13T23:59:00-05:00" }; // createdAt: 18 Sep
+    expect(migrate({ suggestions: [found] }, NOW).suggestions).toEqual([]);
+    // Not a date test: the same pair, moved so both clocks are comfortable,
+    // still goes. `at` a minute before `createdAt` is enough.
+    const later = {
+      ...suggestion,
+      at: "2026-10-12T23:59:00-05:00",
+      createdAt: "2026-10-12T23:59:01-05:00",
+    };
+    expect(migrate({ suggestions: [later] }, NOW).suggestions).toEqual([]);
+    // And the healthy shape — found before it is due, both clocks recent —
+    // survives, so the rule is the *order* of the two instants and not a third
+    // way of saying "old".
+    const ahead = {
+      ...suggestion,
+      at: "2026-10-12T23:59:00-05:00",
+      createdAt: "2026-09-18T15:30:00-05:00",
+    };
+    expect(migrate({ suggestions: [ahead] }, NOW).suggestions).toHaveLength(1);
   });
 
   it("forgets a post it read more than sixty days ago", () => {

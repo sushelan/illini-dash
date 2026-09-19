@@ -535,3 +535,48 @@ notes on Sushi's install are of this kind. The reader holds them back with the r
 suggestions either. `includeStudentNotes` remains the switch if that ever changes; the
 held-back count is in the console line, so a class whose staff post through a student
 account would show up there rather than vanish silently.
+
+## Amendment (2026-09-19): the announcement is not the row's name
+
+The 2026-09-18 amendment above fixed the fall-back — a sentence-length title means the
+subject rule found nothing, so fall back to the post's subject — and the first row it
+produced live showed what that fall-back is worth on its own. Note 145's subject is
+
+> MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1 report on Gradescope)
+
+and the Attention tab drew all ninety characters as the title, with the same ninety
+quoted on the grey line directly underneath. The fall-back had fired correctly: the
+sentence named nothing. A subject is a *sentence about* the post, and only its head is a
+name.
+
+So a title that **is** the post's subject is cut at the first of `" ("`, `": "`, `" — "`,
+`" – "`, `" - "` or `" + "` — each spelled with its spaces, because "Proj-CNN" and "11:59"
+are the same characters inside a word — and the whole subject stands when the cut leaves
+fewer than three characters ("HW" is not a row anybody can act on). Over the two real
+corpora: note 145 becomes *"MP1 Demo Signups May have moved location"*, note 28's *"HW1
+(All students) Released - And Clarifications (Running Post)"* becomes *"HW1"*, and eight
+of Campuswire's nine subjects — including #645's *"Proj-CNN Mini Extension"* — are
+untouched. A title the *sentence* named is never cut: today's phrase scan already stops at
+these separators, so it hands back "MP1" for "MP1 Report (4cr only, EXCEPT Coursera)" and
+the parenthetical is gone before any of this runs.
+
+`Suggestion.postSubject` still carries the subject in full, and the popup now draws the
+"from the Piazza post “…”" line **only when the subject differs from the title** — when
+the title is the whole subject, the row reads "from a Piazza post" as it did before, which
+is the wording that says nothing rather than the wording that says the same thing twice.
+
+Two more of that evening's rows needed nothing new read: they were found on the 18th and
+due on the 13th and 14th, which the 2026-09-18 ingest rule now refuses — but only at
+ingest. `pruneSuggestions` drops a stored suggestion whose `at` precedes its `createdAt`,
+whatever the day, which is the same rule applied to what is already on disk.
+
+## The two re-read lines now count the same thing
+
+The apply-time line on Sushi's console said *"reader upgraded 2 → 3: re-reading 0 posts in
+full"* seconds after the plan had announced a full re-read of the feed, and both halves
+were counting honestly. `planPiazza` clears every `piazza:` mark to build
+`seenPostsForFetch`; the write then runs `readerUpgrade` again, over marks the fetch has
+already re-stamped, and counts what *it* drops — an absence. The count is the plan's
+(`PiazzaPlan.rereadCount`), both sentences print it through one `rereadPhrase`, and
+`tests/piazza.test.ts` pins the pair over a store with 29 marks and an apply stage handed
+a store with none, which is the shape the live 0 came from.

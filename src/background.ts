@@ -1691,7 +1691,15 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
            * sync's plan no longer asks for it.
            */
           if (plan.rereadAll === true) {
-            const upgrade = readerUpgrade(fresh.seenPosts, readerVersionOf(fresh.observers.piazza));
+            const upgrade = readerUpgrade(
+              fresh.seenPosts,
+              readerVersionOf(fresh.observers.piazza),
+              // The plan's count, not this call's: the marks it counts are the
+              // ones the plan cleared for the fetch that has already happened,
+              // so counting them here counted an absence and announced
+              // "re-reading 0 posts in full" after re-reading 29.
+              plan.rereadCount,
+            );
             fresh.seenPosts = upgrade.seenPosts;
             fresh.observers.piazza = {
               ...fresh.observers.piazza,
