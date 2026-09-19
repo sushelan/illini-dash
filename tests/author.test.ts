@@ -1238,9 +1238,18 @@ describe("one session's worth of prompt per attempt", () => {
      * paid for in rows the model never sees, and the page is the thing it has
      * to answer about. Measured against the smallest window Chrome has shipped
      * for this API (4,096 tokens): the whole retry suffix must cost under a
-     * twentieth of what the summary gets.
+     * *fifteenth* of what the summary gets.
+     *
+     * It was a twentieth until the retry gained the dated-groups note, which is
+     * the answer to the one rejection the model could not act on: three live
+     * runs on ECE 411 ended with "only 1 of 3 rows carried a readable date" and
+     * nothing anywhere saying which group had the other fifteen. 200 characters
+     * of "here are the three groups that do carry dates, with their labels" buy
+     * the next attempt a copy instead of a search, which is worth more than the
+     * two rows of summary they cost. The bound is still a bound: it fails if
+     * the note is ever uncapped.
      */
-    expect(RETRY_SUFFIX_CHARS).toBeLessThan(skeletonBudgetChars(4096, 0) / 20);
+    expect(RETRY_SUFFIX_CHARS).toBeLessThan(skeletonBudgetChars(4096, 0) / 15);
   });
 
   it("keeps a short reason whole", () => {
@@ -1739,7 +1748,7 @@ describe("the row sketch", () => {
     expect(user).toContain("inside one row:");
     // ECE 411's bullets hold their text in a `<p>`, so `title: "p"` is a
     // choice from something printed rather than a guess at markup.
-    expect(user).toMatch(/#mp-information ul\.simple > li\s+×16\s+inside one row: p/);
+    expect(user).toMatch(/#mp-information ul\.simple > li\s+×16\s+dated 4\/16[^\n]*inside one row: p/);
   });
 
   it("is repeated in the retry, for the rows the last answer chose", () => {
@@ -1855,5 +1864,90 @@ describe("the [author] line names the answer, not only this code's verdict", () 
     );
     expect(seen[0]!.shape).toBe("rows");
     expect(seen[0]!.keys).toEqual(["shape", "rows", "title", "due", "dueLabel", "dateFormat"]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The retry names the groups that do carry dates                              */
+/* -------------------------------------------------------------------------- */
+
+describe("a rejection about dates points at the groups that have them", () => {
+  const doc = ece411();
+  const structures = repeatedStructures(doc, ZONE, REFERENCE);
+  const check = (proposal: unknown) =>
+    validateProposal(proposal, doc, URL_ECE411, ZONE, REFERENCE, structures);
+
+  /** The correct answer with its filter dropped — ten rows, two dated. */
+  const { filter: _filter, ...unfiltered } = ECE411_PROPOSAL;
+
+  it("flags all three date rejections as date rejections", () => {
+    /*
+     * A flag rather than the retry matching the sentence. "only 2 of 10 rows
+     * carried a readable date", "nothing in … read as a date in MMM d, h:mm a
+     * format" and "row \"mp_cache\" has a date this could not fully read" are
+     * three wordings of one problem, and a substring match on any of them is
+     * house rule 6's mistake — a reworded reason would silently stop earning
+     * the one note that would have ended the loop.
+     */
+    const tooFew = check(unfiltered);
+    expect(tooFew.ok).toBe(false);
+    if (!tooFew.ok) {
+      expect(tooFew.reason).toBe("only 2 of 10 rows carried a readable date");
+      expect(tooFew.dateProblem).toBe(true);
+    }
+
+    const wrongFormat = check({ ...ECE411_PROPOSAL, dateFormat: "MMM d, h:mm a" });
+    expect(wrongFormat.ok).toBe(false);
+    if (!wrongFormat.ok) expect(wrongFormat.dateProblem).toBe(true);
+
+    const unreadTail = check({ ...ECE411_PROPOSAL, dueLabel: "Due", filter: undefined });
+    expect(unreadTail.ok).toBe(false);
+    if (!unreadTail.ok) {
+      expect(unreadTail.reason).toContain("could not fully read");
+      expect(unreadTail.dateProblem).toBe(true);
+    }
+  });
+
+  it("does not flag a rejection that is about something else", () => {
+    // "shape list does not take link" is not answered by a list of groups that
+    // carry dates, and a note repeated on every retry is one the model stops
+    // reading.
+    const outcome = check({ ...ECE411_PROPOSAL, link: "Solution" });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.dateProblem).toBeUndefined();
+  });
+
+  it("puts the dated groups in the next prompt, so the answer is a copy", async () => {
+    /*
+     * The live run this is written from: "Chrome's built-in model tried 3
+     * attempts and its last proposal read no deadlines: only 1 of 3 rows
+     * carried a readable date" (2026-09-19). The proposals were schema-valid
+     * and grounded and reached the runner; the model kept choosing a group
+     * with one date in it because nothing it was shown said which group had
+     * the rest.
+     */
+    const prompts: string[] = [];
+    let answered = 0;
+    const outcome = await authorAdapter(
+      async (text) => {
+        prompts.push(text);
+        answered += 1;
+        return JSON.stringify(answered === 1 ? unfiltered : ECE411_PROPOSAL);
+      },
+      doc,
+      URL_ECE411,
+      ZONE,
+      REFERENCE,
+      skeletonise(doc, 30_000, structures),
+      { structures },
+    );
+    expect(outcome.ok).toBe(true);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[0]).not.toContain("Groups on this page that do carry dates");
+    expect(prompts[1]).toContain(
+      "Groups on this page that do carry dates: #mp-information ul.simple > li (4 of 16 dated",
+    );
+    expect(prompts[1]).toContain('label "Due|CP1 Due');
   });
 });

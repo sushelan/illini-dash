@@ -3,10 +3,12 @@
 *Decision by Sushi, 2026-09-18.*
 
 "Add a course site" in Settings reads a page and proposes an adapter for it. The
-proposer in `src/core/detect.ts` is a search, not a model: every column of every
-table crossed with every supported date format, kept when enough rows parse. It
-is deterministic, mutation-testable, needs no download and works on every
-machine — and it is the answer whenever it has one.
+proposer in `src/core/detect.ts` is a search, not a model, and it reads **two**
+shapes: a table with a header row (every column crossed with every supported
+date format, kept when enough rows parse) and, since 2026-09-19, a **labelled
+list** — `Due: 9/7` bullets under a heading, the shape ECE 411's page is made
+of. Both are deterministic, mutation-testable, need no download and work on
+every machine — and they are the answer whenever they have one.
 
 It does not always have one. CS 424's schedule has no header row, uses `rowspan`
 so cells shift between rows, and packs two events into one cell. For pages like
@@ -32,8 +34,8 @@ are fixed below — the three shapes, and the status line.
 | Step | Where | What |
 |---|---|---|
 | Fetch the page | `background.ts` → `capture` | Unchanged. The HTML now comes back with the candidates (`htmlForAuthoring`), so nothing is fetched twice |
-| Propose deterministically | offscreen → `core/detect.ts` | Unchanged. Candidates → the existing preview |
-| **Inventory the page** | `core/skeleton.ts` | `repeatedStructures(doc)` — the page's repeated element groups, each with a selector that has been run and matched, a count and a sketch of one row's insides |
+| **Inventory the page** | offscreen → `core/skeleton.ts` | `repeatedStructures(doc, timezone, reference)` — the page's repeated element groups, each with a selector that has been run and matched, a count, a sketch of one row's insides, and **how many of its rows carry a date** |
+| Propose deterministically | offscreen → `core/detect.ts` | `proposeCandidates` — the table search, then `detectListCandidates` over the inventory. Candidates → the existing preview |
 | **Summarise the page** | `core/skeleton.ts` | `skeletonise(doc, budgetChars)` — tags, ids, classes, table structure; scripts, styles, nav and footer dropped |
 | **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })`, with `rows` enumerated from the inventory and every key the validator can demand required |
 | **Ground** | `core/author.ts` | `groundProposal` — every selector checked against the DOM, before the runner is paid for |
@@ -231,8 +233,8 @@ answer was a guess at markup the model had not been shown. Each entry now carrie
 one, from the first matching element:
 
 ```
-#mp-information ul.simple > li  ×16  inside one row: p  e.g. "Release: 8/25"
-#mp-information > section  ×5  inside one row: h3, ul.simple  e.g. "mp_setup Release: 8/25 Due: 9/7"
+#mp-information ul.simple > li  ×16  dated 4/16 (12 TBD) (label "Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due")  inside one row: p  e.g. "Due: 9/7"
+#mp-information > section  ×5  dated 2/5 (3 TBD)  inside one row: h3, ul.simple  e.g. "mp_setup Release: 8/25 Due: 9/7"
 ```
 
 Tags and classes, deduplicated (three `<p>`s are one answer), at most six of
@@ -314,6 +316,106 @@ Two rejections are worth naming because they are house rules, not preferences:
 published registry entry clears — rather than by a second copy of those rules
 here. A `kind` this file waved past would reach `Item.kind` as a value no
 `switch` in the UI has a branch for, and `examBoard` filters on it.
+
+## The inventory says which groups carry dates, and the search reads lists
+
+*2026-09-19, from three live runs on the same page.*
+
+ECE 411's assignments page went to the model three times, one build apart, and
+never produced a row:
+
+1. *"tried 3 attempts … no rows matched `#schedule .event`"* — an example
+   selector from another course, fixed by the inventory and the grounding above.
+2. *"shape \"rows\" needs title"* — fixed by making the schema demand what the
+   validator demands.
+3. *"its last proposal read no deadlines: only 1 of 3 rows carried a readable
+   date"* — schema-valid, grounded, reaching the runner, and still wrong.
+
+The third is the interesting one. The proposals were legal; the model simply
+kept choosing a small group. The inventory it was shown, in order, was `li ×39`,
+`ul > li ×37`, `#assignments ul.simple > li ×20`, `#mp-information ul.simple >
+li ×16`, … — the right answer fourth, and **nothing anywhere saying which groups
+actually had dates in them**. Ordering was row-likeness, then count, so a bare
+`li` covering the whole page outranked the one group covering the course.
+
+### Every group now says how much of it is dated
+
+`RepeatedStructure.dated` is `{ rows, of, pending, sample, format, label? }`,
+measured with `parseAdapterDateParts` — the reader `runAdapter` uses — and not
+with a regex of the inventory's own. A tail the reader cannot consume counts as
+*not* dated, because `validateProposal` refuses exactly that: a group counted
+dated here that the runner would reject is a line pointing the model at a dead
+end.
+
+- **`pending` is TBD, TBA and N/A**, counted apart from undated. Both shipped
+  entries drop those lines with `filter.exclude`, and a deadline the course has
+  not set is not a line this read wrongly. It is the difference between reading
+  ECE 411's MPs as *4 of 16* (a bad guess) and as *4 of 4 stated* (a term that
+  has barely started), and the whole ordering turns on it.
+- **`label` is the `dueLabel` convention**, every label ending in the word
+  *due*: `Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due`, character for
+  character what `ece411-fa26-mp` carries. Taken from *every* row rather than
+  only the dated ones, because every checkpoint reads TBD today and a label list
+  built from the dated lines would stop covering the course the moment one got a
+  date. `Due Date` does not end in *due* and is not taken (house rule 6).
+- **The sample is a line carrying that label.** The group's first dated line is
+  `Release: 8/25`, which parses exactly as cleanly as a deadline and is not one.
+
+The list is then ordered by **dated rows out of stated rows**, then by how many,
+then by the old row-likeness and count. On ECE 411 `#mp-information ul.simple >
+li` goes first; on ECE 310 `#homework table tbody tr` (13 of 13) goes above the
+schedule table (13 of 34) — in both cases the selector a person wrote by hand.
+
+### The retry names the groups that do carry dates
+
+A rejection about dates now carries `dateProblem` — a flag, not a sentence to
+match — and the retry appends, under the quoted reason:
+
+```
+Groups on this page that do carry dates: #mp-information ul.simple > li (4 of 16 dated, label "Due|CP1 Due|…"); …
+```
+
+Top three, capped at `MAX_DATED_NOTE_CHARS` and inside `RETRY_SUFFIX_CHARS`, so
+the next answer is a copy rather than another search. It costs the page summary
+about two rows; the reserve's test now allows a fifteenth of the smallest window
+instead of a twentieth, and says why.
+
+### And the deterministic proposer reads the list itself
+
+`detectListCandidates` turns an inventory group into a candidate when all of:
+
+- at least 3 rows;
+- at least **80%** of its *stated* rows dated — far stricter than the half a
+  table's column needs, because a table's column is named by its header and a
+  list's only evidence is that its lines read as dates;
+- a `dueLabel` convention (`dated.label`);
+- a `titleFrom` — the heading over the rows. This is also what keeps the list
+  proposer off a table: a group of table rows or cells is given no `titleFrom`,
+  because a heading over a table is not a row's name. An explicit "not a table"
+  guard was measured redundant with it and deleted (mutation rule 2).
+
+The candidate is `rows` + `title: "."` + `due: "."` + `dueLabel` + `titleFrom` +
+`filter.exclude` for TBD/N/A, and it is run through the **real runner** on the
+real page: at least one row, every kept row's value read whole. Over the ECE 411
+capture it matches the same sixteen `<li>`s as `ece411-fa26-mp` *by element
+identity* and produces the same two rows, `mp_setup` and `mp_verif` at
+2026-09-07T23:59-05:00. **That page no longer reaches the model at all.**
+
+Not everything list-shaped is reachable, and the exam list on ECE 411's syllabus
+is the example: see `docs/ece411-findings.md`.
+
+### What a student is told now
+
+`candidatesFoundLine` (in core, where a test can quote it) says what ran:
+*"Found a list of 2 dated lines that looks like a schedule."*, *"Found one table
+that looks like a schedule."*, *"Found 1 table and 1 list that could be the
+schedule."* The old line said "table" whatever was found.
+
+`noCandidateReason` no longer says the search "only looks at tables" — it names
+both shapes it reads, and then says what it *did* find: *"The nearest thing to a
+schedule is `#schedule ul.simple > li`: 3 lines, 2 with a date this can read."*
+A student on an unreadable page learns something about their page rather than
+about this feature.
 
 ## The summary has to show a list, not mention one
 

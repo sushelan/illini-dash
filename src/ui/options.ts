@@ -7,7 +7,12 @@
 
 import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
-import { adapterFromCandidate, SITE_TIMEZONE, type Candidate } from "../core/detect.js";
+import {
+  adapterFromCandidate,
+  candidatesFoundLine,
+  SITE_TIMEZONE,
+  type Candidate,
+} from "../core/detect.js";
 import {
   attemptLogLine,
   authorAdapter,
@@ -2034,10 +2039,9 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
     }
     return;
   }
-  addSiteStatus.textContent =
-    response.candidates.length === 1
-      ? "Found one table that looks like a schedule."
-      : `Found ${response.candidates.length} tables that could be the schedule.`;
+  // The sentence is `core/detect.ts`'s, because it is a fact about what ran —
+  // and because said here it said "table" about a list (worker rule 1).
+  addSiteStatus.textContent = candidatesFoundLine(response.candidates);
   renderCandidates(response.candidates, response.url, response.courseCodeGuess);
 });
 
@@ -2091,7 +2095,12 @@ async function proposeWithModel(
   // the summary is what gets cut. A model shown a short summary and a correct
   // list of selectors can still answer; one shown the whole page and no list
   // invents `#schedule .event`, which is the run this came from.
-  const structures = repeatedStructures(doc);
+  // One instant for the whole run: the inventory's "carries a date" counts are
+  // measured with the runner's reader, and a second `new Date()` at the
+  // `authorAdapter` call below would let the list shown to the model and the
+  // validation of its answer disagree about which year a bare `9/7` is in.
+  const reference = new Date().toISOString();
+  const structures = repeatedStructures(doc, SITE_TIMEZONE, reference);
   // The system half is fixed, so its size comes out of the same window the page
   // summary has to fit in; `buildPrompt` with an empty page measures it.
   const empty = buildPrompt("", url, undefined, structures);
@@ -2186,7 +2195,7 @@ async function proposeWithModel(
       doc,
       url,
       SITE_TIMEZONE,
-      new Date().toISOString(),
+      reference,
       skeleton,
       {
         structures,

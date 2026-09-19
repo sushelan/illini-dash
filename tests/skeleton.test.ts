@@ -11,7 +11,11 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
+  datedPhrase,
+  datedRows,
+  MAX_DATED_NOTE_CHARS,
   MAX_SKETCH_CHARS,
+  renderDatedGroups,
   renderStructures,
   repeatedStructures,
   skeletonise,
@@ -484,7 +488,16 @@ describe("the repeated structures a page offers", () => {
     for (const structure of repeatedStructures(doc)) {
       expect(text).toContain(`${structure.selector}  ×${structure.count}`);
     }
-    expect(text).toContain('"Release: 8/25"');
+    /*
+     * The *dated* line, not the group's first line.
+     *
+     * `#mp-information ul.simple > li` starts with `Release: 8/25`, which is a
+     * date and is not a deadline — printing it as the group's example put the
+     * one line on the page that most looks like a deadline and is not in front
+     * of the model, beside a label reading "Due". The sample is chosen after
+     * the label and prefers a row carrying it.
+     */
+    expect(text).toContain('"Due: 9/7"');
   });
 });
 
@@ -644,13 +657,137 @@ describe("the row sketch", () => {
     for (const structure of repeatedStructures(doc)) {
       expect(structure.sketch).not.toBe("");
       expect(text).toContain(
-        `${structure.selector}  ×${structure.count}  inside one row: ${structure.sketch}`,
+        `${structure.selector}  ×${structure.count}  ${datedPhrase(structure.dated)}` +
+          `  inside one row: ${structure.sketch}`,
       );
     }
   });
 
   it("reaches the rendered line, so the model sees it beside the selector", () => {
     const doc = docFrom(`<ul id="s"><li>9/4</li><li>9/11</li></ul>`);
-    expect(renderStructures(repeatedStructures(doc))).toContain("#s > li  ×2  inside one row: text");
+    expect(renderStructures(repeatedStructures(doc))).toContain(
+      '#s > li  ×2  dated 2/2  inside one row: text  e.g. "9/4"',
+    );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Which groups carry dates                                                    */
+/* -------------------------------------------------------------------------- */
+
+const ZONE = "America/Chicago";
+const REFERENCE = "2026-09-11T05:00:00.000Z";
+const inventory = (doc: Document) => repeatedStructures(doc, ZONE, REFERENCE);
+
+describe("the dated half of the inventory", () => {
+  const doc = fixture("ece411-fa2026-assignments.html");
+  const structures = inventory(doc);
+  const mps = structures.find((s) => s.selector === "#mp-information ul.simple > li")!;
+
+  it("counts with the runner's own reader, not a regex of its own", () => {
+    // Four lines on this capture state a date (two Release, two Due); the other
+    // twelve read TBD. A count that said 16 would be a claim the runner does
+    // not make, and this number decides the order of the whole list.
+    expect(mps.dated.of).toBe(16);
+    expect(mps.dated.rows).toBe(4);
+    expect(mps.dated.pending).toBe(12);
+    expect(mps.dated.format).toBe("M/d");
+  });
+
+  it("reads the due-label convention off the page, every alternative of it", () => {
+    // Character for character what `ece411-fa26-mp` carries. Built from every
+    // row's label and not only the dated ones: every checkpoint reads TBD
+    // today, and a label list built from the dated lines would stop covering
+    // the course the moment the first checkpoint got a date.
+    expect(mps.dated.label).toBe("Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due");
+  });
+
+  it("samples a line that carries the label, not merely a line with a date", () => {
+    expect(mps.dated.sample).toBe("Due: 9/7");
+  });
+
+  it("puts the group covering the course first, not the one containing it", () => {
+    /*
+     * The whole point. Ranked by row-likeness and count, this page offered
+     * `li` (×39), `ul > li` (×37) and `#assignments ul.simple > li` (×20) above
+     * the answer, and the model picked a small wrong group on three live runs.
+     * Ranked by dated-out-of-stated, `#mp-information ul.simple > li` is four
+     * of four and goes first.
+     */
+    expect(structures[0]!.selector).toBe("#mp-information ul.simple > li");
+  });
+
+  it("does not count a TBD line against a group", () => {
+    // `filter.exclude` drops these in both shipped entries: a deadline the
+    // course has not set is not a line this read wrongly.
+    const stated = docFrom("<ul><li>Due: 9/7</li><li>Due: TBD</li></ul>");
+    const rows = [...stated.querySelectorAll("li")];
+    const dated = datedRows(rows, ZONE, REFERENCE);
+    expect(dated).toMatchObject({ rows: 1, of: 2, pending: 1, label: "Due" });
+  });
+
+  it('does not read "Due Date" as a due label (house rule 6)', () => {
+    const doc2 = docFrom("<ul><li>Due Date: 11/3</li><li>Due Date: 11/10</li></ul>");
+    // It carries dates — and no label this may build a `dueLabel` from, because
+    // "Due Date" is a different line from "Due" and only the exact one is read.
+    const dated = datedRows([...doc2.querySelectorAll("li")], ZONE, REFERENCE);
+    expect(dated.rows).toBe(2);
+    expect(dated.label).toBe("Due Date");
+    expect("Due|CP1 Due".split("|")).not.toContain(dated.label);
+  });
+
+  it("reads a date out of a child element when the row's own text will not", () => {
+    // ECE 411's syllabus: `<li><p>Midterm 1: September 29</p><ul>…Time: 7-9PM…`.
+    // Flattened, the row's tail defeats the reader; the shipped entry reads the
+    // child (`due: "p"`), so a group of them carries dates and must say so.
+    const doc2 = fixture("ece411-fa2026-syllabus.html");
+    const exams = inventory(doc2).find((s) => s.selector === "#schedule ul.simple > li")!;
+    expect(exams.dated.rows).toBe(2);
+    expect(exams.dated.pending).toBe(1);
+  });
+
+  it("does not count a row whose time it could not read whole", () => {
+    /*
+     * Deliberately unrealistic (parser rule 10): a bare `5:00` is ambiguous —
+     * `parseAdapterDateParts` refuses to guess between 05:00 and 17:00 and
+     * records it as an unread time. Realistic values read cleanly, so a
+     * fixture of them cannot tell this rule from its absence.
+     *
+     * It matters because `validateProposal` refuses a proposal for exactly
+     * this, so a group counted as dated here is a group the runner would then
+     * reject — an inventory line, and a retry note, pointing the model at a
+     * dead end.
+     */
+    const doc2 = docFrom("<ul><li>Due: 9/4 5:00</li><li>Due: 9/11 5:00</li></ul>");
+    expect(datedRows([...doc2.querySelectorAll("li")], ZONE, REFERENCE).rows).toBe(0);
+    const clean = docFrom("<ul><li>Due: 9/4 5:00pm</li><li>Due: 9/11 5:00pm</li></ul>");
+    expect(datedRows([...clean.querySelectorAll("li")], ZONE, REFERENCE).rows).toBe(2);
+  });
+
+  it("carries the titleFrom a list-shaped entry would need", () => {
+    expect(mps.titleFrom).toBe("section >> h3");
+    // And not for a table's rows, whose names are in their own cells.
+    const table = inventory(fixture("ece310-fa2026-index.html")).find(
+      (s) => s.selector === "#homework table tbody tr",
+    )!;
+    expect(table.titleFrom).toBeUndefined();
+  });
+});
+
+describe("the dated groups a retry is pointed at", () => {
+  const structures = inventory(fixture("ece411-fa2026-assignments.html"));
+
+  it("names the top three, with their labels", () => {
+    const note = renderDatedGroups(structures)!;
+    expect(note).toContain("#mp-information ul.simple > li (4 of 16 dated");
+    expect(note).toContain('label "Due|CP1 Due');
+    expect(note.length).toBeLessThanOrEqual(MAX_DATED_NOTE_CHARS);
+  });
+
+  it("says nothing at all when no group carries a date", () => {
+    // A sentence listing nothing is worse than no sentence: the retry would
+    // read "groups that do carry dates:" and be told none of them do.
+    const doc = docFrom("<ul><li>Office hours: Tuesdays</li><li>Office hours: Fridays</li></ul>");
+    expect(renderDatedGroups(inventory(doc))).toBeUndefined();
   });
 });
