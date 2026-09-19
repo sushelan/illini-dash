@@ -1,0 +1,3269 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-09-19",
+  "purpose": "Source evidence for visual acceptance; not a production stylesheet or a claim of computed browser values.",
+  "archive": {
+    "originalPath": "/Users/sushi/Downloads/stitch_extension_ui_design.zip",
+    "sha256": "5ee0472e3f7cc5c742155ebfae2d688132d1d2f4128d1f948e812a1034857104",
+    "extractedPath": "/Users/sushi/Downloads/stitch_extension_ui_design"
+  },
+  "designDocument": {
+    "path": "docs/design/classical-mock/classical_vellum_journal/DESIGN.md",
+    "sha256": "ae53f9d261e2647dd980f15decb488b147e318cf59a4aabe66a8fba7e7139a6e",
+    "repositoryCopyMatchesArchive": true
+  },
+  "method": "Read directly from ZIP. HTML treated as text; theme.extend isolated after its literal extend key and decoded with JSONDecoder.raw_decode; PNG dimensions from IHDR; icon names and classes from HTMLParser. No HTML scripts or remote assets executed. SHA-256 comparison against ZIP entries.",
+  "interpretationRules": [
+    "themeExtend values are literal declarations, not proof each token is used.",
+    "Utility classes are preserved verbatim; resolve effective cascade and font metrics in a trusted offline reference renderer.",
+    "Inline styles can be unused. Today declares handwriting and journal ruling but no body element uses font-handwriting or journal-ruled-canvas.",
+    "PNG dimensions are image pixels; device scale, screenshot cropping and rendering viewport are not recorded.",
+    "Record screenshot/code conflicts in reference-contract.md instead of silently converting them into a requirement."
+  ],
+  "views": {
+    "today": {
+      "sourceKind": "literal-archive-extraction",
+      "referenceHtml": "docs/design/classical-mock/illini_dash_classical_calendar_edition/code.html",
+      "referenceScreenshot": "docs/design/classical-mock/illini_dash_classical_calendar_edition/screen.png",
+      "archiveEntryPrefix": "stitch_extension_ui_design/illini_dash_classical_calendar_edition/",
+      "sha256": {
+        "html": "63f8ddbb1e44b66935bb9386358ba199311b63a3b88185b917b382f30a601012",
+        "screenshot": "171d5aff2024fb763c56d32ab5601507a49b27f05142018292cb7e178e2af0bd"
+      },
+      "repositoryCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "extractedDownloadsCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "screenshotPixels": {
+        "width": 780,
+        "height": 1200
+      },
+      "viewportMeta": "width=400, initial-scale=1.0",
+      "themeExtend": {
+        "colors": {
+          "outline": "#75777e",
+          "primary-container": "#1a2744",
+          "surface-tint": "#515e7e",
+          "tertiary-fixed-dim": "#ffb4a2",
+          "on-secondary-container": "#726157",
+          "on-tertiary-container": "#df6e50",
+          "surface-bright": "#fdf9f1",
+          "on-secondary": "#ffffff",
+          "surface-dim": "#dddad2",
+          "on-secondary-fixed-variant": "#53443a",
+          "surface": "#fdf9f1",
+          "on-primary-container": "#828eb1",
+          "surface-container": "#f1ede6",
+          "primary-fixed-dim": "#b9c6eb",
+          "primary": "#04122e",
+          "outline-variant": "#c5c6ce",
+          "surface-container-high": "#ece8e0",
+          "background": "#fdf9f1",
+          "surface-container-highest": "#e6e2da",
+          "tertiary-container": "#520e00",
+          "secondary-fixed-dim": "#d9c2b6",
+          "on-surface": "#1c1c17",
+          "on-tertiary-fixed-variant": "#812811",
+          "surface-container-low": "#f7f3eb",
+          "on-error-container": "#93000a",
+          "on-primary-fixed": "#0d1b37",
+          "surface-container-lowest": "#ffffff",
+          "on-background": "#1c1c17",
+          "on-surface-variant": "#45464d",
+          "inverse-on-surface": "#f4f0e8",
+          "on-secondary-fixed": "#251911",
+          "error-container": "#ffdad6",
+          "inverse-primary": "#b9c6eb",
+          "on-tertiary": "#ffffff",
+          "on-primary-fixed-variant": "#3a4665",
+          "secondary-fixed": "#f6ded1",
+          "on-error": "#ffffff",
+          "on-primary": "#ffffff",
+          "primary-fixed": "#d9e2ff",
+          "secondary-container": "#f6ded1",
+          "surface-variant": "#e6e2da",
+          "secondary": "#6c5b51",
+          "error": "#ba1a1a",
+          "on-tertiary-fixed": "#3c0800",
+          "tertiary-fixed": "#ffdbd2",
+          "tertiary": "#2e0500",
+          "inverse-surface": "#31302b"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "margin": "2rem",
+          "space-md": "1rem",
+          "gutter": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-sm": "0.5rem",
+          "space-lg": "1.5rem",
+          "space-xl": "2.5rem"
+        },
+        "fontFamily": {
+          "headline-xl": [
+            "EB Garamond"
+          ],
+          "annotation-italic": [
+            "EB Garamond"
+          ],
+          "body-sm": [
+            "EB Garamond"
+          ],
+          "headline-md": [
+            "EB Garamond"
+          ],
+          "headline-lg": [
+            "EB Garamond"
+          ],
+          "headline-lg-mobile": [
+            "EB Garamond"
+          ],
+          "label-sm": [
+            "Newsreader"
+          ],
+          "body-md": [
+            "EB Garamond"
+          ],
+          "body-lg": [
+            "EB Garamond"
+          ],
+          "headline-xl-mobile": [
+            "EB Garamond"
+          ],
+          "headline-sm": [
+            "EB Garamond"
+          ],
+          "label-md": [
+            "Newsreader"
+          ],
+          "handwriting": [
+            "Caveat",
+            "cursive"
+          ]
+        },
+        "fontSize": {
+          "headline-xl": [
+            "42px",
+            {
+              "lineHeight": "50px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "annotation-italic": [
+            "15px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-sm": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.015em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-lg-mobile": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.08em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-md": [
+            "17px",
+            {
+              "lineHeight": "26px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-lg": [
+            "19px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl-mobile": [
+            "30px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-sm": [
+            "20px",
+            {
+              "lineHeight": "28px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "label-md": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ]
+        }
+      },
+      "themeExtendLine": 16,
+      "externalStylesheetUrls": [
+        "https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=EB+Garamond:wght@100..900&family=Newsreader:wght@100..900&display=swap"
+      ],
+      "externalScriptUrls": [
+        "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+      ],
+      "icons": [
+        "assignment",
+        "calendar_month",
+        "calendar_view_week",
+        "error",
+        "event_busy",
+        "menu_book",
+        "more_horiz",
+        "settings",
+        "sync",
+        "today"
+      ],
+      "iconInstances": [
+        {
+          "tag": "span",
+          "line": 178,
+          "classes": "material-symbols-outlined text-primary text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "menu_book",
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 182,
+          "classes": "material-symbols-outlined text-[19px]",
+          "inlineStyle": "",
+          "dataIcon": "settings",
+          "name": "settings"
+        },
+        {
+          "tag": "span",
+          "line": 187,
+          "classes": "material-symbols-outlined text-[14px]",
+          "inlineStyle": "",
+          "dataIcon": "sync",
+          "name": "sync"
+        },
+        {
+          "tag": "span",
+          "line": 196,
+          "classes": "material-symbols-outlined text-[15px] text-error",
+          "inlineStyle": "",
+          "dataIcon": "error",
+          "name": "error"
+        },
+        {
+          "tag": "span",
+          "line": 327,
+          "classes": "material-symbols-outlined text-[14px]",
+          "inlineStyle": "",
+          "dataIcon": "more_horiz",
+          "name": "more_horiz"
+        },
+        {
+          "tag": "span",
+          "line": 358,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "today",
+          "name": "today"
+        },
+        {
+          "tag": "span",
+          "line": 363,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "calendar_view_week",
+          "name": "calendar_view_week"
+        },
+        {
+          "tag": "span",
+          "line": 368,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "calendar_month",
+          "name": "calendar_month"
+        },
+        {
+          "tag": "span",
+          "line": 373,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "event_busy",
+          "name": "event_busy"
+        },
+        {
+          "tag": "span",
+          "line": 378,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "assignment",
+          "name": "assignment"
+        }
+      ],
+      "inlineStyleBlocks": [
+        {
+          "line": 114,
+          "css": "\n    /* Journal Paper Ruling & Red Margin Line */\n    .journal-ruled-canvas {\n      background-color: #fdf9f1;\n      background-image: \n        linear-gradient(to right, transparent 38px, rgba(223, 164, 149, 0.45) 38px, rgba(223, 164, 149, 0.45) 39.5px, transparent 39.5px),\n        linear-gradient(to bottom, transparent 25px, rgba(216, 207, 190, 0.35) 25px, rgba(216, 207, 190, 0.35) 26px);\n      background-size: 100% 26px, 100% 26px;\n      background-attachment: local;\n    }\n    .custom-scroll::-webkit-scrollbar {\n      width: 4px;\n    }\n    .custom-scroll::-webkit-scrollbar-track {\n      background: #f1ede6;\n    }\n    .custom-scroll::-webkit-scrollbar-thumb {\n      background: #c5c6ce;\n      border-radius: 2px;\n    }\n    .custom-scroll::-webkit-scrollbar-thumb:hover {\n      background: #75777e;\n    }\n    .double-rule {\n      border-bottom: 1px solid #c5c6ce;\n      box-shadow: 0 2px 0 0 #fdf9f1, 0 3px 0 0 #c5c6ce;\n    }\n    .stamp-wax {\n      box-shadow: inset 0 1px 2px rgba(255,255,255,0.4), inset 0 -1px 2px rgba(0,0,0,0.25), 0 1px 3px rgba(158, 61, 36, 0.2);\n    }\n    .brass-accent {\n      background: linear-gradient(135deg, #d4af37 0%, #aa8222 100%);\n      box-shadow: 0 1px 2px rgba(0,0,0,0.2);\n    }\n    .strikethrough-ink {\n      position: relative;\n    }\n    .strikethrough-ink::after {\n      content: '';\n      position: absolute;\n      left: -2px;\n      right: -2px;\n      top: 52%;\n      height: 1.5px;\n      background: #1a2744;\n      opacity: 0.75;\n      transform: rotate(-0.7deg);\n    }\n  "
+        },
+        {
+          "line": 163,
+          "css": "\n    body {\n      min-height: max(884px, 100dvh);\n    }\n  "
+        }
+      ],
+      "shellElements": [
+        {
+          "tag": "body",
+          "line": 169,
+          "classes": "bg-surface-container-high text-on-surface antialiased flex justify-center items-center min-h-screen p-0 m-0 select-none",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 171,
+          "classes": "w-[400px] h-[600px] max-w-[400px] max-h-[600px] bg-surface flex flex-col relative overflow-hidden shadow-2xl border border-outline-variant/60 rounded-lg",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "header",
+          "line": 175,
+          "classes": "bg-surface text-primary border-b border-outline-variant shadow-sm z-20 flex-shrink-0",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 176,
+          "classes": "flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "main",
+          "line": 189,
+          "classes": "flex-1 overflow-y-auto custom-scroll relative pb-16",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "footer",
+          "line": 351,
+          "classes": "bg-surface-container-low border-t border-outline-variant mt-3 text-secondary text-label-sm font-label-sm",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 351,
+          "classes": "flex justify-between items-center px-space-md py-1.5 w-full max-w-[400px] mx-auto",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 355,
+          "classes": "fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm flex-shrink-0",
+          "inlineStyle": ""
+        }
+      ],
+      "utilityClasses": [
+        "-left-[22px]",
+        "-ml-6",
+        "absolute",
+        "active:scale-95",
+        "antialiased",
+        "bg-emerald-700",
+        "bg-error-container/60",
+        "bg-outline-variant",
+        "bg-primary-container",
+        "bg-secondary",
+        "bg-secondary-container",
+        "bg-surface",
+        "bg-surface-bright",
+        "bg-surface-container-high",
+        "bg-surface-container-high/60",
+        "bg-surface-container-highest",
+        "bg-surface-container-low",
+        "bg-surface-container-low/80",
+        "bg-surface-container-low/90",
+        "border",
+        "border-2",
+        "border-b",
+        "border-error/30",
+        "border-error/40",
+        "border-outline-variant",
+        "border-outline-variant/40",
+        "border-outline-variant/50",
+        "border-outline-variant/60",
+        "border-outline-variant/70",
+        "border-primary",
+        "border-secondary",
+        "border-surface",
+        "border-t",
+        "bottom-0",
+        "bottom-1",
+        "cursor-pointer",
+        "custom-scroll",
+        "duration-150",
+        "ease-in-out",
+        "ease-out",
+        "fixed",
+        "flex",
+        "flex-1",
+        "flex-col",
+        "flex-shrink-0",
+        "font-body-md",
+        "font-bold",
+        "font-headline-sm",
+        "font-label-sm",
+        "font-medium",
+        "font-semibold",
+        "group",
+        "group-hover:bg-primary",
+        "h-1",
+        "h-1.5",
+        "h-2",
+        "h-2.5",
+        "h-4",
+        "h-[1px]",
+        "h-[600px]",
+        "hover:bg-surface-container",
+        "hover:bg-surface-container-high",
+        "hover:border-error/50",
+        "hover:border-primary",
+        "hover:text-primary",
+        "hover:text-secondary",
+        "inline-block",
+        "italic",
+        "items-baseline",
+        "items-center",
+        "items-start",
+        "justify-between",
+        "justify-center",
+        "leading-snug",
+        "leading-tight",
+        "left-0",
+        "left-2",
+        "m-0",
+        "material-symbols-outlined",
+        "max-h-[600px]",
+        "max-w-[400px]",
+        "mb-0.5",
+        "mb-1",
+        "mb-2",
+        "mb-3.5",
+        "min-h-screen",
+        "ml-0.5",
+        "ml-1",
+        "ml-1.5",
+        "mt-0.5",
+        "mt-1",
+        "mt-2",
+        "mt-3",
+        "mx-0.5",
+        "mx-auto",
+        "my-2.5",
+        "opacity-70",
+        "opacity-75",
+        "opacity-80",
+        "opacity-85",
+        "overflow-hidden",
+        "overflow-y-auto",
+        "p-0",
+        "p-1",
+        "p-2",
+        "pb-16",
+        "pb-2",
+        "pb-2.5",
+        "pl-1",
+        "pl-2",
+        "pl-6",
+        "pr-2",
+        "pt-1",
+        "pt-3",
+        "px-1",
+        "px-1.5",
+        "px-3.5",
+        "px-4",
+        "px-space-md",
+        "px-space-xs",
+        "py-0.2",
+        "py-1.5",
+        "py-space-xs",
+        "relative",
+        "rounded",
+        "rounded-full",
+        "rounded-lg",
+        "rounded-none",
+        "rounded-sm",
+        "select-none",
+        "shadow-2xl",
+        "shadow-sm",
+        "space-x-1",
+        "space-x-1.5",
+        "space-x-2",
+        "space-x-2.5",
+        "space-y-1.5",
+        "space-y-3.5",
+        "strikethrough-ink",
+        "text-[10px]",
+        "text-[11px]",
+        "text-[14px]",
+        "text-[15px]",
+        "text-[19px]",
+        "text-[20px]",
+        "text-body-md",
+        "text-error",
+        "text-headline-sm",
+        "text-label-sm",
+        "text-on-secondary-container",
+        "text-on-surface",
+        "text-outline-variant",
+        "text-primary",
+        "text-secondary",
+        "text-surface-bright",
+        "text-tertiary",
+        "top-0",
+        "top-1",
+        "top-1.5",
+        "tracking-tight",
+        "tracking-wide",
+        "tracking-wider",
+        "transition-all",
+        "transition-colors",
+        "uppercase",
+        "w-1",
+        "w-1.5",
+        "w-2",
+        "w-2.5",
+        "w-4",
+        "w-[1.5px]",
+        "w-[400px]",
+        "w-[4px]",
+        "w-full",
+        "z-10",
+        "z-20",
+        "z-30",
+        "z-50"
+      ],
+      "literalHexColors": [
+        "#04122e",
+        "#0d1b37",
+        "#1a2744",
+        "#1c1c17",
+        "#251911",
+        "#2e0500",
+        "#31302b",
+        "#3a4665",
+        "#3c0800",
+        "#45464d",
+        "#515e7e",
+        "#520e00",
+        "#53443a",
+        "#6c5b51",
+        "#726157",
+        "#75777e",
+        "#812811",
+        "#828eb1",
+        "#93000a",
+        "#aa8222",
+        "#b9c6eb",
+        "#ba1a1a",
+        "#c5c6ce",
+        "#d4af37",
+        "#d9c2b6",
+        "#d9e2ff",
+        "#dddad2",
+        "#df6e50",
+        "#e6e2da",
+        "#ece8e0",
+        "#f1ede6",
+        "#f4f0e8",
+        "#f6ded1",
+        "#f7f3eb",
+        "#fdf9f1",
+        "#ffb4a2",
+        "#ffdad6",
+        "#ffdbd2",
+        "#ffffff"
+      ]
+    },
+    "week": {
+      "sourceKind": "literal-archive-extraction",
+      "referenceHtml": "docs/design/classical-mock/illini_dash_classical_calendar_week_view/code.html",
+      "referenceScreenshot": "docs/design/classical-mock/illini_dash_classical_calendar_week_view/screen.png",
+      "archiveEntryPrefix": "stitch_extension_ui_design/illini_dash_classical_calendar_week_view/",
+      "sha256": {
+        "html": "a5b420a1cf576b0c368280b3ddba98b4f020768845cc2812fdd3dc98ac52827f",
+        "screenshot": "22a8a796b0dce6b84fa11e0a66fea70bed76310bf9a757cb7ea2eab3012dbd64"
+      },
+      "repositoryCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "extractedDownloadsCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "screenshotPixels": {
+        "width": 706,
+        "height": 1600
+      },
+      "viewportMeta": "width=400, initial-scale=1.0",
+      "themeExtend": {
+        "colors": {
+          "inverse-primary": "#b9c6eb",
+          "on-primary-container": "#828eb1",
+          "primary-fixed": "#d9e2ff",
+          "tertiary-fixed": "#ffdbd2",
+          "primary-container": "#1a2744",
+          "secondary-fixed-dim": "#d9c2b6",
+          "on-secondary-fixed-variant": "#53443a",
+          "on-background": "#1c1c17",
+          "surface-container-lowest": "#ffffff",
+          "on-tertiary-fixed": "#3c0800",
+          "on-tertiary-container": "#df6e50",
+          "secondary-fixed": "#f6ded1",
+          "surface-container-high": "#ece8e0",
+          "secondary": "#6c5b51",
+          "on-tertiary": "#ffffff",
+          "on-primary-fixed": "#0d1b37",
+          "on-surface": "#1c1c17",
+          "surface-variant": "#e6e2da",
+          "surface": "#fdf9f1",
+          "outline": "#75777e",
+          "primary": "#04122e",
+          "outline-variant": "#c5c6ce",
+          "on-primary": "#ffffff",
+          "on-surface-variant": "#45464d",
+          "surface-container": "#f1ede6",
+          "error": "#ba1a1a",
+          "surface-dim": "#dddad2",
+          "secondary-container": "#f6ded1",
+          "on-primary-fixed-variant": "#3a4665",
+          "on-secondary-container": "#726157",
+          "on-secondary": "#ffffff",
+          "surface-container-highest": "#e6e2da",
+          "on-tertiary-fixed-variant": "#812811",
+          "surface-tint": "#515e7e",
+          "on-error": "#ffffff",
+          "on-secondary-fixed": "#251911",
+          "tertiary-container": "#520e00",
+          "inverse-surface": "#31302b",
+          "on-error-container": "#93000a",
+          "inverse-on-surface": "#f4f0e8",
+          "surface-bright": "#fdf9f1",
+          "primary-fixed-dim": "#b9c6eb",
+          "background": "#fdf9f1",
+          "error-container": "#ffdad6",
+          "tertiary-fixed-dim": "#ffb4a2",
+          "tertiary": "#2e0500",
+          "surface-container-low": "#f7f3eb"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "space-lg": "1.5rem",
+          "space-sm": "0.5rem",
+          "gutter": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-xl": "2.5rem",
+          "space-md": "1rem",
+          "margin": "2rem"
+        },
+        "fontFamily": {
+          "label-md": [
+            "Newsreader"
+          ],
+          "body-lg": [
+            "EB Garamond"
+          ],
+          "headline-lg-mobile": [
+            "EB Garamond"
+          ],
+          "headline-lg": [
+            "EB Garamond"
+          ],
+          "headline-xl": [
+            "EB Garamond"
+          ],
+          "label-sm": [
+            "Newsreader"
+          ],
+          "annotation-italic": [
+            "EB Garamond"
+          ],
+          "headline-sm": [
+            "EB Garamond"
+          ],
+          "body-sm": [
+            "EB Garamond"
+          ],
+          "body-md": [
+            "EB Garamond"
+          ],
+          "headline-xl-mobile": [
+            "EB Garamond"
+          ],
+          "headline-md": [
+            "EB Garamond"
+          ]
+        },
+        "fontSize": {
+          "label-md": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ],
+          "body-lg": [
+            "19px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg-mobile": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-xl": [
+            "42px",
+            {
+              "lineHeight": "50px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.08em",
+              "fontWeight": "600"
+            }
+          ],
+          "annotation-italic": [
+            "15px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-sm": [
+            "20px",
+            {
+              "lineHeight": "28px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-sm": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.015em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-md": [
+            "17px",
+            {
+              "lineHeight": "26px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl-mobile": [
+            "30px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ]
+        }
+      },
+      "themeExtendLine": 20,
+      "externalStylesheetUrls": [
+        "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      ],
+      "externalScriptUrls": [
+        "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+      ],
+      "icons": [
+        "assignment",
+        "calendar_month",
+        "calendar_view_week",
+        "chevron_left",
+        "chevron_right",
+        "event_busy",
+        "menu_book",
+        "open_in_new",
+        "settings",
+        "sync",
+        "today"
+      ],
+      "iconInstances": [
+        {
+          "tag": "span",
+          "line": 140,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "menu_book",
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 144,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "settings",
+          "name": "settings"
+        },
+        {
+          "tag": "span",
+          "line": 154,
+          "classes": "material-symbols-outlined text-[14px] text-secondary group-hover:text-primary transition-transform group-hover:rotate-180 duration-300",
+          "inlineStyle": "",
+          "dataIcon": "sync",
+          "name": "sync"
+        },
+        {
+          "tag": "span",
+          "line": 162,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "chevron_left",
+          "name": "chevron_left"
+        },
+        {
+          "tag": "span",
+          "line": 166,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "chevron_right",
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 307,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "open_in_new",
+          "name": "open_in_new"
+        },
+        {
+          "tag": "span",
+          "line": 315,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "today",
+          "name": "today"
+        },
+        {
+          "tag": "span",
+          "line": 320,
+          "classes": "material-symbols-outlined font-bold",
+          "inlineStyle": "",
+          "dataIcon": "calendar_view_week",
+          "name": "calendar_view_week"
+        },
+        {
+          "tag": "span",
+          "line": 325,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "calendar_month",
+          "name": "calendar_month"
+        },
+        {
+          "tag": "span",
+          "line": 330,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "event_busy",
+          "name": "event_busy"
+        },
+        {
+          "tag": "span",
+          "line": 335,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": "assignment",
+          "name": "assignment"
+        }
+      ],
+      "inlineStyleBlocks": [
+        {
+          "line": 117,
+          "css": "\n    body {\n      font-feature-settings: \"kern\" 1, \"liga\" 1, \"calt\" 1;\n    }\n    .material-symbols-outlined {\n      font-size: 18px;\n      line-height: 1;\n      display: inline-block;\n      vertical-align: middle;\n    }\n    /* Subtle ruled ledger guide line */\n    .ledger-ruled-card {\n      background-image: linear-gradient(to bottom, transparent 25px, rgba(216, 207, 190, 0.4) 26px);\n      background-size: 100% 26px;\n    }\n  "
+        }
+      ],
+      "shellElements": [
+        {
+          "tag": "body",
+          "line": 134,
+          "classes": "bg-surface text-on-surface flex justify-center items-start min-h-screen antialiased selection:bg-secondary-container selection:text-primary",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 136,
+          "classes": "w-[400px] bg-surface min-h-screen flex flex-col relative pb-16",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "header",
+          "line": 138,
+          "classes": "flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline shadow-sm dark:shadow-none transition-colors duration-150 ease-in-out",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 159,
+          "classes": "flex items-center justify-between px-space-md py-2 border-b border-outline-variant/50 bg-surface",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "main",
+          "line": 172,
+          "classes": "flex-1 px-space-md py-2 flex flex-col gap-2",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "footer",
+          "line": 301,
+          "classes": "flex flex-wrap justify-between items-center gap-space-xs px-space-md py-space-xs w-full max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline mb-12",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 312,
+          "classes": "fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline shadow-sm dark:shadow-none",
+          "inlineStyle": ""
+        }
+      ],
+      "utilityClasses": [
+        "absolute",
+        "active:scale-95",
+        "antialiased",
+        "bg-[#3f5945]",
+        "bg-primary",
+        "bg-secondary-container",
+        "bg-secondary-container/35",
+        "bg-surface",
+        "bg-surface-container-high",
+        "bg-surface-container-low",
+        "bg-surface-container-low/40",
+        "border",
+        "border-b",
+        "border-outline-variant",
+        "border-outline-variant/30",
+        "border-outline-variant/40",
+        "border-outline-variant/50",
+        "border-outline-variant/60",
+        "border-outline-variant/70",
+        "border-primary/20",
+        "border-t",
+        "bottom-0",
+        "cursor-pointer",
+        "dark:bg-secondary",
+        "dark:bg-surface",
+        "dark:bg-surface-container",
+        "dark:border-outline",
+        "dark:hover:bg-surface-container-high",
+        "dark:hover:text-primary-fixed",
+        "dark:shadow-none",
+        "dark:text-on-secondary",
+        "dark:text-secondary-fixed-dim",
+        "decoration-outline-variant",
+        "duration-150",
+        "duration-300",
+        "ease-in-out",
+        "ease-out",
+        "fixed",
+        "flex",
+        "flex-1",
+        "flex-col",
+        "flex-wrap",
+        "font-annotation-italic",
+        "font-body-md",
+        "font-body-sm",
+        "font-bold",
+        "font-headline-sm",
+        "font-label-sm",
+        "font-medium",
+        "font-semibold",
+        "gap-1",
+        "gap-1.5",
+        "gap-2",
+        "gap-2.5",
+        "gap-space-xs",
+        "group",
+        "group-hover:rotate-180",
+        "group-hover:text-primary",
+        "h-2",
+        "hover:bg-surface-container",
+        "hover:bg-surface-container-high",
+        "hover:text-primary",
+        "hover:text-secondary",
+        "hover:underline",
+        "inline-block",
+        "italic",
+        "items-center",
+        "items-start",
+        "justify-between",
+        "justify-center",
+        "justify-start",
+        "leading-none",
+        "left-0",
+        "material-symbols-outlined",
+        "max-w-[400px]",
+        "mb-12",
+        "min-h-screen",
+        "min-w-0",
+        "ml-1",
+        "mt-0.5",
+        "mt-1",
+        "mx-auto",
+        "opacity-80",
+        "overflow-hidden",
+        "p-1",
+        "p-2",
+        "pb-16",
+        "pl-1",
+        "pr-0.5",
+        "pt-0.5",
+        "pt-1",
+        "px-1",
+        "px-2",
+        "px-space-md",
+        "px-space-xs",
+        "py-0.2",
+        "py-0.5",
+        "py-1.5",
+        "py-2",
+        "py-space-xs",
+        "relative",
+        "rounded",
+        "rounded-full",
+        "rounded-lg",
+        "rounded-sm",
+        "selection:bg-secondary-container",
+        "selection:text-primary",
+        "shadow-[0_1px_3px_rgba(74,59,50,0.06)]",
+        "shadow-sm",
+        "shrink-0",
+        "text-[#3f5945]",
+        "text-[#a64b2a]",
+        "text-[10px]",
+        "text-[13px]",
+        "text-[14px]",
+        "text-[18px]",
+        "text-annotation-italic",
+        "text-body-md",
+        "text-body-sm",
+        "text-headline-sm",
+        "text-label-sm",
+        "text-left",
+        "text-on-secondary-container",
+        "text-on-surface",
+        "text-primary",
+        "text-secondary",
+        "text-secondary/70",
+        "top-0",
+        "tracking-tight",
+        "tracking-wide",
+        "tracking-wider",
+        "tracking-widest",
+        "transition-all",
+        "transition-colors",
+        "transition-transform",
+        "truncate",
+        "underline",
+        "underline-offset-2",
+        "uppercase",
+        "w-1",
+        "w-2",
+        "w-[400px]",
+        "w-[44px]",
+        "w-full",
+        "whitespace-nowrap",
+        "z-50"
+      ],
+      "literalHexColors": [
+        "#04122e",
+        "#0d1b37",
+        "#1a2744",
+        "#1c1c17",
+        "#251911",
+        "#2e0500",
+        "#31302b",
+        "#3a4665",
+        "#3c0800",
+        "#3f5945",
+        "#45464d",
+        "#515e7e",
+        "#520e00",
+        "#53443a",
+        "#6c5b51",
+        "#726157",
+        "#75777e",
+        "#812811",
+        "#828eb1",
+        "#93000a",
+        "#a64b2a",
+        "#b9c6eb",
+        "#ba1a1a",
+        "#c5c6ce",
+        "#d9c2b6",
+        "#d9e2ff",
+        "#dddad2",
+        "#df6e50",
+        "#e6e2da",
+        "#ece8e0",
+        "#f1ede6",
+        "#f4f0e8",
+        "#f6ded1",
+        "#f7f3eb",
+        "#fdf9f1",
+        "#ffb4a2",
+        "#ffdad6",
+        "#ffdbd2",
+        "#ffffff"
+      ]
+    },
+    "month": {
+      "sourceKind": "literal-archive-extraction",
+      "referenceHtml": "docs/design/classical-mock/illini_dash_classical_calendar_month_view/code.html",
+      "referenceScreenshot": "docs/design/classical-mock/illini_dash_classical_calendar_month_view/screen.png",
+      "archiveEntryPrefix": "stitch_extension_ui_design/illini_dash_classical_calendar_month_view/",
+      "sha256": {
+        "html": "ad22fd19c1409b889057886c8017a6a1c1a4a0b0172ed82f9c239d2426d23962",
+        "screenshot": "c2e40f930b58d50f228de3f8279ddef4fd671d95bbaff3215687056dbe474c83"
+      },
+      "repositoryCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "extractedDownloadsCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "screenshotPixels": {
+        "width": 706,
+        "height": 1600
+      },
+      "viewportMeta": "width=device-width, initial-scale=1.0",
+      "themeExtend": {
+        "colors": {
+          "inverse-primary": "#b9c6eb",
+          "on-primary-container": "#828eb1",
+          "primary-fixed": "#d9e2ff",
+          "tertiary-fixed": "#ffdbd2",
+          "primary-container": "#1a2744",
+          "secondary-fixed-dim": "#d9c2b6",
+          "on-secondary-fixed-variant": "#53443a",
+          "on-background": "#1c1c17",
+          "surface-container-lowest": "#ffffff",
+          "on-tertiary-fixed": "#3c0800",
+          "on-tertiary-container": "#df6e50",
+          "secondary-fixed": "#f6ded1",
+          "surface-container-high": "#ece8e0",
+          "secondary": "#6c5b51",
+          "on-tertiary": "#ffffff",
+          "on-primary-fixed": "#0d1b37",
+          "on-surface": "#1c1c17",
+          "surface-variant": "#e6e2da",
+          "surface": "#fdf9f1",
+          "outline": "#75777e",
+          "primary": "#04122e",
+          "outline-variant": "#c5c6ce",
+          "on-primary": "#ffffff",
+          "on-surface-variant": "#45464d",
+          "surface-container": "#f1ede6",
+          "error": "#ba1a1a",
+          "surface-dim": "#dddad2",
+          "secondary-container": "#f6ded1",
+          "on-primary-fixed-variant": "#3a4665",
+          "on-secondary-container": "#726157",
+          "on-secondary": "#ffffff",
+          "surface-container-highest": "#e6e2da",
+          "on-tertiary-fixed-variant": "#812811",
+          "surface-tint": "#515e7e",
+          "on-error": "#ffffff",
+          "on-secondary-fixed": "#251911",
+          "tertiary-container": "#520e00",
+          "inverse-surface": "#31302b",
+          "on-error-container": "#93000a",
+          "inverse-on-surface": "#f4f0e8",
+          "surface-bright": "#fdf9f1",
+          "primary-fixed-dim": "#b9c6eb",
+          "background": "#fdf9f1",
+          "error-container": "#ffdad6",
+          "tertiary-fixed-dim": "#ffb4a2",
+          "tertiary": "#2e0500",
+          "surface-container-low": "#f7f3eb"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "space-lg": "1.5rem",
+          "space-sm": "0.5rem",
+          "gutter": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-xl": "2.5rem",
+          "space-md": "1rem",
+          "margin": "2rem"
+        },
+        "fontFamily": {
+          "label-md": [
+            "Newsreader"
+          ],
+          "body-lg": [
+            "EB Garamond"
+          ],
+          "headline-lg-mobile": [
+            "EB Garamond"
+          ],
+          "headline-lg": [
+            "EB Garamond"
+          ],
+          "headline-xl": [
+            "EB Garamond"
+          ],
+          "label-sm": [
+            "Newsreader"
+          ],
+          "annotation-italic": [
+            "EB Garamond"
+          ],
+          "headline-sm": [
+            "EB Garamond"
+          ],
+          "body-sm": [
+            "EB Garamond"
+          ],
+          "body-md": [
+            "EB Garamond"
+          ],
+          "headline-xl-mobile": [
+            "EB Garamond"
+          ],
+          "headline-md": [
+            "EB Garamond"
+          ]
+        },
+        "fontSize": {
+          "label-md": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ],
+          "body-lg": [
+            "19px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg-mobile": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-xl": [
+            "42px",
+            {
+              "lineHeight": "50px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.08em",
+              "fontWeight": "600"
+            }
+          ],
+          "annotation-italic": [
+            "15px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-sm": [
+            "20px",
+            {
+              "lineHeight": "28px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-sm": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.015em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-md": [
+            "17px",
+            {
+              "lineHeight": "26px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl-mobile": [
+            "30px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ]
+        }
+      },
+      "themeExtendLine": 17,
+      "externalStylesheetUrls": [
+        "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      ],
+      "externalScriptUrls": [
+        "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+      ],
+      "icons": [
+        "assignment",
+        "calendar_month",
+        "calendar_view_week",
+        "check",
+        "chevron_left",
+        "chevron_right",
+        "event_busy",
+        "event_note",
+        "menu_book",
+        "priority_high",
+        "refresh",
+        "settings",
+        "today"
+      ],
+      "iconInstances": [
+        {
+          "tag": "span",
+          "line": 134,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 139,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "settings"
+        },
+        {
+          "tag": "span",
+          "line": 150,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "refresh"
+        },
+        {
+          "tag": "span",
+          "line": 164,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_left"
+        },
+        {
+          "tag": "span",
+          "line": 168,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 331,
+          "classes": "material-symbols-outlined text-[16px] text-primary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "event_note"
+        },
+        {
+          "tag": "span",
+          "line": 342,
+          "classes": "material-symbols-outlined text-[12px] text-error",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "priority_high"
+        },
+        {
+          "tag": "span",
+          "line": 353,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 369,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 385,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 392,
+          "classes": "material-symbols-outlined text-[12px] text-primary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "check"
+        },
+        {
+          "tag": "span",
+          "line": 403,
+          "classes": "material-symbols-outlined text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 414,
+          "classes": "material-symbols-outlined text-[14px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 422,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "today"
+        },
+        {
+          "tag": "span",
+          "line": 427,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "calendar_view_week"
+        },
+        {
+          "tag": "span",
+          "line": 432,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "font-variation-settings: 'FILL' 1;",
+          "dataIcon": null,
+          "name": "calendar_month"
+        },
+        {
+          "tag": "span",
+          "line": 437,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "event_busy"
+        },
+        {
+          "tag": "span",
+          "line": 442,
+          "classes": "material-symbols-outlined text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "assignment"
+        }
+      ],
+      "inlineStyleBlocks": [
+        {
+          "line": 114,
+          "css": "\n    .material-symbols-outlined {\n      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;\n      line-height: 1;\n      display: inline-block;\n      vertical-align: middle;\n    }\n    .seyes-line {\n      background-image: linear-gradient(to bottom, transparent 25px, #e5decfa8 26px);\n      background-size: 100% 26px;\n    }\n  "
+        }
+      ],
+      "shellElements": [
+        {
+          "tag": "body",
+          "line": 127,
+          "classes": "bg-surface text-on-surface antialiased min-h-screen flex justify-center selection:bg-secondary-container",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 129,
+          "classes": "w-full max-w-[400px] min-h-screen bg-surface border-x border-outline-variant flex flex-col relative pb-16",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "header",
+          "line": 131,
+          "classes": "bg-surface text-primary border-b border-outline-variant shadow-sm transition-colors duration-150 ease-in-out flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto sticky top-0 z-40",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "main",
+          "line": 174,
+          "classes": "px-space-md flex-1",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 419,
+          "classes": "fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm transition-all duration-150 ease-out",
+          "inlineStyle": ""
+        }
+      ],
+      "utilityClasses": [
+        "animate-pulse",
+        "antialiased",
+        "bg-emerald-700",
+        "bg-error-container/40",
+        "bg-outline-variant",
+        "bg-primary-container",
+        "bg-primary-fixed",
+        "bg-primary-fixed/50",
+        "bg-secondary",
+        "bg-secondary-container",
+        "bg-secondary-container/60",
+        "bg-secondary-fixed",
+        "bg-surface",
+        "bg-surface-container-low",
+        "bg-surface-variant",
+        "bg-tertiary-container",
+        "bg-tertiary-fixed",
+        "border",
+        "border-b",
+        "border-outline",
+        "border-outline-variant",
+        "border-outline-variant/50",
+        "border-outline-variant/60",
+        "border-primary",
+        "border-t",
+        "border-tertiary-container",
+        "border-x",
+        "bottom-0",
+        "cursor-pointer",
+        "duration-150",
+        "ease-in-out",
+        "ease-out",
+        "fixed",
+        "flex",
+        "flex-1",
+        "flex-col",
+        "flex-shrink-0",
+        "font-annotation-italic",
+        "font-body-sm",
+        "font-bold",
+        "font-headline-md",
+        "font-headline-sm",
+        "font-label-sm",
+        "font-medium",
+        "font-semibold",
+        "gap-0.5",
+        "gap-1",
+        "gap-1.5",
+        "gap-2",
+        "gap-3",
+        "gap-y-1",
+        "grid",
+        "grid-cols-7",
+        "group",
+        "h-1.5",
+        "h-10",
+        "h-3",
+        "h-4",
+        "hover:bg-surface-container",
+        "hover:bg-surface-container-high",
+        "hover:border-primary",
+        "hover:text-primary",
+        "hover:text-tertiary",
+        "hover:underline",
+        "items-center",
+        "items-start",
+        "justify-between",
+        "justify-center",
+        "justify-start",
+        "leading-tight",
+        "left-0",
+        "line-through",
+        "material-symbols-outlined",
+        "max-w-[400px]",
+        "mb-1",
+        "mb-2",
+        "mb-3",
+        "min-h-screen",
+        "ml-1",
+        "mt-0.5",
+        "mt-1",
+        "mt-2",
+        "mx-auto",
+        "opacity-40",
+        "opacity-70",
+        "p-0.5",
+        "p-1",
+        "p-2",
+        "p-3",
+        "pb-1",
+        "pb-1.5",
+        "pb-16",
+        "pb-2",
+        "pt-1.5",
+        "pt-3",
+        "px-1",
+        "px-1.5",
+        "px-2",
+        "px-space-md",
+        "px-space-xs",
+        "py-0.2",
+        "py-0.5",
+        "py-1.5",
+        "py-3",
+        "py-space-xs",
+        "relative",
+        "rounded",
+        "rounded-[2px]",
+        "rounded-full",
+        "rounded-lg",
+        "rounded-sm",
+        "selection:bg-secondary-container",
+        "shadow-inner",
+        "shadow-sm",
+        "space-y-2",
+        "sticky",
+        "text-[10px]",
+        "text-[11px]",
+        "text-[12px]",
+        "text-[13px]",
+        "text-[14px]",
+        "text-[16px]",
+        "text-[18px]",
+        "text-body-sm",
+        "text-center",
+        "text-emerald-700",
+        "text-error",
+        "text-headline-md",
+        "text-headline-sm",
+        "text-label-sm",
+        "text-on-primary-fixed-variant",
+        "text-on-secondary-container",
+        "text-on-secondary-fixed-variant",
+        "text-on-surface",
+        "text-on-surface-variant",
+        "text-on-tertiary-fixed-variant",
+        "text-primary",
+        "text-secondary",
+        "top-0",
+        "tracking-normal",
+        "tracking-tight",
+        "tracking-wide",
+        "tracking-wider",
+        "transition-all",
+        "transition-colors",
+        "uppercase",
+        "w-1.5",
+        "w-4",
+        "w-[1px]",
+        "w-full",
+        "z-40",
+        "z-50"
+      ],
+      "literalHexColors": [
+        "#04122e",
+        "#0d1b37",
+        "#1a2744",
+        "#1c1c17",
+        "#251911",
+        "#2e0500",
+        "#31302b",
+        "#3a4665",
+        "#3c0800",
+        "#45464d",
+        "#515e7e",
+        "#520e00",
+        "#53443a",
+        "#6c5b51",
+        "#726157",
+        "#75777e",
+        "#812811",
+        "#828eb1",
+        "#93000a",
+        "#b9c6eb",
+        "#ba1a1a",
+        "#c5c6ce",
+        "#d9c2b6",
+        "#d9e2ff",
+        "#dddad2",
+        "#df6e50",
+        "#e5decfa8",
+        "#e6e2da",
+        "#ece8e0",
+        "#f1ede6",
+        "#f4f0e8",
+        "#f6ded1",
+        "#f7f3eb",
+        "#fdf9f1",
+        "#ffb4a2",
+        "#ffdad6",
+        "#ffdbd2",
+        "#ffffff"
+      ]
+    },
+    "nodate": {
+      "sourceKind": "literal-archive-extraction",
+      "referenceHtml": "docs/design/classical-mock/illini_dash_classical_calendar_no_date_view/code.html",
+      "referenceScreenshot": "docs/design/classical-mock/illini_dash_classical_calendar_no_date_view/screen.png",
+      "archiveEntryPrefix": "stitch_extension_ui_design/illini_dash_classical_calendar_no_date_view/",
+      "sha256": {
+        "html": "ea91ec583f324bf72eb3137197da50d1817c843efd867fba90c28e10329d3221",
+        "screenshot": "5aaad4577f285f40590ee9837e1ab41c02891b53eeb96cd1121e04549afc7903"
+      },
+      "repositoryCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "extractedDownloadsCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "screenshotPixels": {
+        "width": 597,
+        "height": 1600
+      },
+      "viewportMeta": "width=device-width, initial-scale=1.0",
+      "themeExtend": {
+        "colors": {
+          "inverse-primary": "#b9c6eb",
+          "on-primary-container": "#828eb1",
+          "primary-fixed": "#d9e2ff",
+          "tertiary-fixed": "#ffdbd2",
+          "primary-container": "#1a2744",
+          "secondary-fixed-dim": "#d9c2b6",
+          "on-secondary-fixed-variant": "#53443a",
+          "on-background": "#1c1c17",
+          "surface-container-lowest": "#ffffff",
+          "on-tertiary-fixed": "#3c0800",
+          "on-tertiary-container": "#df6e50",
+          "secondary-fixed": "#f6ded1",
+          "surface-container-high": "#ece8e0",
+          "secondary": "#6c5b51",
+          "on-tertiary": "#ffffff",
+          "on-primary-fixed": "#0d1b37",
+          "on-surface": "#1c1c17",
+          "surface-variant": "#e6e2da",
+          "surface": "#fdf9f1",
+          "outline": "#75777e",
+          "primary": "#04122e",
+          "outline-variant": "#c5c6ce",
+          "on-primary": "#ffffff",
+          "on-surface-variant": "#45464d",
+          "surface-container": "#f1ede6",
+          "error": "#ba1a1a",
+          "surface-dim": "#dddad2",
+          "secondary-container": "#f6ded1",
+          "on-primary-fixed-variant": "#3a4665",
+          "on-secondary-container": "#726157",
+          "on-secondary": "#ffffff",
+          "surface-container-highest": "#e6e2da",
+          "on-tertiary-fixed-variant": "#812811",
+          "surface-tint": "#515e7e",
+          "on-error": "#ffffff",
+          "on-secondary-fixed": "#251911",
+          "tertiary-container": "#520e00",
+          "inverse-surface": "#31302b",
+          "on-error-container": "#93000a",
+          "inverse-on-surface": "#f4f0e8",
+          "surface-bright": "#fdf9f1",
+          "primary-fixed-dim": "#b9c6eb",
+          "background": "#fdf9f1",
+          "error-container": "#ffdad6",
+          "tertiary-fixed-dim": "#ffb4a2",
+          "tertiary": "#2e0500",
+          "surface-container-low": "#f7f3eb"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "space-lg": "1.5rem",
+          "space-sm": "0.5rem",
+          "gutter": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-xl": "2.5rem",
+          "space-md": "1rem",
+          "margin": "2rem"
+        },
+        "fontFamily": {
+          "label-md": [
+            "Newsreader"
+          ],
+          "body-lg": [
+            "EB Garamond"
+          ],
+          "headline-lg-mobile": [
+            "EB Garamond"
+          ],
+          "headline-lg": [
+            "EB Garamond"
+          ],
+          "headline-xl": [
+            "EB Garamond"
+          ],
+          "label-sm": [
+            "Newsreader"
+          ],
+          "annotation-italic": [
+            "EB Garamond"
+          ],
+          "headline-sm": [
+            "EB Garamond"
+          ],
+          "body-sm": [
+            "EB Garamond"
+          ],
+          "body-md": [
+            "EB Garamond"
+          ],
+          "headline-xl-mobile": [
+            "EB Garamond"
+          ],
+          "headline-md": [
+            "EB Garamond"
+          ]
+        },
+        "fontSize": {
+          "label-md": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ],
+          "body-lg": [
+            "19px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg-mobile": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-xl": [
+            "42px",
+            {
+              "lineHeight": "50px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.08em",
+              "fontWeight": "600"
+            }
+          ],
+          "annotation-italic": [
+            "15px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-sm": [
+            "20px",
+            {
+              "lineHeight": "28px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-sm": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.015em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-md": [
+            "17px",
+            {
+              "lineHeight": "26px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl-mobile": [
+            "30px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ]
+        }
+      },
+      "themeExtendLine": 19,
+      "externalStylesheetUrls": [
+        "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      ],
+      "externalScriptUrls": [
+        "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+      ],
+      "icons": [
+        "assignment",
+        "auto_stories",
+        "calendar_month",
+        "calendar_view_week",
+        "check",
+        "chevron_right",
+        "edit_calendar",
+        "event_busy",
+        "format_quote",
+        "help_outline",
+        "inventory_2",
+        "menu_book",
+        "settings",
+        "sync",
+        "today",
+        "visibility_off",
+        "warning"
+      ],
+      "iconInstances": [
+        {
+          "tag": "span",
+          "line": 143,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "menu_book",
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 149,
+          "classes": "material-symbols-outlined text-[20px]",
+          "inlineStyle": "",
+          "dataIcon": "settings",
+          "name": "settings"
+        },
+        {
+          "tag": "span",
+          "line": 160,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "sync",
+          "name": "sync"
+        },
+        {
+          "tag": "span",
+          "line": 212,
+          "classes": "material-symbols-outlined text-secondary/60 text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "inventory_2",
+          "name": "inventory_2"
+        },
+        {
+          "tag": "span",
+          "line": 217,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "edit_calendar",
+          "name": "edit_calendar"
+        },
+        {
+          "tag": "span",
+          "line": 221,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "check",
+          "name": "check"
+        },
+        {
+          "tag": "span",
+          "line": 225,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "visibility_off",
+          "name": "visibility_off"
+        },
+        {
+          "tag": "span",
+          "line": 244,
+          "classes": "material-symbols-outlined text-secondary/60 text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "auto_stories",
+          "name": "auto_stories"
+        },
+        {
+          "tag": "span",
+          "line": 249,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "edit_calendar",
+          "name": "edit_calendar"
+        },
+        {
+          "tag": "span",
+          "line": 253,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "check",
+          "name": "check"
+        },
+        {
+          "tag": "span",
+          "line": 257,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "visibility_off",
+          "name": "visibility_off"
+        },
+        {
+          "tag": "span",
+          "line": 276,
+          "classes": "material-symbols-outlined text-secondary/60 text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "menu_book",
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 281,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "edit_calendar",
+          "name": "edit_calendar"
+        },
+        {
+          "tag": "span",
+          "line": 285,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "check",
+          "name": "check"
+        },
+        {
+          "tag": "span",
+          "line": 289,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "visibility_off",
+          "name": "visibility_off"
+        },
+        {
+          "tag": "span",
+          "line": 326,
+          "classes": "material-symbols-outlined text-[12px]",
+          "inlineStyle": "",
+          "dataIcon": "warning",
+          "name": "warning"
+        },
+        {
+          "tag": "span",
+          "line": 334,
+          "classes": "material-symbols-outlined text-tertiary-container/80 text-[18px]",
+          "inlineStyle": "",
+          "dataIcon": "help_outline",
+          "name": "help_outline"
+        },
+        {
+          "tag": "span",
+          "line": 338,
+          "classes": "material-symbols-outlined text-secondary text-[14px] mt-0.5 select-none",
+          "inlineStyle": "",
+          "dataIcon": "format_quote",
+          "name": "format_quote"
+        },
+        {
+          "tag": "span",
+          "line": 347,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "edit_calendar",
+          "name": "edit_calendar"
+        },
+        {
+          "tag": "span",
+          "line": 351,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "check",
+          "name": "check"
+        },
+        {
+          "tag": "span",
+          "line": 355,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": "visibility_off",
+          "name": "visibility_off"
+        },
+        {
+          "tag": "span",
+          "line": 369,
+          "classes": "material-symbols-outlined text-[14px]",
+          "inlineStyle": "",
+          "dataIcon": "chevron_right",
+          "name": "chevron_right"
+        },
+        {
+          "tag": "span",
+          "line": 379,
+          "classes": "material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary",
+          "inlineStyle": "",
+          "dataIcon": "today",
+          "name": "today"
+        },
+        {
+          "tag": "span",
+          "line": 384,
+          "classes": "material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary",
+          "inlineStyle": "",
+          "dataIcon": "calendar_view_week",
+          "name": "calendar_view_week"
+        },
+        {
+          "tag": "span",
+          "line": 389,
+          "classes": "material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary",
+          "inlineStyle": "",
+          "dataIcon": "calendar_month",
+          "name": "calendar_month"
+        },
+        {
+          "tag": "span",
+          "line": 394,
+          "classes": "material-symbols-outlined text-[20px] mb-0.5",
+          "inlineStyle": "",
+          "dataIcon": "event_busy",
+          "name": "event_busy"
+        },
+        {
+          "tag": "span",
+          "line": 399,
+          "classes": "material-symbols-outlined text-[20px] mb-0.5 group-hover:text-primary",
+          "inlineStyle": "",
+          "dataIcon": "assignment",
+          "name": "assignment"
+        }
+      ],
+      "inlineStyleBlocks": [
+        {
+          "line": 116,
+          "css": "\n    .material-symbols-outlined {\n      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;\n      display: inline-block;\n      vertical-align: middle;\n      line-height: 1;\n    }\n    /* Classical double-line rule separator */\n    .folio-double-rule {\n      position: relative;\n      height: 4px;\n      border-top: 1px solid #c5c6ce;\n      border-bottom: 0.5px solid #dfdad0;\n    }\n    /* Subtle parchment background tooth */\n    body {\n      background-color: #fdf9f1;\n      color: #1c1c17;\n    }\n  "
+        }
+      ],
+      "shellElements": [
+        {
+          "tag": "body",
+          "line": 137,
+          "classes": "bg-surface text-on-surface font-body-md antialiased min-h-screen flex justify-center selection:bg-secondary-container selection:text-on-secondary-container",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 139,
+          "classes": "w-full max-w-[400px] min-h-screen bg-surface flex flex-col shadow-sm relative pb-[76px] border-x border-outline-variant/30",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "header",
+          "line": 141,
+          "classes": "bg-surface dark:bg-surface text-primary dark:text-primary-fixed border-b border-outline-variant dark:border-outline shadow-sm dark:shadow-none flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto sticky top-0 z-40",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "main",
+          "line": 164,
+          "classes": "flex-1 px-space-md pt-space-md pb-space-lg flex flex-col gap-space-md",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 376,
+          "classes": "fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low dark:bg-surface-container border-t border-outline-variant dark:border-outline shadow-sm dark:shadow-none",
+          "inlineStyle": ""
+        }
+      ],
+      "utilityClasses": [
+        "-mt-1",
+        "absolute",
+        "active:scale-95",
+        "animate-pulse",
+        "antialiased",
+        "bg-[#fdf6f2]/60",
+        "bg-emerald-700/80",
+        "bg-outline-variant",
+        "bg-primary",
+        "bg-primary-container",
+        "bg-secondary-container",
+        "bg-surface",
+        "bg-surface-container",
+        "bg-surface-container-low",
+        "bg-tertiary-container/40",
+        "block",
+        "border",
+        "border-b",
+        "border-outline-variant",
+        "border-outline-variant/30",
+        "border-outline-variant/40",
+        "border-outline-variant/50",
+        "border-outline-variant/60",
+        "border-outline-variant/70",
+        "border-secondary",
+        "border-t",
+        "border-tertiary-fixed-dim/80",
+        "border-x",
+        "bottom-0",
+        "dark:bg-secondary",
+        "dark:bg-surface",
+        "dark:bg-surface-container",
+        "dark:border-outline",
+        "dark:shadow-none",
+        "dark:text-on-secondary",
+        "dark:text-primary-fixed",
+        "dark:text-secondary-fixed-dim",
+        "duration-150",
+        "ease-in-out",
+        "ease-out",
+        "fixed",
+        "flex",
+        "flex-1",
+        "flex-col",
+        "folio-double-rule",
+        "font-annotation-italic",
+        "font-body-md",
+        "font-body-sm",
+        "font-bold",
+        "font-headline-md",
+        "font-headline-sm",
+        "font-label-sm",
+        "font-medium",
+        "font-semibold",
+        "gap-0.5",
+        "gap-1",
+        "gap-1.5",
+        "gap-2",
+        "gap-2.5",
+        "gap-space-md",
+        "group",
+        "group-hover:text-primary",
+        "h-2",
+        "h-px",
+        "hover:bg-primary-container",
+        "hover:bg-surface-container",
+        "hover:bg-surface-container-high",
+        "hover:border-primary",
+        "hover:border-primary/40",
+        "hover:text-error",
+        "hover:text-primary",
+        "hover:text-primary-container",
+        "hover:underline",
+        "inline-block",
+        "italic",
+        "items-baseline",
+        "items-center",
+        "items-start",
+        "justify-between",
+        "justify-center",
+        "justify-end",
+        "leading-snug",
+        "leading-tight",
+        "left-0",
+        "material-symbols-outlined",
+        "max-w-[400px]",
+        "mb-0.5",
+        "mb-1",
+        "mb-1.5",
+        "min-h-screen",
+        "mt-0.5",
+        "mt-1",
+        "mt-2",
+        "mx-auto",
+        "my-1",
+        "my-2",
+        "not-italic",
+        "opacity-70",
+        "overflow-hidden",
+        "p-1",
+        "p-2",
+        "p-space-sm",
+        "pb-3",
+        "pb-[76px]",
+        "pb-space-lg",
+        "pl-1",
+        "pt-1",
+        "pt-2",
+        "pt-space-md",
+        "px-1",
+        "px-1.5",
+        "px-2",
+        "px-space-md",
+        "px-space-xs",
+        "py-0.2",
+        "py-0.5",
+        "py-1",
+        "py-1.5",
+        "py-space-xs",
+        "relative",
+        "rounded",
+        "rounded-full",
+        "rounded-lg",
+        "select-none",
+        "selection:bg-secondary-container",
+        "selection:text-on-secondary-container",
+        "shadow-2xs",
+        "shadow-[0_1px_3px_rgba(74,59,50,0.05)]",
+        "shadow-sm",
+        "sticky",
+        "text-[10px]",
+        "text-[12px]",
+        "text-[13px]",
+        "text-[14px]",
+        "text-[18px]",
+        "text-[20px]",
+        "text-annotation-italic",
+        "text-body-md",
+        "text-body-sm",
+        "text-emerald-700",
+        "text-headline-md",
+        "text-headline-sm",
+        "text-label-sm",
+        "text-on-secondary-container",
+        "text-on-surface",
+        "text-primary",
+        "text-secondary",
+        "text-secondary-fixed-dim",
+        "text-secondary/60",
+        "text-secondary/70",
+        "text-sm",
+        "text-surface",
+        "text-tertiary-container",
+        "text-tertiary-container/80",
+        "top-0",
+        "tracking-tight",
+        "tracking-wider",
+        "tracking-widest",
+        "transition-all",
+        "transition-colors",
+        "uppercase",
+        "w-1",
+        "w-2",
+        "w-8",
+        "w-full",
+        "z-40",
+        "z-50"
+      ],
+      "literalHexColors": [
+        "#04122e",
+        "#0d1b37",
+        "#1a2744",
+        "#1c1c17",
+        "#251911",
+        "#2e0500",
+        "#31302b",
+        "#3a4665",
+        "#3c0800",
+        "#45464d",
+        "#515e7e",
+        "#520e00",
+        "#53443a",
+        "#6c5b51",
+        "#726157",
+        "#75777e",
+        "#812811",
+        "#828eb1",
+        "#93000a",
+        "#b9c6eb",
+        "#ba1a1a",
+        "#c5c6ce",
+        "#d9c2b6",
+        "#d9e2ff",
+        "#dddad2",
+        "#df6e50",
+        "#dfdad0",
+        "#e6e2da",
+        "#ece8e0",
+        "#f1ede6",
+        "#f4f0e8",
+        "#f6ded1",
+        "#f7f3eb",
+        "#fdf6f2",
+        "#fdf9f1",
+        "#ffb4a2",
+        "#ffdad6",
+        "#ffdbd2",
+        "#ffffff"
+      ]
+    },
+    "exams": {
+      "sourceKind": "literal-archive-extraction",
+      "referenceHtml": "docs/design/classical-mock/illini_dash_classical_calendar_exams_view/code.html",
+      "referenceScreenshot": "docs/design/classical-mock/illini_dash_classical_calendar_exams_view/screen.png",
+      "archiveEntryPrefix": "stitch_extension_ui_design/illini_dash_classical_calendar_exams_view/",
+      "sha256": {
+        "html": "3bc84e10ba5a5f7e5d2052d9ddf386238419a6d2e993000fe0c5f135447f90fa",
+        "screenshot": "d708e1005a1a34aa06165f24740830f4ce0a36e1872d1af50d38105835155dc4"
+      },
+      "repositoryCopyMatchesArchive": {
+        "html": true,
+        "screenshot": true
+      },
+      "extractedDownloadsCopyMatchesArchive": {
+        "html": true,
+        "screenshot": false
+      },
+      "screenshotPixels": {
+        "width": 780,
+        "height": 1972
+      },
+      "viewportMeta": "width=device-width, initial-scale=1.0",
+      "themeExtend": {
+        "colors": {
+          "inverse-primary": "#b9c6eb",
+          "on-primary-container": "#828eb1",
+          "primary-fixed": "#d9e2ff",
+          "tertiary-fixed": "#ffdbd2",
+          "primary-container": "#1a2744",
+          "secondary-fixed-dim": "#d9c2b6",
+          "on-secondary-fixed-variant": "#53443a",
+          "on-background": "#1c1c17",
+          "surface-container-lowest": "#ffffff",
+          "on-tertiary-fixed": "#3c0800",
+          "on-tertiary-container": "#df6e50",
+          "secondary-fixed": "#f6ded1",
+          "surface-container-high": "#ece8e0",
+          "secondary": "#6c5b51",
+          "on-tertiary": "#ffffff",
+          "on-primary-fixed": "#0d1b37",
+          "on-surface": "#1c1c17",
+          "surface-variant": "#e6e2da",
+          "surface": "#fdf9f1",
+          "outline": "#75777e",
+          "primary": "#04122e",
+          "outline-variant": "#c5c6ce",
+          "on-primary": "#ffffff",
+          "on-surface-variant": "#45464d",
+          "surface-container": "#f1ede6",
+          "error": "#ba1a1a",
+          "surface-dim": "#dddad2",
+          "secondary-container": "#f6ded1",
+          "on-primary-fixed-variant": "#3a4665",
+          "on-secondary-container": "#726157",
+          "on-secondary": "#ffffff",
+          "surface-container-highest": "#e6e2da",
+          "on-tertiary-fixed-variant": "#812811",
+          "surface-tint": "#515e7e",
+          "on-error": "#ffffff",
+          "on-secondary-fixed": "#251911",
+          "tertiary-container": "#520e00",
+          "inverse-surface": "#31302b",
+          "on-error-container": "#93000a",
+          "inverse-on-surface": "#f4f0e8",
+          "surface-bright": "#fdf9f1",
+          "primary-fixed-dim": "#b9c6eb",
+          "background": "#fdf9f1",
+          "error-container": "#ffdad6",
+          "tertiary-fixed-dim": "#ffb4a2",
+          "tertiary": "#2e0500",
+          "surface-container-low": "#f7f3eb"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "space-lg": "1.5rem",
+          "space-sm": "0.5rem",
+          "gutter": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-xl": "2.5rem",
+          "space-md": "1rem",
+          "margin": "2rem"
+        },
+        "fontFamily": {
+          "label-md": [
+            "Newsreader"
+          ],
+          "body-lg": [
+            "EB Garamond"
+          ],
+          "headline-lg-mobile": [
+            "EB Garamond"
+          ],
+          "headline-lg": [
+            "EB Garamond"
+          ],
+          "headline-xl": [
+            "EB Garamond"
+          ],
+          "label-sm": [
+            "Newsreader"
+          ],
+          "annotation-italic": [
+            "EB Garamond"
+          ],
+          "headline-sm": [
+            "EB Garamond"
+          ],
+          "body-sm": [
+            "EB Garamond"
+          ],
+          "body-md": [
+            "EB Garamond"
+          ],
+          "headline-xl-mobile": [
+            "EB Garamond"
+          ],
+          "headline-md": [
+            "EB Garamond"
+          ]
+        },
+        "fontSize": {
+          "label-md": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ],
+          "body-lg": [
+            "19px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg-mobile": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "0em",
+              "fontWeight": "500"
+            }
+          ],
+          "headline-xl": [
+            "42px",
+            {
+              "lineHeight": "50px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.08em",
+              "fontWeight": "600"
+            }
+          ],
+          "annotation-italic": [
+            "15px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-sm": [
+            "20px",
+            {
+              "lineHeight": "28px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-sm": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "letterSpacing": "0.015em",
+              "fontWeight": "400"
+            }
+          ],
+          "body-md": [
+            "17px",
+            {
+              "lineHeight": "26px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl-mobile": [
+            "30px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "0.01em",
+              "fontWeight": "600"
+            }
+          ]
+        }
+      },
+      "themeExtendLine": 21,
+      "externalStylesheetUrls": [
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
+        "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap",
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      ],
+      "externalScriptUrls": [
+        "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+      ],
+      "icons": [
+        "assignment",
+        "calendar_month",
+        "calendar_view_week",
+        "check_circle",
+        "date_range",
+        "done_all",
+        "event_busy",
+        "history_edu",
+        "location_on",
+        "meeting_room",
+        "menu_book",
+        "notification_important",
+        "pin_drop",
+        "schedule",
+        "settings",
+        "sync",
+        "sync_alt",
+        "today",
+        "verified"
+      ],
+      "iconInstances": [
+        {
+          "tag": "span",
+          "line": 161,
+          "classes": "material-symbols-outlined text-primary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "menu_book"
+        },
+        {
+          "tag": "span",
+          "line": 168,
+          "classes": "material-symbols-outlined",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "settings"
+        },
+        {
+          "tag": "span",
+          "line": 178,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "sync"
+        },
+        {
+          "tag": "span",
+          "line": 202,
+          "classes": "material-symbols-outlined text-on-tertiary-container text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "notification_important"
+        },
+        {
+          "tag": "span",
+          "line": 227,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "date_range"
+        },
+        {
+          "tag": "span",
+          "line": 231,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "location_on"
+        },
+        {
+          "tag": "span",
+          "line": 251,
+          "classes": "material-symbols-outlined text-secondary text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "verified"
+        },
+        {
+          "tag": "span",
+          "line": 272,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "font-variation-settings: 'FILL' 1;",
+          "dataIcon": null,
+          "name": "check_circle"
+        },
+        {
+          "tag": "span",
+          "line": 278,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "schedule"
+        },
+        {
+          "tag": "span",
+          "line": 282,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "meeting_room"
+        },
+        {
+          "tag": "span",
+          "line": 299,
+          "classes": "material-symbols-outlined text-[13px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "sync_alt"
+        },
+        {
+          "tag": "span",
+          "line": 305,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "schedule"
+        },
+        {
+          "tag": "span",
+          "line": 309,
+          "classes": "material-symbols-outlined text-[15px] text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "pin_drop"
+        },
+        {
+          "tag": "span",
+          "line": 319,
+          "classes": "material-symbols-outlined text-secondary text-[16px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "history_edu"
+        },
+        {
+          "tag": "span",
+          "line": 343,
+          "classes": "material-symbols-outlined text-[14px]",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "done_all"
+        },
+        {
+          "tag": "span",
+          "line": 364,
+          "classes": "material-symbols-outlined text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "today"
+        },
+        {
+          "tag": "span",
+          "line": 369,
+          "classes": "material-symbols-outlined text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "calendar_view_week"
+        },
+        {
+          "tag": "span",
+          "line": 374,
+          "classes": "material-symbols-outlined text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "calendar_month"
+        },
+        {
+          "tag": "span",
+          "line": 379,
+          "classes": "material-symbols-outlined text-secondary",
+          "inlineStyle": "",
+          "dataIcon": null,
+          "name": "event_busy"
+        },
+        {
+          "tag": "span",
+          "line": 384,
+          "classes": "material-symbols-outlined text-primary font-bold",
+          "inlineStyle": "font-variation-settings: 'FILL' 1;",
+          "dataIcon": null,
+          "name": "assignment"
+        }
+      ],
+      "inlineStyleBlocks": [
+        {
+          "line": 118,
+          "css": "\n    /* Handcrafted tactile paper tooth & ruling mechanics */\n    .folio-container {\n      width: 400px;\n      min-height: 600px;\n      background-color: #fdf9f1;\n      box-shadow: 0 4px 20px rgba(74, 59, 50, 0.12), 0 1px 3px rgba(74, 59, 50, 0.08);\n      position: relative;\n    }\n    \n    .double-rule {\n      border-top: 1px solid #d8cfbe;\n      border-bottom: 0.5px solid #d8cfbe;\n      height: 3px;\n    }\n\n    .brass-clip-accent {\n      background: linear-gradient(135deg, #c49a45 0%, #8f6b28 100%);\n      box-shadow: 0 1px 2px rgba(0,0,0,0.25);\n    }\n\n    .material-symbols-outlined {\n      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;\n      font-size: 18px;\n      line-height: 1;\n      display: inline-block;\n      vertical-align: middle;\n    }\n  "
+        },
+        {
+          "line": 147,
+          "css": "\n    body {\n      min-height: max(884px, 100dvh);\n    }\n  "
+        }
+      ],
+      "shellElements": [
+        {
+          "tag": "body",
+          "line": 153,
+          "classes": "bg-surface-dim min-h-screen flex justify-center items-start p-0 md:p-6 font-body-md text-on-surface antialiased selection:bg-secondary-container",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 155,
+          "classes": "folio-container relative flex flex-col justify-between overflow-hidden bg-surface border-x border-outline-variant/40",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "header",
+          "line": 157,
+          "classes": "bg-surface sticky top-0 z-40 border-b border-outline-variant transition-colors duration-150 ease-in-out shadow-sm",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "div",
+          "line": 158,
+          "classes": "flex justify-between items-center w-full px-space-md py-space-xs max-w-[400px] mx-auto",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "main",
+          "line": 184,
+          "classes": "flex-1 px-space-md pt-space-sm pb-24 space-y-space-md overflow-y-auto",
+          "inlineStyle": ""
+        },
+        {
+          "tag": "nav",
+          "line": 361,
+          "classes": "fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-space-xs py-space-xs max-w-[400px] mx-auto bg-surface-container-low border-t border-outline-variant shadow-sm transition-all duration-150 ease-out",
+          "inlineStyle": ""
+        }
+      ],
+      "utilityClasses": [
+        "-top-1",
+        "absolute",
+        "active:scale-[0.98]",
+        "animate-ping",
+        "animate-pulse",
+        "antialiased",
+        "bg-[#3f5945]",
+        "bg-[#3f5945]/10",
+        "bg-on-tertiary-container",
+        "bg-primary",
+        "bg-secondary-container",
+        "bg-surface",
+        "bg-surface-container",
+        "bg-surface-container-low",
+        "bg-surface-dim",
+        "bg-surface-variant/40",
+        "bg-tertiary-fixed",
+        "border",
+        "border-[#131e34]",
+        "border-[#3f5945]/20",
+        "border-b",
+        "border-outline-variant",
+        "border-outline-variant/30",
+        "border-outline-variant/40",
+        "border-outline-variant/50",
+        "border-outline-variant/60",
+        "border-outline-variant/70",
+        "border-t",
+        "border-tertiary-fixed-dim/80",
+        "border-x",
+        "bottom-0",
+        "brass-clip-accent",
+        "double-rule",
+        "duration-150",
+        "ease-in-out",
+        "ease-out",
+        "fixed",
+        "flex",
+        "flex-1",
+        "flex-col",
+        "folio-container",
+        "font-annotation-italic",
+        "font-body-md",
+        "font-body-sm",
+        "font-bold",
+        "font-headline-lg-mobile",
+        "font-headline-sm",
+        "font-label-md",
+        "font-label-sm",
+        "font-medium",
+        "font-semibold",
+        "gap-0.5",
+        "gap-1",
+        "gap-1.5",
+        "gap-2",
+        "gap-space-xs",
+        "group",
+        "group-hover:translate-x-1",
+        "h-1.5",
+        "h-2",
+        "hover:bg-primary-container",
+        "hover:bg-surface-container",
+        "hover:bg-surface-container-high",
+        "hover:border-outline",
+        "hover:opacity-100",
+        "hover:shadow-md",
+        "hover:text-primary",
+        "hover:text-primary-container",
+        "inline-block",
+        "inline-flex",
+        "items-baseline",
+        "items-center",
+        "items-start",
+        "justify-between",
+        "justify-center",
+        "leading-none",
+        "left-0",
+        "material-symbols-outlined",
+        "max-w-[400px]",
+        "mb-1",
+        "md:p-6",
+        "min-h-screen",
+        "mt-0.5",
+        "mt-2",
+        "mt-space-sm",
+        "mt-space-xs",
+        "mx-auto",
+        "opacity-85",
+        "overflow-hidden",
+        "overflow-y-auto",
+        "p-0",
+        "p-1",
+        "p-space-sm",
+        "pb-1",
+        "pb-24",
+        "pb-space-xs",
+        "pt-0.5",
+        "pt-1",
+        "pt-2",
+        "pt-space-sm",
+        "pt-space-xs",
+        "px-1.5",
+        "px-2",
+        "px-space-md",
+        "px-space-xs",
+        "py-0.5",
+        "py-1",
+        "py-2",
+        "py-space-xs",
+        "relative",
+        "right-5",
+        "rounded",
+        "rounded-full",
+        "rounded-lg",
+        "rounded-sm",
+        "selection:bg-secondary-container",
+        "shadow-sm",
+        "space-y-0.5",
+        "space-y-1",
+        "space-y-1.5",
+        "space-y-space-md",
+        "space-y-space-xs",
+        "sticky",
+        "text-[#3f5945]",
+        "text-[13px]",
+        "text-[14px]",
+        "text-[15px]",
+        "text-[16px]",
+        "text-annotation-italic",
+        "text-body-md",
+        "text-body-sm",
+        "text-headline-lg-mobile",
+        "text-headline-sm",
+        "text-label-md",
+        "text-label-sm",
+        "text-on-primary",
+        "text-on-secondary-container",
+        "text-on-surface",
+        "text-on-surface-variant",
+        "text-on-surface-variant/40",
+        "text-on-tertiary-container",
+        "text-on-tertiary-fixed",
+        "text-primary",
+        "text-secondary",
+        "text-sm",
+        "text-xs",
+        "top-0",
+        "tracking-tight",
+        "tracking-wide",
+        "tracking-wider",
+        "transition-all",
+        "transition-colors",
+        "transition-opacity",
+        "transition-transform",
+        "uppercase",
+        "w-1.5",
+        "w-2",
+        "w-7",
+        "w-full",
+        "z-40",
+        "z-50"
+      ],
+      "literalHexColors": [
+        "#04122e",
+        "#0d1b37",
+        "#131e34",
+        "#1a2744",
+        "#1c1c17",
+        "#251911",
+        "#2e0500",
+        "#31302b",
+        "#3a4665",
+        "#3c0800",
+        "#3f5945",
+        "#45464d",
+        "#515e7e",
+        "#520e00",
+        "#53443a",
+        "#6c5b51",
+        "#726157",
+        "#75777e",
+        "#812811",
+        "#828eb1",
+        "#8f6b28",
+        "#93000a",
+        "#b9c6eb",
+        "#ba1a1a",
+        "#c49a45",
+        "#c5c6ce",
+        "#d8cfbe",
+        "#d9c2b6",
+        "#d9e2ff",
+        "#dddad2",
+        "#df6e50",
+        "#e6e2da",
+        "#ece8e0",
+        "#f1ede6",
+        "#f4f0e8",
+        "#f6ded1",
+        "#f7f3eb",
+        "#fdf9f1",
+        "#ffb4a2",
+        "#ffdad6",
+        "#ffdbd2",
+        "#ffffff"
+      ]
+    }
+  },
+  "allIconNames": [
+    "assignment",
+    "auto_stories",
+    "calendar_month",
+    "calendar_view_week",
+    "check",
+    "check_circle",
+    "chevron_left",
+    "chevron_right",
+    "date_range",
+    "done_all",
+    "edit_calendar",
+    "error",
+    "event_busy",
+    "event_note",
+    "format_quote",
+    "help_outline",
+    "history_edu",
+    "inventory_2",
+    "location_on",
+    "meeting_room",
+    "menu_book",
+    "more_horiz",
+    "notification_important",
+    "open_in_new",
+    "pin_drop",
+    "priority_high",
+    "refresh",
+    "schedule",
+    "settings",
+    "sync",
+    "sync_alt",
+    "today",
+    "verified",
+    "visibility_off",
+    "warning"
+  ]
+}

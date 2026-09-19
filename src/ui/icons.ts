@@ -1,3 +1,4 @@
+import { MATERIAL_SYMBOLS } from "./material-symbols.js";
 /**
  * One icon set, drawn as inline SVG.
  *
@@ -31,6 +32,12 @@ const NS = "http://www.w3.org/2000/svg";
  * header icon are the same weight.
  */
 export const ICON_PATHS = {
+  "edit-calendar": "M3 4h10v9H3zM5 2v2M11 2v2M5 10l5-5 2 2-5 5H5z",
+  hide: "M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5zM2 2l12 12",
+  chat: "M2 2h12v9H6l-4 3zM5 5h6M5 8h4",
+  forum: "M2 2h10v8H5l-3 2zM6 12h5l3 2V6",
+  book: "M8 4Q5 2 2 3v10q3-1 6 1 3-2 6-1V3q-3-1-6 1v10",
+  arrow: "M2 8h12M9 3l5 5-5 5",
   /**
    * Export to a calendar file.
    *
@@ -78,29 +85,42 @@ export const ICON_PATHS = {
   "tab-week": "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
   "tab-month": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",
   "tab-exams": "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
-  /* The No date tab. The month glyph with its dates struck out: the day is a
-     box that stayed empty, which is exactly what the tab holds. */
-  "tab-nodate": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6.5 9.5l3 3M9.5 9.5l-3 3",
+  /*
+   * The Alerts tab: a bell (Sushi, 2026-09-19 — "the alerts tab should be a
+   * ring bell icon").
+   *
+   * It was a calendar with its dates struck out, which was right when the tab
+   * was called "No Date" and held exactly one kind of thing. The tab now holds
+   * late work, a post's claim, an undated row, an unreadable date and a source
+   * with a button on it, and a struck-out calendar says "undated" about four
+   * things that are not. A bell says "something wants you", which is the
+   * question the tab was renamed for.
+   *
+   * The same path as `bell` above rather than a second drawing of one: this is
+   * the legacy 16×16/1.5-stroke set, and two bells on one grid that differ by a
+   * curve is a thing to keep in sync for nothing.
+   */
+  "tab-nodate": "M8 2a3.5 3.5 0 0 0-3.5 3.5c0 2.6-1 3.5-1 3.5h9s-1-.9-1-3.5A3.5 3.5 0 0 0 8 2zM6.8 12a1.3 1.3 0 0 0 2.4 0",
+  /* ---- added for the ZIP acceptance pass (2026-09-19) ----
+   *
+   * The mock names a Material Symbol beside eight more facts than the set above
+   * carried: a circular `error` on the Overdue band (the triangle is `warning`,
+   * a different symbol), `event_note` on the month's agenda, `inventory_2` and
+   * `help` on the undated and ambiguous cards, `format_quote` on a quoted
+   * source, `notification_important` and `history_edu` on the exam board's
+   * headings, and a filled `check_circle` beside a source the booking was read
+   * from. Each has a legacy line on this grid so the other designs draw
+   * *something* in the slot rather than nothing. */
+  error: "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 5v4M8 11.2h.01",
+  "event-note": "M3 4h10v9H3zM3 7h10M5 2v2M11 2v2M5.5 9.5h5M5.5 11.5h3",
+  "format-quote": "M4 10a2 2 0 1 1 2-2V5.5M10 10a2 2 0 1 1 2-2V5.5",
+  "notification-important":
+    "M8 2a3.5 3.5 0 0 0-3.5 3.5c0 2.6-1 3.5-1 3.5h9s-1-.9-1-3.5A3.5 3.5 0 0 0 8 2zM6.8 12a1.3 1.3 0 0 0 2.4 0M8 5v2.5M8 9.2h.01",
+  "history-edu": "M3 13h10M4 13V5a3 3 0 0 1 3-3h6v8a2 2 0 0 1-2 2M9 5h3M9 8h3",
+  "check-circle": "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM5.4 8.1 7.2 10l3.4-3.6",
+  inventory: "M2.5 3h11v3h-11zM3.5 6v7h9V6M6.5 9h3",
+  help: "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM6.2 6.5a1.8 1.8 0 1 1 2.6 1.6c-.5.3-.8.7-.8 1.2M8 11.5h.01",
 } as const;
-
-/**
- * The open book, the Classical design's mark — on a 24 grid, not this file's 16.
- *
- * Kept out of `ICON_PATHS` deliberately. Every entry there is a 16×16 viewBox
- * by contract (`icon()` hard-codes it), and these two paths are the spec's own
- * coordinates on a 24 box; putting them in the table would mean either
- * rewriting the curves — which is how a mark stops being the mark — or leaving
- * a member of the table that `icon()` draws wrong. They are a pair, they are
- * only ever drawn together, and `bookMark()` is the only thing that reads them.
- *
- * Verbatim from `docs/design/classical-spec.md` §2: two leaves meeting at a
- * spine, stroked in `currentColor` so the bar's ink carries it (navy in light,
- * the gold accent in dark).
- */
-const BOOK_PATHS = [
-  "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z",
-  "M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z",
-] as const;
 
 export type IconName = keyof typeof ICON_PATHS;
 
@@ -126,7 +146,43 @@ export function icon(name: IconName): SVGElement {
   svg.classList.add("icon");
   const path = document.createElementNS(NS, "path");
   path.setAttribute("d", ICON_PATHS[name]);
+  path.setAttribute("class", "icon-legacy");
   svg.append(path);
+  // Both sets remain in the DOM so changing Appearance updates icons immediately.
+  const material = document.createElementNS(NS, "svg");
+  material.setAttribute("class", "icon-material");
+  material.setAttribute("viewBox", MATERIAL_SYMBOLS[name].viewBox);
+  material.setAttribute("width", "16"); material.setAttribute("height", "16");
+  material.setAttribute("fill", "currentColor"); material.setAttribute("stroke", "none");
+  /*
+   * Both weights of a symbol that has two, so a stylesheet can pick.
+   *
+   * The mock fills the *selected* Month and Exams tab (`FILL 1`) and leaves the
+   * other three outlined, and a tab is selected by an attribute the redraw
+   * sets — so the filled paths ride along in their own group and
+   * `design-classical.css` shows `.icon-material-fill` only under
+   * `.tab[aria-selected="true"]`. A symbol with one weight has no group at
+   * all, and draws exactly as it did.
+   */
+  const symbol = MATERIAL_SYMBOLS[name] as { paths: readonly string[]; filled?: readonly string[] };
+  const paths = (ds: readonly string[]): SVGElement[] =>
+    ds.map((d) => {
+      const glyph = document.createElementNS(NS, "path");
+      glyph.setAttribute("d", d);
+      return glyph;
+    });
+  if (symbol.filled) {
+    const outline = document.createElementNS(NS, "g");
+    outline.setAttribute("class", "icon-material-outline");
+    outline.append(...paths(symbol.paths));
+    const fill = document.createElementNS(NS, "g");
+    fill.setAttribute("class", "icon-material-fill");
+    fill.append(...paths(symbol.filled));
+    material.append(outline, fill);
+  } else {
+    material.append(...paths(symbol.paths));
+  }
+  svg.append(material);
   return svg;
 }
 
@@ -219,21 +275,7 @@ export function appMark(): SVGElement {
  * no navy at all.
  */
 export function bookMark(): SVGElement {
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", "16");
-  svg.setAttribute("height", "16");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.6");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
+  const svg = icon("book");
   svg.classList.add("appmark-book");
-  for (const d of BOOK_PATHS) {
-    const path = document.createElementNS(NS, "path");
-    path.setAttribute("d", d);
-    svg.append(path);
-  }
   return svg;
 }

@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "journeys": [
+    {
+      "id": "J01",
+      "group": "Reference views",
+      "environment": "preview",
+      "start": "shot.html?dataset=reference&acceptance=1&tab=day&design=classical&mode=light",
+      "steps": ["Wait for fonts and the opening sync to settle; compare Today with the ZIP at its recorded viewport.", "Inspect the title, date, count, timeline, course chips, status text, source marks, header controls, footer and five tabs.", "Open a deadline and return; switch away and back to Today."],
+      "expected": ["Typography, icon shapes, colors, spacing and component order follow the visual contract; differences caused by actual content are identified.", "Today stays anchored to the frozen current date and returning restores the readable calendar.", "Long essential text remains available; no overlapping text, accidental squeeze or horizontal page overflow."],
+      "evidence": ["Settled screenshot plus reference overlay or difference image.", "Font family/weight/load results and bounding boxes for any mismatch; journey interaction record."]
+    },
+    {
+      "id": "J02",
+      "group": "Reference views",
+      "environment": "preview",
+      "start": "shot.html?dataset=reference&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Compare Week with the ZIP, including dates, weekday headings, empty days and deadline cards.", "Move forward across a month boundary, backward, then use Today to return.", "Open a row, return, and use the add control on a particular day; cancel the editor."],
+      "expected": ["The reference hierarchy and seven-day structure remain consistent across date ranges.", "Navigation labels, year and visible dates agree; Today restores the current range.", "The add form receives the selected date; cancel returns to the same range without creating an item."],
+      "evidence": ["Reference screenshot and captures before/after date navigation.", "Selected date and editor value, return position and visible control bounds."]
+    },
+    {
+      "id": "J03",
+      "group": "Reference views",
+      "environment": "preview",
+      "start": "shot.html?dataset=reference&acceptance=1&tab=month&design=classical&mode=light",
+      "steps": ["Compare the popup Month with the ZIP; select a day with multiple deadlines and a day without any.", "Navigate forward and backward and return to Today.", "Activate a deadline in the selected-day agenda, return, then activate Full view."],
+      "expected": ["Dates, selected-day treatment, course legend and agenda use the reference design without crowding seven columns.", "The agenda corresponds to the selected day and its rows remain legible and operable.", "Full view records the intended handoff in the preview; opening/focusing a real extension tab is checked separately."],
+      "evidence": ["Reference screenshot and selected populated/empty day screenshots.", "Selected date, accessible control names, recorded open-full-view request."]
+    },
+    {
+      "id": "J04",
+      "group": "View adaptations",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=month&view=full&design=classical&mode=light",
+      "steps": ["Inspect the full-view month at the recorded desktop viewport, including a crowded cell and its more-items control.", "Open a deadline and return; use the day add control and empty cell area, then cancel.", "Resize to the supported narrow tab viewport and inspect Week and Today as well."],
+      "expected": ["Full view preserves the shared design while using its available width; every date and action is reachable.", "Additional items are accessible, and add/edit surfaces do not appear inside a tiny calendar cell.", "Narrow layouts do not obscure titles, navigation or the return path; popup layout does not depend on a width media-query feedback loop."],
+      "evidence": ["Desktop and narrow full-view captures, crowded-cell interaction record.", "Bounding boxes and overflow measurements for the grid and editor."]
+    },
+    {
+      "id": "J05",
+      "group": "Reference views",
+      "environment": "preview",
+      "start": "shot.html?dataset=reference&acceptance=1&tab=nodate&design=classical&mode=light",
+      "steps": ["Compare No date with the ZIP, including section order, count, unresolved-date explanation and action hierarchy.", "Repeat with dataset=stress to inspect long source text and ambiguous dates.", "Open Give it a date and cancel; open Add something by hand and cancel; inspect Tick off and Hide without treating an unsupported mutation as success."],
+      "expected": ["Unknown dates remain visibly unknown and quoted source text is readable.", "The three actions are distinct, aligned and reachable without squeezing their labels.", "Opening and cancelling either form preserves the undated item and returns to No date."],
+      "evidence": ["Reference and stress screenshots, editor/cancel interaction record.", "Record unsupported mutations as a harness prerequisite; final completion requires J16 and J37."]
+    },
+    {
+      "id": "J06",
+      "group": "Reference views",
+      "environment": "preview",
+      "start": "shot.html?dataset=reference&acceptance=1&tab=exams&design=classical&mode=light",
+      "steps": ["Compare Exams with the ZIP, including booking-needed, booked and ordinary exam groups.", "Use dataset=stress to inspect long exam names, reservation windows and room details.", "Activate a reservation control and a deadline, then return to Exams."],
+      "expected": ["Exam cards, section headings, icons and action emphasis match the contract.", "An unbooked window is described as a reservation window, and a booked time is not presented as an invented deadline.", "The reservation action records the correct source destination; actual booking and authentication remain Chrome checks."],
+      "evidence": ["Reference and stress captures, action destination record.", "Control/text bounds for the longest reservation row."]
+    },
+    {
+      "id": "J07",
+      "group": "Menus and keyboard",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Use real pointer input to open and dismiss the header menu, a row menu near the bottom of the popup and the Appearance panel; exercise outside click and Escape.", "Use Tab, Shift+Tab and arrow keys through tabs, rows and menus; use Enter/Space where each control supports them.", "Open a nested Courses or Merge with menu, cancel it and verify the return focus; scroll to the last control in a tall panel."],
+      "expected": ["Pointer presses land on the intended control and do not immediately dismiss the opened menu.", "Focus is visible, names are meaningful, keyboard navigation stays within the intended control group and Escape returns focus to the opener.", "Floating controls fit within or can be scrolled within the available popup area; no required action lies beyond an unreachable edge."],
+      "evidence": ["Pointer/keyboard sequence, activeElement and accessible-name observations.", "Screenshots and menu/control bounds against the 600px popup viewport; elementFromPoint confirmation for surprising clicks."]
+    },
+    {
+      "id": "J08",
+      "group": "Deadline details",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light&open=deadline",
+      "steps": ["Inspect a merged deadline's complete title, course, due/late dates, completion state and source provenance.", "Activate a source link and Google Calendar action, recording their destinations without submitting anything externally.", "Leave through Back, Escape and a calendar tab in separate passes; inspect the detail menu's Report this page destination."],
+      "expected": ["The detail screen uses the shared visual language and reveals information omitted from compact rows.", "Each external action has a correct destination and understandable label; one-time Google Calendar copy is not described as ongoing sync.", "Each exit is predictable, returns to the intended calendar and leaves no stranded menu or hidden focused element."],
+      "evidence": ["Detail and bottom-of-screen captures, destination records.", "Return view, focused row and scroll-position observations."]
+    },
+    {
+      "id": "J09",
+      "group": "Editor",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light&editor=1",
+      "steps": ["Submit blank required fields, then a time without a date, an invalid link and an event whose end is before its start, one case at a time.", "Correct each error with keyboard input; inspect the error beside its field and any form-level message.", "Fill a long title and course name, then cancel through Back, close and Escape in separate passes."],
+      "expected": ["Validation explains the correction near the affected field and remains visible at popup width.", "Typed values survive validation failures; no invalid item is added.", "Cancel creates no item, returns focus sensibly and leaves Save/Cancel reachable even when error text expands."],
+      "evidence": ["Invalid-field screenshots and request/result record using the real manual validation helper.", "Item count before/after cancellations and keyboard focus observations."]
+    },
+    {
+      "id": "J10",
+      "group": "Editor",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Add a named manual deadline with a date and stated time; reopen and edit its title/time.", "Add a date-only deadline, an undated deadline and an event or exam with a start/end span; inspect each resulting placement and wording.", "Open each saved item to check values, then delete only these simulated items."],
+      "expected": ["A successful save closes the form and draws one item with the entered values.", "A blank time means end of day, an absent date stays undated and event end time appears only for an appropriate kind.", "The stub exercises local UI and validation only; saved preview data is not evidence of worker persistence."],
+      "evidence": ["Form/result captures and simulated item values before and after edit.", "Record the backend persistence requirement under J37."]
+    },
+    {
+      "id": "J11",
+      "group": "Editor",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Open the seeded manual item's menu, choose Delete and immediately use Undo.", "Verify the restored item, then repeat deletion on a disposable simulated item and allow the Undo period to expire.", "Open a sourced or merged item and inspect its menu."],
+      "expected": ["Deleting gives immediate feedback and an accessible Undo action; Undo restores the entered values once.", "After expiry the Undo action disappears without leaving stale focus or a false success message.", "Editing/deleting a manual member hidden inside a merge is not offered as though the entire sourced deadline were editable."],
+      "evidence": ["Delete/Undo screenshots and simulated count/value changes.", "Menu options for sole-manual, sourced and merged items."]
+    },
+    {
+      "id": "J12",
+      "group": "Overrides and reverse paths",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Exercise Mark done and its Not done reverse; exercise Hide and the Settings > Hidden & done > Unhide reverse.", "Open Merge with, inspect eligible same-course candidates, cancel, then exercise merge and Split reverse only when the harness implements those mutations.", "Inspect action feedback and failure presentation; an acceptance harness unsupported response is a blocked prerequisite, never a successful override."],
+      "expected": ["Done and hidden are visibly different states, and both have discoverable reverse paths.", "Merge and split preserve the user's ability to find each source and never offer unrelated courses.", "No control silently springs back or claims success when the worker operation was not exercised."],
+      "evidence": ["Screenshots of menus, picker, failure feedback and reverse controls.", "Mutation request log; stateful harness evidence if added, otherwise record blocked and verify the actual transitions in J37."]
+    },
+    {
+      "id": "J13",
+      "group": "Course visibility",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Open Courses from the header menu, hide one course, then hide the remaining visible courses without reopening the menu after every choice.", "Dismiss the menu and inspect the all-hidden message; choose Show all.", "Reload the preview directly and verify the local display choice; inspect Exams while a course filter is active."],
+      "expected": ["Hidden courses retain their controls in the menu and their checked state is announced correctly.", "The all-hidden view explains the filter and offers a direct recovery; Show all restores the list.", "A display filter does not claim that a source is empty or make exam reservation risks disappear unnoticed."],
+      "evidence": ["Course menu, all-hidden and restored screenshots.", "Local storage/filter state and return-focus observations."]
+    },
+    {
+      "id": "J14",
+      "group": "Sources and attention",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=day&design=classical&mode=light&open=health",
+      "steps": ["Open Sources/Needs you from both the header and footer entry points and inspect every row to the bottom.", "Inspect overdue actions, stale-kept-items wording and suggestions with long Piazza/Campuswire post subjects.", "Open a suggestion's source, inspect Add and Ignore feedback, and inspect Undo on a deadline moved by a post; leave with Back/Escape."],
+      "expected": ["The entire source list and all suggestion controls are reachable with clear headings and shared styles.", "Source provenance and quoted context remain readable without repeating or hiding essential content.", "Add, Ignore and moved-date Undo require actual stateful behavior; unsupported stub mutations remain blocked until J37 or a faithful harness implementation verifies them."],
+      "evidence": ["Top/bottom attention captures and source destination record.", "Request/error observations plus reverse navigation and focus record."]
+    },
+    {
+      "id": "J15",
+      "group": "Piazza and Campuswire front visibility",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=day&design=classical&mode=light&observer=pending&open=health",
+      "steps": ["Locate Piazza and Campuswire from the main calendar's Sources experience without first opening Settings.", "Repeat with observer=off, read, login and error; inspect each name, icon, status and available setup/recovery action.", "Follow the configuration or recovery destination and verify a clear return to the calendar."],
+      "expected": ["Both requested integrations are present in the front UI; current absence is a product finding, not a reason to omit the journey.", "Piazza's background checks and Campuswire's reading of feeds the user opens are accurately distinguished.", "Off or pending is not green success; a successful reading includes relevant facts, and failure offers an appropriate action."],
+      "evidence": ["Front source captures for the five observer states and recorded action destinations.", "If get-state does not expose observer facts, record that specific implementation/harness gap and keep this journey incomplete."]
+    },
+    {
+      "id": "J16",
+      "group": "Undated recovery",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=nodate&design=classical&mode=light",
+      "steps": ["Choose Give it a date on an undated sourced item; inspect the prefilled title/course and explanatory copy.", "Cancel once, then provide a valid date in a second pass.", "Inspect the resulting date, source attribution and route back to the original item; test Tick off/Hide feedback separately."],
+      "expected": ["Cancelling preserves the source item unchanged.", "The added date is visibly a user correction and the flow does not silently invent a source-stated time.", "Any follow-on merge/override unsupported by the preview is a blocked prerequisite; a partially completed stub is not a passed recovery flow."],
+      "evidence": ["Before/form/after captures and emitted requests.", "Record the final state under a stateful harness or the actual worker round trip in J37."]
+    },
+    {
+      "id": "J17",
+      "group": "Sync and redraw",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light&slow=3000",
+      "steps": ["Observe opening sync, then activate Sync now and attempt a second press while it runs.", "Hold a real pointer press on a row menu button while sync/storage redraw arrives; release over the same target and use the menu.", "Repeat a redraw with a menu open, a detail screen open and a dirty editor; finish the action or cancel."],
+      "expected": ["Checking feedback appears where sync was started, prevents duplicate activation and settles to the recorded result.", "A pressed target is not replaced between pointerdown and pointerup; an open menu and typed form are not lost during redraw.", "After the interaction ends the view catches up with current state rather than freezing indefinitely."],
+      "evidence": ["Pointer down/up timing, elementFromPoint, sync/request and redraw log.", "Captures of in-flight state and preserved menu/form; use the existing held-press harness where applicable."]
+    },
+    {
+      "id": "J18",
+      "group": "Failure and empty states",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=day&design=classical&mode=light&fail=network",
+      "steps": ["Inspect network failure and Retry; repeat with fail=parse and fail=sitelogin and inspect their distinct recovery actions.", "Open dataset=empty and inspect Today, Week, Month, No date and Exams; follow any offered add, sign-in or week action and return.", "Inspect pending/off/no-attempt and all-sources-failed empty states where the harness can expose them; record any unreachable state before claiming completion."],
+      "expected": ["A fetch failure is not described as a changed page, and a signed-out course site has a usable sign-in destination.", "Empty copy reflects what was actually read; inaccessible sources do not produce a misleading all-clear message.", "Errors, retry feedback and recovery controls remain visible at the point of action, including near the popup bottom."],
+      "evidence": ["Failure and empty-state screenshots plus retry/destination records.", "Explicit inventory of states reached and harness gaps; no success claim for unchanged simulated backend state."]
+    },
+    {
+      "id": "J19",
+      "group": "Settings navigation and shared design",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light",
+      "steps": ["Visit every section through its navigation link: Sources, Courses, Course websites, Reminders, Google Calendar, Appearance, Hidden & done, Data & privacy, Help and Developer.", "Open and close explanatory disclosures; use keyboard navigation and inspect active-section indication while scrolling.", "Use the return-to-calendar link, then enter Google Calendar and Help through their direct links from the front UI."],
+      "expected": ["Settings shares the default fonts, palette, icons, controls and spacing language with the calendar.", "Section links land on visible headings, controls have associated names and long rows do not crush descriptions or actions.", "Return and deep links retain useful context; a preview routing no-op is reported as a harness gap and checked in J34."],
+      "evidence": ["Full-page and focused section captures, font/style measurements.", "Navigation destination, hash, active-section and focus record."]
+    },
+    {
+      "id": "J20",
+      "group": "Settings sources and courses",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-sources",
+      "steps": ["Inspect hosted-source toggle/status/sign-in rows, Piazza and Campuswire; repeat their enable action with permission=denied.", "In Courses, inspect a long course label, rename field, on/off control and Older courses > put-back action.", "Attempt representative writes and inspect feedback; only verify persisted results when stateful support exists."],
+      "expected": ["Permission denial visibly restores the integration to off and explains the outcome on its row.", "Labels, hints, chips and buttons remain aligned with readable space and consistent affordances.", "Unsupported source/course mutations are explicitly blocked; the UI does not claim a new value was saved solely because a stub returned ok."],
+      "evidence": ["Source, denied-permission and course-row screenshots.", "Recorded permission request and worker requests; persistence is verified in J35-J37."]
+    },
+    {
+      "id": "J21",
+      "group": "Course websites",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-sites",
+      "steps": ["Inspect grouped adapters, page links, permission-missing controls, current/older-term distinction and Check for updates feedback.", "Toggle a simulated adapter, remove a local adapter and use Undo; confirm other pages in its course group remain visible.", "Repeat an enable attempt with permission=denied, then inspect the status and recovery control."],
+      "expected": ["Multiple pages for one course are understandable without duplicate or clipped labels.", "Remove/Undo restores the simulated adapter and enabled state without hiding the remaining group.", "Denied access leaves the site off and gives local feedback; registry fetch and real permissions are Chrome checks."],
+      "evidence": ["Grouped, removed, restored and denied screenshots.", "Simulated adapter state changes and explicit record of unsupported registry operations."]
+    },
+    {
+      "id": "J22",
+      "group": "Add a course site",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-sites&model=ok",
+      "steps": ["Try Read this page with an empty/invalid URL; then use the harness's known sample site and inspect loading and candidate previews.", "Change the proposed table/date format where offered, inspect sample rows, submit an invalid course code, then save a valid simulated candidate or cancel by leaving it unsaved.", "Repeat with model=fail and model=absent and permission=denied; inspect the Copy-for-sharing control without sending its contents anywhere."],
+      "expected": ["Nothing is saved before an explicit selection, and error text identifies the next useful action.", "Candidate titles, dates and course field remain legible; success describes the next sync rather than promising a fetch already occurred.", "Model failure, model unavailability, permission denial and no candidates have distinct truthful outcomes."],
+      "evidence": ["Validation, reading, candidate, failure and unavailable-state captures.", "Sample input, simulated save/copy effects and any missing candidate branch recorded as a harness prerequisite."]
+    },
+    {
+      "id": "J23",
+      "group": "Reminders",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-reminders",
+      "steps": ["Inspect and operate both lead-time chips, practice-work toggle, submitted-work toggle and poll interval selector.", "Enable/disable Quiet hours; clear one clock and attempt a change, then restore valid clocks.", "Inspect Send a test reminder and the blocked-notification banner where supported; do not treat a stub response as delivery."],
+      "expected": ["Pressed/checked states are visible and announced; labels describe each setting's effect.", "Invalid quiet hours produces a visible correction at the section the user is editing, with no silent conversion to midnight.", "Unsupported settings mutations or notification states remain recorded prerequisites; real delivery is checked in J42."],
+      "evidence": ["Controls and quiet-hour error screenshots; setting request log.", "List of reached/unreachable blocked-notification states and the real-delivery result reference."]
+    },
+    {
+      "id": "J24",
+      "group": "Appearance",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Open Appearance in the popup; change the palette, Light/Dark/System mode, Classical/Plain design and both row tweaks, one control at a time.", "Inspect the optional dark appearance with the machine in dark mode, then inspect light; change system preference while System is selected.", "Visit Settings Appearance and return to the calendar; reload the actual preview page directly without reseeding choices."],
+      "expected": ["Each setting applies promptly, selected controls match the rendered result and popup/settings use the same visual system.", "Optional palettes and modes retain readable text, distinct status meanings, visible focus and usable icons; the default reference remains light Classical.", "Explicit appearance choices persist coherently across pages and reload, without a flash of another design."],
+      "evidence": ["Default light and optional dark screenshots, selected controls and computed colors/fonts.", "Storage values, resolved root classes and cross-page/reload observations."]
+    },
+    {
+      "id": "J25",
+      "group": "Compatibility and Google Calendar states",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-gcal&gcal=off",
+      "steps": ["Inspect gcal=off, fresh, connected, empty and each supported failure state from the Calendar state type.", "Try connection with permission=denied and inspect Push now/Disconnect feedback without claiming a Google operation occurred.", "Repeat Settings and popup with stale=1; inspect the missing-field/build warning and all sections after it."],
+      "expected": ["Off, connected-but-never-pushed, pushed-zero and pushed-items have accurate distinct wording; green success requires an actual recorded push.", "Denied or failed connection stays recoverable and explains itself beside its switch; long failure text remains readable.", "An older worker yields a visible actionable warning and a complete usable page, rather than an uncaught render rejection or missing sections."],
+      "evidence": ["Calendar-state and stale-worker captures, warning text and remaining section inventory.", "Recorded simulated effects; real consent, writes and deletion are separated into J39-J41."]
+    },
+    {
+      "id": "J26",
+      "group": "Exports, help and reset cancellation",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-data",
+      "steps": ["Activate Download .ics and Export JSON; inspect the recorded download and visible outcome. Also activate .ics from the calendar header menu.", "Visit Help, copy diagnostics and expand Prepare a report; submit an empty URL and inspect the name/NetID explanation and validation.", "Open Reset and cancel the native confirmation; reopen/close Help disclosures and return to the calendar."],
+      "expected": ["Calendar file export is described as a one-time copy, with feedback visible where the action happened.", "Help communicates scrubbing and local download, never automatic sending; validation is visible in the expanded form.", "Cancelling Reset sends no reset request and preserves data, choices and navigation; preview downloads/clipboard content are clearly simulated."],
+      "evidence": ["Export/help/error captures, simulated download/clipboard records.", "Native cancel interaction and request log proving no reset mutation was sent."]
+    },
+    {
+      "id": "J27",
+      "group": "Developer tools",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&page=options&design=classical&mode=light&hash=sec-dev",
+      "steps": ["Expand and collapse Build and background worker, Gate 0, Offscreen parser round-trip and Fixture capture with pointer and keyboard.", "Inspect disabled Copy results, capture presets, empty-URL validation, name/NetID fields and space for result/error text.", "Attempt a supported simulated failure/result only when the harness has an explicit response; leave every unsupported diagnostic recorded as blocked."],
+      "expected": ["Developer details remain clearly optional and do not dominate ordinary Settings navigation.", "Disclosure focus, labels, buttons and long diagnostic lines remain readable without horizontal page overflow.", "No gate or parser round-trip is described as passed from a stub; live checks follow repository gate policy."],
+      "evidence": ["Expanded section/error screenshots and focus record.", "Explicit supported/unsupported response inventory; no live authenticated fetch performed by this journey."]
+    },
+    {
+      "id": "J28",
+      "group": "Onboarding",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&setup=1&design=classical&mode=light&slow=3000",
+      "steps": ["Inspect the first-run design and all source groups, including connected, checking, signed-out and unused states.", "Activate a single sign-in link and Open all sign-in pages; inspect recorded destinations, optional integration Settings links and the dismissible pin card.", "Activate Find my deadlines, observe Looking/Checking, then reach the calendar; inspect Settings > Choose again as the reverse route."],
+      "expected": ["Setup uses the shared design and differentiates a successful read from selection or pending state.", "Sign-in actions name their destinations and optional integrations are discoverable; no login is automated.", "The primary action communicates work and exits setup; unsupported restart/selection persistence remains blocked until J33/J35."],
+      "evidence": ["Setup, loading and calendar captures plus recorded external effects.", "Source-selection/restart harness gaps and focus observations."]
+    },
+    {
+      "id": "J29",
+      "group": "Long content and reachability",
+      "environment": "preview",
+      "start": "shot.html?dataset=stress&acceptance=1&tab=week&design=classical&mode=light",
+      "steps": ["Inspect the longest course/title/source-error rows, a dense week, a dense month and the longest Settings toggle row.", "Scroll to the last row and footer; open its menu or relevant recovery action using a real press.", "Repeat the most crowded screen at browser zoom 125% and the optional dark appearance; restore defaults afterward."],
+      "expected": ["Essential information is readable or available through a clear detail route, with no overlapping text or clipped button labels.", "The footer, last menu item, form submit/cancel and source recovery remain reachable with scrolling and keyboard.", "Larger text retains usable controls; layout measurements supplement screenshots instead of inferring success from CSS declarations."],
+      "evidence": ["Crowded-screen and zoom captures, scroll/overflow and control bounds.", "Font-load results, text clipping findings and contrast measurements for suspect foreground/background pairs."]
+    },
+    {
+      "id": "J30",
+      "group": "Fresh defaults",
+      "environment": "chrome",
+      "start": "Sushi opens the built extension in a disposable Chrome profile with no stored Illini Dash appearance keys.",
+      "steps": ["Verify the machine is in dark mode, then open the extension without selecting a design or mode.", "Inspect setup, popup, full view and Settings as each becomes reachable.", "Close/reopen the surfaces and inspect the first visible frame and resolved appearance controls."],
+      "expected": ["The ZIP's light Classical design is the fresh default even on the dark machine.", "Fonts/icons load from the shipped extension and Settings shares the calendar design.", "No test URL, manual localStorage seed or prior preview preference is required to obtain the default."],
+      "evidence": ["Chrome screenshots, build identifier, profile precondition and selected appearance values.", "Record actual shipped font/icon resource failures and any first-paint mismatch."]
+    },
+    {
+      "id": "J31",
+      "group": "Existing profile appearance",
+      "environment": "chrome",
+      "start": "Sushi opens an existing extension profile; record its appearance choices without clearing them.",
+      "steps": ["Record how the new default resolves with the existing profile and compare with the documented migration decision.", "Select Classical/light, move between popup, full view and Settings, and reload/reopen.", "Make an explicit optional Dark or Plain choice and reopen, then restore the intended selection."],
+      "expected": ["Existing values follow the documented default/migration policy instead of silently masking an apparent failed redesign.", "Explicit choices are reflected accurately by controls and persist across surfaces.", "No source data or overrides are reset to change appearance."],
+      "evidence": ["Before/after appearance values and Chrome screenshots across all surfaces.", "Document any unresolved migration decision as blocked rather than inventing a reset policy."]
+    },
+    {
+      "id": "J32",
+      "group": "Real popup dimensions",
+      "environment": "chrome",
+      "start": "Sushi opens the toolbar popup from the built extension with a dense list.",
+      "steps": ["Inspect Chrome's actual popup window size, then scroll from the header to the footer.", "Open Sources, Appearance, an editor and a bottom-row menu, one at a time.", "Close and reopen on Month and on a short/empty view."],
+      "expected": ["Chrome measures a correctly sized popup instead of opening an 800px-wide window around a 400px list.", "Every required control is reachable within Chrome's height cap; no body/html scroll-container workaround creates intrinsic-sizing failure.", "Menus and screens remain operable at their real toolbar position, including opening near the screen edge."],
+      "evidence": ["Actual Chrome popup screenshots with observed dimensions and scrolling result.", "Bounds of any clipped control and exact surface/view/build; a preview screenshot alone does not pass this journey."]
+    },
+    {
+      "id": "J33",
+      "group": "Real onboarding return paths",
+      "environment": "chrome",
+      "start": "Sushi uses a disposable profile's setup screen, or Settings > Choose again in an authorized test profile.",
+      "steps": ["Choose the sources used by the test profile and open one named sign-in page.", "Sushi signs in, returns to Illini Dash and observes rechecking, then activates Find my deadlines.", "Reopen Choose again and verify selections and a working return to the calendar; dismiss the pin hint where present."],
+      "expected": ["Selections persist, and unused sources are described as unused.", "Returning from sign-in causes an appropriate fresh attempt and clears the login state only after a successful read.", "Setup finishes with actual results and preserves a clear route back without repeated tab creation."],
+      "evidence": ["One browser action requested at a time; record before/after status, attempt time and source count.", "Chrome captures of setup, checking and resulting calendar; no credentials or private page contents in evidence."]
+    },
+    {
+      "id": "J34",
+      "group": "Real navigation and exports",
+      "environment": "chrome",
+      "start": "Sushi opens the toolbar popup on a known view with a safe test deadline.",
+      "steps": ["Use Open full view twice and verify it focuses/reuses the intended tab; move to Settings and back.", "Follow Google Calendar and Report this page deep links, then use the return route.", "Open the safe deadline's source and one-time Calendar template, then cancel externally; download .ics and JSON to inspect locally."],
+      "expected": ["Popup, full view and Settings navigation has a predictable return path and avoids redundant extension tabs.", "Deep links land at the intended visible section with needed URL/context populated.", "Source/template destinations and actual download filenames/content agree with the labels; no external event is saved by merely opening a template."],
+      "evidence": ["Chrome tab/destination observations and screenshots of deep-link landings.", "Local download validation and one-time-copy wording; do not publish exports containing student data."]
+    },
+    {
+      "id": "J35",
+      "group": "Real source permissions and authentication",
+      "environment": "chrome",
+      "start": "Sushi opens Sources/Settings in an authorized test profile with a hosted source signed out and an optional course site disabled.",
+      "steps": ["Disable/re-enable the hosted source and observe pending state; sign in through its named action and return.", "Enable the optional site and deny the Chrome permission prompt; retry and grant only when Sushi chooses to do so.", "Use Sync now/Retry after a recoverable failure and inspect results in both Settings and the front source list."],
+      "expected": ["A toggle is not reported as successful fetching; disabled, pending, signed-out, failed and read states remain truthful.", "Denied permission stays off and offers a usable retry without losing other source settings.", "Successful recovery is reflected consistently on both surfaces only after an actual attempt."],
+      "evidence": ["One browser action requested at a time; permission result and before/after attempt/status facts.", "Chrome source-row captures and relevant scrubbed diagnostic messages."]
+    },
+    {
+      "id": "J36",
+      "group": "Real Piazza and Campuswire",
+      "environment": "chrome",
+      "start": "Sushi opens the front Sources experience with Piazza and Campuswire available for configuration.",
+      "steps": ["From the front, reach each integration's setup/recovery action; deny one optional grant and inspect its recovery before enabling as authorized.", "For Piazza, Sushi signs in and returns for a background check; for Campuswire, Sushi opens a class feed and returns after it is observed.", "Compare status/count/time facts on the front and in Settings, then switch each integration off and inspect the result."],
+      "expected": ["Both integrations are discoverable from the calendar with correct names/icons and direct next actions.", "Piazza and Campuswire report the distinct work they actually perform; Campuswire does not claim a background fetch it never made.", "Permission/login failures remain actionable and disabling is reflected consistently without falsely erasing evidence of previous reads."],
+      "evidence": ["Chrome front/settings captures and scrubbed observer facts before/after actual reads.", "One browser action requested at a time; no automated sign-in, posting or message sending."]
+    },
+    {
+      "id": "J37",
+      "group": "Actual worker writes and reversals",
+      "environment": "chrome",
+      "start": "Sushi uses disposable manual deadlines and explicitly chosen safe test items in an authorized test profile.",
+      "steps": ["Add/edit/reopen a manual deadline, delete and Undo; give a selected undated test item a date and inspect its provenance.", "Perform Mark done/Not done, Hide/Unhide and a same-course Merge/Split pair, verifying results after reopening and after a sync.", "Exercise a test suggestion's Add/Ignore and moved-date Undo, plus course rename/toggle/older-course restore and reminder setting changes where applicable; restore the original choices."],
+      "expected": ["Each named operation persists through the worker/store round trip and has its documented reverse path.", "A sync does not overwrite the user's latest action or strand the UI on a busy state.", "If no safe test suggestion or source item exists, that branch stays blocked with the missing prerequisite named; preview no-ops cannot substitute."],
+      "evidence": ["Per-operation before/after/reopen record with only synthetic or scrubbed values.", "UI screenshots and relevant store/diagnostic facts; split this checklist into one precise Sushi action per round trip."]
+    },
+    {
+      "id": "J38",
+      "group": "Real course-site and report flow",
+      "environment": "chrome",
+      "start": "Sushi opens Settings > Course websites or Help with a known authorized test page URL.",
+      "steps": ["Read the page, inspect candidate rows and course code, then add a test adapter; inspect actual sync results and remove/Undo that local adapter.", "Prepare a broken-page report with supplied scrub values, inspect warnings and download the scrubbed report locally.", "Where a developer diagnostic is required, expand its section and run only the named check; inspect result/error and copy/download controls."],
+      "expected": ["A real host grant, fetch and candidate review precede saving; denied/unreadable/no-candidate results remain clear.", "The report is scrubbed and reviewed before sharing, with no automatic transmission.", "Any failed SPEC gate stops the relevant work and is reported; optional developer checks are not implied to have run."],
+      "evidence": ["One requested browser action at a time, scrubbed candidate/report findings and UI screenshots.", "Actual download verification; raw captures and identifying source data are excluded from public evidence."]
+    },
+    {
+      "id": "J39",
+      "group": "Google Calendar consent refusal",
+      "environment": "chrome",
+      "start": "Sushi opens Settings > Google Calendar while sync is off in an authorized test profile.",
+      "steps": ["Enable sync and deny Chrome's optional host permission; inspect the immediate result.", "Retry with host access allowed but cancel the Google consent step; inspect the returned state.", "If an actual account policy/revocation error is encountered, inspect that error and its available recovery without bypassing policy."],
+      "expected": ["Each refusal returns the switch to a truthful recoverable state with feedback beside it.", "No failed or cancelled consent is described as connected or pushed.", "The user is not trapped in a repeated consent loop and existing unrelated calendars are unaffected."],
+      "evidence": ["Chrome screenshots and scrubbed state/error result after each refusal.", "Record unavailable policy branches as simulated-only under J25, not live verified."]
+    },
+    {
+      "id": "J40",
+      "group": "Google Calendar connection and push",
+      "environment": "chrome",
+      "start": "Sushi explicitly authorizes a Google Calendar test connection and use of synthetic deadlines in a test account/profile.",
+      "steps": ["Enable sync and inspect the consent scope and newly created Illini Dash calendar.", "Use Push now with a stated-time and date-only synthetic deadline; inspect the resulting events.", "Change and complete/hide a test deadline and verify the subsequent update/removal and UI status."],
+      "expected": ["The scope is calendar.app.created and work is confined to the extension-created calendar.", "A stated time becomes the intended timed event and an assumed end-of-day time becomes all-day; status reflects the actual push count/time.", "Changed, done and hidden deadlines update or leave that calendar as specified, with visible failure feedback if a push fails."],
+      "evidence": ["User authorization, scope and test-calendar facts; scrubbed before/after UI and event observations.", "These external writes require the explicit test authorization in the start condition; preview success is insufficient."]
+    },
+    {
+      "id": "J41",
+      "group": "Google Calendar disconnect",
+      "environment": "chrome",
+      "start": "Sushi explicitly authorizes disconnecting the disposable Illini Dash test calendar created for J40.",
+      "steps": ["Review the disconnect explanation beside the switch, then turn Google Calendar sync off.", "Observe Disconnecting and the final state; inspect the test calendar's removal.", "Reopen Settings and verify sync remains off with a clear reconnect route."],
+      "expected": ["The action's removal consequence is understandable before it is taken.", "The extension-created test calendar/events are removed and the token/state is cleared as specified.", "Other calendars are unaffected; a failed cleanup is surfaced honestly rather than shown as completed."],
+      "evidence": ["Explicit authorization for the disposable calendar removal and Chrome UI captures.", "Scrubbed actual cleanup/off-state observations; no deletion performed as part of constructing this workflow."]
+    },
+    {
+      "id": "J42",
+      "group": "Real reminders",
+      "environment": "chrome",
+      "start": "Sushi opens Settings > Reminders in an authorized test profile.",
+      "steps": ["Save a lead-time/quiet-hours/poll change and reopen to verify persistence, then restore the original setting.", "Send one test reminder and inspect the actual Chrome/OS result.", "If notifications are blocked, inspect the warning and supported recovery; inspect a test notification's click destination where available."],
+      "expected": ["Settings persist and the UI describes the actual saved values.", "A sent request is distinguished from a notification the OS displayed; blocking is explained near the controls.", "The test notification opens the intended safe destination without requiring a hidden console."],
+      "evidence": ["Chrome setting/blocked-state captures and actual notification observation.", "One browser action requested at a time; no repeated notifications to manufacture a pass."]
+    },
+    {
+      "id": "J43",
+      "group": "Reset isolation",
+      "environment": "chrome",
+      "start": "Sushi uses a disposable profile containing only synthetic extension data and explicitly authorizes a reset test.",
+      "steps": ["Open Reset, cancel and verify the synthetic list and corrections remain.", "Open Reset again and confirm only in this disposable profile.", "Reopen the extension and inspect the resulting setup/empty state, source states and default appearance."],
+      "expected": ["Cancellation is harmless and preserves data.", "Confirmed reset removes the intended local rows/corrections and does not falsely claim remote Google Calendar cleanup unless that actually occurs.", "The resulting UI is complete, truthful and usable; never run this journey against Sushi's working data to satisfy an acceptance checklist."],
+      "evidence": ["Disposable-profile precondition, explicit authorization and before/cancel/after captures.", "Actual local-state result and any remote-calendar caveat; no destructive action performed while constructing this workflow."]
+    }
+  ]
+}

@@ -27,11 +27,20 @@ import { movedByText } from "../../../core/suggest.js";
 import { googleCalendarUrl } from "../../../core/ics.js";
 import { sameCourse } from "../../../core/dedupe.js";
 import { STUDENT_POST_ID } from "../../../core/overrides.js";
+import { assumedTimeNote, movedHeading } from "../../../core/provenance.js";
 import { unreadableDeadline, unreadableSummary } from "../../../core/quality.js";
 import { iconButton } from "../../icons.js";
 import type { Item, Status } from "../../../sources/types.js";
-import { HIDDEN_KEY, MENU_CLASS, app, safeUrl, state, viewEl, writeStored } from "../state.js";
-import { leaveNeedsYou } from "./needs-you.js";
+import {
+  HIDDEN_KEY,
+  MENU_CLASS,
+  app,
+  requestFocus,
+  safeUrl,
+  state,
+  viewEl,
+  writeStored,
+} from "../state.js";
 import {
   applyOverrideAction,
   applySuggestionRequest,
@@ -61,13 +70,21 @@ let openedFrom: string | undefined;
 
 export function openDeadline(item: Item): void {
   closeMenus();
-  leaveNeedsYou();
   openedFrom = item.title;
   state.screen = { kind: "deadline", itemId: item.id, view: state.view };
-  // Focus lands on ‹ back once drawn (R2 L2).
-  void app.refresh().then(() => {
-    viewEl.querySelector<HTMLElement>(".screen-bar button")?.focus();
-  });
+  /*
+   * Focus lands on ‹ back once drawn (R2 L2) — *requested*, not chased.
+   *
+   * This was `app.refresh().then(() => …focus())`, and a press on a row is
+   * exactly the case where `refresh()` does not draw: the button is still
+   * held for one task (`createPressHold`), the refresh returns at once, the
+   * `.then` runs against the list and finds no screen bar, and the deferred
+   * draw a task later moves focus nowhere. Measured with a real held press:
+   * `BODY` focused after every pointer open (I02, 2026-09-19). The request is
+   * applied by whichever draw actually renders the screen (popup/focus.ts).
+   */
+  requestFocus({ kind: "screen-back" });
+  void app.refresh();
 }
 
 /**
@@ -78,17 +95,16 @@ export function openDeadline(item: Item): void {
  * `state.view` was never changed.
  */
 export function closeScreen(): void {
-  if (!state.screen || state.screen.kind === "needs-you") return;
+  if (!state.screen) return;
   state.screen = undefined;
   const wanted = openedFrom;
   openedFrom = undefined;
-  void app.refresh().then(() => {
-    const rows = [...viewEl.querySelectorAll<HTMLElement>("a.row, .row")];
-    const match = rows.find(
-      (row) => row.querySelector(".row--title")?.textContent === wanted,
-    );
-    (match ?? rows[0])?.focus();
-  });
+  // The row it came from, by title, else the first row — found by the draw
+  // that rebuilds the list, which after a pointer press on ‹ back is the
+  // deferred one (see `openDeadline`). Escape took a different timing path
+  // and always worked; the pointer path never did.
+  requestFocus({ kind: "row", title: wanted ?? "" });
+  void app.refresh();
 }
 
 /*
@@ -104,8 +120,6 @@ export function closeScreen(): void {
  */
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !state.screen) return;
-  // The Needs-you screen owns its own Escape (screens/needs-you.ts).
-  if (state.screen.kind === "needs-you") return;
   if (document.querySelector(`.${MENU_CLASS}`)) return;
   if (state.editor) return;
   event.preventDefault();
@@ -124,8 +138,6 @@ document.addEventListener("keydown", (event) => {
 export function renderOpenScreen(now: Date): boolean {
   const screen = state.screen;
   if (!screen) return false;
-  // Drawn by the entry before the tabs, never here.
-  if (screen.kind === "needs-you") return false;
   if (screen.view !== state.view) {
     state.screen = undefined;
     openedFrom = undefined; // R2 L8: nothing to return focus to any more.
@@ -235,14 +247,19 @@ function renderDeadlineScreen(item: Item, now: Date): HTMLElement {
   body.append(renderDueCard(item, now));
   body.append(renderFacts(item, now));
 
-  /* ---- an announcement moved it ---- */
+  /* ---- something moved it, and the heading says which ---- */
   const moved = movedByText(item) ?? movedText(item);
-  if (moved) {
+  const heading = movedHeading(item);
+  if (moved && heading) {
     const note = el("div", "dl--moved");
-    // Two producers since D3: a post, or the student ("Give it a date"). One
-    // comparison tells them apart (R3 M4).
+    // Four producers, not two: a post, "Give it a date", the student editing
+    // their own row, and the source simply printing a different date since the
+    // last sync. The last two reach here through `movedFrom`, which carries no
+    // author at all — so the heading used to borrow the announcement's, and
+    // told Sushi an announcement had moved a deadline he typed himself
+    // (2026-09-19). `movedHeading` derives it from the fact instead.
     const byStudent = item.movedBy?.postId === STUDENT_POST_ID;
-    note.append(el("div", "dl--moved-head", byStudent ? "You set this date" : "Moved by an announcement"));
+    note.append(el("div", "dl--moved-head", heading));
     const line = el("div", "dl--moved-text", moved);
     if (item.movedBy?.reason && !byStudent) line.title = item.movedBy.reason;
     note.append(line);
@@ -334,7 +351,7 @@ function renderDueCard(item: Item, now: Date): HTMLElement {
     // is worker rule 3's risk wearing its friendliest face.
     if (item.timeAssumed) {
       when.append(el("span", "dl--assumed", "no time stated"));
-      when.title = "The course site gives a date but no time. Check the page for the cutoff.";
+      when.title = assumedTimeNote(item);
     }
   }
   left.append(when);

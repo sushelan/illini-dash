@@ -14,6 +14,8 @@
     "package": "node build.mjs && node scripts/package.mjs",
     "preview": "node build.mjs && node scripts/preview.mjs",
     "shots": "node build.mjs && node scripts/preview.mjs && node scripts/shots.mjs",
+    "ui:acceptance": "node scripts/ui-acceptance.mjs",
+    "test:ui-workflow": "node --test scripts/ui-acceptance.test.mjs",
     "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {

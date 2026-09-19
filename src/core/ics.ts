@@ -8,6 +8,7 @@
  * rather than let a student believe it stays in sync.
  */
 
+import { assumedTimeNote } from "./provenance.js";
 import type { Item } from "../sources/types.js";
 
 /** §8.3: a 15-minute event ending at the deadline. */
@@ -94,9 +95,7 @@ function event(item: Item, stamp: string): string[] {
     item.dueAt === undefined ? "Reduced-credit deadline." : undefined,
     // Said in the event itself, because a calendar entry is read long after and
     // far away from the popup that could have explained it.
-    item.timeAssumed
-      ? "The course site gives a date but no time. This is filed as an all-day event; check the course page for the real cutoff."
-      : undefined,
+    item.timeAssumed ? assumedTimeNote(item, "allDay") : undefined,
     // A row the student typed may have no link at all; a falsy entry is dropped
     // by the filter below rather than exported as the string "undefined".
     item.url,
@@ -175,7 +174,7 @@ export function googleCalendarUrl(item: Item): string | undefined {
     // `details` is required by URLSearchParams to be a string, and a row with no
     // link has nothing to put there but the note.
     details: item.timeAssumed
-      ? `${item.url ?? ""}\n\nThe course site gives no time; check the course page for the real cutoff.`.trimStart()
+      ? `${item.url ?? ""}\n\n${assumedTimeNote(item, "allDay")}`.trimStart()
       : (item.url ?? ""),
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;

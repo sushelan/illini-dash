@@ -17,6 +17,8 @@ import {
   healthPill,
   needsYouPill,
   quietState,
+  alertCount,
+  type AlertsInput,
   type NeedsYouInput,
   sourceRows,
   sourcesToRecheck,
@@ -708,6 +710,71 @@ describe("healthPill (what replaces the six dots)", () => {
   it("drops the clock rather than printing Invalid Date", () => {
     const pill = healthPill(sources({ gradescope: status() }), "not a date", NOW);
     expect(pill.text).toBe("Gradescope OK");
+  });
+});
+
+describe("alertCount — the Alerts tab's badge (2026-09-19)", () => {
+  const OK = () => sources({ gradescope: status(), canvas: status({ source: "canvas" }) });
+  const count = (partial: Partial<AlertsInput> = {}) =>
+    alertCount({ sources: OK(), overdue: 0, suggestions: 0, undated: 0, ...partial });
+
+  it("counts nothing when nothing on the tab is asking", () => {
+    expect(count()).toBe(0);
+  });
+
+  it("adds late work, suggestions and the two undated groups", () => {
+    /*
+     * The badge has to count what the tab *holds*, or it sends a student past
+     * three late assignments to a "2". `undated` is `noDateCount`, which is
+     * already "No date at all" plus "Couldn't read" — the two sections the tab
+     * draws — so the four numbers here are the four things on screen.
+     */
+    expect(count({ overdue: 3, suggestions: 2, undated: 4 })).toBe(9);
+  });
+
+  it("counts a source only when there is something to press", () => {
+    // `actionFor` decides, so the badge can never promise a button the Sources
+    // section does not draw: needs_login has a login page, parse_error has the
+    // site to open, network_error has Retry.
+    expect(
+      count({ sources: sources({ gradescope: status({ state: "needs_login" }) }) }),
+    ).toBe(1);
+    expect(
+      count({ sources: sources({ gradescope: status({ state: "network_error" }) }) }),
+    ).toBe(1);
+  });
+
+  it("never counts a source that was not fetched (worker rule 2)", () => {
+    /*
+     * CLAUDE.md, worker house rule 2: "Anything the UI asserts about a source
+     * must be derived from an attempt that happened." A cold install has four
+     * enabled sources and no attempt behind any of them — `displayState` calls
+     * each `pending`, `actionFor` returns nothing for `pending`, and a badge
+     * that counted them would put a "4" on the tab about four fetches that
+     * never ran. A source switched off is the same claim in the other
+     * direction: it has no button, so it is not an alert.
+     */
+    expect(alertCount({ sources: emptyStore().sources, overdue: 0, suggestions: 0, undated: 0 })).toBe(0);
+    expect(count({ sources: sources({ gradescope: status({ enabled: false, state: "needs_login" }) }) })).toBe(0);
+    // …and the student's own work still counts over a cold install: the rows
+    // are real whatever the sources did.
+    expect(
+      alertCount({ sources: emptyStore().sources, overdue: 2, suggestions: 0, undated: 1 }),
+    ).toBe(3);
+  });
+
+  it("agrees with the Sources section about how many rows carry a button", () => {
+    // One derivation or two. `sourceRows` is what the tab draws and `alertCount`
+    // is what the strip promises, and the two disagreeing is the defect the
+    // shared `actionFor` exists to prevent (mutation rule 3's finding).
+    const broken = sources({
+      gradescope: status({ state: "needs_login" }),
+      canvas: status({ source: "canvas", state: "parse_error" }),
+      prairielearn: status({ source: "prairielearn", state: "pending", lastAttemptAt: undefined }),
+    });
+    const drawn = sourceRows(broken, NOW).filter((row) => row.action !== undefined).length;
+    expect(alertCount({ sources: broken, overdue: 0, suggestions: 0, undated: 0 })).toBe(drawn);
+    expect(drawn).toBe(2);
   });
 });
 

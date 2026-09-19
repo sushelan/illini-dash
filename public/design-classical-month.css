@@ -157,11 +157,16 @@ html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav {
    * `div` with a `w-[1px]` divider between them; closing the column gap leaves
    * the right button's own left border doing exactly that job.
    *
-   * `column-gap`, not `gap`: the row's other members set their own spacing —
-   * `.datenav--label` has `margin-right: auto` and `.mfull` a 7px margin-left —
-   * so the only distance this removes is the one between the two buttons.
+   * This was `column-gap: 0` on the whole strip, on the reasoning that
+   * `.datenav--label`'s `margin-right: auto` means the only distance being
+   * removed is the one between the two buttons. That is true only while the
+   * label and the buttons are the strip's ONLY members. They are not: stepping
+   * off today adds a "Today" pill, and measured with it present the gap between
+   * it and the arrow block was 0.0px — part of what Sushi called "the arrows
+   * are too squished". So the strip keeps its ordinary gap and only the pair
+   * closes up, by pulling the second button back over it.
    */
-  column-gap: 0;               /* mock: the pair is a single bordered box */
+  column-gap: var(--datenav-gap);
 }
 html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav--label {
   padding-inline: 0;
@@ -182,15 +187,20 @@ html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav >
   border-radius: 0;
   background: var(--surface-raised);
 }
-html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .btn-icon:first-child {
+html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .datenav--back {
   border-radius: 4px 0 0 4px;
   border-right: 0;
 }
-html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .btn-icon:last-child {
+/* `.datenav--fwd`, not `:last-child`: the "Today" pill is appended after this
+   button, so the positional selector stopped matching the moment a student
+   stepped off today — square outer corners and a lost `order`, measured. */
+html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav > .datenav--fwd {
   order: 3;
   border-radius: 0 4px 4px 0;
+  /* Closes the strip's gap for this pair alone, so the two read as one bordered
+     box (the mock's `w-[1px]` divider is the right button's own left border). */
+  margin-left: calc(var(--datenav-gap) * -1);
 }
-html[data-design="classical"]:not(.view-full) body[data-view="month"] .mfull { order: 1; }
 /*
  * mock: the agenda is a `section` —
  * `bg-surface-container-low border border-outline-variant rounded-sm p-3` —

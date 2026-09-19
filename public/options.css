@@ -1,0 +1,64 @@
+/* Settings extends the same packaged type, ink, paper and controls as the popup.
+ * Every size here came down on 2026-09-19 with the popup's, for the same reason:
+ * the face changed from EB Garamond to Source Sans 3, whose x-height is a fifth
+ * larger, so the same px reads a fifth bigger. Old values are noted inline. */
+/*
+ * The "Illini Dash" link back to the full view, for every design.
+ *
+ * The only rule that sized it was under `html[data-design="classical"]`, so in
+ * every other design it fell through to `ui.css`'s own `.back` — written for a
+ * plain text link ("← Illini Dash") at `display: inline-block`, 12px, muted.
+ * `src/ui/options.ts` later replaced that arrow with an icon element, and an
+ * inline-block box has no `gap` and no baseline alignment to give it: the glyph
+ * ended up welded to the word. Measured on the real page at 1400px: Classical gave 16.5px
+ * bold with an 8px gap; editorial, rams and timetable each gave 12px with the
+ * glyph's right edge and the text's left edge both at x=40 — the icon welded to
+ * the word. Sushi, 2026-09-19: "scuffed icon and name btw".
+ *
+ * Layout lives here, unscoped, because it is not a matter of taste: an icon
+ * touching a word is wrong in any design. Type and colour stay with each
+ * design, and Classical's own rule below still wins on both.
+ */
+.page > .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--primary);
+  text-decoration: none;
+}
+.page > .back svg,
+.page > .back .icon { width: 18px; height: 18px; flex: none; }
+.page > .back:hover { text-decoration: underline; }
+
+html[data-design="classical"] body.page { display: block; font-size: 14.5px; line-height: 1.5; }  /* was 17px */
+html[data-design="classical"] .page--head { padding-top: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+html[data-design="classical"] .page--head h1 { font: 600 26.5px/33px var(--serif); color: var(--primary); }  /* was 32px/40px */
+html[data-design="classical"] .page--head .muted { font: 500 12px/17px var(--label); }  /* was 13px/18px */
+html[data-design="classical"] .page > .back { display: inline-flex; align-items: center; gap: 8px; font: 700 16.5px/23px var(--serif); color: var(--primary); text-decoration: none; }  /* was 20px/28px */
+html[data-design="classical"] .page--split { gap: 32px; padding-top: 16px; }
+html[data-design="classical"] .pagenav a { padding: 8px 12px; font: 500 12.5px/18px var(--label); border: 0; border-radius: 4px; }  /* was 14px/20px */
+html[data-design="classical"] .pagenav a[aria-current="true"] { background: var(--bg-active-tab); color: var(--muted); }
+html[data-design="classical"] .page--body h2 { font: 600 20px/27px var(--serif); color: var(--primary); }  /* was 24px/32px */
+html[data-design="classical"] .page--body h3 { font: 600 16.5px/23px var(--serif); }  /* was 20px/28px */
+html[data-design="classical"] .page--body section { padding: 24px 0; border-color: var(--border-subtle); }
+html[data-design="classical"] .lede { font: 400 14.5px/22px var(--serif); }  /* was 17px/26px */
+html[data-design="classical"] .why > summary { font: 500 12px/17px var(--label); padding: 6px 0; }  /* was 13px/18px */
+html[data-design="classical"] .why > p { font: 400 13.5px/20px var(--serif); }  /* was 15px/22px */
+html[data-design="classical"] .rows, html[data-design="classical"] .agroup { border-radius: 4px; background: var(--surface-raised); }
+html[data-design="classical"] .srow2 { padding: 14px 12px; }
+html[data-design="classical"] .srow2--name { font: 600 14.5px/20px var(--serif); color: var(--primary); }  /* was 17px/24px */
+html[data-design="classical"] .srow2--hint { font: 400 12.5px/20px var(--serif); overflow-wrap: anywhere; }  /* was 14px/22px */
+html[data-design="classical"] .chip-base { font: 500 10.5px/15px var(--label); border-radius: 4px; }  /* was 11px/16px */
+html[data-design="classical"] .opt-note { font: 400 12px/18px var(--serif); }  /* was 13px/20px */
+html[data-design="classical"] .page input:not([type="checkbox"]):not([type="radio"]),
+html[data-design="classical"] .page select, html[data-design="classical"] .page textarea { font-size: 13.5px; background: var(--bg); border-color: var(--line); min-height: 32px; }  /* was 15px */
+html[data-design="classical"] .page pre, html[data-design="classical"] .page code { font-family: ui-monospace, monospace; font-size: 11.5px; }  /* was 12px */
+@media (max-width: 720px) {
+  .page--split { grid-template-columns: minmax(0,1fr); gap: 12px; padding-inline: 16px; }
+  .pagenav { position: static; display: flex; flex-wrap: wrap; padding-top: 0; }
+  .srow2 { grid-template-columns: auto minmax(0,1fr); }
+  .srow2 > .chip-base, .srow2 > .btn { grid-column: 2; justify-self: start; }
+}

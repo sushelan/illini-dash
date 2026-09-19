@@ -19,6 +19,7 @@ import {
 import { SITE_TIMEZONE } from "../src/core/detect.js";
 import { extractCourseCode } from "../src/core/normalize.js";
 import type { RawItem } from "../src/sources/types.js";
+import { referenceItems } from "./preview-reference.js";
 
 const now = Date.now();
 const at = (days: number, hour = 23, minute = 59) => {
@@ -26,13 +27,14 @@ const at = (days: number, hour = 23, minute = 59) => {
   d.setHours(hour, minute, 0, 0);
   return d.toISOString();
 };
+let previewId = 0;
 const member = (source: string, extra?: Record<string, string>, status = "not_submitted") => ({
-  source, sourceId: `${source}-${Math.random()}`, courseRaw: "x", title: "m",
+  source, sourceId: `${source}-${++previewId}`, courseRaw: "x", title: "m",
   kind: "assignment", url: "https://www.gradescope.com/", status, extra,
   fetchedAt: new Date().toISOString(),
 });
 const item = (o: Record<string, unknown>) => ({
-  id: `i${Math.random()}`, members: [member("gradescope")], courseLabel: "CS357",
+  id: `i${++previewId}`, members: [member("gradescope")], courseLabel: "CS357",
   title: "Thing", kind: "assignment", url: "https://www.gradescope.com/courses/1",
   status: "not_submitted", hidden: false, done: false, notified: {}, ...o,
 });
@@ -220,6 +222,17 @@ items.push(itemOfManual(seeded) as (typeof items)[number]);
 let setupDone = false;
 
 const query = new URLSearchParams(location.search);
+const dataset = query.get("dataset");
+if (dataset && !["reference", "stress", "empty"].includes(dataset)) {
+  throw new Error(`Unknown preview dataset: ${dataset}`);
+}
+if (dataset === "reference" || dataset === "empty") {
+  manualRaw = [];
+  items.splice(0, items.length, ...(dataset === "reference" ? referenceItems(now) : []) as (typeof items));
+}
+if (dataset === "stress") {
+  items.push(item({ courseLabel: "ECE374", title: "A deliberately long deadline title: language transformations, recursive algorithms, and the full instructions students need to distinguish this assignment from its neighbours", dueAt: at(0, 15, 0) }));
+}
 
 /**
  * `?stale=1` — a worker on an older build than the page.
@@ -380,6 +393,12 @@ const sources = {
     ? { source: "site", enabled: true, state: "needs_login", lastAttemptAt: new Date(now - 2 * 60_000).toISOString(), lastSuccessAt: new Date(now - 26 * 3600_000).toISOString(), lastError: "401 at https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html", loginUrl: "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html", consecutiveFailures: 2 }
     : { source: "site", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
 };
+
+// Reference and empty views start healthy; explicit failure switches still win.
+if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
+  Object.assign(sources.gradescope, { state: "ok", consecutiveFailures: 0,
+    lastAttemptAt: new Date(now).toISOString(), lastSuccessAt: new Date(now).toISOString(), lastError: undefined });
+}
 
 (globalThis as unknown as { chrome: unknown }).chrome = {
   runtime: {
@@ -592,7 +611,8 @@ const sources = {
         // a field the real worker does send. A harness that cries wolf on the
         // happy path is one nobody reads on the unhappy one; `?stale=1` is
         // where that state belongs.
-        return { type: "state", items, sources, notificationsBlocked: false,
+        return { type: "state",
+          observers: { piazza: { enabled: false, state: "pending" }, campuswire: { enabled: false } }, items, sources, notificationsBlocked: false,
                  suggestions: PREVIEW_SUGGESTIONS,
                  courseNames: stale ? undefined : { CS424: "Real-Time Systems" },
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
@@ -705,7 +725,7 @@ const PREVIEW_SUGGESTIONS = [
 ];
 
 // One row a post moved, so the detail line and its undo are on screen.
-items.push(
+if (dataset !== "reference" && dataset !== "empty") items.push(
   item({
     courseLabel: "CS425", title: "MP2: Distributed Logging", dueAt: at(5, 23, 59),
     movedBy: { reason: "Campuswire post 2026-09-17", from: at(2, 23, 59), postId: "cw-0" },
@@ -840,6 +860,63 @@ const previousSendMessage = (globalThis as unknown as {
         "loads, which this cannot read, or it is a list rather than a table.",
     };
   }
-  if (req.type === "add-local-adapter" || req.type === "set-adapter-enabled") return { type: "ok" };
   return previousSendMessage(req);
 };
+
+/** Acceptance instrumentation is preview-only. Unknown writes must not claim
+ * success: record a harness gap, which is distinct from a product defect.
+ */
+if (query.has("acceptance")) {
+  const host = globalThis as unknown as {
+    chrome: {
+      runtime: { sendMessage: (req: { type: string }) => Promise<Record<string, unknown>>; openOptionsPage: () => unknown };
+      tabs: { create: (details: unknown) => unknown };
+      permissions: { contains: () => Promise<boolean>; request: () => Promise<boolean> };
+    };
+    __UI_ACCEPTANCE__: { dataset: string; events: Record<string, unknown>[] };
+  };
+  const events: Record<string, unknown>[] = [];
+  host.__UI_ACCEPTANCE__ = { dataset: dataset ?? "stress", events };
+  const known = new Set([
+    "get-state", "get-options-state", "get-setup", "get-adapters", "ping", "sync",
+    "add-manual-item", "edit-manual-item", "delete-manual-item", "complete-setup",
+    "remove-local-adapter", "add-local-adapter", "set-adapter-enabled", "detect-adapter",
+    "get-diagnostics", "export", "open-full-view",
+  ]);
+  const original = host.chrome.runtime.sendMessage;
+  host.chrome.runtime.sendMessage = async (req) => {
+    const supported = known.has(req.type);
+    events.push({ kind: supported ? "simulated-message" : "unsupported", request: req });
+    if (!supported) return { type: "error", message: `Preview does not simulate ${req.type}. This journey needs a stateful stub or an isolated Chrome check.` };
+    const response = await original(req);
+    if (req.type === "get-state" || req.type === "get-options-state") {
+      if (dataset === "reference" || dataset === "empty") {
+        response.suggestions = [];
+        response.courseNames = {};
+        if (req.type === "get-options-state") {
+          response.courses = [...new Set(items.map((i) => i.courseLabel))].map((code) => ({ key: code, label: code, itemCount: items.filter((i) => i.courseLabel === code).length, sources: [...new Set(items.filter((i) => i.courseLabel === code).flatMap((i) => i.members.map((m) => m.source)))], disabled: false }));
+          response.hiddenItems = [];
+          response.doneItems = [];
+        }
+      }
+      const observer = query.get("observer") ?? "login";
+      if (!["off", "pending", "read", "login", "error"].includes(observer)) throw new Error(`Unknown preview observer state: ${observer}`);
+      response.observers = {
+        campuswire: { enabled: observer !== "off", ...(observer === "read" ? { lastObservedAt: new Date(now).toISOString(), postsSeen: 3 } : {}) },
+        piazza: { enabled: observer !== "off", state: observer === "read" ? "ok" : observer === "login" ? "needs_login" : observer === "error" ? "error" : "pending",
+          ...(observer === "read" || observer === "login" || observer === "error" ? { lastAttemptAt: new Date(now).toISOString() } : {}),
+          ...(observer === "read" ? { lastObservedAt: new Date(now).toISOString(), postsSeen: 25, deadlinesFound: 1 } : {}),
+          ...(observer === "error" ? { lastError: "Preview: Piazza could not be reached" } : {}) },
+      };
+    }
+    return response;
+  };
+  host.chrome.permissions.contains = async () => query.get("permission") !== "denied";
+  host.chrome.permissions.request = async () => {
+    const granted = query.get("permission") !== "denied";
+    events.push({ kind: "simulated-permission", granted });
+    return granted;
+  };
+  host.chrome.tabs.create = (details) => { events.push({ kind: "external-intent", details }); return Promise.resolve({}); };
+  host.chrome.runtime.openOptionsPage = () => { events.push({ kind: "options-intent" }); return Promise.resolve(); };
+}

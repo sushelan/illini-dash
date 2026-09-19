@@ -6,6 +6,10 @@
 
 import { describe, expect, it } from "vitest";
 import { buildIcs, escapeIcsText, foldIcsLine, googleCalendarUrl, icsTimestamp } from "../src/core/ics.js";
+import {
+  OWN_TIME_NOTE_ALL_DAY,
+  SOURCE_TIME_NOTE_ALL_DAY,
+} from "../src/core/provenance.js";
 import type { Item, RawItem } from "../src/sources/types.js";
 
 function member(extra?: Record<string, string>): RawItem {
@@ -18,6 +22,21 @@ function member(extra?: Record<string, string>): RawItem {
     url: "https://www.gradescope.com/",
     status: "not_submitted",
     extra,
+    fetchedAt: "2026-09-10T18:00:00.000Z",
+  };
+}
+
+/** RFC 5545 folds at 75 octets, so an asserted sentence has to be put back. */
+const unfold = (ics: string) => ics.replace(/\r\n /g, "");
+
+function manualMember(): RawItem {
+  return {
+    source: "manual",
+    sourceId: "m1",
+    courseRaw: "CS 357",
+    title: "m",
+    kind: "assignment",
+    status: "unknown",
     fetchedAt: "2026-09-10T18:00:00.000Z",
   };
 }
@@ -169,8 +188,23 @@ describe("exporting a time this extension invented (§4.5)", () => {
     expect(buildIcs([assumed()], now)).toContain("DTEND;VALUE=DATE:20260919");
   });
 
-  it("says in the event that the time is not the course's", () => {
-    expect(buildIcs([assumed()], now)).toContain("no time");
+  it("says in the event that the time is not the course's, and that it is all-day", () => {
+    // `toContain("no time")` passed against the short form too, so the .ics
+    // description was the one surviving mutation of the 2026-09-19 pass. The
+    // all-day half is the part only an exported event needs: the popup that
+    // could have explained it is not there when the entry is read.
+    const ics = unfold(buildIcs([assumed()], now));
+    expect(ics).toContain(escapeIcsText(SOURCE_TIME_NOTE_ALL_DAY));
+  });
+
+  it("does not send the student to a course page on a row they typed", () => {
+    // The manual row has no course site; the sentence that told them to go and
+    // check one was the second half of Sushi's 2026-09-19 report.
+    const mine = item({ members: [manualMember()], dueAt: "2026-09-18T23:59:00-05:00", timeAssumed: true });
+    const ics = unfold(buildIcs([mine], now));
+    expect(ics).toContain(escapeIcsText(OWN_TIME_NOTE_ALL_DAY));
+    expect(ics).not.toContain("course site");
+    expect(googleCalendarUrl(mine)!).not.toContain("course+site");
   });
 
   it("keeps a stated deadline as a timed event", () => {

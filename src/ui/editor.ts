@@ -48,6 +48,25 @@ export interface EditorValues {
 }
 
 export interface EditorOptions {
+  /**
+   * The five-field shape (Sushi, 2026-09-19: "it should just be a small popup
+   * for date, time, name, course, and add/cancel").
+   *
+   * Date, Time, Title and Course, and nothing else: no Kind, no end time, no
+   * link, no "No date yet". The controls those four would need are still
+   * *built* — `read()` and `setTimes` are one implementation for both shapes,
+   * and a second copy of `read()` is how this file's rules go stale — but they
+   * are not appended, so nothing unappended can be typed into. What that costs
+   * a student, and the route back to it, is written down in
+   * `screens/editor.ts`.
+   *
+   * The one thing that must not be inherited from the full form is the error
+   * slots: a sentence routed to a field that is not on screen would appear
+   * nowhere at all, which is the failure the doc comment above calls worse
+   * than the bug. `errors` below holds only the fields this shape shows, and
+   * everything else falls to the form-level slot.
+   */
+  compact?: boolean;
   /** "Add a deadline" / "Edit this deadline". */
   heading: string;
   /** The word on the button that saves: "Add it" or "Save". */
@@ -86,6 +105,14 @@ export interface Editor {
 /** The class a redraw guard looks for. One constant, so no caller can misspell it. */
 export const EDITOR_SELECTOR = ".editor";
 const EDITOR_CLASS = EDITOR_SELECTOR.slice(1);
+
+/**
+ * The class the quick shape's stylesheet keys off, and the one a test looks
+ * for. One constant, so the selector and the thing it matches cannot drift
+ * apart (UI house rule 7).
+ */
+export const QUICK_SELECTOR = ".editor--quick";
+const QUICK_CLASS = QUICK_SELECTOR.slice(1);
 
 /**
  * The three kinds a student can pick, and what §3 calls them.
@@ -157,8 +184,10 @@ function labelled(
 let datalistSeq = 0;
 
 export function createEditor(options: EditorOptions): Editor {
+  const compact = options.compact === true;
   const form = document.createElement("form");
   form.className = EDITOR_CLASS;
+  if (compact) form.classList.add(QUICK_CLASS);
   // Chrome's own validation bubbles would compete with the sentences
   // `core/manual.ts` writes, and say less: "Please fill out this field" over a
   // form whose refusals are written to say what to do.
@@ -174,6 +203,20 @@ export function createEditor(options: EditorOptions): Editor {
    */
   const head = document.createElement("div");
   head.className = "editor--head screen-bar";
+  if (compact) {
+    /*
+     * No ‹ and no ×. The quick shape is not a screen — there is nothing to go
+     * back *to* — and Cancel is two fields below the place × would sit, which
+     * is a second dismiss in a panel small enough to see both at once. The
+     * heading stays because the panel is a `dialog` and a dialog with no
+     * accessible name announces as nothing.
+     */
+    const quickTitle = document.createElement("h2");
+    quickTitle.className = "editor--title screen-bar--title";
+    quickTitle.textContent = options.heading;
+    head.append(quickTitle);
+    form.append(head);
+  } else {
   const back = iconButton("left", "Back");
   back.addEventListener("click", () => options.onCancel());
   const heading = document.createElement("h2");
@@ -183,8 +226,9 @@ export function createEditor(options: EditorOptions): Editor {
   dismiss.addEventListener("click", () => options.onCancel());
   head.append(back, heading, dismiss);
   form.append(head);
+  }
 
-  if (options.intro) {
+  if (options.intro && !compact) {
     const intro = document.createElement("p");
     intro.className = "editor--intro";
     intro.textContent = options.intro;
@@ -290,6 +334,11 @@ export function createEditor(options: EditorOptions): Editor {
   // form would otherwise show whatever day the list was looking at and save it
   // as a deadline the student never typed.
   noDate.checked = options.values.date === "";
+  // Never on in the quick shape, whatever it was opened with. The toggle is not
+  // drawn there, and `read()` lets it win over both clock fields — so a quick
+  // panel opened with a blank date would disable its own Date and Time boxes
+  // with nothing on screen to turn them back on.
+  if (compact) noDate.checked = false;
   const noDateText = document.createElement("span");
   noDateText.className = "editor--nodate-text";
   const noDateTitle = document.createElement("b");
@@ -315,27 +364,52 @@ export function createEditor(options: EditorOptions): Editor {
   moreGrid.append(endField.wrap, urlField.wrap);
   more.append(moreSummary, moreGrid);
 
-  // Mock 2b's order: Title across the top, then Course / Kind and Date / Time
-  // in two columns, the toggle under them, and everything rarer behind "More".
-  grid.append(
-    titleField.wrap,
-    courseField.wrap,
-    kindField.wrap,
-    dateField.wrap,
-    timeField.wrap,
-    noDateWrap,
-    more,
-  );
+  if (compact) {
+    // The order Sushi named them in — "date, time, name, course" — which is
+    // also the order they are decided in: the day is what the "+" was pressed
+    // on, and the title is what the student came to type.
+    // Course takes the width in this shape: Date and Time share the first row,
+    // and a course name beside half a row of nothing reads as a missing field.
+    courseField.wrap.classList.add("editor--field-wide");
+    grid.append(dateField.wrap, timeField.wrap, titleField.wrap, courseField.wrap);
+  } else {
+    // Mock 2b's order: Title across the top, then Course / Kind and Date / Time
+    // in two columns, the toggle under them, and everything rarer behind "More".
+    grid.append(
+      titleField.wrap,
+      courseField.wrap,
+      kindField.wrap,
+      dateField.wrap,
+      timeField.wrap,
+      noDateWrap,
+      more,
+    );
+  }
 
-  const errors: Record<string, HTMLElement> = {
-    title: titleField.error,
-    courseRaw: courseField.error,
-    date: dateField.error,
-    time: timeField.error,
-    endTime: endField.error,
-    kind: kindField.error,
-    url: urlField.error,
-  };
+  /*
+   * Only the slots that are on screen.
+   *
+   * A refusal routed to a field this shape does not draw would be written into
+   * a `<label>` that was never appended — visible nowhere, which is strictly
+   * worse than the same sentence at the foot of the form. `showError` falls
+   * back to `formError` for anything missing here.
+   */
+  const errors: Record<string, HTMLElement> = compact
+    ? {
+        title: titleField.error,
+        courseRaw: courseField.error,
+        date: dateField.error,
+        time: timeField.error,
+      }
+    : {
+        title: titleField.error,
+        courseRaw: courseField.error,
+        date: dateField.error,
+        time: timeField.error,
+        endTime: endField.error,
+        kind: kindField.error,
+        url: urlField.error,
+      };
 
   const formError = document.createElement("p");
   formError.className = "editor--error editor--error-form";

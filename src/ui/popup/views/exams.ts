@@ -11,6 +11,7 @@ import {
   examBoard,
   startOfDay,
 } from "../../../core/calendar.js";
+import { reservationVerified } from "../../../core/reservation.js";
 import type { Item } from "../../../sources/types.js";
 import { icon, type IconName } from "../../icons.js";
 import { safeUrl, viewEl } from "../state.js";
@@ -73,7 +74,9 @@ export function renderExamsView(
         board.unbooked.length === 1
           ? "Action Required"
           : `${board.unbooked.length} to book`,
-        "warning",
+        // V05/V06: the mock's `notification_important`, not the hazard
+        // triangle. A seat you have not booked is a bell, not a warning sign.
+        "notification-important",
         "err",
       ),
     );
@@ -97,7 +100,12 @@ export function renderExamsView(
       if (mock) {
         // "not booked" is a warning, not a clock: the mock puts
         // `notification_important` on this card and a `schedule` on the others.
-        decorateExamRow(row, "warning", false);
+        decorateExamRow(
+          row,
+          "warning",
+          reservationVerified(item, "unbooked"),
+          false,
+        );
         /*
          * §7's `Window open: …` line.
          *
@@ -142,7 +150,9 @@ export function renderExamsView(
         examWhen(placed, now),
         colours,
       );
-      if (mock) decorateExamRow(row, "clock");
+      if (mock) {
+        decorateExamRow(row, "clock", reservationVerified(placed.item, "upcoming"));
+      }
       stack.append(row);
     }
     viewEl.append(stack);
@@ -151,7 +161,9 @@ export function renderExamsView(
   if (board.recent.length > 0) {
     // A week of them, so "I already sat that" and "this never existed" are
     // different answers. They drop out on their own after that.
-    viewEl.append(examHeading("Just sat", "past week", "tab-exams"));
+    // V05/V06: `history_edu`, the mock's glyph for what is already in the
+    // record, rather than the Exams tab's own icon repeated inside the tab.
+    viewEl.append(examHeading("Just sat", "past week", "history-edu"));
     const stack = examStack();
     for (const placed of board.recent) {
       const row = renderRow(
@@ -162,7 +174,9 @@ export function renderExamsView(
         colours,
       );
       row.classList.add("row-sat");
-      if (mock) decorateExamRow(row, "clock");
+      if (mock) {
+        decorateExamRow(row, "clock", reservationVerified(placed.item, "recent"));
+      }
       // The mock's "✓ Graded" tag. It says "Taken" instead, because no source
       // this extension reads reports a grade — see the report note.
       const when = mock ? row.querySelector<HTMLElement>(".row--when") : null;
@@ -253,10 +267,16 @@ function examFolio(): HTMLElement {
  * another — and the mock gives each of them its own line with a glyph in front.
  * So this moves the room onto its own line and turns the source into the
  * mock's verified pill, rather than asking `rows.ts` for a third row shape.
+ *
+ * `verified` is the caller's, not this function's: whether a seat is actually
+ * held is a fact about the item and its placement, which `reservationVerified`
+ * decides in `core/` where a test can reach it. It used to be decided here,
+ * from the source's *name*, and so appeared on the "Not booked" card (V06).
  */
 function decorateExamRow(
   row: HTMLElement,
   whenGlyph: IconName,
+  verified: boolean,
   inlineRelative = true,
 ): void {
   const when = row.querySelector<HTMLElement>(".row--when");
@@ -277,12 +297,12 @@ function decorateExamRow(
 
   const source = row.querySelector<HTMLElement>(".row--sources");
   if (source) {
-    // A tick only where the extension read the booking from the system that
-    // owns it. Everything else is the mock's plain "Canvas / Gradescope" pill.
-    const verified = source.textContent === "PrairieTest";
+    // A tick only where the extension read a *reservation* from the system
+    // that owns it. Everything else is the mock's plain "Canvas / Gradescope"
+    // pill, with its `sync_alt`.
     source.classList.add("exam-src");
     if (verified) source.classList.add("exam-src--verified");
-    source.prepend(icon(verified ? "verified" : "sync"));
+    source.prepend(icon(verified ? "check-circle" : "sync"));
     dropSeparator(source);
   }
 
@@ -346,7 +366,7 @@ function reserveButton(item: Item): HTMLElement | undefined {
   const arrow = document.createElement("span");
   arrow.className = "exam-reserve--arrow";
   arrow.setAttribute("aria-hidden", "true");
-  arrow.textContent = "→";
+  arrow.append(icon("arrow"));
   button.append(label, arrow);
   button.addEventListener("click", (event) => {
     event.preventDefault();

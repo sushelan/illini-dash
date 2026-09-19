@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { parseHTML } from "linkedom";
 import {
   DARK_CLASS,
   DEFAULT_MODE,
@@ -206,5 +207,92 @@ describe("tweaks (brief D14)", () => {
     expect(TWEAK_KEYS.showSourceNames).toBe("illini-dash.tweak.showSourceNames");
     const keys = [...Object.values(TWEAK_KEYS), THEME_KEY, MODE_KEY];
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The design radio (src/ui/theme-panel.ts)                                    */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A DOM, because the thing under test is what the radio *does*, not what
+ * `core/theme.ts` computes. The setup is `tests/preview-acceptance.test.ts`'s,
+ * one document smaller: `theme-panel.ts` reads `window`, `document` and
+ * `localStorage` as its body runs, so all three exist before the import below.
+ */
+const panelDom = parseHTML("<!doctype html><html><body><div id='themes'></div></body></html>");
+const panelGlobals = globalThis as unknown as Record<string, unknown>;
+panelGlobals["document"] = panelDom.document;
+panelGlobals["window"] = panelDom.window;
+// `new Event(…)` inside the panel resolves to the *global* constructor, and
+// Node's own `Event` is not one linkedom's `dispatchEvent` can fill in.
+panelGlobals["Event"] = panelDom.window.Event;
+const panelStore = new Map<string, string>();
+panelGlobals["localStorage"] = {
+  getItem: (key: string) => panelStore.get(key) ?? null,
+  setItem: (key: string, value: string) => void panelStore.set(key, value),
+  removeItem: (key: string) => void panelStore.delete(key),
+};
+const panel = await import("../src/ui/theme-panel.js");
+
+describe("choosing a design redraws the list", () => {
+  /*
+   * §the defect, 2026-09-19: "in full screen when i go to appearance and click
+   * plain and click back on illini dash on top left i see the messed up rows".
+   *
+   * A design is **markup**, not paint. `rows.ts`'s `cardDesign()` reads
+   * `data-design` at render time and builds a two-line card with `.row--main`
+   * and `.row--when` for Classical, against the one-line `.row--compact` every
+   * other design gets. Flipping the attribute without redrawing leaves one
+   * design's children under the other's grid, and the children auto-place into
+   * whatever tracks the new sheet names: measured in the real document, the
+   * title of a compact row left behind under `design-classical.css` moved from
+   * 9px to **638px** from the row's left edge on an 842px row (and 90px on a
+   * 264px one) — Sushi's "messed up rows", and the same failure
+   * `views/alerts.ts` documents for the suggestion row.
+   *
+   * The event is what `rows.ts` listens for, so this is the line that makes
+   * the two designs' markup follow their stylesheets.
+   */
+  function designPanel(): { radios: Record<string, HTMLInputElement>; heard: string[] } {
+    const host = panelDom.document.getElementById("themes") as unknown as HTMLElement;
+    panel.renderThemePanel(host);
+    const heard: string[] = [];
+    panelDom.window.addEventListener(panel.TWEAKS_EVENT, () => heard.push("redraw"));
+    const radios: Record<string, HTMLInputElement> = {};
+    for (const radio of host.querySelectorAll("input[name='design']")) {
+      radios[(radio as HTMLInputElement).id] = radio as unknown as HTMLInputElement;
+    }
+    return { radios, heard };
+  }
+
+  it("offers Classical and Plain, and Classical is what an unset profile is on", () => {
+    panelStore.clear();
+    panel.applyStoredTheme();
+    const { radios } = designPanel();
+    expect(Object.keys(radios).sort()).toEqual(["design-classical", "design-default"]);
+    // Nothing stored is a *choice* since 2026-09-19, not an absence.
+    expect(panelDom.document.documentElement.dataset["design"]).toBe("classical");
+  });
+
+  it("announces a redraw when Plain is chosen, not only the attribute", () => {
+    panelStore.clear();
+    const { radios, heard } = designPanel();
+    radios["design-default"]!.checked = true;
+    radios["design-default"]!.dispatchEvent(new panelDom.window.Event("change"));
+    // The attribute is gone, so every sheet scoped to `html[data-design=…]` is
+    // off — which is exactly when the rows built for one must be rebuilt.
+    expect(panelDom.document.documentElement.dataset["design"]).toBeUndefined();
+    expect(heard).toEqual(["redraw"]);
+  });
+
+  it("announces a redraw when Classical is chosen, which is the direction that strands the title", () => {
+    panelStore.clear();
+    panelStore.set("illini-dash.design", "none");
+    const { radios, heard } = designPanel();
+    radios["design-classical"]!.checked = true;
+    radios["design-classical"]!.dispatchEvent(new panelDom.window.Event("change"));
+    expect(panelDom.document.documentElement.dataset["design"]).toBe("classical");
+    expect(heard).toEqual(["redraw"]);
   });
 });

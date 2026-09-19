@@ -1,71 +1,39 @@
-/* design-classical-nodate.css — the Classical calendar's nodate view.
- *
- * Scoped under `html[data-design="classical"]` like every rule in
- * `design-classical.css`, which loads first and owns the tokens, the type
- * scale, the shell, the tab bar and the shared card slip. Spend those here;
- * do not restate them. One file per view so parallel work never collides in
- * a single stylesheet.
- *
- * The invariants it may not break: `html` and `body` are never scroll
- * containers, nothing takes a viewport unit or a percentage height, and no
- * rule is keyed on window width. See the header of popup.css.
- */
-
-/* ==========================================================================
- * Measurements.
- *
- * The mock (`illini_dash_classical_calendar_no_date_view/code.html` and its
- * `screen.png`) is drawn 597px wide with the markup's own `max-w-[400px]`
- * ignored, so every number in it is at ~1.49x of this popup. 400/597 = 0.67,
- * and that is the factor applied below — with two deliberate exceptions, both
- * because a serif runs small for its nominal size:
- *
- *   mock                          scaled   used here
- *   headline-md 24px  (title)     16.1     16px
- *   annotation  15px  (lead)      10.1     10.5px  serifs run small
- *   label-sm    11px  (headings)   7.4      9.5px  sans, and 7.4 is unreadable
- *   body-sm     14px  (notes)      9.4     10.5px  serifs run small
- *   space-sm     8px  (card pad)   5.4      7px    matches the shared slip
- *   gap-2.5     10px  (stack)      6.7      7px    already `.nodate-stack`
- *   hairline    32px  (w-8 rule)  21.5     22px
- *
- * Nothing here is keyed on window width, takes a viewport unit or a percentage
- * height, and nothing touches `html`/`body`.
- * ====================================================================== */
-
-
-/* ==========================================================================
- * The five colours §6 names that `design-classical.css` has no token for.
- *
- * Scoped here rather than pushed into the token sheet: they are this view's,
- * and the token sheet is owned elsewhere. Every one carries a dark half —
- * Sushi's machine is dark, and a light-only value would paint a near-white
- * button onto a brown-black page. The dark halves are the warm dark ramp the
- * token sheet already uses (#1a1713 → #26221b → #3a3328), lifted by the same
- * amount the light values are dropped below white rather than by the same
- * alpha, because a wash composites toward its own luminance.
- * ====================================================================== */
+/* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
+ * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
 html[data-design="classical"] {
-  --nd-act-rule:    #f0eae0;  /* §6's top rule over the three buttons        */
-  --nd-act-edge:    #dcd4c3;  /* §6's button edge                            */
-  --nd-act-hover:   #f7f2e8;  /* §6's `--bg-hover`                           */
-  --nd-peach:       #f5dcd2;  /* §6's peach edge on the ambiguous card       */
-  --nd-callout-bg:  #fcfaf5;  /* §6's callout ground                         */
-  --nd-callout-ink: #4a3b32;  /* §6's callout ink                            */
+  --nd-act-rule:    var(--border-subtle);  
+  --nd-act-edge:    var(--line);  
+  --nd-act-hover:   var(--hover);  
+  --nd-peach:       #ffb4a2;  
+  --nd-callout-bg:  var(--bg);  
+  --nd-callout-ink: #4a3b32;  
+  --nd-act-bg:      var(--bg);              /* mock: the actions' `bg-surface` #fdf9f1, one step above their card */
+  --nd-count-bg:    #1a2744;                /* mock: section 1's count, `bg-primary-container` */
+  --nd-count-ink:   #fdf9f1;                /* mock: its ink, `text-surface` */
+  --nd-help:        rgba(82, 14, 0, .8);    /* mock: `text-tertiary-container/80`, #520e00 */
+  --nd-stripe:      rgba(82, 14, 0, .4);    /* mock: the ambiguous card's `bg-tertiary-container/40` stripe */
 }
 html[data-design="classical"].is-dark {
-  --nd-act-rule:    #332c22;
-  --nd-act-edge:    #453c2e;
-  --nd-act-hover:   #2f2920;
-  --nd-peach:       #7a4b39;
-  --nd-callout-bg:  #221d16;
-  --nd-callout-ink: #d9cdb8;
+  /* Re-cut for the white-on-black dark palette (2026-09-19). The old values
+     were warm — #332c22, #453c2e, #7a4b39, #221d16, #d9cdb8, #2d2820 — because
+     dark used to be brown paper; against the cool graphite ground a warm rule
+     reads as a stain rather than as a rule. The *direction* of each light value
+     is kept, as before: only the hue the ramp is read along has changed. */
+  --nd-act-rule:    #2e3238;
+  --nd-act-edge:    #3d424a;
+  --nd-act-hover:   #2a2e33;                /* lifted with --nd-act-bg below, so hover is still a step up from rest */
+  --nd-peach:       #7a4438;
+  --nd-callout-bg:  #1a1c1f;
+  --nd-callout-ink: #ccd1d8;
+  --nd-act-bg:      #24272b;                /* light's bg-surface sits above its card; so does this above #1e2023 */
+  --nd-count-bg:    var(--primary);         /* the sheet's own brand block, as on the filled Give it a date */
+  --nd-count-ink:   var(--primary-ink);
+  --nd-help:        var(--terracotta);      /* the lit end of the same hue */
+  --nd-stripe:      var(--nd-peach);
 }
-
-/* --- the folio banner: title, count, lead, and a rule under it ----------- */
 html[data-design="classical"] .nodate-banner {
-  margin: 0 10px;
-  padding: 11px 0 9px;
+  margin: 0 16px;
+  padding: 16px 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
@@ -77,158 +45,267 @@ html[data-design="classical"] .nodate-banner--head {
 html[data-design="classical"] .nodate-banner--title {
   margin: 0; min-width: 0;
   font-family: var(--serif);
-  font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px;
+  font-size: 20px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px;   /* was 24px */
   color: var(--brand-mark);
 }
 html[data-design="classical"] .nodate-banner--count {
   flex: none;
-  padding: 1px 5px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--tint);
+  padding: 2px 6px;                        /* mock: px-1.5 py-0.5 */
+  border: 1px solid var(--border-subtle);  /* mock: border-outline-variant/60 */
+  border-radius: 2px;                      /* mock: rounded, which is this export's .125rem */
+  background: var(--tint);                 /* mock: bg-surface-container #f1ede6 */
   font-family: var(--sans);
-  font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
-  color: var(--muted);
+  /* mock: text-label-sm font-label-sm — 11/16, 600, .08em */
+  font-size: 10.5px; font-weight: 600; line-height: 15px; letter-spacing: .08em;   /* was 11px/16px */
+  color: var(--muted);                     /* mock: text-secondary #6c5b51 */
 }
-/* The lead is the mock's annotation italic: the one sentence on the tab that
-   is the journal's own voice rather than a source's. */
+/* The explainer under "Undated & Unparsed Items". It was 15px italic; the slant
+   went on 2026-09-19 (Sushi: unreadable at these sizes) and nothing replaces it,
+   because the muted ink under a solid heading was always what said "this is the
+   note, not the headline". */
 html[data-design="classical"] .nodate-banner--lead {
   margin: 3px 0 0;
-  font-family: var(--serif);
-  /* §6: 12px serif italic `--ink-muted`. */
-  font-size: 12px; font-style: italic; line-height: 1.4;
+  font-family: var(--sans);
+  font-size: 13.5px; font-style: normal; line-height: 1.4;   /* was 15px italic */
   color: var(--muted);
 }
-
-/* --- a section heading: NAME ——— [n] ------------------------------------ */
-html[data-design="classical"] #view > .nodate-group--head {
-  /* 11px, not the shared 14px: this heading sits over cards inset 10px and the
-     mock aligns the two left edges. */
-  padding-inline: 11px;
-  margin: 11px 0 3px;
-}
-/* §6 sets these in the **mono** face, not the label serif: `SECTION 1 · NO
-   DATE AT ALL —— 3 items` is a running head with a number in it, and a
-   tracked mono is what makes the ordinal read as an index rather than as
-   part of the name. 10px, tracking-widest (`0.1em`), uppercase, `--ink-muted`. */
+/*
+ * No box of its own.
+ *
+ * This rule used to read `#view > .nodate-group--head` and set a 16px gutter
+ * and its own margins. Since the two undated groups moved onto the **Alerts**
+ * tab the heading is a child of `.screen.needsyou`, not of `#view`, so the
+ * child combinator stopped matching and neither declaration had applied for a
+ * day — measured, not inferred: `getComputedStyle` gave `0px 4px 8px` /
+ * `12px 0px 5px`, which is `.section-head`'s own box.
+ *
+ * What it was silently falling back to is what this heading should have: the
+ * same box as the Late, Found-in-a-post and Sources headings above and below
+ * it, whose text starts at 14px. Restoring the 16px gutter would put the
+ * heading 2px right of every sibling heading on the tab. So the rule goes
+ * rather than gets its selector repaired.
+ */
 html[data-design="classical"] .nodate-group--name {
   display: flex; align-items: center; gap: 6px;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 10px; font-weight: 600;
+  font-size: 10.5px; font-weight: 600;   /* was 11px */
   letter-spacing: .10em; text-transform: uppercase;
   color: var(--muted);
 }
-/* The ordinal is the same run of type, one step quieter so the section's own
-   name is what the eye lands on. */
 html[data-design="classical"] .nodate-group--ord {
   flex: none;
   opacity: .72;
 }
-/* The mock's short rule after the section name — a typesetter's dash, so the
-   label reads as a running head rather than as a row of its own. */
 html[data-design="classical"] .nodate-group--hair {
   flex: none;
   width: 22px; height: 1px;
   background: var(--line);
 }
-/* `—— 3 items` / `—— 1 ambiguous`: the same mono run, so the heading is one
-   line of type broken by a rule rather than a label with a badge stuck on it. */
-html[data-design="classical"] .nodate-group--count {
+/*
+ * The navy block, which is section 1's count in the mock and was the peach one
+ * here. Both counts were drawn in `--tint-strong`; the mock gives the weight to
+ * the first — `bg-primary-container text-surface` — and keeps the peach for
+ * "Couldn't read" alone, so the two sections do not read as equals.
+ */
+/* `#view` because `.section-head > :last-child:not(:first-child)` in
+   design-classical.css — (0,4,1) — is this count, and it sets `color` and
+   `font-size`; this is (1,2,1), and the heading is a child of `#view`. */
+html[data-design="classical"] #view .nodate-group--count {
   flex: none;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--tint-strong);
+  /* mock: px-1.5. Its `py-0.2` is one of the classes the reference contract
+     leaves unresolved, so the 1px this already had stands. */
+  padding: 1px 6px;
+  border-radius: 2px;                      /* mock: rounded */
+  background: var(--nd-count-bg);          /* mock: bg-primary-container #1a2744 */
   font-family: var(--mono);
-  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  /* mock: text-label-sm, then text-[10px] over its 11px */
+  font-size: 10px; font-weight: 600; letter-spacing: .08em;
   text-transform: uppercase;
+  color: var(--nd-count-ink);              /* mock: text-surface #fdf9f1 */
+}
+/*
+ * Section 2 only, set from `nodate.ts` on the "Couldn't read" count.
+ *
+ * mock: `bg-secondary-container text-on-secondary-container`. `--tint-strong`
+ * *is* #f6ded1 in light, and `--muted` is within a shade of #726157, so this
+ * needs no token of its own in either mode.
+ */
+/* `#view` for the same reason as the rule above: the shared (0,4,1)
+   `.section-head > :last-child:not(:first-child)` also sets `color`. */
+html[data-design="classical"] #view .nodate-group--count--soft {
+  background: var(--tint-strong);
   color: var(--muted);
 }
+/* `4px`, matching `.section-head`'s own inline padding, so the note starts at
+   the same x as the heading it explains. It was `16px` — the gutter of the
+   deleted No date *screen*, where this block sat straight in `#view`; inside
+   the Alerts screen's 10px padding that resolved to x=26 against the heading's
+   x=14, which is the "no date at all text is shifted" Sushi reported. */
 html[data-design="classical"] .nodate-group--note {
   margin: 0 0 6px;
-  padding-inline: 11px;
+  padding-inline: 4px;
   font-family: var(--serif);
-  font-size: 10.5px; line-height: 1.4;
+  font-size: 12.5px; line-height: 1.4;   /* was 14px */
   color: var(--muted);
 }
-
-/* The classical double rule between the two sections: one hairline in the
-   structural line colour and a lighter one under it, 2px apart. */
 html[data-design="classical"] .nodate-rule {
   height: 3px;
-  margin: 13px 10px 1px;
+  /* Vertical only: the horizontal 16 was the deleted screen's gutter and put
+     the double rule 16px inside every row it separates. */
+  margin: 16px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--card-line);
 }
-
-/* --- the card ------------------------------------------------------------
- *
- * One slip per item, the row inside it flattened.
- *
- * `popup-views.css` already takes the fill and the lift off a nested `.row`,
- * but `design-classical.css` rebuilds the row as a bordered white card under
- * an id selector, which outranks it — so without this the tab draws a card
- * inside a card, which is the one thing mock 2c does not do.
- */
 html[data-design="classical"] .nodate-card {
-  padding: 7px 9px;
+  padding: 8px;                            /* mock: p-space-sm */
   background: var(--surface-raised);
   border: 1px solid var(--card-line);
 }
+/*
+ * One card, not two.
+ *
+ * `popup-views.css` already takes the fill and the lift off a nested row, but
+ * `#view .row` in `popup-rows.css` carries `--card-shadow` and a 12px radius
+ * and an id beats any number of classes — so both survived, and dark is where
+ * a card inside a card shows first. Named here, where the id is matched.
+ */
 html[data-design="classical"] #view .nodate-card > .row {
+  /* Every other grid item in this card is hidden (`.row--when`, `.row--tick`),
+     and a grid would keep their empty row and its gap. */
+  display: block;
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
+  box-shadow: none;
 }
-
-/* The three answers, ruled off from the row the way the mock rules them off. */
+/*
+ * And the third flush row, for the third time.
+ *
+ * `popup-rows.css` says it outright above `.row--edge`: the D14 course-hue bar
+ * is `position: absolute; inset: 0 auto 0 0; width: 4px`, so it reserves
+ * nothing, and "a new view that flattens the row's left padding has to do the
+ * same". The rule right above flattens it to `padding: 0`, and this card never
+ * made the room — measured at 400px with the tweak on: the bar spans x=35..39,
+ * `.row--title` starts at x=35, and the row is `overflow: hidden`, so the
+ * title's first glyph was painted under the bar and then clipped by the row.
+ * ("CSt1 Code Studio…" for "PrairieLearn CSt1…"; Sushi's capture, 2026-09-19.)
+ *
+ * It is also why the card's two lines did not share a left edge: the course
+ * chip's box starts at x=35 too, but it carries 1px of border and 4px of its
+ * own padding, so its *text* lands at 40 — one pixel clear of the bar — while
+ * the bare title underneath it did not.
+ *
+ * 9px, and `:has(> .row--edge)`, are `design-classical-week.css:147` and
+ * `design-classical-month.css:266` verbatim: room is made only when the bar is
+ * actually there, so a profile with D14 off keeps the flush edge this card's
+ * own rule sets up.
+ */
+html[data-design="classical"] #view .nodate-card > .row:has(> .row--edge) {
+  padding-left: 9px;
+}
+/*
+ * And the rest of the card with it.
+ *
+ * This is where the card differs from the week entry and the Month agenda row,
+ * which are the whole item and have no siblings: here the row is one of up to
+ * four blocks — the amber flag, the row, the quoted source, the three actions —
+ * and indenting only the row left the title at x=31 with the quote box and the
+ * actions' rule at x=22. That is the same complaint one level in ("the two
+ * lines do not share a left edge"), traded for the clipping rather than fixed.
+ *
+ * So the bar stays flush against the card's own inset and everything else steps
+ * past it, which is how the peach `--unread` stripe on this same card already
+ * reads. `:not(.row)` rather than a list of the three: a fifth block added
+ * later should inherit the indent, not quietly miss it.
+ */
+html[data-design="classical"] #view .nodate-card:has(.row--edge) > :not(.row) {
+  margin-left: 9px;
+}
+/*
+ * The row's status column and its error line, hidden in this card only.
+ *
+ * Each repeats something the card has already said once: `.row--when` prints
+ * "no date" under a section headed *No date at all*, or "unreadable" on a card
+ * that already carries the *Ambiguous date text* chip and the quoted source
+ * text, and `.row--detail-error` restates that chip as a red sentence under it.
+ * The mock's card is one compact block — chip and source, title, trailing
+ * glyph, actions. A "Couldn't read" row whose parser kept no value draws no
+ * quote box, and there the chip is the whole statement.
+ */
+html[data-design="classical"] #view .nodate-card .row--when,
+html[data-design="classical"] #view .nodate-card .row--detail-error { display: none; }
+/* Room for the trailing control: 18px inset 8px from the card edge, which is the
+   row's own right edge, so a long title would otherwise run under it. */
+html[data-design="classical"] #view .nodate-card .row--main { padding-right: 26px; }
+/*
+ * The ⋯ stays pinned to this row's top-right corner, against the row's own
+ * `position: relative` (`popup-rows.css`).
+ *
+ * `design-classical.css` now makes `.row--menu` static so it takes the `menu`
+ * grid column instead of floating over the clock. That is right for every view
+ * whose row IS a grid. This card's row is `display: block` — so `grid-area:
+ * menu` binds to nothing, and a static button falls into normal flow: measured
+ * at the card's bottom-left (28, 808) with the card running 755→886, which is
+ * why the menu opened off the bottom of the window (Sushi, 2026-09-19: "the 3
+ * dots arent on the side of each row, theyre at the bottom left so when i click
+ * on the 3 dots the pane is off screen").
+ *
+ * There is no clock to cover here — `.row--when` is `display: none` a few rules
+ * up — so the overlay the shared sheet had to give up costs this card nothing,
+ * and `.row--main` above already reserves the 26px it sits in.
+ */
+html[data-design="classical"] #view .nodate-card > .row > .row--menu {
+  position: absolute;
+  right: 3px;
+  top: 5px;
+  transform: none;
+  align-self: start;
+}
+/* mock: the course chip is `px-1 py-0.5 rounded bg-surface-container
+   border-outline-variant/50 text-primary font-bold` at text-label-sm. */
+html[data-design="classical"] #view .nodate-card .row--code {
+  padding: 2px 4px;                        /* mock: px-1 py-0.5 */
+  border-color: var(--border-subtle);      /* mock: border-outline-variant/50 */
+  border-radius: 2px;                      /* mock: rounded */
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em;   /* was 11px */
+  color: var(--primary);                   /* mock: text-primary — was --muted at 10px */
+}
 html[data-design="classical"] .nodate-actions {
-  justify-content: flex-end;
-  /* They wrap rather than push the card past 400px. This is the property that
-     keeps that true — a card is a fixed 358px and three buttons at their widest
-     do not fit it, so the third drops to a second line instead of widening the
-     document Chrome measures. */
+  justify-content: flex-end;               /* mock: justify-end */
+  /* `flex-wrap` is popup-views.css's, for its own reason: at 400px a student's
+     own course name can push the third label past the window. */
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 7px;
-  padding: 7px 0 0;
-  border-top: 1px solid var(--nd-act-rule);
+  gap: 6px;                                /* mock: gap-1.5 */
+  margin-top: 4px;                         /* mock: mt-1 */
+  padding: 8px 0 0;                        /* mock: pt-2 */
+  border-top: 1px solid var(--nd-act-rule);  /* mock: border-outline-variant/40 */
 }
-/* §6: white ground, `#dcd4c3` edge, 4px radius, 10px serif, hover
-   `--bg-hover`. The three differ only in ink — see the three rules below. */
 html[data-design="classical"] .nodate-actions .nodate-act {
-  height: 24px;
-  padding: 0 7px;
-  border: 1px solid var(--nd-act-edge);
-  border-radius: 4px;
-  background: var(--surface-raised);
-  font-family: var(--serif);
-  font-size: 10px; font-weight: 600;
+  /* mock: a 16px line box inside py-1 and the edge. Stated as a height so the
+     three stay level when one of them wraps. */
+  height: 26px;
+  padding: 4px 8px;                        /* mock: px-2 py-1 */
+  border: 1px solid var(--nd-act-edge);    /* mock: border-outline-variant */
+  border-radius: 2px;                      /* mock: rounded */
+  background: var(--nd-act-bg);            /* mock: bg-surface */
+  /* mock: text-label-sm font-label-sm — 11/16, 600, .08em. */
+  font-family: var(--sans);
+  font-size: 10.5px; font-weight: 600; line-height: 15px; letter-spacing: .08em;   /* was 11px/16px */
 }
+/* mock: hover:bg-surface-container. The edge is deliberately not restated —
+   it was a no-op on two of the three and quietly undid `--give`'s own. */
 html[data-design="classical"] .nodate-actions .nodate-act:hover {
   background: var(--nd-act-hover);
-  border-color: var(--nd-act-edge);
 }
-/* `--ink-navy` in light; in dark the token sheet's `--brand-mark` is the gold
-   that stands in for it, which is the substitution the whole design makes. */
-html[data-design="classical"] .nodate-actions .nodate-act--give { color: var(--brand-mark); }
+html[data-design="classical"] .nodate-actions .nodate-act--give {
+  border-color: var(--muted);              /* mock: border-secondary, the one stronger edge */
+  color: var(--brand-mark);                /* mock: text-primary */
+}
 html[data-design="classical"] .nodate-actions .nodate-act--tick { color: var(--ok); }
 html[data-design="classical"] .nodate-actions .nodate-act--hide { color: var(--muted); }
-
-/* --- section 2: the row whose date could not be read ---------------------
- *
- * One hue, stated three times — the marker, the edge and the wash are all
- * `--warn`, because "the deadline is unknown" is one fact. `--err` is reserved
- * for late work, and nothing on this tab is late.
- *
- * The left bar is an inset shadow rather than a border so the card's text does
- * not shift by 3px against the cards above it.
- */
-/* §6 asks for one thing on this card: a **peach edge**. The wash and the
-   3px inset bar that used to be here stated the same fact twice more and left
-   the amber callout — which is the thing worth reading — with nothing to
-   stand out against. */
 html[data-design="classical"] .nodate-card--unread {
   border-color: var(--nd-peach);
 }
@@ -236,9 +313,6 @@ html[data-design="classical"] .nodate-flag {
   display: flex; align-items: center;
   margin-bottom: 5px;
 }
-/* `design-classical.css` paints every `.chip` in its course's ink, and this
-   chip is not about a course. Restated rather than reordered: the course rule
-   is two selectors deep and lives in a file this one may not edit. */
 html[data-design="classical"] .nodate-flag .chip-check {
   gap: 4px;
   height: 18px; padding: 0 7px;
@@ -251,37 +325,80 @@ html[data-design="classical"] .nodate-flag .chip-check {
 html[data-design="classical"] .nodate-flag .chip-check .icon {
   width: 10px; height: 10px; flex: none;
 }
-
-/* The quoted source text: what the page actually printed, set as a quotation
-   on the page's own ground so it reads as evidence rather than as a field. */
-/* §6's callout: ground `#fcfaf5`, a **2px left border** in `--amber-gold`
-   (`--warn`, the token this design already draws that hue with), `p-2`, and
-   12px serif italic in `#4a3b32`. No box: a rule down one side is what marks a
-   quotation, and a four-sided border made it read as a field on a form.
-   `SOURCE TEXT:` runs into the quotation on one flow rather than sitting on a
-   line of its own. */
 html[data-design="classical"] .nodate-source {
-  margin: 7px 0 0;
-  padding: 8px;
-  border: 0;
-  border-left: 2px solid var(--warn);
-  border-radius: 0;
-  background: var(--nd-callout-bg);
-  font-family: var(--serif);
-  font-size: 12px; font-style: italic; line-height: 1.4;
+  /* mock: flex items-start gap-1.5, with the quote mark outside the text block */
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: 8px 0 0;                         /* mock: my-2 */
+  padding: 8px;                            /* mock: p-2 */
+  border: 1px solid var(--border-subtle);  /* mock: border-outline-variant/50 */
+  border-radius: 2px;                      /* mock: rounded */
+  background: var(--nd-callout-bg);        /* mock: bg-surface */
+  font-family: var(--sans);
+  /* mock: text-annotation-italic, 15/22. The slant went on 2026-09-19 and the
+     left edge took its job: the box, the quote mark and the "SOURCE TEXT:"
+     label all say "not our words", and a quotation rule says it in the one
+     vocabulary a reader already has for that. */
+  font-size: 13.5px; font-style: normal; line-height: 1.4;   /* was 15px italic */
+  border-left: 3px solid var(--nd-stripe);
+  padding-left: 9px;
   color: var(--nd-callout-ink);
   overflow-wrap: anywhere;
 }
+html[data-design="classical"] .nodate-source .icon {
+  flex: none;
+  width: 14px; height: 14px; margin-top: 3px;  /* mock: text-[14px] mt-0.5 */
+  color: var(--muted);                     /* mock: text-secondary */
+}
+/* The label and the quotation stay one run of text beside the mark, rather
+   than the mock's two lines: §6 writes it as `SOURCE TEXT: "…"`, and the colon
+   is what makes the quotation read as evidence. */
+html[data-design="classical"] .nodate-source--body { min-width: 0; }
 html[data-design="classical"] .nodate-source--label {
   text-transform: uppercase;
   letter-spacing: .06em;
   font-style: normal;
   font-weight: 600;
-  /* 10px against the quotation's 12: the label names the box, the quotation is
-     what the page actually printed. */
-  font-size: 10px;
+  font-size: 10.5px;   /* was 11px */
   color: var(--muted);
 }
 html[data-design="classical"] .nodate-source--text {
   margin-left: 4px;
 }
+
+/*
+ * No gutter of its own.
+ *
+ * The mock's `main px-space-md` is 16px from the *window*, and on the No date
+ * screen this block was that main. On the Alerts tab it is one section among
+ * five inside `.screen.needsyou`, which already spends 10px on the same job —
+ * so `margin: 0 16px` here was 26px measured, while the Late row, the
+ * suggestion rows, the source rows and the kept card beside it all sit at
+ * 10/11. `popup-views.css`'s own `padding: 0 10px` is still zeroed, for the
+ * reason it always was: the screen, not the stack, owns the gutter.
+ */
+html[data-design="classical"] .nodate-stack {
+  gap: 10px;                               /* mock: gap-2.5 */
+  margin: 0;
+  padding: 0;
+}
+/* The dashed card onto the same gutter: popup-views.css sizes it for the 10px
+   one (`width: calc(100% - 20px); margin: 12px 10px 0`). */
+/* The dashed "Add something by hand" card is gone (Sushi, 2026-09-19), so the
+   rule that re-gutted it for this screen is gone with it. `popup-views.css`
+   still carries its own `.nodate-add` block; nothing builds the element, so it
+   is dead there too and should go when that file is next open. */
+/* mock: the ambiguous card's stripe is `bg-tertiary-container/40`, a wash of
+   #520e00, while the edge around it stays tertiary-fixed-dim. */
+html[data-design="classical"] .nodate-card--unread { border-left: 4px solid var(--nd-stripe); }
+html[data-design="classical"] .nodate-act .icon { width: 13px; height: 13px; }  /* mock: text-[13px] */
+/*
+ * The mock's trailing glyph is gone, and so is everything that styled it — the
+ * absolute box at the card's top right, its 18px icon, the `--help` variant and
+ * the `--nd-glyph-fade` token. `renderNoDateCard` says why (one trailing
+ * control per card, e60f4c4). `position: relative` went off `.nodate-card` with
+ * it: the glyph was the only thing positioned against the card, and the ⋯ is
+ * positioned against the row, which sets its own `position: relative` in
+ * `popup-rows.css`.
+ */
+html[data-design="classical"] .nodate-card--unread .nodate-act--give { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+html[data-design="classical"] .nodate-card .row--tick { display: none; }

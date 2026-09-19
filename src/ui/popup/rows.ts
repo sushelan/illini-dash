@@ -27,6 +27,7 @@ import { movedByText } from "../../core/suggest.js";
 import { anchorOf, itemTone } from "../../core/calendar.js";
 import { countdown, examDetail, formatDue, movedText, type SectionName } from "../../core/grouping.js";
 import { courseLabel, SOURCE_CODE, SOURCE_NAME } from "../../core/names.js";
+import { assumedTimeNote } from "../../core/provenance.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../../core/quality.js";
 import { iconButton } from "../icons.js";
 import { TWEAKS_EVENT } from "../theme-panel.js";
@@ -34,15 +35,33 @@ import type { Item } from "../../sources/types.js";
 import { app, readTweaks, safeUrl, state } from "./state.js";
 import { applySuggestionRequest, openRowMenu } from "./shell.js";
 
-/** Said on the row rather than over a band of rows (brief D4). */
-const ASSUMED_NOTE =
-  "The course site gives a date but no time. Check the course page for the cutoff.";
-
 export interface RowOptions {
   /** One line: dot, title, code, one status word. Today and the Week. */
   compact?: boolean;
   /** A word that replaces the countdown — `weekStatus`, in the week. */
   status?: string;
+  /**
+   * The band this row is being drawn in has already stated its *when*, so the
+   * row must not state it again.
+   *
+   * Sushi, 2026-09-19: "also end of day is being repeated twice, the header is
+   * already end of day but the row says it again." The same shape is on the
+   * rail one band down: the timeline prints "3:00 PM" in its clock column and
+   * the card under it printed "3:00 PM" again.
+   *
+   * **Passed in, never inferred.** A row must not look upward — at a parent
+   * class, at `closest()`, at the design — to decide what it says: the view is
+   * the thing that knows which band it is filling, and a row that reads its own
+   * surroundings is a second copy of that decision which only a draw can keep
+   * true. The Week, the Month's agenda and the deadline screen do not pass it,
+   * and there the row still says "end of day" and its hour, because nothing
+   * else on those screens does.
+   *
+   * It suppresses the *clock slot only*. The "time assumed" marker beside it is
+   * a different fact — worker rule 3's, that nobody stated a time and 23:59 was
+   * filled in — and no heading says it, so it stays with its tooltip.
+   */
+  whenSaidAbove?: boolean;
 }
 
 /**
@@ -270,15 +289,27 @@ export function renderRow(
     // worker rule 3 is that an invented value is never presented as a stated
     // one. "end of day" is what the source actually implies; the marker beside
     // it says who said so, and carries the sentence the untimed band used to.
-    due.textContent = "end of day";
-    due.classList.add("row--assumed");
-    due.title = ASSUMED_NOTE;
+    // Not under a heading that is this sentence. `whenSaidAbove` is Today's
+    // "By end of day" band and nothing else; the marker below it stays either
+    // way, because "a time was assumed" is not what the heading said.
+    if (!options.whenSaidAbove) {
+      due.textContent = "end of day";
+      due.classList.add("row--assumed");
+    }
+    // Said on the row rather than over a band of rows (brief D4) — and said
+    // about *this* row: "the course site gives a date but no time" is a lie on
+    // a deadline the student typed, which has no course site (2026-09-19).
+    const note = assumedTimeNote(item);
+    due.title = note;
     const assumed = plain("time assumed");
     assumed.classList.add("row--assumed");
-    assumed.title = ASSUMED_NOTE;
+    assumed.title = note;
     meta.push(assumed);
   } else {
-    due.textContent = clockOf(anchor.at);
+    // The rail prints this row's hour in its own clock column, 45px to the
+    // left of the card, so the card printing it again is the same duplication
+    // as "end of day" one band up.
+    if (!options.whenSaidAbove) due.textContent = clockOf(anchor.at);
     statedClock = true;
   }
 
@@ -449,7 +480,17 @@ export function renderRow(
   const when = document.createElement("span");
   when.className = "row--when";
   when.append(rel, due);
-  row.append(dot, main, when, menu);
+  row.append(dot, main);
+  /*
+   * Only when it has something to say.
+   *
+   * `.row--when` is `grid-area: when` in the Classical card, an `auto` row of
+   * its own — so an element with two empty children still claims a line box of
+   * leading under the title, which is a blank line where the duplicate used to
+   * be. Left out, the named row collapses to nothing.
+   */
+  if (rel.textContent || due.textContent || due.childElementCount > 0) row.append(when);
+  row.append(menu);
 
   /*
    * One trailing control per row, and it is the ⋯.

@@ -1,9 +1,12 @@
-# Classical Calendar — the pixel spec (Sushi, 2026-09-19)
+# Classical Calendar — previous alignment measurements (2026-09-19)
 
-The authority for the alignment pass. Where this file and
-`docs/design/classical-mock/*/code.html` disagree, **this file wins** — it was written
-after the mock and is the later statement of intent. Where this file asks for something
-listed under "Refused" at the bottom, the refusal stands.
+Historical measurements from the earlier alignment pass. **These values are no longer
+the visual authority.** Sushi's later request on 2026-09-19 makes the original
+`stitch_extension_ui_design.zip` authoritative, including fonts, icons, colors and
+structure. Use [the acceptance contract](ui-acceptance/reference-contract.md) and its
+hash-verified `classical-mock/` files for current work. Do not use this earlier
+interpretation to override the export. Product truth and Chrome sizing constraints
+still apply; the contract records conflicts and justified adaptations explicitly.
 
 ---
 
@@ -151,10 +154,9 @@ equal tabs.
 
 ---
 
-## Refused, and staying refused
+## Functional and platform constraints
 
-These three are asked for by the spec and are **not** being implemented. Each is a
-documented failure of this codebase, not a preference.
+These constraints explain implementation choices; they do not license visual drift.
 
 1. **`body { max-height: 600px; overflow-y: auto }`, `position: fixed` on the tab bar,
    and `padding-bottom: 56px` to clear it.** Chrome sizes a popup by measuring the
@@ -166,16 +168,13 @@ documented failure of this codebase, not a preference.
 2. **`@import url('https://fonts.googleapis.com/…')`.** An extension's own CSP blocks it,
    so the popup would silently fall back to Georgia — which is exactly the defect this
    pass was opened to fix. The faces are bundled under `public/fonts/classical/`.
-3. **`✓ Graded`, `2 Confirmed`, `Desk Roster Verified`, `Reserve CBTF Seat`, and
-   `Fall Semester 2024`.** No source reports a grade or a confirmed seat, no term is
-   stored, and a venue is only sometimes in `extra.location`. §11: a label the sources
-   never justified is worse than a plainer true one. The board says `Taken`,
-   `3 scheduled`, `Reserve a seat`, and `all-term`.
+3. **Illustrative labels and counts need source evidence.** A source may report a
+   graded status; show it only when it did. Counts, terms, venues, seat confirmation
+   and reservation destinations must come from the actual item/source. The mock's
+   `Desk Roster Verified` or `Fall Semester 2024` is not evidence about this account.
 
-## Settled contradictions
+## Earlier choices superseded by the ZIP contract
 
-- **Tab labels are `uppercase`** (§2 here), not the Title Case of the mock screenshot.
-  This file is the later statement.
-- **Dark mode is kept.** The spec is light-only; Sushi's machine is dark, and every
-  token already has a dark half. Nothing here removes it — a dark value is required for
-  every colour introduced below.
+- **Tab casing follows the ZIP.** The earlier uppercase choice is historical.
+- **The ZIP's light vellum appearance is the default, even on a dark OS.** Optional
+  dark mode is a derived design, checked separately and dark-first during verification.

@@ -77,6 +77,9 @@ const OPTIONS_STATE_FIELDS: Record<string, FieldKind> = {
 
 /** The `state` fields the popup dereferences. */
 const POPUP_STATE_FIELDS: Record<string, FieldKind> = {
+  observers: "map",
+  "observers.campuswire": "map",
+  "observers.piazza": "map",
   items: "list",
   sources: "map",
   // Every row draws a course label, so a worker on a build without this field

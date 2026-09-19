@@ -149,6 +149,7 @@ export type Response =
        */
       courseNames: Record<string, string>;
       sources: Record<Source, SourceStatus>;
+      observers: Record<ObserverId, ObserverState>;
       settings: Settings;
       /**
        * Deadlines a post stated that nothing else accounts for.

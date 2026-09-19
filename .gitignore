@@ -1,5 +1,6 @@
 node_modules/
 dist/
+artifacts/ui-acceptance/
 *.log
 release/
 .claude/settings.local.json
@@ -8,3 +9,6 @@ graphify-out/cost.json
 graphify-out/graph.html
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+
+# Agent working notes, not deliverables.
+scratchpad/

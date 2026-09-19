@@ -551,6 +551,51 @@ export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
 }
 
 /* -------------------------------------------------------------------------- */
+/* The Alerts tab's badge (2026-09-19)                                         */
+/* -------------------------------------------------------------------------- */
+
+export interface AlertsInput {
+  sources: Partial<Record<Source, SourceStatus>>;
+  /** `overdueItems(...).length` — work already late. */
+  overdue: number;
+  /** Open suggestions from posts, each one a question waiting for an answer. */
+  suggestions: number;
+  /**
+   * `noDateCount(...)` — "No date at all" plus "Couldn't read", the two groups
+   * the tab draws. One number rather than two because `noDateCount` is already
+   * the sum of exactly those groups, and a second derivation here would be a
+   * copy of that decision that could disagree with the sections underneath.
+   */
+  undated: number;
+}
+
+/**
+ * What the Alerts tab's badge counts: everything on the tab that is asking.
+ *
+ * The tab gathers five things that used to be in two places — late work, a
+ * post's claim waiting for a yes, rows with no date, rows whose date could not
+ * be read, and a source with a button on it — so the badge is their sum and
+ * nothing else.
+ *
+ * **Sources are counted by `actionFor`, not by `isFailing`** (worker rule 2).
+ * A source that is off has nothing to press; a source that has never been
+ * attempted is `pending`, and `actionFor` returns nothing for `pending` — so a
+ * cold install cannot claim an alert about a fetch that never happened, and the
+ * badge can never promise a button the Sources section does not draw. It is the
+ * same derivation `needsYouPill` and `sourceRows` use, which is what stops the
+ * three disagreeing.
+ */
+export function alertCount(input: AlertsInput): number {
+  const summary = summarize(input.sources);
+  const actionable = summary.failing.filter(
+    (source) =>
+      actionFor(source, displayState(input.sources[source]!), input.sources[source]?.loginUrl) !==
+      undefined,
+  ).length;
+  return input.overdue + input.suggestions + input.undated + actionable;
+}
+
+/* -------------------------------------------------------------------------- */
 /* The footer strip (brief D10)                                                */
 /* -------------------------------------------------------------------------- */
 

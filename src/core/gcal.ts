@@ -15,6 +15,7 @@
 import { isItemDone, isTickedDone } from "./dedupe.js";
 import { icsDate } from "./ics.js";
 import { courseLabel, nameList } from "./names.js";
+import { assumedTimeNote } from "./provenance.js";
 import {
   GCAL_TIMEZONE,
 } from "./gcal-config.js";
@@ -38,10 +39,6 @@ const MAX_PROPERTY_VALUE = 1024;
 /** Google's own cap: at most five reminder overrides, each under 4 weeks. */
 export const MAX_REMINDERS = 5;
 export const MAX_REMINDER_MINUTES = 40_320;
-
-/** The sentence the `.ics` and the template link already use, word for word. */
-export const TIME_ASSUMED_SENTENCE =
-  "The course site gives no time; check the course page for the real cutoff.";
 
 export type EventTime = { dateTime: string; timeZone: string } | { date: string };
 
@@ -228,7 +225,7 @@ export function projectEvents(
 
       const description = [
         leg.late ? "Reduced-credit deadline." : undefined,
-        item.timeAssumed ? TIME_ASSUMED_SENTENCE : undefined,
+        item.timeAssumed ? assumedTimeNote(item, "allDay") : undefined,
         item.url,
         describeSources(item),
       ]

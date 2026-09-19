@@ -35,14 +35,13 @@ import {
   VIEW_KEY,
   anchorDate,
   app,
-  dateNavEl,
   isFullView,
   state,
   viewEl,
   writeStored,
 } from "../state.js";
 import { clockOf, emptyNote, renderRow } from "../rows.js";
-import { makeRowsNavigable, openFullView, openRowMenu } from "../shell.js";
+import { makeRowsNavigable, openRowMenu } from "../shell.js";
 import { openAddEditor } from "../screens/editor.js";
 
 export function renderMonthView(items: Item[], now: Date, colours: Map<string, number>): void {
@@ -80,10 +79,10 @@ export function renderMonthView(items: Item[], now: Date, colours: Map<string, n
      * circle with `place-items: center`, and a second child in it would push
      * the date out of its own ring.
      *
-     * The form itself opens at the top of the view rather than inside the cell.
-     * A month cell is about 100px tall and a seventh of the window wide, so a
-     * form in it would push six other weeks off the screen to show three
-     * truncated fields.
+     * The form itself is the five-field panel over the list, carrying this
+     * day, rather than anything inside the cell: a month cell is about 100px
+     * tall and a seventh of the window wide, so a form in it would push six
+     * other weeks off the screen to show three truncated fields.
      */
     const addDay = iconButton(
       "plus",
@@ -246,21 +245,17 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
       : undefined) ?? fallback;
 
   /*
-   * "Full view ↗" beside the month's name (mock 2a).
+   * No "Full view ↗" here any more (2026-09-19).
    *
-   * The name itself is the date navigator's label, which the shell drew a
-   * moment ago, so a second header here would print "September 2026" twice.
-   * Re-appended on every draw because `renderDateNav` replaces its children on
-   * every draw — and removed with them, so it cannot accumulate.
+   * It used to be injected into the date navigator, after `.datenav--label`,
+   * which put four things — the month's name, "Today", this, and the ‹ › pair —
+   * on one 400px bar and jammed the arrows against the window's edge (Sushi:
+   * "its squished"). It is now an icon button in the header bar beside +, ⋯ and
+   * the gear (`renderActions`), which is where the window's other
+   * whole-document controls already live, and it is on every tab rather than
+   * only this one: the full view is useful from Week and Exams too, and being
+   * Month-only was an accident of where there happened to be room.
    */
-  const full = document.createElement("button");
-  full.type = "button";
-  full.className = "mfull";
-  full.textContent = "Full view ↗";
-  full.title = "Open the month in a tab, where every deadline is named";
-  full.addEventListener("click", () => openFullView("month"));
-  dateNavEl.querySelector(".datenav--label")?.after(full);
-
   const head = document.createElement("div");
   head.className = "mdow";
   // Sunday-first, one letter each, taken from a known Sunday — never a
@@ -316,6 +311,23 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
  * rather than from `items`, so the key names exactly the hues on screen and
  * cannot list a course whose only deadline is in another month.
  *
+ * **Invariant: the set of hues the grid draws and the set of hues in this key
+ * are the same set.** Pinned in `tests/popup-draw.test.ts`.
+ *
+ * It was not, until 2026-09-19: this loop began `if (cell.outside) continue`,
+ * while `renderDotCell` draws dots on the leading and trailing days of the
+ * neighbouring months too. August 2026 has no in-month deadline after the 31st,
+ * so the grid drew one blue, three brown and a purple dot across Sep 1–3 and
+ * the key underneath read "CS 425" alone — five colours on screen that nothing
+ * accounted for (Sushi: "sometimes the month courses dont fully show up like
+ * theres only one for august"). The trailing days are *kept* — "three things
+ * are due the day after this month ends" is exactly what a student pages
+ * forward to find out — so it is the filter that goes, not the dots.
+ *
+ * `cell.dots` and not `cell.more`: a capped cell says "+3" and draws no hue for
+ * them, so a course that is only ever hidden behind a "+N" contributes no
+ * colour to explain. The invariant is about what is *drawn*.
+ *
  * Order is the colour index, not first appearance: the palette is assigned by
  * `courseIndex` and stays put for the whole term, so the key does too rather
  * than reshuffling itself every time the student pages to another month.
@@ -323,7 +335,6 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
 function renderLegend(cells: MonthDotCell[], colours: Map<string, number>): HTMLElement {
   const seen = new Set<string>();
   for (const cell of cells) {
-    if (cell.outside) continue;
     for (const dot of cell.dots) seen.add(dot.courseLabel);
   }
   const legend = document.createElement("div");

@@ -212,6 +212,7 @@ describe("normalizePopupState", () => {
       notificationsBlocked: false,
       courseNames: {},
       suggestions: [],
+      observers: { piazza: { enabled: false }, campuswire: { enabled: false } },
       lastSyncAt: "2026-09-10T18:00:00.000Z",
     };
   }
@@ -232,7 +233,7 @@ describe("normalizePopupState", () => {
     // `suggestions` joined them with the post observer: the Attention tab reads
     // `.length` on it to draw its count, so a worker from before that field
     // existed would throw after the tabs were drawn and before the list was.
-    expect([...missing].sort()).toEqual(["courseNames", "items", "sources", "suggestions"]);
+    expect([...missing].sort()).toEqual(["courseNames", "items", "observers", "sources", "suggestions"]);
     expect(state["items"]).toEqual([]);
     expect(state["sources"]).toEqual({});
   });

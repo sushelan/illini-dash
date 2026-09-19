@@ -2,10 +2,124 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2076 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2227 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Live: five defects from Sushi's own screenshots — 2026-09-19
+
+Reported from the running extension, not from a fixture. Four lanes in disjoint files,
+one build at the end, everything below measured on the real document in dark first.
+
+- **Today showed no date.** `navFor` built `"Today · Mon, Sep 22"` and returned `step: 0`;
+  `renderDateNav` read `step` as *both* "how far the arrows move" and "does this strip
+  exist", so it hid the strip and returned before appending the label. The label now
+  decides whether the strip is drawn and `step` only decides the arrows. Week and Month
+  take the same branch as before.
+- **The list jumped to the top after any action.** Nothing anywhere preserved scroll — one
+  `grep` for `scrollTop` across `src/ui/` returned a single hit, and it was `preventScroll`
+  on focus. Fixed with the shape the focus request already uses (`popup/scroll.ts`): the
+  offset is read *before* the document is replaced and applied by the draw that actually
+  rebuilt it, never chained onto `refresh()`. The rule is: a redraw keeps your place, a
+  navigation starts at the top, and returning from a screen returns you to the row you
+  left. Verified with a real 120ms held press — scrollTop 700 before Hide, 700 after.
+- **The ⋯ covered the clock.** `popup-rows.css` positions it `absolute` over the row's
+  right end, which was sound while it was hidden until hover. Drawing it unconditionally
+  (e60f4c4, "just pick the 3 dots") made a permanent overlay: measured at 400px it covered
+  the last 19px of every week time and 27px of every day time, and `elementFromPoint` at
+  the time's last glyph returned the button's own svg in four of six rows. It is
+  `position: static` in its declared `menu` column now, and `when` stops at the column
+  before it (`"when when menu"`).
+  - **And that broke the Alerts card**, whose row is `display: block` — so `grid-area`
+    bound to nothing and a static button fell into normal flow at the card's bottom-left,
+    opening its menu off the window. Pinned back to the row's top-right there, where
+    there is no clock to cover. *Two lanes, each green, disagreeing about the composite:
+    the exact failure the parallelism note warns about.*
+- **Titles wrapped instead of truncating.** Two mechanisms, and fixing one did not fix the
+  other: the title's own `white-space: normal`, and `.row--main`'s `flex-wrap: wrap`,
+  which moved the whole title element onto a second flex line when it did not fit beside
+  the course chip — so the left edge changed from row to row. Both are single-line now.
+  The week document went 1491 → 1247px; day 974 → 942, month 1082 → 1021.
+- **"No date at all" was indented.** Its blocks were written when it was its own screen
+  inside `#view` and each stated the 16px page gutter itself; inside the Alerts screen,
+  which already pads 10px, that read as 26 against every sibling's 10. A dead
+  `#view > .nodate-group--head` rule had also stopped matching at the merge — its silent
+  fallback was the wanted box, so it was deleted rather than repaired.
+- **Two trailing controls returned** on the No-date card (an archive glyph 8px from the
+  ⋯). Both glyphs removed; `tests/popup-draw.test.ts` had been *asserting* the four of
+  them, which is mutation house rule 6's case — a test pinning the bug.
+- **Course colour is per course, not per department.** It was keyed by department on
+  purpose, and Sushi overruled it: "each class should be its own unique color". First
+  attempt kept the department as a colour family and produced five blues for five CS
+  courses ("colors arent that much different, they should be extremely different man
+  cmon"), so the family structure is gone. Twenty-five hues evenly spaced around the
+  wheel at one lightness and one chroma, generated rather than hand-picked; the slot rule
+  puts a department's courses five slots apart, so two courses a student holds are 72°
+  apart. Worst measured contrast 8.32:1 dark, 4.98:1 light.
+- **The Alerts tab is a bell**, and the tab is Alerts rather than No Date.
+
+A second round from the same screenshots:
+
+- **A quick Add panel**, opened by a floating "+" on Day/Week/Month, replacing the
+  full-screen form for every add that starts from a day. The header "+" still opens the
+  complete form and is the only add Alerts and Exams have.
+- **The panel orphaned the tab strip.** `position: sticky; bottom: 0` is sticky *upwards*
+  — it never pushes a box down — so the real cause was Classical making `body` a flex
+  column with `#tabs` last: the panel's `min-height` reserve collected its spare pixels
+  *after* the strip, stranding it mid-document with 144px of empty page beneath it and the
+  panel drawn across it. Only its left 32px escaped, which is the "Toda" in Sushi's shot.
+  Fixed with `margin-top: auto` on the strip when it is bottom-pinned, so the free space
+  goes above it. No document height touched — in this popup the document's height is what
+  Chrome measures to size the window.
+- **The week was still gold in dark.** Five hard-coded browns in the view sheet's dark
+  block survived the move to white-on-black, so the TODAY badge and every "Nothing due"
+  kept the old theme's colour. Deleted rather than replaced: the aliases above them
+  already resolve per theme, and the second copy is what went stale.
+- **Illini Dash is UIUC orange** — `#ff7a4d` dark (7.08:1 on the page), `#b83d0f` light
+  (5.39:1 on parchment; `#e84a27` itself reaches only 4.73:1 on dark). Orange at hue 15
+  sat 6 deg from "late" and 22 deg from "warn", which is the collision the gold palette
+  already shipped once, so late moved to pink (347) and warn to a yellower amber (42),
+  about 27 deg each way. Overdue chips were filled with `--primary` and had turned
+  brand-orange, reading as "selected" as loudly as "late"; they are `--now` now.
+- **The full view right-aligned every week row.** `.row--main` and `.row--when` opted out
+  of the shared grid with `grid-area: auto`, which means "wherever auto-placement puts
+  you" — i.e. document order. One extra in-flow child ahead of them slides the row by
+  whatever slack the `1fr` track has: 8px at 400px, 449px at 1400px. That is why it looked
+  like a full-view-only bug on a build whose popup was fine. The lines are named
+  explicitly now, so the row's shape no longer depends on what else is in it.
+
+Still unverified, and needs Sushi's browser: whether Chrome actually grows the popup
+window when the Add panel opens on a near-empty day (only the document's intrinsic height
+is observable from here), and whether the native date picker opens inside the popup or is
+clipped by it — that calendar is browser chrome drawn outside the page.
+
+Not verified: how close a course hue sits to `--warn` or `--ok`. The optimiser that would
+have proven that clearance was cut short for time; even spacing puts a yellow-green and a
+mint in the ring, so a chip that reads as a status colour is plausible and unmeasured.
+
+## ZIP-based UI acceptance workflow — 2026-09-19
+
+Constructed [the six-stage workflow](docs/design/ui-acceptance/README.md) and
+[illini-ui-acceptance skill](.agents/skills/illini-ui-acceptance/SKILL.md): pinned ZIP
+tokens/hashes, 43 journeys, 55 reproducible captures, independent visual/interaction
+reviews, an evidence ledger and a completion check that rejects stale or missing proof.
+The existing preview now supports a fixed clock, reference/empty/stress datasets,
+observer states, denied permissions and explicit errors for unsupported writes.
+
+**Design amendment:** the original ZIP outranks the previous `classical-spec.md`.
+All 11 repository reference files match it. Default light on a dark OS, consistent
+Settings and front-page Piazza/Campuswire are acceptance requirements. This constructs
+the workflow; the application has not yet been realigned or fully journey-tested.
+
+Validation: 2096 Vitest tests, 17 workflow checks, typecheck and skill validation pass.
+Six asserted scratch mutations were killed; a test initially combined wrong theme and
+viewport, so those cases now fail independently. An independent skill dry run's
+environment-substitution ambiguity was fixed and rechecked. Evidence is in ignored
+`artifacts/ui-acceptance/workflow-checks/`; captures/reviews never auto-approve themselves.
+The current `artifacts/ui-acceptance/baseline/` has all 55 captures and a comparison
+gallery. All 43 journeys remain pending; two verified typography findings are open.
+G0–G3 remain passed; no G4/G5 claim or browser action is requested for workflow setup.
 
 ## Classical Calendar: the alignment pass against the pixel spec — 2026-09-19
 

@@ -48,6 +48,45 @@
 }
 
 /*
+ * The month's course legend, for every design.
+ *
+ * `.mlegend` and `.mlegend--item` were styled ONLY under
+ * `html[data-design="classical"]`, and the markup is a flat run of `<span>`s
+ * (`views/month.ts`) — so every other design drew them as inline text with no
+ * box, no gap and no gutter: "CS 357CS 424CS 425PHYS 435" hard against x=0,
+ * outside the calendar card it belongs to, with each entry's colour dot
+ * collapsed to nothing. Sushi, 2026-09-19: "rendering issue in month for the
+ * courses."
+ *
+ * Layout and the dot's size live here, unscoped, because a legend whose entries
+ * have no space between them is wrong in any design. Classical's own block
+ * still wins on the type, the rules above and below it, and its own gutter.
+ */
+.mlegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 3px 10px;
+  box-sizing: border-box;
+  /* The same inset the calendar card above it sits in, so the legend lines up
+     with the grid it explains rather than with the window. */
+  margin: 0 10px;
+  padding-block: 6px;
+}
+.mlegend:empty { display: none; }
+.mlegend--item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mlegend--item .mdot { width: 6px; height: 6px; flex: none; }
+
+/*
  * A cell is a button, so every day is reachable by Tab and answers Enter and
  * Space without a line of code. `min-height` rather than a height: a cell with
  * four dots and one with none must still line up, and a fixed height is the
@@ -114,19 +153,64 @@
 .mday-list .empty { margin: 0; padding: 0 4px; }
 
 /*
- * "Full view ↗", beside the month's name in the date navigator.
+ * `.mfull` is gone (2026-09-19).
  *
- * `--brand-mark` is the mock's link colour (`#ad3d02`) and is defined in all
- * six combinations — in dark it is the accent, which is the one warm thing on
- * that bar.
+ * "Full view ↗" was a text link the month view injected into the date
+ * navigator, and it is now an `iconButton` in the header bar with +, ⋯ and the
+ * gear — so it needs no rule of its own here: it is `.btn-icon`, drawn by the
+ * same declarations as its neighbours in both designs. See `renderActions` in
+ * `src/ui/popup/shell.ts`.
  */
-.mfull {
-  margin-left: 7px; padding: 0;
-  border: 0; background: none;
-  font: inherit; font-size: 11px; font-weight: 500;
-  color: var(--brand-mark); cursor: pointer; white-space: nowrap;
-}
-.mfull:hover { text-decoration: underline; }
+
+/* ==========================================================================
+ * Room under the last row for the floating "+"
+ * ====================================================================== */
+
+/*
+ * Sushi, 2026-09-19: "the rows are off to the right, so the plus hides the
+ * rows." The second half of that is not about the left edge at all — the "+" is
+ * `position: fixed` at `right: 12px` with `bottom` set to clear whatever chrome
+ * owns the window's bottom (`placeQuickFab`), so it hangs over the list
+ * wherever the list happens to have scrolled to.
+ *
+ * Measured, Classical dark, 400x600, the stress day, scrolled to the bottom:
+ * the "+" occupies 348–388 x 487–527 and the last timeline row 73–384 x
+ * 421–515.5 — 36px of overlap across and 28.5px down, on the row a student
+ * scrolled to the bottom specifically to read.
+ *
+ * Where it is drawn is `popup-screens.css`'s and `placeQuickFab`'s, and neither
+ * is this lane's. What *is* this lane's is that the list must be able to get
+ * out from under it: 68px of room under the last band. Measured rather than
+ * derived — the number that leaves at least 12px of air between the last row's
+ * bottom and the button's top with the list scrolled as far as it goes
+ * (Classical, 400x600, the stress day: last row bottom 473.3, "+" top 487 in
+ * light and 495 in dark). #view's own bottom edge is not the document's, so the
+ * button's 40 plus its 12px floor is not the answer on its own.
+ *
+ * On the **last band**, not on `#view`, because height is this popup's recurring
+ * bug (UI house rule 8) and 68px of document is 68px Chrome will measure. A day
+ * with nothing on it draws `.quiet` and no band at all, and there the "+" is
+ * already well below the card; giving that document 68px of blank page would
+ * open the popup 68px taller for nothing. Hung off the band, the room exists
+ * exactly when there are rows to get out from under the button.
+ *
+ * It was `#view:has(.tsection, .timeline)` first, and that is the version not to
+ * write again. Measured in the real document: with the bands replaced by a
+ * `.quiet` card, `#view.matches(":has(.tsection, .timeline)")` answered **false**
+ * while `getComputedStyle(#view).paddingBottom` still answered **68px** — Chrome
+ * did not restyle for that subtree swap, and every draw in this popup is a
+ * `viewEl.replaceChildren()`. A conditional that keeps the old answer after the
+ * condition changes is worse than no conditional: right on the first draw and
+ * silently wrong on every one after it.
+ *
+ * 58 and not 68 because `#view`'s own 10px of bottom padding sits below this
+ * margin, and the two together are what the last row has to clear.
+ *
+ * Unscoped by design: the "+" is on Day, Week and Month in every design, and
+ * `.qfab`'s own rule is unscoped too. Only Day is keyed here because only Day's
+ * list is this lane's; the same measurement is owed to the other two.
+ */
+body[data-view="day"] #view > .tsection:last-child { margin-bottom: 58px; }
 
 /* ==========================================================================
  * The No date tab (D3, mock 2c), and the Exams board

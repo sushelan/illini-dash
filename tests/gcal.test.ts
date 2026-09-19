@@ -7,9 +7,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { SOURCE_TIME_NOTE_ALL_DAY } from "../src/core/provenance.js";
 import {
   ILLINI_DASH_ID,
-  TIME_ASSUMED_SENTENCE,
   diffEvents,
   diffSize,
   eventBody,
@@ -141,7 +141,7 @@ describe("the event body", () => {
     expect(event!.start).toEqual({ date: "2026-09-20" });
     // Exclusive, like the .ics DTEND.
     expect(event!.end).toEqual({ date: "2026-09-21" });
-    expect(event!.description).toContain(TIME_ASSUMED_SENTENCE);
+    expect(event!.description).toContain(SOURCE_TIME_NOTE_ALL_DAY);
   });
 
   it("carries the link and which sites said so", () => {

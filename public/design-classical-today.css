@@ -1,168 +1,114 @@
-/* design-classical-today.css — the Classical calendar's today layer.
- *
- * Scoped under `html[data-design="classical"]` like every rule in
- * `design-classical.css`, which loads first and owns the tokens, the type
- * scale and the shared card slip. Spend those here; do not restate them and
- * do not put a hex literal in this file.
- *
- * The invariants it may not break: `html` and `body` are never scroll
- * containers, nothing takes a viewport unit or a percentage height, no rule is
- * keyed on window width, and nothing in the popup is `position: fixed`.
- * See the header of popup.css.
- */
-
-/* --------------------------------------------------------------------------
- * 0. The colours §3 names that `design-classical.css` has no token for.
- *
- * Four of them, each with a dark half — Sushi's machine is dark, and a wash
- * composites toward its own luminance, so the dark values are picked against
- * `--bg` (#1a1713) rather than derived from the light ones with an alpha.
- *
- * `--ink-navy` itself is **not** here: `--primary` already is it in light, and
- * in dark it is the gold that this palette substitutes wherever navy would be
- * invisible on a brown-black. The spec's "solid navy pill, white text" is a
- * *role* — the one high-contrast block on the paper — and `--primary` /
- * `--primary-ink` is that role already stated once, in both modes.
- * ----------------------------------------------------------------------- */
+/* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
+ * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
 html[data-design="classical"]:root {
-  /* §3.1, the items pill's ground: `--border-subtle`, a shade under `--tint`. */
-  --today-pill-bg: #ede7dc;
-  /* §3.4, the rail. Warmer and lighter than `--line` — it is a drawn stroke,
-     not a divider, and the spec names it separately for that reason. */
-  --today-rail: #dcd4c3;
-  /* §3.2, the count badge's edge: peach, a step in from `--err`. */
-  --today-badge-line: #f2cebe;
-  /* §3.2, `--terracotta-border` — the overdue card's edge, which is softer
-     than the terracotta the heading and the tick box are drawn in. */
-  --today-overdue-line: #f5dcd2;
-  /* §3.2, the overdue title's ink. Navy on paper; in dark, navy is unreadable
-     and the *parchment* body ink is what "the strongest ink here" means. */
-  --today-ink-strong: #1a2744;
+  /* mock: the overdue count is `bg-error-container/60`. `--err-wash` is the same
+     error-container hex at 10%, which composites 3 points off the page instead
+     of the mock's 18 — the shared token is the outline-only wash used elsewhere
+     and stays as it is; this is the one place the mock asks for 60%. */
+  --today-late-wash: #ffdad699;
+  --today-rail: var(--line);
+  --today-badge-line: var(--terracotta-border);
+  --today-overdue-line: var(--terracotta-border);
+  --today-ink-strong: var(--primary);
 }
 html[data-design="classical"]:root.is-dark {
-  --today-pill-bg: #302a21;
+  /* Dark has no mock. `--err-wash` is opaque here and already lifts the page 22
+     points, which is the same order the light mix now lands on, so dark keeps it. */
+  --today-late-wash: var(--err-wash);
   --today-rail: #453c2e;
   --today-badge-line: #5c3527;
   --today-overdue-line: #4e3527;
   --today-ink-strong: #ece4d4;
 }
-
-/* --------------------------------------------------------------------------
- * 1. The date subheader (§3.1)
+/*
+ * mock: `h1.text-headline-sm font-headline-sm text-primary font-bold`.
  *
- * `20px serif bold` and an items pill beside it. No semester annotation: the
- * spec refuses `Fall Semester 2024` outright — no term is stored, and §11 says
- * a label no source justifies is worse than a plainer true one.
- * ----------------------------------------------------------------------- */
+ * `headline-sm` is 20px/28, and `font-bold` is why the weight is 700 rather
+ * than the token's own 600. 24px is `headline-md`, one step up — the largest
+ * type on the screen, with a measured cap height of 17px against the mock's
+ * 14.4. The 28px leading is the token's, not `line-height: 1.3`'s 26.
+ */
 html[data-design="classical"] .folio--date {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 20px; line-height: 28px;   /* mock: text-headline-sm 20/28 */
+  font-weight: 700;                     /* mock: font-bold, over headline-sm's own 600 */
 }
-/* `4 ITEMS`: 10px mono, tracking-widest, uppercase, on `#ede7dc`, `px-1.5
-   py-0.5`, 4px radius. The uppercase and the tracking were already here; what
-   was missing is that it is a *pill* — plain text beside a 20px heading reads
-   as a subtitle of it rather than as a tally of what is below. */
+/*
+ * mock: `span.text-label-sm font-label-sm text-secondary uppercase
+ * tracking-wider font-medium` — sepia label type sitting on the page, with no
+ * background of any kind. Ours painted a 62x18px `#f1ede6` pill, which reads as
+ * a second badge next to the date and is the only filled chip in the folio.
+ *
+ * `tracking-wider` is .05em and beats `label-sm`'s own .08em (Tailwind emits
+ * letter-spacing utilities after the fontSize plugin); `font-medium` beats its
+ * 600 the same way. The family is stated because the shared rule in
+ * `design-classical.css` asks for `--mono`, and the mock's token is
+ * `font-label-sm` — Newsreader, i.e. `--label`.
+ *
+ * `background: none` rather than dropping the declaration: the shared rule
+ * carries `--pill-fill`, so the pill has to be switched off here.
+ */
 html[data-design="classical"] .folio--count {
-  font-size: 10px;
-  letter-spacing: .12em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--today-pill-bg);
-  color: var(--muted);
-  line-height: 1.4;
+  font-family: var(--label);            /* mock: font-label-sm */
+  font-size: 11px; line-height: 16px;   /* mock: text-label-sm 11/16 */
+  font-weight: 500;                     /* mock: font-medium */
+  letter-spacing: .05em;                /* mock: tracking-wider */
+  color: var(--muted);                  /* mock: text-secondary */
+  padding: 0;
+  border-radius: 0;
+  background: none;
   font-variant-numeric: tabular-nums;
 }
-
-/* --------------------------------------------------------------------------
- * 2. The bands and their cards (§3.2, §3.3)
- * ----------------------------------------------------------------------- */
-/* `p-2.5`. The shared slip is padded for a list of many; a day's schedule is
-   short enough to give each card the spec's own 10px. Scoped to Today's two
-   containers so the Week's and the Exams' slips keep theirs. */
 html[data-design="classical"] #view .tsection .row,
 html[data-design="classical"] #view .timeline .row {
-  padding: 10px;
+  padding: 8px;
 }
-
-/* The late band's count, as a badge rather than a word: overdue wash inside a
-   peach edge. `.section-head--err` (set by `today.ts`) already carries the
-   terracotta heading and the bold count; this is the box around it. */
+/*
+ * mock: `text-label-sm font-label-sm text-error bg-error-container/60
+ * border border-error/40 px-1.5 py-0.2 rounded`.
+ *
+ * At 10% the fill sat 3 points below the page and the badge read as an outline
+ * with nothing in it; the mock's 60% sits 18 below and reads as a filled pink
+ * pill. The type is the label-sm token, 11px/.08em, not the 10px/.04em the
+ * shared `.section-head` count uses.
+ */
 html[data-design="classical"] .tsection--late .section-head > :last-child:not(:first-child) {
   padding: 1px 6px;
   border: 1px solid var(--today-badge-line);
   border-radius: 4px;
-  background: var(--err-wash);
-  /* Terracotta, restated. `popup-views.css` gives `.section-head--err`'s count
-     `--err` already, but `design-classical.css` paints every band's count
-     `--muted` through a selector one class deeper, so the shared rule lost and
-     the badge measured grey inside a peach edge. */
+  background: var(--today-late-wash);   /* mock: bg-error-container/60 */
   color: var(--err);
-  font-size: 10px;
-  letter-spacing: .04em;
+  font-size: 11px; line-height: 16px;   /* mock: text-label-sm 11/16 */
+  letter-spacing: .08em;                /* mock: label-sm tracking, no tracking-* override on this span */
 }
-
-/* The overdue card's edge is `--terracotta-border`, not `--terracotta`: the
-   sheet before this one painted the edge in the same full-strength hue as the
-   heading, which makes a card that shouts as loudly as the band above it. */
 html[data-design="classical"] #view .row.row-overdue {
   border-color: var(--today-overdue-line);
 }
-/* Title 15px serif semibold; the size is the scale's already, the weight and
-   the ink are the spec's. */
 html[data-design="classical"] #view .row.row-overdue .row--title {
   font-weight: 600;
   color: var(--today-ink-strong);
 }
-/* `Due: Yesterday 11:59 PM` — 11px serif, terracotta. `--err` is already on
-   `.row--due` here; the size is what makes it a subline rather than a column. */
 html[data-design="classical"] #view .row.row-overdue .row--when {
   font-size: 11px;
 }
-
-/*
- * The overdue course pill: **solid `--ink-navy`, white text** — and only here.
+/* Filled in the LATE colour, not the brand's.
  *
- * Everywhere else the badge is the course's own wash, which is the "colour-code
- * the classes" half of the design; on the one band that is about lateness the
- * spec asks for the opposite, a solid block, because on a terracotta wash a
- * pale course tint disappears. `.chip` and `.row--code` both, because they are
- * one decision ("which class is this?") in two elements and styling one left
- * half the popup treated and half not.
- *
- * In dark, `--primary` is the **gold**, not the navy, and `--primary-ink` is
- * the near-black ground — the substitution this palette already makes wherever
- * navy would vanish on a brown-black. So the pill stays what the spec is
- * actually asking for, the one solid high-contrast block on the card, in both
- * modes; it is simply not navy in the mode where navy cannot be seen.
- *
- * `:not(.chip-practice)`: the practice chip is deliberately the one unfilled
- * badge, so "this is not for credit" survives the badge treatment.
- */
+ * This was `--primary`, which was navy when it was written — a colour with no
+ * other job, so a filled chip just read as emphasis. `--primary` is the UIUC
+ * orange since 2026-09-19 ("make illini dash orange"), and orange is now the
+ * brand and the selected tab and the focus ring. An overdue chip painted in it
+ * says "selected" as loudly as it says "late", which is the failure the dark
+ * palette already had once when the accent and the warning shared a hue.
+ * `--now` is the one colour on this page that means lateness and nothing else,
+ * and it is what the row's own "3h late" is already drawn in. */
 html[data-design="classical"] #view .row.row-overdue .chip:not(.chip-practice),
 html[data-design="classical"] #view .row.row-overdue .row--code {
-  background: var(--primary);
-  color: var(--primary-ink);
+  background: var(--now);
+  color: var(--bg);
   border-color: transparent;
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
 }
-
-/*
- * The overdue tick box: 16px square with a terracotta edge.
- *
- * The edge is a `box-shadow`, not a `border`, and that is measured rather than
- * preferred: a checkbox left at `appearance: auto` paints its own control, and
- * Chrome discards an author `border` on it — `border: 1px solid var(--err)`
- * computed back as `rgb(255, 255, 255)` in the real document. A declaration
- * that cannot win is not defence, it is a second thing to read, so it is gone
- * and the ring is the edge. `appearance: none` would take the border back at
- * the price of the native tick, the space bar and the announced state, which
- * is not a trade a 1px ring is worth.
- *
- * `accent-color` carries the tick itself, so ticking the one card that is
- * about lateness does not paint it in the design's structural hue.
- */
 html[data-design="classical"] #view .row.row-overdue .row--tick {
   width: 16px;
   height: 16px;
@@ -170,18 +116,6 @@ html[data-design="classical"] #view .row.row-overdue .row--tick {
   box-shadow: 0 0 0 1px var(--err);
   accent-color: var(--err);
 }
-
-/* --------------------------------------------------------------------------
- * 3. The timeline rail (§3.4)
- *
- * Clocks left of the rail and cards right of it is the shared grid's doing
- * already (`52px 16px minmax(0, 1fr)`); what §3.4 adds is the rail's own
- * weight and colour, and an anchor that says the hour rather than only "here".
- * ----------------------------------------------------------------------- */
-/* 1.5px of `#dcd4c3`, at full opacity. The shared sheet draws 2px of `--muted`
-   at 40% — chosen so the stroke would survive dark — which on vellum is a grey
-   line through a warm page. The token has a dark half instead, so the colour
-   can be the one the spec names in both modes. */
 html[data-design="classical"] .trail::before {
   width: 1.5px;
   margin-left: -.75px;
@@ -194,25 +128,9 @@ html[data-design="classical"] .tgap .trail::before {
   background: none;
   border-left: 1.5px dotted var(--today-rail);
 }
-/* The dot's ring is the page ground, so it reads as sitting *on* the stroke;
-   with the rail now a hairline the ring is what separates two close rows. */
 html[data-design="classical"] .tdot {
   box-shadow: 0 0 0 2px var(--bg);
 }
-
-/*
- * `Now · 11:14 AM`, on an ink pill.
- *
- * The bar the shared sheet draws answers "where along this am I" and nothing
- * else; against a rail whose every other line is a clock, the anchor has to be
- * a clock too. The mark becomes a filled disc so the ink reads as one object
- * crossing the rail rather than as a dash with a caption.
- *
- * The 11px fixed height goes: it was sized for a bar, and a pill that
- * overflows its line is the popup's own recurring bug (a menu below the fold,
- * a panel with no height to measure). The line is allowed to be as tall as
- * what is in it.
- */
 html[data-design="classical"] .tnow {
   height: auto;
   align-items: center;
@@ -227,43 +145,154 @@ html[data-design="classical"] .tnow--mark {
   box-shadow: 0 0 0 2px var(--bg);
 }
 /*
- * Built by every design, drawn by this one.
+ * Now, as a time in the clock column rather than a filled pill.
  *
- * `today.ts` appends the label unconditionally — a render function that asks
- * which design is on is a second copy of the choice the stylesheet already
- * makes — so the default is `display: none` and this sheet turns it on. That
- * keeps it out of the accessibility tree of the designs that were not drawn
- * with it, which `visibility` or an opacity would not.
+ * Sushi: "id rather have the time for now appear on the left side in orange
+ * text instead of being filled in an orange bubble." The pill was
+ * `background: var(--primary)` — the whole brand orange, 91px wide, in the
+ * third column — and it read as the most important thing on a tab whose subject
+ * is the deadlines around it.
+ *
+ * Everything except the ink and the weight is inherited from `.tclock`, which
+ * is the cell this now sits in: `font: 500 11px/16px var(--label)` and the
+ * cell's own `text-align: right`. That is the alignment, not a number repeated
+ * here — the row clocks above and below it are the same cell of the same grid.
+ *
+ * **`--illini-orange`, not `--now`.** They were the same colour this morning
+ * and are not any more: `--now` was moved to the terracotta pink
+ * (`design-classical.css`) precisely so that "late" and "the brand" stop being
+ * one hue, and what Sushi is calling orange is the brand — it is the colour the
+ * pill he is looking at was filled with (`--primary`, i.e.
+ * `var(--illini-orange)`). So the marker keeps the brand and the row's "3h
+ * late" keeps the pink, which is the distinction that move was for. Stated as
+ * `--illini-orange` rather than `--primary` because `--primary` is also the
+ * selected tab and the focus ring, and this is not a selection.
+ *
+ * 700 rather than the column's 500, so the marker is not distinguishable by
+ * hue alone (WCAG 1.4.1): a glance down the column sees one time set heavier
+ * than the rest, on the one line that also carries the dot. A student reads it
+ * as "you are here"; a screen reader gets the line's `aria-label`, "Now, 5:52
+ * PM", and never the bare time.
  */
-#view .tnow--label { display: none; }
-html[data-design="classical"] #view .tnow--label {
-  display: inline-block;
-  justify-self: start;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: var(--primary-ink);
-  font-family: var(--label);
-  font-size: 10px;
+#view .tnow--clock { display: none; }
+html[data-design="classical"] #view .tnow--clock {
+  display: inline;
+  color: var(--illini-orange);
   font-weight: 700;
-  letter-spacing: .06em;
-  line-height: 1.5;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
-
-/*
- * `Due: Yesterday 11:59 PM` in terracotta, and the reason it needs saying here.
- *
- * `design-classical.css` already asks for it (`.row-overdue .row--due`), but
- * `popup-rows.css` paints the same element through `#view .row--due` — an id
- * beats any number of classes, so the shared sheet won and the overdue subline
- * measured as `--muted` in the real document. Stated at the same id depth, in
- * the file that loads last, it lands. `.row--rel` with it: on the card the two
- * are one sentence ("11:59 PM · 4h late") and half a sentence in a second
- * colour is worse than either colour.
- */
+/* The marker kept the height its pill gave it, so dropping the pill does not
+   move every row under it. Measured: 19px, the pill's own box. */
+html[data-design="classical"] .tnow .tclock { min-height: 19px; }
 html[data-design="classical"] #view .row.row-overdue .row--due,
 html[data-design="classical"] #view .row.row-overdue .row--rel {
   color: var(--err);
 }
+
+/*
+ * One gutter on this view, not two.
+ *
+ * `popup-rows.css` pads `#view` by 10px and the Classical `.folio` then adds
+ * `margin: 0 16px` and `.tsection` `padding-left: 40px` on top of it, so the
+ * folio started at x=26 and the cards at x=50 — every band a paper-width
+ * narrower than the mock, for a gutter nothing asked for. The mock's `main` is
+ * `px-4` and each band is `section.pl-6` inside it: 16 and 40. `#view` gives up
+ * its horizontal padding and the Classical numbers become the real ones.
+ *
+ * `#view` in the selector because the base rule has it: an id in the first
+ * sheet beats any number of classes in a later one (PROGRESS, 2026-09-19).
+ * Bottom padding stays — the last card still needs air above the tab strip.
+ */
+html[data-design="classical"] body[data-view="day"] #view { padding-inline: 0; } /* mock: main px-4, carried by .folio and .tsection instead */
+/*
+ * One left edge on this tab, and it is 16px.
+ *
+ * Sushi, 2026-09-19: "the daily view looks like this, the rows are off to the
+ * right". Measured, Classical dark, 400px: the folio heading at x=16 and every
+ * band under it at x=40 — a 24px step in from the heading that names them,
+ * which at 400px reads as two columns rather than as an indent.
+ *
+ * This is an amendment to the mock (parser house rule 9, one surface over). The
+ * mock's `main` is `px-4` and each band is `section.pl-6` inside it, so 16 and
+ * 40 are both faithful readings of it; what the mock does not have is a running
+ * head at `px-4` above them, so the step it draws is from the window rather
+ * than from a heading. Ours has one, and the step is from it. The bands come
+ * out to the folio's edge.
+ *
+ * `body[data-view="day"]` is here to beat `design-classical.css`'s own
+ * `.tsection` rule rather than to scope anything — that sheet is (0,2,1) and
+ * this is (0,3,2). Specificity across two files is not readable by inspection
+ * and the rule that loses loses silently (ZIP rule 5), so the view sheet states
+ * the win instead of relying on load order.
+ */
+html[data-design="classical"] body[data-view="day"] .tsection { padding-left: 16px; }
+/*
+ * And the rail's clock column is content, not padding.
+ *
+ * "Everything flush" would mean pulling the 45px clock column out to x=16 and
+ * leaving the rail's rows at 16 too, which is a rail with no axis. The band's
+ * *outer* edge is what has to agree with its siblings — 16 — and the clock sits
+ * inside it, so a timed row starts at 16+45+12=73 and its clock reads down the
+ * same 16px edge the cards above it start on.
+ */
+/*
+ * The heading sits at its band's own left edge, not out in the margin.
+ *
+ * `-24px` pulled it back through `.tsection`'s `padding-left: 40px` to the
+ * folio's 16, which made the band read as two columns. In the mock the heading
+ * ("OVERDUE" with its icon, "END OF DAY") is the first child of the same
+ * `section.pl-6` as its cards, so both start at x=40.
+ *
+ * `padding: 0` with it, or `popup-rows.css`'s `0 6px` leaves the heading's text
+ * 6px inside the card edge below it and the count badge 6px short of the card's
+ * right edge — a half-indent that reads as a mistake at 400px. In the mock the
+ * heading row has no padding of its own: its text sits on the card's border,
+ * and the card's `p-2` is what insets the card's own text.
+ *
+ * The margins are 0 and 2, not 16 and 8, because neither number is on its own.
+ * `#view` is a flex column with `gap: 10px`, so the folio's rule already stands
+ * 10px off the band — the mock's `pb-2.5` — and a 16px top margin on the
+ * heading made it 26. `.tsection` has `gap: 2px`, so an 8px bottom margin made
+ * the heading-to-card step 10 where the mock's `mb-1` is 4. Both mock numbers
+ * are reached by giving the two shared gaps back what they were being added to.
+ */
+html[data-design="classical"] .tsection .section-head { margin: 0 0 2px; padding: 0; } /* mock: band heading is inside section.pl-6, mb-1, no padding of its own */
+html[data-design="classical"] .section-head > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+html[data-design="classical"] .section-head .icon { width: 18px; height: 18px; }
+/* The rail is inside a `.tsection` since it gained a heading, and that band
+   already carries the 16px gutter — so the rail states only its vertical
+   padding, or the band's 16 and the rail's 16 would be 32. The `padding-inline:
+   0` is stated rather than omitted because the declaration this replaces was
+   the four-sided shorthand. */
+html[data-design="classical"] .timeline { padding: 8px 0 0; } /* gutter comes from .tsection */
+/*
+ * The rail's three columns, on all three kinds of line — not just on `.tline`.
+ *
+ * `popup-rows.css` states `52px 16px minmax(0,1fr)` on `.tline, .tgap, .tnow`
+ * together, because they are one rail and a column that is 52px on one line and
+ * 45px on the next is not a rail. This sheet narrowed it and named only
+ * `.tline`, so Classical drew the rows on a 45/12 grid and the now marker and
+ * the collapsed-gap segments on the base 52/16 one.
+ *
+ * Nothing said so while the marker was a pill out in the third column and the
+ * gap was a wordless dotted stub. Measured, the moment the marker's time moved
+ * into column one: its clock cell ended at x=68 against the rows' 61, and the
+ * now dot's centre sat at x=76 against a rail stroke at x=67 — a 9px step, on
+ * the one element whose entire job is to mark a position on that stroke.
+ */
+html[data-design="classical"] .tline,
+html[data-design="classical"] .tgap,
+html[data-design="classical"] .tnow { grid-template-columns: 45px 12px minmax(0,1fr); }
+html[data-design="classical"] .tclock { font: 500 11px/16px var(--label); }
+html[data-design="classical"] .tsection--late .row { border-left: 4px solid var(--err); }
+/*
+ * The quiet day's check, for the same reason as the header's three icons.
+ *
+ * `popup-rows.css` has `.quiet--mark svg { width: 22px }`, a type selector that
+ * also catches the Material `<svg>` nested inside the icon — 22 user units in a
+ * 16-unit `viewBox`, so the tick drew at 137% and was clipped by its own
+ * viewport. The other two bare-`svg` rules in this project are in `.bar` and
+ * are answered in `design-classical-shell.css`; this is the third and last.
+ * 16px is the outer icon's viewBox extent, i.e. the attribute the element
+ * already carries, so this can only restore the glyph, never resize it.
+ */
+html[data-design="classical"] .quiet--mark .icon-material { width: 16px; height: 16px; }

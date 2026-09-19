@@ -44,7 +44,7 @@
  * left half with titles truncating beside half a window of blank space. The
  * width is stated once, here, rather than assumed by every child.
  */
-html { width: 400px; }
+html { width: 400px; max-width: 100%; }
 body { width: 400px; max-width: 100%; padding: 0; }
 
 /*
@@ -115,12 +115,85 @@ html.view-full,
  * calendar had asked. They sit at the wide gutter permanently now, so the tabs
  * never move and the calendar frame is the only thing that changes width.
  */
+/*
+ * …and it fills the window's **height** too, which is the other half of "use
+ * the window" and was missing until 2026-09-19.
+ *
+ * The symptom (Sushi: "in full screen … the 5 tabs are way higher theyre not
+ * oriented to the dimensions of the screen"): on a 2000×1200 tab with nothing
+ * due, the header, the sub-bar, one "Nothing on the schedule today" card and
+ * then the five tabs all stopped at y=281, with 900px of blank page under
+ * them. Measured before this rule, Classical, 2000×1200, empty day: document
+ * 1200 (the viewport floor), `#view` 132.8→228.5, `#tabs` 228.5→281.5.
+ *
+ * The cause is that **nothing gave the document a height**. `#tabs` is
+ * `position: sticky; bottom: 0` in Classical and `#footer` is the same in
+ * Plain, and sticky-bottom is sticky *upwards only* — it can hold a strip up
+ * against the window's foot while the page scrolls past it, but it never
+ * pushes a box down. On a document shorter than the window there is nothing to
+ * scroll, so both simply sit at the end of the content. That is exactly right
+ * for the popup, whose height Chrome measures from the content; it is wrong
+ * for a tab that is already 1200px tall.
+ *
+ * So the full view — and **only** the full view — gets a window-height column
+ * with `#view` taking the slack. The chrome then lands on the window: the bar
+ * at the top, the strip each design puts at the foot against the foot.
+ *
+ * Three things about this rule are deliberate and must survive edits:
+ *
+ *  - It is scoped to `.view-full`, the class `src/ui/popup/state.ts` sets from
+ *    `?view=full` before the first paint. Never a `@media (min-width:)`:
+ *    Chrome lays the document out to decide the popup's width, so a rule keyed
+ *    on window width can measure wide, restyle wider and open wider (see the
+ *    note at the top of this file). The popup's `html`/`body` never see any of
+ *    this and keep their intrinsic height — the thing Chrome measures.
+ *  - `min-height`, not `height`, and no `overflow` anywhere near `html` or
+ *    `body`. Neither becomes a scroll container: a week taller than the window
+ *    still grows the document and the *viewport* scrolls it, which is what
+ *    keeps the sticky strips doing their real job.
+ *  - The 24px of bottom padding goes with it. It used to sit under the last
+ *    block of content; with a strip pinned at the window's foot it would sit
+ *    *below* that strip and buy 24px of scrollbar on a page that otherwise
+ *    has none. `#view`'s own bottom margin below is the breathing room now,
+ *    and it is inside the measured box rather than after it.
+ */
 .view-full body {
-  padding: 0 0 24px; margin: 0;
+  padding: 0; margin: 0;
+  box-sizing: border-box;
+  /*
+   * `!important`, and it is load-bearing rather than a shortcut.
+   *
+   * `placeFloating` in `src/ui/popup/shell.ts` ends by writing
+   * `document.body.style.minHeight = Math.min(MAX_POPUP_HEIGHT, …)` — an
+   * *inline* min-height of at most 600px — to ask Chrome for room under a menu
+   * that opened downward. In the popup that is the whole mechanism; in the full
+   * view it is meaningless, because a tab's height is not measured from the
+   * document, and it actively fights this rule: measured at 1600x1000 with a
+   * held press, opening the last row's menu replaced 100vh (1000px) with an
+   * inline 600px, the body fell back to its 683px of content, and the tab strip
+   * jumped from y=947 to y=629.7 until the menu closed.
+   *
+   * That was briefly held off with `!important`, the only lever a stylesheet
+   * has against an inline declaration. `placeFloating` now carries the same
+   * `if (!isFullView)` guard `placeQuickPanel` always had, so nothing writes
+   * the inline height here any more and the `!important` is gone with it.
+   */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   --full-max: 900px;
   --frame-max: var(--full-max);
   --chrome-max: 1400px;
 }
+/*
+ * The list is what absorbs the window, in every design and on every view.
+ *
+ * `flex: 1 1 auto` with the default `min-height: auto`, so a view taller than
+ * the window is never squeezed — it grows the document and the page scrolls,
+ * as before. On a short day the frame simply reaches the strip instead of
+ * stopping a third of the way down.
+ */
+.view-full #view { flex: 1 1 auto; }
 .view-full body[data-view="month"] { --frame-max: var(--chrome-max); }
 .view-full .bar { border-radius: 0; }
 /*
@@ -135,7 +208,22 @@ html.view-full,
   display: flex; align-items: center; gap: 8px;
   box-sizing: border-box; min-height: 44px;
   padding: 8px 10px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--surface); color: var(--fg); z-index: 2;
+  /* `z-index: 3`, above `.foot`'s 2.
+   *
+   * Both were 2, and equal z-index is resolved by document order with the
+   * LATER element winning — and `.foot` is later, so if the two ever met the
+   * sources strip would paint over the wordmark. Sushi reported exactly that
+   * ("when im scrolling, the sources connected bar appears over illini dash",
+   * 2026-09-19) and neither I nor a second pass could reproduce it: 30
+   * combinations of tab, width and mode across Classical and Plain, at five
+   * scroll positions, and `elementFromPoint` over the wordmark returned the
+   * header every time. His Settings page was reporting a stale service worker
+   * at the time, so the build he saw is not one that can be recovered.
+   *
+   * This is therefore insurance against a hazard that is real in the cascade
+   * rather than a fix for a measured defect, and it is written down as such:
+   * the header is the one thing on this page that must never be covered. */
+  position: sticky; top: 0; background: var(--surface); color: var(--fg); z-index: 3;
 }
 .bar--right { display: flex; align-items: center; gap: 4px; flex: none; }
 /*
@@ -242,8 +330,21 @@ html.view-full,
 .row--name .chip-practice { flex: none; }
 .row--unreadable { color: var(--err); }
 .row--flag { color: var(--warn); font-weight: 700; cursor: help; }
-/* Says "the time here is ours, not the course's" without spending a line. */
-.row--assumed { cursor: help; font-style: italic; }
+/* Says "the time here is ours, not the course's" without spending a line.
+   It said it in italic until 2026-09-19, when the slant went (it is unreadable
+   at 10.5px on a dark ground, and worker rule 3 needs this mark to survive).
+   A dotted underline in the warn ink replaces it: the conventional "there is a
+   note on this value" mark, which pairs with the help cursor and the title that
+   are already here, and which reads at 10px where a slant does not. The muted
+   ink is the second half — a stated time is --fg, an assumed one is not. */
+.row--assumed {
+  cursor: help;
+  font-style: normal;
+  color: var(--muted);
+  text-decoration: underline dotted 1px;
+  text-decoration-color: var(--warn);
+  text-underline-offset: 2px;
+}
 .row-late { border-left: 3px solid var(--warn); }
 .row-late .row--due { color: var(--warn); }
 h2.section {
@@ -546,11 +647,39 @@ h2.section {
  * as two unrelated buttons rather than as one pair.
  */
 .datenav {
-  display: flex; align-items: center; gap: 2px;
+  /* One token, because the month sheet has to cancel exactly this distance to
+     make the ‹ › pair read as a single bordered box. Two literals would drift,
+     and the drift is invisible until a pill lands between them. */
+  --datenav-gap: 6px;
+  display: flex; align-items: center; gap: var(--datenav-gap);
   box-sizing: border-box; height: 32px; padding: 0 8px;
   border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .datenav[hidden] { display: none; }
+/*
+ * The arrows: a 28px target with a 16px chevron in it (Sushi, 2026-09-19:
+ * "the arrows are too squished").
+ *
+ * `.btn-icon` is 28×28 with a 16px glyph everywhere else in this project;
+ * `.btn-icon.btn-sm` in `ui.css` takes it to 24×24 and `.btn .icon` draws the
+ * chevron at 14. Two of those 24s side by side with the column gap closed —
+ * which is what the month strip does, on purpose, to draw the pair as one
+ * bordered box — is a 48px block holding two 14px marks, and it reads as one
+ * squeezed control rather than as two presses. 24 is also the floor for a
+ * touch target, not a value to design at.
+ *
+ * Scoped to `.datenav` rather than fixed in `ui.css`, because `.btn-sm` is
+ * shared with the suggestion rows and the month's own controls, which are
+ * sized against their own type.
+ *
+ * `.icon` here is the **outer** svg, whose viewBox is `0 0 16 16`. The nested
+ * `.icon-material` carries `width="16" height="16"` as attributes — user units
+ * of that viewBox, not pixels — so it scales with the outer box and must not
+ * be given a px size here. (`design-classical-shell.css` records the same trap
+ * for the header's controls.)
+ */
+.datenav .btn-icon.btn-sm { width: 28px; height: 28px; }
+.datenav .btn-icon .icon { width: 16px; height: 16px; }
 .datenav--label {
   font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums;
   padding: 0 2px; white-space: nowrap;
@@ -683,7 +812,13 @@ h2.section {
 .mpill--late .mpill--code { color: var(--warn); }
 .mpill--opening { background: transparent; border-left-style: dashed; opacity: .8; }
 .mpill--exam { background: var(--warn-wash-strong); }
-.mpill--untimed .mpill--name { font-style: italic; }
+/* The same mark at pill size, so one vocabulary means one thing in both views:
+   this item's time is ours. Was italic until 2026-09-19. */
+.mpill--untimed .mpill--name {
+  font-style: normal;
+  text-decoration: underline dotted 1px;
+  text-underline-offset: 1px;
+}
 .mmore {
   font: inherit; font-size: 11px; color: var(--muted); background: none;
   border: 0; padding: 1px 3px; text-align: left; cursor: pointer;
@@ -732,7 +867,10 @@ h2.section {
 .grid--stack .row--due, .witems .row--due, .band .row--due { margin-top: 1px; }
 /* Not open yet: the same dashed edge the month uses, so one vocabulary. */
 .row-opening { border-left-style: dashed !important; }
-.row-opening .row--due { font-style: italic; }
+/* A window that has not opened is not a deadline. The dashed edge above says
+   that in the grid's vocabulary; the ink says it in the row. Was italic until
+   2026-09-19, which at 10.5px marked it without saying what the mark meant. */
+.row-opening .row--due { font-style: normal; color: var(--muted); }
 /* One colour vocabulary everywhere, so the Attention tab reads like the grid. */
 .row[class*="course-"] { border-left: 3px solid var(--course); padding-left: 9px; }
 .na .row[class*="course-"] { background: var(--course-bg); border-radius: 0 4px 4px 0; margin-right: 12px; }
@@ -996,6 +1134,18 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full #status { padding-inline: max(24px, calc((100% - var(--chrome-max)) / 2)); }
 .view-full .datenav,
 .view-full #view { margin-inline: max(24px, calc((100% - var(--frame-max)) / 2)); }
+/*
+ * And the same gutter under the frame, now that the frame reaches the foot of
+ * the window.
+ *
+ * Here rather than beside `flex: 1 1 auto` near the top of the file, for the
+ * reason the block above gives: `#view` sets `margin` as a shorthand in the
+ * full-view section, so a block longhand has to follow it to win. A flex
+ * item's margin is part of the box the free space is shared out to, so this
+ * is 24px between the card's bottom edge and the strip below it — not 24px of
+ * document past the window.
+ */
+.view-full #view { margin-bottom: 24px; }
 
 /* Month pills in dark Illini: one navy fill under every course rather than
    eight washes, which at 11px on a dense grid read as noise. The course still
@@ -1026,12 +1176,17 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 
 /* ---- the editor, and the three ways to reach it ----
  *
- * It renders **in flow**, always, in both windows. A floating form would
- * contribute nothing to the document's intrinsic height, which is the box
- * Chrome measures to size the popup — so it would be clipped by the 600px
- * ceiling with its Save button past the bottom edge, exactly as the source
- * list was before `placeFloating` learned to ask for room. Pushing the rows
- * down costs a scroll and cannot be clipped.
+ * The full form renders **in flow**, always, in both windows — as a screen or
+ * pushed into a list. A floating form contributes nothing to the document's
+ * intrinsic height, which is the box Chrome measures to size the popup, so it
+ * would be clipped by the 600px ceiling with its Save button past the bottom
+ * edge. Pushing the rows down costs a scroll and cannot be clipped.
+ *
+ * The five-field `.editor--quick` panel (2026-09-19) is the exception, and it
+ * pays the price the rule names: it is `fixed`, and `placeQuickPanel` asks for
+ * its room as a pixel `min-height` on `body` — the same way `placeFloating`
+ * learned to, for the source list that used to be cut off half way down its
+ * fifth row. Its rules are in `popup-screens.css`; nothing here positions it.
  *
  * No `position`, no percentage height, no viewport unit: everything here sizes
  * from its content, which is what leaves Chrome something to measure.

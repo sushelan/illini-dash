@@ -8,6 +8,7 @@
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import { unreadableDeadline } from "./quality.js";
+import { movedRange } from "./provenance.js";
 import type { Item, Settings } from "../sources/types.js";
 
 export type SectionName =
@@ -243,21 +244,18 @@ export function examDetail(item: Item): string | undefined {
 }
 
 /**
- * "moved Tue → Fri" for a deadline the course changed since the last sync.
+ * "moved Tue → Fri" for a deadline that changed since the last sync.
  *
- * Only the day is shown: the row already carries the new time, and the useful
- * fact is that it is not where the student last saw it.
+ * The range is `movedRange`'s, shared with `movedByText`: day-only across days,
+ * and the clock when both ends land on one — a same-day move rendered
+ * "moved Sat, Sep 19 → Sat, Sep 19" and reported nothing.
  */
 export function movedText(item: Item): string | undefined {
   if (!item.movedFrom) return undefined;
-  const from = new Date(item.movedFrom);
   const instant = item.dueAt ?? item.lateDueAt;
-  if (Number.isNaN(from.getTime()) || instant === undefined) return undefined;
-  const to = new Date(instant);
-  if (Number.isNaN(to.getTime())) return undefined;
-  const day = (date: Date) =>
-    date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  return `moved ${day(from)} → ${day(to)}`;
+  if (instant === undefined) return undefined;
+  const range = movedRange(new Date(item.movedFrom), new Date(instant));
+  return range === undefined ? undefined : `moved ${range}`;
 }
 
 export interface DueText {

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "archive": "stitch_extension_ui_design.zip",
+  "archiveSha256": "5ee0472e3f7cc5c742155ebfae2d688132d1d2f4128d1f948e812a1034857104",
+  "authority": "User request 2026-09-19: ZIP is source of visual truth; see reference-contract.md for conflicts.",
+  "files": [
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_edition/code.html",
+      "sha256": "63f8ddbb1e44b66935bb9386358ba199311b63a3b88185b917b382f30a601012",
+      "bytes": 22125
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_edition/screen.png",
+      "sha256": "171d5aff2024fb763c56d32ab5601507a49b27f05142018292cb7e178e2af0bd",
+      "bytes": 152844
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_week_view/code.html",
+      "sha256": "a5b420a1cf576b0c368280b3ddba98b4f020768845cc2812fdd3dc98ac52827f",
+      "bytes": 20901
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_week_view/screen.png",
+      "sha256": "22a8a796b0dce6b84fa11e0a66fea70bed76310bf9a757cb7ea2eab3012dbd64",
+      "bytes": 209538
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_no_date_view/code.html",
+      "sha256": "ea91ec583f324bf72eb3137197da50d1817c843efd867fba90c28e10329d3221",
+      "bytes": 22939
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_no_date_view/screen.png",
+      "sha256": "5aaad4577f285f40590ee9837e1ab41c02891b53eeb96cd1121e04549afc7903",
+      "bytes": 262854
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_month_view/code.html",
+      "sha256": "ad22fd19c1409b889057886c8017a6a1c1a4a0b0172ed82f9c239d2426d23962",
+      "bytes": 25764
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_month_view/screen.png",
+      "sha256": "c2e40f930b58d50f228de3f8279ddef4fd671d95bbaff3215687056dbe474c83",
+      "bytes": 221415
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_exams_view/code.html",
+      "sha256": "3bc84e10ba5a5f7e5d2052d9ddf386238419a6d2e993000fe0c5f135447f90fa",
+      "bytes": 19247
+    },
+    {
+      "path": "docs/design/classical-mock/illini_dash_classical_calendar_exams_view/screen.png",
+      "sha256": "d708e1005a1a34aa06165f24740830f4ce0a36e1872d1af50d38105835155dc4",
+      "bytes": 282940
+    },
+    {
+      "path": "docs/design/classical-mock/classical_vellum_journal/DESIGN.md",
+      "sha256": "ae53f9d261e2647dd980f15decb488b147e318cf59a4aabe66a8fba7e7139a6e",
+      "bytes": 12327
+    }
+  ]
+}

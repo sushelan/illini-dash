@@ -28,6 +28,7 @@ import {
 import { itemId } from "./dedupe.js";
 import { extractCourseCode, normalizeTitle } from "./normalize.js";
 import { isInstant } from "./parsing.js";
+import { movedRange } from "./provenance.js";
 import { memberKey, ParseError } from "../sources/types.js";
 import type { DueOverride, Item, Overrides, Suggestion } from "../sources/types.js";
 
@@ -576,10 +577,14 @@ export function movedByText(item: Item): string | undefined {
   const day = (date: Date) =>
     date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   const from = movedBy.from === undefined ? undefined : new Date(movedBy.from);
-  if (from === undefined || Number.isNaN(from.getTime())) {
+  // `movedRange` also answers `undefined` when the two ends are the same
+  // moment — a second "Give it a date" that restates the date it already held
+  // is not a move, and a move line that reports no move is noise.
+  const range = from === undefined ? undefined : movedRange(from, to);
+  if (range === undefined) {
     // An item that had no date to move *from* still moved: it went from undated
     // to dated, which is the change a student most wants to see.
     return `now due ${day(to)} · from ${movedBy.reason}`;
   }
-  return `moved ${day(from)} → ${day(to)} · from ${movedBy.reason}`;
+  return `moved ${range} · from ${movedBy.reason}`;
 }

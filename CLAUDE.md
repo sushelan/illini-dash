@@ -2,6 +2,8 @@
 
 Chrome extension (MV3) that aggregates UIUC deadlines. Full design in SPEC.md — read it before doing anything.
 
+`AGENTS.md` is a symlink to this file, so other agent tooling reads the same rules.
+
 ## Rules
 - Follow the build order in SPEC.md §10. Don't skip ahead; don't start a parser before its fixtures exist.
 - Gates in §9 are hard stops. If a gate fails, stop and report; don't work around it.
@@ -213,6 +215,21 @@ mutations in one day taught three things about the *procedure* itself.
    untested, unreachable or redundant, confirm the input actually exercises the mutated
    line — a fixture that defeats itself looks exactly like a gap in the suite.
 
+5. **Two more meanings, and both are the suite's shape rather than the code's.** Of 16
+   count-asserted mutations over the 2026-09-19 repair, 14 died on the first run and
+   neither survivor was untested. *Masked by a parallel mechanism*: dropping
+   `selectTab`'s focus request changed nothing, because the implicit request `render`
+   derives from `document.activeElement` covered it whenever focus was already on the
+   strip — which is where every test had left it. Both mechanisms are wanted, so there is
+   no second copy of a decision to collapse the way rule 3 collapses one; the answer is
+   the input that separates them, a tab selected from a control somewhere else.
+   *Unreachable by the tests' ordering rather than by the code*: making `render` claim it
+   drew while a press held it could not be triggered, because every test pressed *before*
+   refreshing rather than during. The answer is the other order — a test that presses
+   while the state is in flight. Both were killed once the missing input existed. Before
+   recording a survivor as unreachable, ask whether it is the code that cannot reach it
+   or only the order the tests happen to do things in.
+
 ## House rules for the on-device model
 
 One so far, from the first live run of the adapter author (2026-09-18).
@@ -294,6 +311,82 @@ composited luminance rather than trusting the alpha**, which is one line in the 
 ```js
 getComputedStyle(el).backgroundColor  // then composite it against the body yourself
 ```
+
+## House rules from the ZIP acceptance pass, 2026-09-19
+
+An independent interaction review of one frozen popup build, driven with real held
+presses, found four product defects in an afternoon with 2,103 tests passing — and a
+fifth in the harness that had been quietly falsifying every "Sources" capture for a day.
+None of them is a parsing mistake and none is reachable from a fixture: they are about
+*when* something ran, or about which of two files got the last word.
+
+1. **Focus is a request the draw consumes, never a call chained onto `refresh()`.** Five
+   controls did `void app.refresh().then(() => …focus())`, and all five were right only
+   when the refresh actually drew. It does not while a mouse button is down inside the
+   list: `createPressHold` defers the draw by a task, `refresh()` returns at once, and
+   the `.then` runs against the old document. So pointer-opening a deadline left `BODY`
+   focused, pointer ‹ back left `BODY` focused, and one ArrowRight on the tab strip
+   worked while the second did nothing, because the strip had been rebuilt under the
+   focused tab. A control now writes what should be focused into `state.focusAfterDraw`
+   before it asks for the redraw (`requestFocus`), `render` returns whether it drew, and
+   the draw that actually rebuilt the document applies the request after the footer
+   (`applyFocusRequest`; the lookup is `src/ui/popup/focus.ts`). A held draw leaves the
+   request alone and the deferred one honours it, so no caller has to know which it got.
+   The same mechanism answers the redraws nobody asked for — the open-sync, a store
+   write, the minute tick — which stranded the keyboard on `<body>` just as reliably:
+   `render` derives an implicit request from `document.activeElement` *before* it
+   replaces anything, and applies it with `preventScroll`, because a background redraw
+   must not move the window. This is the row-menu rule of 2026-09-18 one step further
+   out. That one says never to decide anything about focus inside a microtask queued
+   from a focus event; this one says never to decide anything about focus on a promise
+   that does not know whether a draw happened.
+2. **A refusal is state, not a line on the status channel.** `applyOverrideAction` was
+   `send(…).then(reportOverride).then(() => refresh())`: the refusal reached `#status`
+   and the unconditional refresh behind it ended in `showStatus(undefined)`, which wiped
+   the sentence about 150ms later. A MutationObserver on the real document watched it
+   arrive and vanish; the student saw a row that had not changed and no reason. Anything
+   a draw rewrites is erased by the next draw, and eight things in `src/ui/popup.ts`
+   alone start one before any control asks — the open, the open-sync, a local store
+   write, the worker's syncing flag, the state read at startup, the minute tick, a
+   return to a hidden tab, and the full-view handoff. So a message that has to outlive a
+   redraw belongs in `state` beside `pendingUndo` and is re-emitted by every draw until
+   Dismiss or a later success clears it (`state.actionError`, `showStatus` in
+   `src/ui/popup/shell.ts`). A refusal also must not refresh at all — nothing in the
+   store changed — and the pressed control has to be put back, or "Applying…" reads as
+   "still applying", forever. Which answers are refusals is `src/core/outcome.ts`, in
+   core where a test can reach it.
+3. **Validate the shape before naming a cause.** Typing `not a url` into Settings
+   answered *"Chrome did not grant access to not a url, so it cannot be read"* — about a
+   permission nobody had requested. The string never parsed, so `originPattern` threw
+   inside `ensureHostPermission`'s try, it returned `false`, and `false` had exactly one
+   sentence attached to it; three handlers in `src/ui/options.ts` shared the shape and so
+   shared the wrong answer. That is parser rule 5 one surface over: an unclassified
+   failure gets reported as whichever branch happens to be first, and the student is sent
+   to a permission dialog to fix a typo. `src/core/page-url.ts` matches scheme and host
+   positively with anchored regexes before anyone asks Chrome for anything, and every
+   rejection describes the *text* rather than a browser decision that has not happened.
+4. **A selector spelled inside a build script's string is a selector nothing can read.**
+   `scripts/preview.mjs` appended its `?open=…` epilogue as a template literal, and the
+   `.pill` it pressed for `open=health` outlived the header pill it named by a day. The
+   parameter silently did nothing, and every "Sources" capture taken through it — the
+   ones the visual reviewer was given among them — was a picture of the calendar. A
+   harness shortcut is code: the table is `scripts/preview-open.js` now, published on
+   `globalThis.__PREVIEW_OPEN__.targets`, with `scripts/ui-acceptance.test.mjs` holding
+   it against the presses in `ui-acceptance.mjs` and `tests/preview-acceptance.test.ts`
+   holding it against the rendered shell — so a control that moves fails a test instead
+   of changing what the screenshots mean. A selector and the thing it matches belong to
+   one constant a test can read, and that is as true of the harness as of the page.
+5. **A shared sheet's late rule beats a view sheet's, and only a browser will say so.**
+   `public/design-classical.css` styles `.section-head > :last-child:not(:first-child)`
+   at (0,4,1); the No Date count badge set its own ink and size in
+   `public/design-classical-nodate.css` at (0,2,1), so the shared rule won and drew
+   muted 11px text on the navy block the badge had just painted. Nothing failed — the
+   typecheck passed, the suite passed, and the lane that wrote the view sheet had no
+   browser. A view sheet restyling anything the shared sheet also styles must match or
+   beat its specificity (`#view` in the selector, which is the fix) and must **measure
+   the computed value** before claiming it, the same one line as for a tint:
+   `getComputedStyle(el).color`. Specificity across two files is not readable by
+   inspection, and the rule that loses loses silently.
 
 ## House rules for the UI, and for diagnosing it
 
@@ -436,6 +529,16 @@ fresh load gets the store's ID; an install from *before* the key keeps its old I
 on Reload, and has to be removed (its local state goes with it) — do not change the key
 again without expecting that.
 
+## Reference-driven UI acceptance
+
+For a requested UI/UX audit or repair against the Stitch ZIP, use
+[illini-ui-acceptance](.agents/skills/illini-ui-acceptance/SKILL.md) and its
+[workflow](docs/design/ui-acceptance/README.md). The original archive's pinned copies
+are visual authority; `docs/design/classical-spec.md` records an earlier alignment pass.
+Keep one owner for shared styling, separate visual and interaction review, and retain
+unobserved journeys as incomplete. This is a UI acceptance workflow, not a replacement
+for §9 gates or a requirement to run a full audit on unrelated changes.
+
 ## Review policy
 
 Full adversarial review is expensive (~20 min, ~1.5M tokens) and its yield is falling now
@@ -474,6 +577,15 @@ myself. Verify every one against the code before acting or reporting.
 - The highest-yield fan-out so far was not coding at all — it was the path trace above.
   Parallelise *investigation* of one symptom across independent segments more readily
   than implementation across features.
+- **Six lanes in disjoint files, and one build at the end.** The 2026-09-19 repair batch
+  ran focus, correction outcomes, URL validation, the preview harness, the CSS/icon
+  batch and the exam verification tick in parallel, each owning files no other lane
+  touched and none of them able to build. Every lane typechecked. The one defect that
+  reached the screen was the one no lane could see — a shared sheet outranking a view
+  sheet's colour — and the orchestrator found it by building once and measuring the real
+  document. Six green typechecks are six statements about six files; nothing in a lane
+  can check what its neighbour did to the composite, so measure once at the end rather
+  than trusting them.
 
 ## Sushi's time is the scarce resource
 

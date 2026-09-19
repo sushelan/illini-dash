@@ -1,185 +1,155 @@
-/* design-classical-exams.css — the Classical calendar's exams view.
- *
- * Scoped under `html[data-design="classical"]` like every rule in
- * `design-classical.css`, which loads first and owns the tokens, the type
- * scale, the shell, the tab bar and the shared card slip. Spend those here;
- * do not restate them. One file per view so parallel work never collides in
- * a single stylesheet.
- *
- * The invariants it may not break: `html` and `body` are never scroll
- * containers, nothing takes a viewport unit or a percentage height, and no
- * rule is keyed on window width. See the header of popup.css.
- */
-
-/* ==========================================================================
- * What was measured, and why the mock's numbers are not copied
- *
- * `code.html` draws its frame at `width: 400px` — the same width as the real
- * popup — but sets it in a type scale built for a phone: a 20px card title, a
- * 17px body, 16px gutters (`space-md`), and a `p-space-sm` (8px) card padding
- * inside a `px-space-md` (16px) page. Taken literally that leaves
- *
- *     400 − 16 − 16 (page) − 1 − 1 (card edge) − 8 − 8 (card padding) = 350px
- *
- * of text column for a 20px serif, which holds about 22 characters. "Midterm
- * Exam 1: Systems & Matrix Inverses" — the mock's own longest title — is 40.
- * The mock does not show that because it wraps to three lines there; a real
- * board with six exams on it would be a screen of wrapped titles.
- *
- * So this sheet keeps the mock's *structure* — icon-led metadata lines, a
- * source pill, a full-width high-contrast CTA, a tinted "not booked" leaf —
- * and spends `design-classical.css`'s already-reduced scale for the sizes:
- *
- *   text column   `.exam-stack` is 0 10px and the card slip is 1px + 9px, so
- *                 360px measured in the browser, against the mock's 350. Near
- *                 enough that the mock's line breaks hold; the type is what
- *                 changes.
- *   title         13px (the card slip's, unchanged) against the mock's 20.
- *                 360px of 13px Georgia holds ~52 characters, so that same
- *                 40-character title is one line here and two in the mock.
- *   metadata      11px against the mock's 14, with a 12px glyph against its
- *                 15 — one step over the 10.5px meta line, because these are
- *                 the two facts on an exam card with a *wrong* answer.
- *   pill / badge  9.5px sans, the size `.chip` and `.section-head` are already
- *                 drawn at, against the mock's 11px `label-sm`.
- *   CTA           30px tall, 12px label, against the mock's ~40px / 13px. A
- *                 400px popup that has to fit a tab strip, a header and a
- *                 footer cannot spend 40px on one control.
- *
- * Every colour is a token from `design-classical.css`, so the dark half is the
- * dark half that sheet measured rather than an alpha over the light one. The
- * one thing to know about dark here: `--primary` is a *gold* there, not the
- * navy, and `--primary-ink` is the near-black ground — so the CTA is still the
- * single highest-contrast object on the board at both ends, which is the whole
- * point of it.
- * ====================================================================== */
-
-
-/* ==========================================================================
- * The four colours §7 names that `design-classical.css` has no token for.
- *
- * Every one carries a dark half, because Sushi's machine is dark and a
- * light-only value would paint near-white paper onto a brown-black page. The
- * dark halves sit on the token sheet's own warm dark ramp rather than being
- * the light value with an alpha over it.
- *
- * §7's `--amber-gold` is *not* here: `--warn` is already that hue in both
- * halves, so a fifth token would be the second copy of one decision.
- * ====================================================================== */
+/* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
+ * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
 html[data-design="classical"] {
-  --ex-book-bg:   #fdfaf4;  /* §7's not-booked card ground */
-  --ex-book-edge: #ecdcca;  /* §7's not-booked card edge   */
-  --ex-cta-hover: #25375c;  /* §7's CTA hover              */
-  --ex-cta-dot:   #ea580c;  /* §7's 6px dot before the label */
+  --ex-book-bg:   var(--surface-raised);
+  --ex-book-edge: #ffb4a2;
+  --ex-cta-hover: #25375c;
+  --ex-cta-dot:   #ea580c;
+  /* V04: a seat you have not booked is not late work.
+   *
+   * `--err` is #ba1a1a, the overdue red, and it was reaching this screen twice
+   * — through `.section-head--err` and through the booking card's course code.
+   * The mock's reservation state is its tertiary ramp, not its error ramp:
+   * `text-on-tertiary-container` for the ink and a solid `bg-tertiary-fixed`
+   * chip for "Action Required". Overdue red stays reserved for late work. */
+  --ex-alert:     #df6e50;  /* mock on-tertiary-container */
+  --ex-badge-bg:  #ffdbd2;  /* mock bg-tertiary-fixed */
+  --ex-badge-ink: #3c0800;  /* mock text-on-tertiary-fixed */
 }
 html[data-design="classical"].is-dark {
-  --ex-book-bg:   #241f18;
-  --ex-book-edge: #43382a;
-  /* Lighter, not darker: the CTA's ground in dark is the gold, and a hover has
-     to move *away* from the page, which is the near-black. */
-  --ex-cta-hover: #e4bd78;
-  /* On the gold ground an orange dot disappears. The dark half is the same hue
-     driven down past the gold's luminance instead of up past the navy's, so
-     the dot is a mark on the button at both ends. */
+  /* Re-cut for the white-on-black dark palette (2026-09-19): the book and its
+     edge were #241f18 / #43382a, warm, and the hover was the gold #e4bd78. The
+     ground is cool graphite now and --primary is a cornflower, so the hover is
+     that hue lifted rather than the old gold. */
+  --ex-book-bg:   #1c1e21;
+  --ex-book-edge: #363a41;
+  --ex-cta-hover: #b8d0f8;
   --ex-cta-dot:   #7a2f0a;
+  /* The same ramp read from the other end, because a wash does different work
+   * at each end of the range. The ink is the mock's own `tertiary-fixed-dim`
+   * #ffb4a2 — the light end of the tertiary ramp, which is what near-black
+   * needs — at 10.3:1 on the parchment and 9.6:1 on the booking card, and
+   * clearly apart from the dark `--err` #d98a68. The chip inverts: a deep
+   * terracotta ground carrying the mock's `tertiary-fixed` as ink, composited
+   * at L 0.041 against the parchment's 0.009 (1.53:1 fill-to-ground, against
+   * 1.23:1 in light — the doubling the eye needs near black), with 9.0:1 for
+   * the ink on it. */
+  --ex-alert:     #ffb4a2;
+  --ex-badge-bg:  #5c2a1a;
+  --ex-badge-ink: #ffdbd2;
 }
-
-/* ---- the running head --------------------------------------------------
- * `.folio` already carries the serif, the rule and the gutters. All this adds
- * is the mock's second hairline, which is what makes a heading read as a
- * title page rather than as another section label. `box-shadow` rather than a
- * second element: it costs no layout, so it cannot change the height Chrome
- * measures.
- */
 html[data-design="classical"] .exam-folio {
   box-shadow: 0 3px 0 -2px var(--line);
 }
-
-/* ---- a section label ---------------------------------------------------
- * Glyph, then the label, then the mock's right-hand note. `.section-head`
- * gives this flex/space-between and the sans; only the glyph is new.
- */
 html[data-design="classical"] .exam-head--label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;  /* mock `gap-1.5` */
   text-transform: uppercase;
 }
-html[data-design="classical"] .exam-head--label .icon {
-  width: 12px;
-  height: 12px;
+/* V04: the section label was inheriting `.section-head`'s 11px/.10em. The mock
+ * writes it `font-label-md text-label-md uppercase tracking-wider font-bold`.
+ * `#view` because the inherited rule is beaten by anything, but the sizes it
+ * has to sit beside are all anchored on `#view`. */
+html[data-design="classical"] #view .exam-head--label {
+  font-family: var(--label);   /* mock font-label-md */
+  font-size: 12px;             /* mock text-label-md, was 13px */
+  line-height: 17px;           /* mock text-label-md, was 18px */
+  font-weight: 700;            /* mock font-bold */
+  letter-spacing: .05em;       /* mock tracking-wider, = the token's .05em */
+}
+html[data-design="classical"] #view .exam-head--label .icon {
+  width: 16px;   /* mock `text-[16px]` on the heading symbol */
+  height: 16px;
   flex: none;
 }
-/* §7: an `Action Required` badge **in terracotta**. A filled chip of the same
-   ink `.section-head--err` sets the label in — a badge, not a count.
- *
- * Under `#view`, because `design-classical.css` styles the right-hand span of
- * a `.section-head` in `--muted` from an id selector, which outranked a plain
- * class chain and left this reading in the same grey as `3 scheduled` — the
- * one heading on the board that is not a count was the one drawn like one.
- */
-html[data-design="classical"] #view .section-head--err .exam-head--note {
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--err-wash);
-  color: var(--err);
-  font-weight: 700;
+/* V04: "Coming up" / "Just sat" carry an annotation, not a second label.
+ * mock: `font-annotation-italic text-annotation-italic text-xs text-secondary`.
+ * `text-transform` and `font-weight` are spelled out because `.section-head`'s
+ * uppercase is inherited and its `> :last-child` reset is beaten by the id. */
+/* The slant went on 2026-09-19 with the rest of the italic. Nothing replaces it
+ * here: the contrast against the label beside it is case and ink — the label is
+ * tracked uppercase and bold, the note is sentence case and secondary — and
+ * that was already carrying the distinction. */
+html[data-design="classical"] #view .exam-head--note {
+  font-family: var(--sans);    /* mock font-annotation-italic */
+  font-style: normal;          /* was italic */
+  font-size: 11.5px;           /* mock text-xs, which overrides the 15px token; was 12px */
+  line-height: 15px;           /* mock text-xs, was 16px */
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);         /* mock text-secondary */
 }
-
-/* ---- the not-booked leaf ------------------------------------------------
- * §7: a **4px top border in `--amber-gold`**, ground `#fdfaf4`, `#ecdcca`
- * edge, `p-3`, 4px radius.
- *
- * What was here instead was a terracotta-edged slip with a brass clip drawn
- * at its corner in a `::before`. Two things were wrong with it against §7:
- * terracotta is this design's *late* ink and nothing on this card is late, and
- * a 5px absolutely-positioned clip hanging 2px above the card is a decoration
- * that the 4px rule says in type. The rule is also a thing Chrome measures,
- * which the clip was not.
- */
+/* V04: was a 10%-alpha `--err-wash` with red text. The mock's badge is solid
+ * `bg-tertiary-fixed text-on-tertiary-fixed font-bold`, label-sm, on the
+ * tertiary ramp — the state is "you have to act", not "you are late". */
+html[data-design="classical"] #view .section-head--err .exam-head--note {
+  padding: 2px 6px;            /* mock py-0.5 px-1.5 */
+  border-radius: 2px;          /* mock `rounded` → radius DEFAULT .125rem */
+  background: var(--ex-badge-bg);
+  color: var(--ex-badge-ink);
+  font-family: var(--label);   /* mock font-label-sm */
+  font-style: normal;
+  font-size: 10.5px;           /* mock text-label-sm, was 11px */
+  line-height: 15px;           /* mock text-label-sm, was 16px */
+  font-weight: 700;            /* mock font-bold */
+  letter-spacing: .08em;       /* mock text-label-sm */
+}
+/* V04: `.section-head--err { color: var(--err) }` in popup-views.css paints the
+ * whole "Not booked" heading — label, glyph and all — the overdue red. It needs
+ * an id to beat, and the label and icon then inherit `currentColor`. */
+html[data-design="classical"] #view .exam-head.section-head--err {
+  color: var(--ex-alert);
+}
 html[data-design="classical"] #view .row-booking {
   border: 1px solid var(--ex-book-edge);
-  border-top: 4px solid var(--warn);
-  border-radius: 4px;
+  border-top: 1px solid var(--ex-book-edge);
+  position: relative;
+  border-radius: 4px;  /* mock `rounded-lg` → .25rem */
   background: var(--ex-book-bg);
-  padding: 12px;
+  padding: 8px;        /* mock `p-space-sm` */
+  /* V04: `#view .row { overflow: hidden }` (popup-rows.css) was clipping the
+   * brass pin, which the mock hangs *above* the card's top edge. The row only
+   * had that clip so a one-line title could ellipsis inside the grid, and
+   * `design-classical.css` already gives `#view .row--title` `white-space:
+   * normal` — the Classical title wraps, so there is nothing left to clip. */
+  overflow: visible;
 }
-/* §7 sets this card's title a step above the others: 16px serif bold in
-   `--ink-navy` (the gold in dark, as everywhere). It is the one title on the
-   board attached to something the student has not done yet. */
 html[data-design="classical"] #view .row-booking .row--title {
-  font-size: 16px;
+  font-size: 16.5px;   /* was 20px */
   font-weight: 700;
   color: var(--brand-mark);
 }
-
-/* ---- a fact with a glyph in front --------------------------------------
- * Across the whole card: these lines are appended after the slip's three grid
- * areas, so without this they would be placed in the `tick`/`menu` columns.
- */
 html[data-design="classical"] #view .exam-line {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;              /* mock `gap-1.5` */
   min-width: 0;
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 12.5px;     /* mock text-body-sm, was 14px */
+  line-height: 20px;     /* mock text-body-sm, was 22px */
   color: var(--muted);
 }
 html[data-design="classical"] #view .exam-line .icon {
-  width: 12px;
-  height: 12px;
+  width: 15px;   /* mock `text-[15px]` on the date/room symbols */
+  height: 15px;
   flex: none;
 }
-/* The room is the fact on this card most worth reading, so it is the one
-   metadata line set in the page's ink rather than in the muted grey. */
+/* V04: `#view .row--detail { font-size: 10.5px; line-height: 1.3; margin-top:
+ * 4px }` (popup-rows.css) was shrinking the *value* of a line whose label is
+ * 14px — "Window open:" at 14px with "Sep 20 – Sep 28" at 10.5px beside it.
+ * The mock sets the whole line in body-sm. `#view` to beat the base rule; the
+ * margin goes because the line already owns the gap. */
+html[data-design="classical"] #view .exam-line > .row--detail {
+  margin: 0;
+  font-size: 12.5px;   /* mock text-body-sm, was 14px */
+  line-height: 20px;   /* mock text-body-sm, was 22px */
+}
 html[data-design="classical"] #view .exam-line .row--detail-exam {
   color: var(--fg);
   font-weight: 600;
 }
-/* `Window open:` — §7's label on the booking range. Quieter than the range it
-   introduces, so the dates are what is read. */
 html[data-design="classical"] #view .exam-line--label {
   flex: none;
   color: var(--muted);
@@ -188,66 +158,56 @@ html[data-design="classical"] #view .exam-line--label + .row--detail {
   color: var(--fg);
   font-weight: 600;
 }
-
-/* The "when" line gets the same glyph treatment. `design-classical.css` lays
-   it out as a baseline row; a 12px glyph on a baseline sits low, so this is
-   the one place the alignment changes. */
 html[data-design="classical"] #view .exam-when {
   align-items: center;
-  font-size: 11px;
+  font-size: 12.5px;   /* was 14px */
 }
 html[data-design="classical"] #view .exam-when .icon {
-  width: 12px;
-  height: 12px;
+  width: 18px;
+  height: 18px;
   flex: none;
   color: var(--muted);
 }
 html[data-design="classical"] #view .exam-when .row--due {
-  font-size: 11px;
+  font-size: 12.5px;   /* was 14px */
   font-weight: 600;
   color: var(--fg);
 }
-
-/* ---- the source pill ---------------------------------------------------
- * The mock's "✓ PrairieTest" / "Canvas / Gradescope". It is `.row--sources`,
- * which every card already builds and which already carries the tooltip
- * naming what was merged — a pill drawn around the element that states the
- * fact, rather than a second element stating it again.
- */
+/* V04: the provenance pill was 9.5px/.02em with a 10px glyph — smaller than
+ * anything else on the card. The mock writes it `inline-flex items-center
+ * gap-1 font-label-sm text-label-sm text-secondary bg-surface-container px-1.5
+ * py-0.5 rounded border border-outline-variant/50`. */
 html[data-design="classical"] #view .exam-src {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;                  /* mock `gap-1` */
   flex: none;
-  padding: 1px 5px;
-  border: 1px solid var(--card-line);
-  border-radius: 3px;
-  background: var(--tint);
-  font-family: var(--sans);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--muted);
+  padding: 2px 6px;          /* mock py-0.5 px-1.5 */
+  border: 1px solid var(--card-line);   /* mock border-outline-variant/50 */
+  border-radius: 2px;        /* mock `rounded` → radius DEFAULT .125rem */
+  background: var(--tint);   /* mock bg-surface-container */
+  font-family: var(--label); /* mock font-label-sm */
+  font-size: 10.5px;         /* mock text-label-sm, was 11px */
+  line-height: 15px;         /* mock text-label-sm, was 16px */
+  font-weight: 600;          /* mock text-label-sm */
+  letter-spacing: .08em;     /* mock text-label-sm */
+  color: var(--muted);       /* mock text-secondary */
   overflow: visible;
 }
 html[data-design="classical"] #view .exam-src .icon {
-  width: 10px;
-  height: 10px;
+  width: 13px;   /* mock `text-[13px]` on the pill's symbol */
+  height: 13px;
   flex: none;
 }
-/* Read from the system that owns the booking, so it wears the design's
-   "done" ink. Outlined rather than filled: a filled green beside a filled
-   course chip is two badges competing on one line. */
+/* The sage pill, only where a reservation id was actually read (V06).
+ * mock: `text-[#3f5945] bg-[#3f5945]/10 border-[#3f5945]/20`. `--ok` is that
+ * sage in light and its dark counterpart in dark, so the wash tracks the mode
+ * rather than being two more hard-coded hexes. */
 html[data-design="classical"] #view .exam-src--verified {
-  border-color: var(--ok);
-  background: none;
+  border-color: color-mix(in srgb, var(--ok) 20%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
   color: var(--ok);
 }
-
-/* ---- "Taken" ------------------------------------------------------------
- * The mock's "✓ Graded" tag, on the sat-exams card. See the module note in
- * `views/exams.ts` for why it does not say "Graded".
- */
 html[data-design="classical"] #view .exam-tag {
   display: inline-flex;
   align-items: center;
@@ -267,21 +227,10 @@ html[data-design="classical"] #view .exam-tag .icon {
   height: 10px;
   flex: none;
 }
-/* A sitting that is over is still on the board — a board with the past week
-   blank reads as a board with nothing on it — but it must not read as
-   something still ahead. */
 html[data-design="classical"] #view .row-sat {
   background: var(--tint);
   border-color: var(--line);
 }
-
-/* ---- Reserve a seat ----------------------------------------------------
- * The one filled control in the design, at the foot of the card, full width.
- *
- * `box-sizing: border-box` and `width: 100%` of the *card*, which is a fixed
- * 358px — not a percentage of anything Chrome has to measure the window to
- * know. `grid-column: 1 / -1` for the same reason `.exam-line` needs it.
- */
 html[data-design="classical"] #view .exam-reserve {
   grid-column: 1 / -1;
   box-sizing: border-box;
@@ -290,18 +239,23 @@ html[data-design="classical"] #view .exam-reserve {
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  height: 30px;
+  height: 38px;
   margin-top: 5px;
   padding: 0 10px;
   border: 1px solid var(--primary);
   border-radius: 3px;
   background: var(--primary);
   color: var(--primary-ink);
-  font-family: var(--serif);
-  font-size: 12px;
-  /* §7: "12px serif medium". */
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  /* V04: was the body face at body-md, 17px. The mock sets this label
+   * `font-label-md text-label-md font-semibold tracking-wide` — the label face
+   * at label size, so the one high-contrast control reads as a control rather
+   * than as a sentence. (The two faces are one family since 2026-09-19; the
+   * size, weight and tracking are what keep the distinction.) */
+  font-family: var(--label);  /* mock font-label-md */
+  font-size: 12px;            /* mock text-label-md, was 13px */
+  line-height: 17px;          /* mock text-label-md, was 18px */
+  font-weight: 600;           /* mock font-semibold */
+  letter-spacing: .05em;      /* mock text-label-md */
   cursor: pointer;
 }
 html[data-design="classical"] #view .exam-reserve:hover {
@@ -321,8 +275,6 @@ html[data-design="classical"] #view .exam-reserve--label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* §7's 6px dot before the label. See `--ex-cta-dot` above for why its dark
-   half is a *dark* orange rather than the light one. */
 html[data-design="classical"] #view .exam-reserve--dot {
   width: 6px;
   height: 6px;
@@ -330,11 +282,19 @@ html[data-design="classical"] #view .exam-reserve--dot {
   flex: none;
   border-radius: 50%;
 }
+/* V04: the mock's arrow is `font-headline-sm text-headline-sm leading-none` —
+ * a 20px glyph, against a 13px label. Ours is an `icon("arrow")`, so the size
+ * is the svg's box rather than a font size. */
 html[data-design="classical"] #view .exam-reserve--arrow {
+  display: inline-flex;
   flex: none;
-  font-size: 14px;
-  line-height: 1;
+  line-height: 1;   /* mock leading-none */
   transition: transform 0.12s ease-out;
+}
+html[data-design="classical"] #view .exam-reserve--arrow .icon {
+  width: 20px;      /* mock text-headline-sm */
+  height: 20px;
+  flex: none;
 }
 html[data-design="classical"] #view .exam-reserve:hover .exam-reserve--arrow {
   transform: translateX(2px);
@@ -344,10 +304,28 @@ html[data-design="classical"] #view .exam-reserve:hover .exam-reserve--arrow {
     transition: none;
   }
 }
-
-/* The qualifier, folded into the "when" line rather than taking a line of its
-   own. Quiet, because "in 24d" is arithmetic off the date beside it. */
 html[data-design="classical"] #view .exam-when .exam-rel {
   color: var(--muted);
   font-weight: 400;
 }
+
+html[data-design="classical"] .exam-stack { padding: 0 16px; gap: 8px; }
+html[data-design="classical"] .exam-head { margin: 16px 16px 8px; }
+/* V01: `#view > .section-head { padding-inline: 14px }` (popup-views.css) was
+ * adding to the 16px margin above, so the section labels started at x=30 while
+ * `.exam-stack` put the cards at x=16. The mock's `main` is one `px-space-md`
+ * gutter and everything in it shares that edge. `#view >` because that is the
+ * selector being answered; `padding-top: 12px` on the first child survives. */
+html[data-design="classical"] #view > .exam-head { padding-inline: 0; }
+html[data-design="classical"] #view .exam-stack .row--title { font-size: 16.5px; font-weight: 600; line-height: 1.4; color: var(--primary); }  /* was 20px */
+/* The brass pin. mock: `absolute -top-1 right-5 w-7 h-2 brass-clip-accent
+ * rounded-sm`, i.e. top -4px, right 20px, 28×8px, radius 2px, over a 135°
+ * #c49a45 → #8f6b28. It only became visible once the row stopped clipping it
+ * (see `overflow: visible` above). */
+html[data-design="classical"] #view .row-booking::before { content: ""; position: absolute; top: -4px; right: 20px; width: 28px; height: 8px; border-radius: 2px; background: linear-gradient(135deg, #c49a45 0%, #8f6b28 100%); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+html[data-design="classical"] #view .exam-stack .row--code { color: var(--primary); background: transparent; border: 0; padding-left: 0; font-size: 12px; letter-spacing: .08em; }  /* was 13px */
+/* V04: the booking card's course code was the second place the overdue red
+ * reached this screen. mock: `font-label-sm text-label-sm font-semibold
+ * tracking-wider text-on-tertiary-container`. */
+html[data-design="classical"] #view .row-booking .row--code { color: var(--ex-alert); }
+html[data-design="classical"] #view .exam-reserve--dot { display: none; }

@@ -7,15 +7,27 @@ html[data-design="classical"] {
   --week-quiet-ink: var(--muted);
   --week-pill-line: var(--line);
 }
-html[data-design="classical"]:root.is-dark {
-  --week-badge-bg:  #3d3324;
-  --week-badge-ink: #e3c79f;
-  --week-entry-rule: #332c22;
-  --week-quiet-ink: #97907f;
-  --week-pill-line: #4a4234;
-}
+/* The dark override that used to sit here is gone.
+ *
+ * It hard-coded five warm browns — badge `#3d3324` on `#e3c79f`, rule `#332c22`,
+ * quiet ink `#97907f`, pill line `#4a4234` — from the gold-on-brown dark theme
+ * the design carried before 2026-09-19. When dark became white-on-black the base
+ * tokens were replaced wholesale and these five were missed, so the week kept
+ * painting the TODAY badge and every "Nothing due" in the old theme's gold on a
+ * cool graphite ground. Sushi: "in the week view, why is today yellow. nothing
+ * due also has a hint of yellow in it."
+ *
+ * Nothing replaces it: the five aliases above already resolve per theme, because
+ * `--bg-active-tab`, `--muted`, `--border-subtle` and `--line` are themselves
+ * redefined in the dark `:root`. A second copy of those values is what went
+ * stale in the first place.
+ */
 html[data-design="classical"] body[data-view="week"] .datenav {
-  gap: 4px;
+  /* 6, the value `popup.css` now states once for every date navigator. It was
+     4 here and 2 there, so the week's ‹ › sat closer to their label than the
+     month's did to theirs — two spellings of one decision, and the tighter one
+     was on the strip whose arrows flank the label and most need the air. */
+  gap: 6px;
   padding: 8px 16px;
 }
 html[data-design="classical"] body[data-view="week"] .datenav--today,
@@ -129,7 +141,10 @@ html[data-design="classical"] #view .wday--today {
    the 8px block padding is the rows' own breathing room and stays. */
 html[data-design="classical"] #view .witems { gap: 0; padding: 8px 0; }
 html[data-design="classical"] #view .wrow .row {
-  display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: baseline;
+  /* Three columns, not two: the ⋯ is in flow now (see the note in
+     `design-classical.css`), so it needs a column of its own or it wraps
+     onto a second grid row under the title. */
+  display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: baseline;
   gap: 4px 8px;
   margin: 0;
   padding: 6px 0;
@@ -149,7 +164,24 @@ html[data-design="classical"] #view .wrow .row + .row { border-top: 1px solid va
 html[data-design="classical"] #view .wrow .row:hover { background: none; }
 html[data-design="classical"] #view .wrow .row--main {
   flex: 1 1 auto; min-width: 0;
-  flex-direction: row; align-items: baseline; flex-wrap: wrap;
+  /*
+   * `nowrap`, and the title truncates instead.
+   *
+   * This was `flex-wrap: wrap`, which is a different thing from the title's own
+   * `white-space`: the title can be `nowrap` and still be moved bodily onto a
+   * second flex line when it does not fit beside the course chip, which is what
+   * it did — "L8 Vectors, Matrices and Norms" and "L5 Rounding and
+   * Cancellation" each dropped under their own CS 357 chip while shorter
+   * siblings stayed on one line, so the left edge of the title changed from row
+   * to row. Sushi, 2026-09-19: "the location is messed up, u can truncate the
+   * title if it doesnt fit instead of moving it down".
+   *
+   * With `nowrap` the chip keeps its intrinsic width (`.row--meta` is
+   * `flex: none` above) and the title is the only flexible item, so the overflow
+   * lands on the title's ellipsis — where the row can afford it — rather than on
+   * the card's height.
+   */
+  flex-direction: row; align-items: baseline; flex-wrap: nowrap;
   gap: 6px;
 }
 html[data-design="classical"] #view .wrow .row--meta { order: 0; flex: none; }
@@ -163,8 +195,20 @@ html[data-design="classical"] #view .wrow .row--meta > .chip-practice { display:
 html[data-design="classical"] #view .wrow .row--title {
   order: 1;
   flex: 1 1 auto; min-width: 0;
-  display: block; -webkit-line-clamp: none;
-  overflow: visible; white-space: normal; overflow-wrap: anywhere;
+  /* One line, clipped with an ellipsis — never wrapped.
+   *
+   * This said `white-space: normal; overflow-wrap: anywhere` so a long title
+   * grew the card instead of being cut. That was affordable while the row's
+   * right-hand furniture was the time alone; the ⋯ now takes a column of its
+   * own (see `design-classical.css`), and on the 21-row stress fixture the
+   * wrapping it caused grew the week document from 1491px to 1638px — 10% more
+   * scrolling in a 600px window, which is this popup's oldest bug. Sushi,
+   * 2026-09-19: "keep the rows in one line man".
+   *
+   * The full title is not lost: the row opens the deadline screen, which prints
+   * it in full, and `title` carries it as a tooltip. */
+  display: block;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   font-size: 14px; font-weight: 500; line-height: 1.35;
 }
 html[data-design="classical"] #view .wrow .row-done .row--title {
@@ -188,8 +232,22 @@ html[data-design="classical"] #view .wrow .row--tick {
   width: 13px; height: 13px;
   margin: 0;
 }
+/* Shown, like every other row's. It was `display: none` while the week's rows
+   were meant to be read rather than acted on, and the tick box beside it did
+   the one thing a student wanted; with the tick gone (2026-09-19) hiding this
+   would leave the week the one view with nothing to press at all. */
 html[data-design="classical"] #view .wrow .row--menu {
-  display: none;
+  align-self: center;
+  /* Narrower than the 24px the other views give it, and tight against the
+     time. The week is the one view where the menu column is taken from the
+     title rather than from empty space: it packs 21 rows into seven cards, so
+     every pixel the column costs comes back as a wrapped title. Measured on the
+     stress fixture at 400px — 24px wide with the sheet's 8px gap grew the week
+     document from 1491 to 1638 (two more titles wrapping); at 20 and 4 it is
+     1566. The glyph inside is 16px, so 20 still clears it. */
+  width: 20px;
+  min-width: 20px;
+  margin-left: -4px;
 }
 html[data-design="classical"] #view .witems--empty {
   align-self: center;
@@ -200,8 +258,27 @@ html[data-design="classical"] #view .wrow .row--tick { display: none; }
 html[data-design="classical"] #view .wrow .row--due,
 html[data-design="classical"] #view .wrow .row--rel { font-size: 11.5px; }
 
-html[data-design="classical"] #view .wrow .row--main { grid-area: auto; }
-html[data-design="classical"] #view .wrow .row--when { grid-area: auto; justify-content: flex-end; }
+/*
+ * Placed explicitly, not auto-placed.
+ *
+ * These opted out of the shared sheet's named areas with `grid-area: auto`,
+ * which does not mean "column 1" — it means "wherever the auto-placement
+ * algorithm puts you", and that is decided by DOCUMENT ORDER. One extra in-flow
+ * child ahead of them and every part of the row slides one track to the right,
+ * silently, with nothing in any stylesheet to say so.
+ *
+ * The slide is as wide as the slack in the `1fr` track, which is why this
+ * reads as a full-view-only bug: measured with one empty child injected,
+ * `.row--main` moves to dx 8 at 400px and to dx 449 at 1400px, and the resolved
+ * columns go from `728.4 43.6 16` to `440.6 331.4 16`. Sushi saw the 1400px
+ * version — "it moves the row names to the right side" — with a clean 400px
+ * popup on the same build.
+ *
+ * Naming the lines costs nothing and makes the row's shape independent of what
+ * else happens to be in it.
+ */
+html[data-design="classical"] #view .wrow .row--main { grid-area: 1 / 1 / 2 / 2; }
+html[data-design="classical"] #view .wrow .row--when { grid-area: 1 / 2 / 2 / 3; justify-content: flex-end; }
 /*
  * Today's edge was 3px of layout, not just a colour. A 4px left border where
  * every other card has 1px put the whole of today's card interior 3px to the

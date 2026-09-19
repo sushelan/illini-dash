@@ -313,6 +313,31 @@ function renderDesignPanel(): HTMLElement {
        */
       write(DESIGN_KEY, design.value || NO_DESIGN);
       applyDesign(document.documentElement);
+      /*
+       * And redraw the list, because **a design is markup, not paint**.
+       *
+       * `rows.ts`'s `cardDesign()` reads `data-design` at render time and
+       * builds a different row for Classical — a two-line card with
+       * `.row--main` / `.row--when` and the source name — from the one-line
+       * `.row--compact` every other design gets. Flipping the attribute alone
+       * leaves the *previous* design's children under the new design's
+       * stylesheet, and the two sheets place their tracks differently: the
+       * compact row's `[dot, title, code, rel]` carry none of the areas
+       * `design-classical.css` names, so they auto-place into
+       * `main tick menu` and the title lands in the narrow `auto` column with
+       * the whole flexible track empty to its left. That is Sushi's
+       * "messed up rows" (2026-09-19), and it is the same failure
+       * `views/alerts.ts` documents for the suggestion row — one design's
+       * children under the other design's grid.
+       *
+       * `TWEAKS_EVENT` rather than a design-specific event: its listener in
+       * `rows.ts` already re-reads the appearance state and calls
+       * `app.refresh()`, which is exactly what is wanted, and a second event
+       * would be a second copy of one decision. Re-reading the tweaks is
+       * idempotent. The panel is drawn in two documents and only one has a
+       * list, so this is announced rather than called (see `TWEAKS_EVENT`).
+       */
+      window.dispatchEvent(new Event(TWEAKS_EVENT));
     });
 
     const label = document.createElement("span");

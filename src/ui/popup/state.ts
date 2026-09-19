@@ -1,3 +1,4 @@
+import type { ObserverId, ObserverState } from "../../core/store.js";
 /**
  * Everything the popup's modules share: the document's elements, the keys it
  * remembers things under, and the handful of values that change while it is
@@ -20,6 +21,8 @@ import { normalizeTweaks, TWEAK_KEYS, type Tweaks } from "../../core/theme.js";
 import { dayKey, startOfDay, type ViewName, type WeekMode } from "../../core/calendar.js";
 import type { Editor, EditorValues } from "../editor.js";
 import type { Item, Source, SourceStatus, Suggestion } from "../../sources/types.js";
+import type { FocusRequest } from "./focus.js";
+import type { Place, ScrollMemory } from "./scroll.js";
 
 /* Before the first paint. See src/ui/theme-panel.ts.
  *
@@ -161,15 +164,28 @@ export function writeStored(key: string, value: string): void {
 export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams"];
 
 /**
- * The names on the strip (brief D1). Day reads as **Today**; the old Attention
- * tab is gone — its undated half is the No date tab, its late half and its
- * suggestions are on the Needs-you screen the pill opens.
+ * The names on the strip (brief D1). Day reads as **Today**.
+ *
+ * **Alerts** was "No Date", and before that the undated half of an Attention
+ * tab. It is now the one destination for everything asking the student for
+ * something — late work, a post's claim, an undated row, an unreadable date,
+ * and a source with a button on it — so it is named for the question rather
+ * than for one of the five answers (Sushi, 2026-09-19: "combine no date and
+ * needs you in the same tab, pick better names").
+ *
+ * The **key stays `nodate`**, and that is deliberate. `VIEW_KEY` in
+ * `localStorage` holds `"nodate"` for every install that exists, and renaming
+ * the member would have to be paid for either by a migration in `storedView`
+ * or by dropping every one of those students on Today. A label is a string on
+ * screen; a key is a value on disk in a profile this build cannot reach.
  */
 export const VIEW_LABEL: Record<ViewName, string> = {
   day: "Today",
   week: "Week",
   month: "Month",
-  nodate: "No date",
+  // Title Case, as the ZIP writes every tab (reference contract: "Active
+  // navigation uses ... Title Case").
+  nodate: "Alerts",
   exams: "Exams",
 };
 
@@ -269,6 +285,45 @@ export const UNDO_MS = 10_000;
  * exactly, and makes every cross-module write visible as `state.x = …`.
  */
 export const state: {
+  currentObservers: Partial<Record<ObserverId, ObserverState>>;
+  observerMissing: string[];
+  /**
+   * Where focus should land once the next draw has actually rebuilt the
+   * document (see `popup/focus.ts` for the defect this replaces). Written by
+   * `requestFocus` before a control asks for a redraw; consumed by the draw
+   * that runs, which may be the deferred one after a held press.
+   */
+  focusAfterDraw: FocusRequest | undefined;
+  /**
+   * How far down the next draw should scroll, once it has actually rebuilt the
+   * document (`popup/scroll.ts`), or `undefined` when no draw is owed one.
+   *
+   * The same shape as `focusAfterDraw` and for the same reason: a held press
+   * defers the draw by a task, so the offset has to be read by the draw that
+   * does the replacing and written back by that same draw. Set by `render`
+   * just before the first `replaceChildren`; consumed after the footer.
+   */
+  scrollAfterDraw: number | undefined;
+  /** The place the last draw rendered, which is how `scrollPlan` tells a redraw from a navigation. */
+  lastPlace: Place | undefined;
+  /**
+   * The list's offset, kept across a sub-screen so ‹ back returns to the row.
+   *
+   * One slot, not a history: a tab pressed on the strip is a navigation however
+   * long the student spent there before, and a stack of remembered offsets
+   * would be four more states to be wrong about (`popup/scroll.ts`).
+   */
+  scrollMemory: ScrollMemory | undefined;
+  /**
+   * The last correction the worker refused, kept until the student dismisses
+   * it or a later correction succeeds (`core/outcome.ts`).
+   *
+   * Held here, like `pendingUndo`, because `#status` is rewritten by every
+   * draw — and a sync landing 150ms after a refused Hide used to take the
+   * refusal with it (I03, 2026-09-19). Re-derived onto the status line on each
+   * draw, so it survives every redraw until it is answered.
+   */
+  actionError: string | undefined;
   /** Which tab is showing. */
   view: ViewName;
   /** Whole days from today. The popup always opens on today; ‹ › moves this. */
@@ -333,10 +388,7 @@ export const state: {
    * — a press on the tab strip while it is open means the student wants the
    * list, so the screen stands down rather than sitting on top of another view.
    */
-  screen:
-    | { kind: "deadline" | "editor"; itemId?: string; view: ViewName }
-    | { kind: "needs-you" }
-    | undefined;
+  screen: { kind: "deadline" | "editor"; itemId?: string; view: ViewName } | undefined;
   /**
    * The one editor that may be open, and the redraw it is holding off.
    *
@@ -391,6 +443,13 @@ export const state: {
   pendingUndo: { title: string; values: EditorValues; until: number } | undefined;
   undoTimer: ReturnType<typeof setTimeout> | undefined;
 } = {
+  currentObservers: {},
+  observerMissing: [],
+  focusAfterDraw: undefined,
+  scrollAfterDraw: undefined,
+  lastPlace: undefined,
+  scrollMemory: undefined,
+  actionError: undefined,
   view: "day",
   dayOffset: 0,
   screen: undefined,
@@ -416,6 +475,24 @@ state.view = storedView();
 if (!isFullView && FULL_VIEW_ONLY.has(state.view)) state.view = "day";
 
 export const isSyncing = (): boolean => state.syncing || state.workerSyncing;
+
+/**
+ * Ask the next *real* draw to focus something (popup/focus.ts).
+ *
+ * Last writer wins: a control that opens a screen and a redraw that arrives a
+ * moment later both describe the same document, and the later request is the
+ * one about the document that will actually exist.
+ */
+export function requestFocus(request: FocusRequest): void {
+  state.focusAfterDraw = request;
+}
+
+/** The pending request, and there is none afterwards. Only a draw calls this. */
+export function takeFocusRequest(): FocusRequest | undefined {
+  const request = state.focusAfterDraw;
+  state.focusAfterDraw = undefined;
+  return request;
+}
 
 /** The day the views are anchored on: today, moved by `dayOffset`. */
 export function anchorDate(now: Date): Date {
@@ -447,7 +524,13 @@ export function viewedDate(): string {
 export const app: {
   refresh: () => Promise<void>;
   runSync: () => Promise<void>;
+  /**
+   * The five-field panel over the list (screens/editor.ts) — every add that
+   * starts from a day, including the floating "+".
+   */
   openAddEditor: () => void;
+  /** The complete form as a screen: the header's "+", and nothing else. */
+  openFullAdd: () => void;
   openEditEditor: (item: Item, member: Item["members"][number]) => void;
   closeEditor: () => void;
   deleteManual: (item: Item, member: Item["members"][number], entry: HTMLElement) => void;
@@ -456,22 +539,17 @@ export const app: {
   openDeadline: (item: Item) => void;
   /** Brief D3: "Give it a date" — the editor prefilled for a source or manual row. */
   openGiveDate: (item: Item) => void;
-  /** Brief D2: the Needs-you screen the header pill opens (screens/needs-you.ts). */
-  openNeedsYou: () => void;
-  /** …and ‹ back off it, which the pill needs so it can be a toggle. */
-  closeNeedsYou: () => void;
 } = {
   refresh: () => Promise.resolve(),
   runSync: () => Promise.resolve(),
   openAddEditor: () => undefined,
+  openFullAdd: () => undefined,
   openEditEditor: () => undefined,
   closeEditor: () => undefined,
   deleteManual: () => undefined,
   undoDelete: () => undefined,
   openDeadline: () => undefined,
   openGiveDate: () => undefined,
-  openNeedsYou: () => undefined,
-  closeNeedsYou: () => undefined,
 };
 
 /* -------------------------------------------------------------------------- */

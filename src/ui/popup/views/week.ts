@@ -54,7 +54,10 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
      */
     box.addEventListener("click", (event) => {
       if (event.target !== box) return;
-      openAddEditor({ container: box, where: "end", values: { date: dayKey(day.date) } });
+      // The five-field panel, carrying this day (2026-09-19). It used to mount
+      // the whole form inside this box; it is `position: fixed` now, so a
+      // container would only decide which element it is removed with.
+      openAddEditor({ values: { date: dayKey(day.date) } });
     });
     // No per-day "+" any more (Sushi, 2026-09-19): it sat under the rows as a
     // row of its own, so a one-item day was as tall as a two-item day. The

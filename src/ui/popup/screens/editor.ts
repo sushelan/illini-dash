@@ -6,14 +6,21 @@
  * what happens to the answer.
  */
 
-import { createEditor, type EditorValues } from "../../editor.js";
+import { QUICK_SELECTOR, createEditor, type EditorValues } from "../../editor.js";
 import { coursesIn, dayKey } from "../../../core/calendar.js";
 import { courseLabel, SOURCE_NAME } from "../../../core/names.js";
 import { icon } from "../../icons.js";
 import { send } from "../../../messages.js";
 import type { Item } from "../../../sources/types.js";
 import { UNDO_MS, app, state, viewedDate, viewEl } from "../state.js";
-import { closeMenus, showStatus, soleManualMember } from "../shell.js";
+import {
+  QUICK_FAB_SELECTOR,
+  closeMenus,
+  placeQuickPanel,
+  releaseQuickPanel,
+  showStatus,
+  soleManualMember,
+} from "../shell.js";
 import { markScreen } from "./deadline.js";
 
 function pad2(value: number): string {
@@ -112,6 +119,39 @@ export interface EditorRequest {
    */
   container?: HTMLElement;
   where?: "start" | "end";
+  /**
+   * The five-field panel over the list, instead of a screen (2026-09-19).
+   *
+   * `anchor` is the control that opened it — the floating "+" — and the only
+   * thing it is used for is putting focus back when the panel closes. It is
+   * `undefined` for the two cards that open the panel from inside `#view`
+   * (Today's quiet card, Alerts' dashed card), because a redraw destroys those
+   * and focusing a detached node is a promise this cannot keep.
+   *
+   * The panel is appended to `<body>`, not to `#view`: it sits on top of a list
+   * it must not be part of, and a draw that ever did slip past `drawIsHeld`
+   * would take a half-typed form with it. It is `position: fixed`, which
+   * contributes no height for Chrome to measure — so `placeQuickPanel` asks
+   * for the room, exactly as `placeFloating` does for a menu (UI rule 8).
+   */
+  quick?: { anchor: HTMLElement | undefined };
+  /**
+   * Which fields the panel carries. Only meaningful with `quick`.
+   *
+   * `"quick"` (the default) is the four-field shape Sushi asked for on the
+   * "+": Date, Time, Title, Course. `"full"` is every field the screen has —
+   * Kind, "No date yet" and the "More" fold with Ends and Link — in the same
+   * floating panel.
+   *
+   * The two are separate questions and were one flag. *Where* the form goes is
+   * this file's (`quick`); *what is on it* is the form's (`compact`), and
+   * tying them meant an edit could not have both the panel and the fields an
+   * edit needs. `.editor--quick` is what `popup-screens.css` draws the panel
+   * from and it does not name a single one of the four fields — it is a fixed
+   * box, a two-column grid and a `.editor--field-wide` that spans it, which is
+   * exactly as true of seven fields as of four.
+   */
+  fields?: "quick" | "full";
   heading: string;
   submitLabel: string;
   /** The sentence under the bar (mock 2b), for the screens that have one. */
@@ -156,7 +196,13 @@ export function closeEditor(): void {
 export function openEditor(request: EditorRequest): void {
   closeMenus();
   closeEditor();
+  const quick = request.quick;
+  // The panel, with every field on it. `compact` is the *field set*, so this
+  // shape does not take it — and then it has to be told it is a panel, because
+  // `createEditor` only adds the class that draws one when `compact` is on.
+  const fullPanel = quick !== undefined && request.fields === "full";
   const handle = createEditor({
+    ...(quick && !fullPanel ? { compact: true } : {}),
     heading: request.heading,
     submitLabel: request.submitLabel,
     courses: courseChoices(),
@@ -176,6 +222,29 @@ export function openEditor(request: EditorRequest): void {
   state.editor = { handle, el: handle.el };
   state.editorOnClose = request.onClose;
   const container = request.container;
+  if (quick) {
+    if (fullPanel) {
+      handle.el.classList.add(QUICK_SELECTOR.slice(1));
+      /*
+       * ‹ back goes, × stays.
+       *
+       * The full shape builds a screen bar — ‹ back, the heading, × — and both
+       * controls are `onCancel`. In a panel there is nothing to go *back* to,
+       * so ‹ is a second dismiss two elements from the first and a promise of a
+       * screen that is not there. × is what a panel is expected to carry and it
+       * is the one this keeps.
+       *
+       * By its label rather than by position: `iconButton("left", "Back")` is
+       * what puts the string there, and a query that said "the first button in
+       * the bar" would quietly take the heading's place if the bar's order ever
+       * changed. Nothing happens if it is not found, which is the right answer
+       * if `editor.ts` ever stops drawing one.
+       */
+      handle.el.querySelector<HTMLElement>('.editor--head [aria-label="Back"]')?.remove();
+    }
+    openQuickPanel(handle.el, quick.anchor, request.onClose);
+    return;
+  }
   if (container === undefined) {
     // The screen case. `state.screen` is what tells the entry's `render` that
     // the view belongs to a sub-screen; `drawIsHeld` is what stops a redraw
@@ -196,8 +265,164 @@ export function openEditor(request: EditorRequest): void {
   handle.el.scrollIntoView({ block: "nearest" });
 }
 
-/** The header's "+", and the week and month "+"s, all end up here. */
+/* -------------------------------------------------------------------------- */
+/* The quick panel                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Put the five-field form over the list, and take it away again.
+ *
+ * Four things have to be true of it, and each is a defect this project has
+ * already shipped once in some other costume:
+ *
+ * 1. **It is reachable.** Fixed, above the "+" that opened it, with the room
+ *    asked for in pixels on `body` (`placeQuickPanel`) — because a floating
+ *    panel contributes nothing to the box Chrome measures.
+ * 2. **A redraw cannot take it.** `state.editor` holds every draw
+ *    (`drawIsHeld`), and the panel hangs off `<body>` rather than `#view`, so
+ *    even a draw that somehow ran would not `replaceChildren` it away.
+ * 3. **Escape and Cancel put focus back on the "+".** Synchronously, on an
+ *    element no draw rebuilds — not chained onto `refresh()`, which returns
+ *    before a held draw has drawn anything (popup/focus.ts). A click *outside*
+ *    deliberately does not: the click has already put focus somewhere, and
+ *    taking it back is the steal that rule exists to prevent.
+ * 4. **Dismiss-on-outside-click is decided in a click listener, one task
+ *    later.** Not in a microtask queued from a focus event (the row-menu bug),
+ *    and not in this task: two of the callers below open the panel from a
+ *    `click` that is still propagating toward `document`, and a listener added
+ *    during that propagation is called by that very event.
+ */
+function openQuickPanel(
+  el: HTMLElement,
+  anchor: HTMLElement | undefined,
+  onClose: (() => void) | undefined,
+): void {
+  el.setAttribute("role", "dialog");
+  document.body.append(el);
+  anchor?.setAttribute("aria-expanded", "true");
+  placeQuickPanel(el, anchor);
+  /*
+   * The room asked for is the room the panel needed *then*.
+   *
+   * A refusal from `core/manual.ts` adds a line under the field it is about, so
+   * the panel that fitted when it opened is taller by the time the sentence
+   * that says why is on it — and on a short list that is the one moment the
+   * reserve has to be right. Re-asked from the element's own size rather than
+   * recomputed at each of the places a sentence can appear.
+   */
+  const sizes =
+    typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver(() => placeQuickPanel(el, anchor));
+  sizes?.observe(el);
+
+  // True until an outside click says otherwise; read by the close below.
+  let restoreFocus = true;
+  const outside = (): void => {
+    restoreFocus = false;
+    closeEditor();
+  };
+  const arm = setTimeout(() => document.addEventListener("click", outside), 0);
+
+  state.editorOnClose = () => {
+    sizes?.disconnect();
+    clearTimeout(arm);
+    document.removeEventListener("click", outside);
+    releaseQuickPanel();
+    anchor?.removeAttribute("aria-expanded");
+    onClose?.();
+    if (restoreFocus) anchor?.focus();
+  };
+  state.editor?.handle.focus();
+}
+
+/**
+ * The "+" this view has, when it has one.
+ *
+ * Looked up rather than passed, because the two cards that open the panel from
+ * inside `#view` cannot name it and the floating control is the right place for
+ * focus to land from any of them. `undefined` on Alerts and Exams, which have
+ * no floating "+" — there the panel opens and focus is simply left where the
+ * browser put it.
+ */
+function quickAnchor(): HTMLElement | undefined {
+  const fab = document.querySelector<HTMLElement>(QUICK_FAB_SELECTOR);
+  /*
+   * An anchor with no box is not an anchor.
+   *
+   * The "+" is drawn once, on `<body>`, and **stays in the document** on the
+   * tabs that do not have one — `popup-screens.css` hides it with
+   * `.qfab { display: none }` and turns it on for Day, Week and Month, and
+   * `body[data-screen] .qfab { display: none }` takes it away again on every
+   * sub-screen. So the query above is not `null` on Alerts, on Exams or on the
+   * deadline screen: it is an element whose `getBoundingClientRect()` is all
+   * zeros.
+   *
+   * `placeQuickPanel` reads `box.top` from it and computes
+   * `windowHeight - box.top + QUICK_GAP`, which off a zero rect is 608px in a
+   * 600px window — the panel positioned entirely above the top edge, with a
+   * `max-height` floored at 140. Measured: Alerts' dashed "Add something" card
+   * opened a panel at `bottom: 608px`, i.e. nowhere. The doc comment on this
+   * function already promised `undefined` there; only `querySelector` returning
+   * null would have delivered it, and it never does.
+   *
+   * The test is `getClientRects()`, which the CSSOM defines as empty for an
+   * element that generates no boxes — exactly the question being asked.
+   *
+   * Not `offsetParent`: the HTML standard has that return null whenever the
+   * computed position is `fixed`, and `.qfab` is fixed on the three tabs where
+   * it *is* showing, so it would have refused every anchor there is. Not
+   * `getBoundingClientRect()` either: that returns an all-zero rect for a
+   * `display: none` element *and* under a DOM with no layout engine, so the
+   * suite's linkedom document would lose the anchor along with Alerts — which
+   * is what it did, and what the three `floating +` tests caught. Absent the
+   * method, there is no layout to ask about and the element stands.
+   */
+  if (!fab) return undefined;
+  if (typeof fab.getClientRects === "function" && fab.getClientRects().length === 0) {
+    return undefined;
+  }
+  return fab;
+}
+
+/**
+ * Every "add" on the calendar tabs: the floating "+", the week's empty day,
+ * the month's per-day "+", Today's quiet card and Alerts' dashed card.
+ *
+ * Sushi, 2026-09-19: "the add should be in a hovering + on a tab in the day,
+ * week, and month that doesnt take up the whole screen, it should just be a
+ * small popup for date, time, name, course, and add/cancel." So the *form* is
+ * the quick one wherever the add is started from a day — one form, not two
+ * shapes a student has to learn — and the complete one stays on the header's
+ * "+" (`openFullAdd`), which is also the only "+" the Alerts and Exams tabs
+ * have.
+ *
+ * `container` is deliberately not forwarded. The week used to mount the whole
+ * form inside the day card it was pressed on; the panel carries the day it was
+ * pressed on in its Date field instead, and mounting a `fixed` panel in a day
+ * box would only decide which element it is removed with.
+ */
 export function openAddEditor(request: Partial<EditorRequest> = {}): void {
+  const { container: _ignored, where: _also, ...rest } = request;
+  openEditor({
+    heading: "Add",
+    submitLabel: "Add",
+    quick: { anchor: quickAnchor() },
+    ...rest,
+    values: { date: viewedDate(), kind: "assignment", ...(request.values ?? {}) },
+  });
+}
+
+/**
+ * The header's "+": the complete form, as a screen.
+ *
+ * What the quick panel drops is Kind (everything typed there is a Deadline),
+ * the end time, the link, and "No date yet" — and this is where they still
+ * are. It is on the bar rather than on the list, so it is the one add that
+ * Alerts and Exams also have; removing it would leave those two tabs with no
+ * way to type a row at all.
+ */
+export function openFullAdd(): void {
   openEditor({
     where: "end",
     heading: "Add a deadline",
@@ -206,15 +431,45 @@ export function openAddEditor(request: Partial<EditorRequest> = {}): void {
       "For work no site lists — a paper problem set, an office-hours slot, " +
       "something a TA said out loud. It sits in the list like everything else, " +
       "and no sync can overwrite it.",
-    ...request,
-    values: { date: viewedDate(), kind: "assignment", ...(request.values ?? {}) },
+    values: { date: viewedDate(), kind: "assignment" },
   });
 }
 
+/**
+ * Editing a row, in the same panel adding one uses (2026-09-19).
+ *
+ * Sushi: "the edit is too large." It was the full screen — `#view` replaced by
+ * a document-height form with TITLE, COURSE, KIND, DATE, TIME, the "No date
+ * yet" toggle, "More" and a full-width Save — while *adding* a row, since this
+ * morning, is a 336px panel over the list. One form at two sizes, and the
+ * bigger one is the one a student reaches by pressing Edit on a row they can
+ * see, which then disappears.
+ *
+ * So edit takes the panel. What it does **not** take is the panel's four-field
+ * shape: an edit legitimately needs Kind and "No date yet" — a student editing
+ * an exam must not have it silently saved as a deadline, and D11's toggle is
+ * the only way to take a date *off* a row — and neither has any other surface.
+ * `fields: "full"` is the panel with all of them, which is why that flag exists
+ * separately from `quick`.
+ *
+ * **What now takes an extra press:** Ends and Link, which are behind "More" —
+ * the same fold, and the same one press, as on the screen this replaces.
+ * Nothing that was reachable has become unreachable, and nothing has moved
+ * further away than it already was.
+ *
+ * The heading is short now. The screen's `Edit “<title>”` was drawn in a
+ * 400px-wide bar; the panel's is 314px inside, and a title of any length there
+ * wraps the bar to three lines before a single field is on screen. The row's
+ * own title is on the list behind the panel, and the panel is a `dialog` whose
+ * accessible name is this string — "Edit deadline" is what it is.
+ */
 export function openEditEditor(item: Item, member: Item["members"][number]): void {
+  void item;
   openEditor({
-    heading: `Edit “${item.title}”`,
+    heading: "Edit deadline",
     submitLabel: "Save",
+    quick: { anchor: quickAnchor() },
+    fields: "full",
     values: valuesOfMember(member),
     sourceId: member.sourceId,
   });
@@ -341,3 +596,17 @@ export function undoDelete(): void {
     })
     .finally(() => void app.refresh());
 }
+
+/* -------------------------------------------------------------------------- */
+/* Late-bound wiring                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The header's "+" lives in `shell.ts`, which this file imports — so it cannot
+ * import back, and the call goes through the registry like the row menu's two
+ * (state.ts, "Late-bound wiring"). Assigned here rather than at the bottom of
+ * `popup.ts` beside its neighbours only because this module owns both ends of
+ * it; `popup.ts` imports this file, so the assignment has run before anything
+ * draws.
+ */
+app.openFullAdd = () => openFullAdd();

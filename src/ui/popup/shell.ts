@@ -41,6 +41,8 @@ import { downloadIcs } from "../download.js";
 import { appMark, bookMark, type IconName, icon, iconButton } from "../icons.js";
 import { renderThemePanel } from "../theme-panel.js";
 import { send, type OverrideAction, type Request } from "../../messages.js";
+import { type ActionOutcome, actionOutcome } from "../../core/outcome.js";
+import { FOOT_HEALTH_CLASS, ROW_RING_SELECTOR } from "./focus.js";
 import type { Item, Source, SourceState, SourceStatus } from "../../sources/types.js";
 import type { ViewName } from "../../core/calendar.js";
 import {
@@ -64,6 +66,7 @@ import {
   healthEl,
   isFullView,
   isSyncing,
+  requestFocus,
   safeUrl,
   state,
   statusEl,
@@ -72,6 +75,11 @@ import {
   viewEl,
   writeStored,
 } from "./state.js";
+
+// The class and the selector for the footer's source button live with the
+// focus lookup that reads them (popup/focus.ts); re-exported so every module
+// that spelled it through this file still finds it here.
+export { FOOT_HEALTH_CLASS };
 
 /* -------------------------------------------------------------------------- */
 /* Header                                                                      */
@@ -147,12 +155,15 @@ function renderWordmark(): HTMLElement {
   const mark = document.createElement("span");
   mark.className = "wordmark";
   /*
-   * "Illini Dash UIUC", which is what the design mock's title bar says and
-   * what the extension is actually for — every source it reads is a UIUC
-   * system. The bar has had the whole left side to itself since the health
-   * pill was removed, so the five extra characters cost nothing.
+   * "Illini Dash", and nothing after it.
+   *
+   * It read "Illini Dash UIUC" on the argument that the extra word says what
+   * the thing is for. Sushi, looking at it: "get rid of UIUC, just keep illini
+   * dash." The word was never doing that work anyway — "Illini" already names
+   * the university to anyone who would install this, so the suffix was a
+   * second, louder copy of a fact the first word carries.
    */
-  mark.textContent = "Illini Dash UIUC";
+  mark.textContent = "Illini Dash";
   return mark;
 }
 
@@ -253,6 +264,41 @@ export function renderActions(): void {
   actionsEl.replaceChildren();
 
   /*
+   * "Open full view", first, and only in the popup (2026-09-19).
+   *
+   * It was a text link injected into the *date navigator* by the month view,
+   * which left "August 2026", "Today", "Full view ↗" and the ‹ › pair sharing
+   * one 400px bar with the arrows pinned to the window's edge — Sushi: "id also
+   * like to move the full view button to the top banner instead of next to the
+   * arrows since its squished".
+   *
+   * On **every** tab rather than only Month. The full view is the answer to "the
+   * popup vanishes when I click the course page behind it", which is a question
+   * about the window and not about the month; it was Month-only because that is
+   * where there happened to be room in the navigator, and the ⋯ has offered
+   * "Open full view" from every tab the whole time. That menu entry is gone with
+   * this: one visible control beats a duplicate of it three clicks down, and two
+   * routes to one destination is what the `#ledger` strip was removed for.
+   *
+   * `iconButton`, like ⋯ and the gear beside it, so it inherits `.btn-icon`'s
+   * ink rather than naming a colour pair of its own — `--accent` on
+   * `--accent-ink` measured 1.4:1 in Classical dark (see `renderQuickFab`). It
+   * carries `aria-label` and `title` from `iconButton`, so the name survives the
+   * glyph, and it is a `<button>` in the bar's own tab order.
+   *
+   * There is nowhere to go from the full view itself, so it is not drawn there.
+   */
+  if (!isFullView) {
+    const full = iconButton("open-tab", "Open full view");
+    full.addEventListener("click", (event) => {
+      event.stopPropagation();
+      // The tab the student is on, so the tab that opens lands where they were.
+      openFullView(state.view);
+    });
+    actionsEl.append(full);
+  }
+
+  /*
    * The "+", first, because adding is now something this window does.
    *
    * Sushi: "maybe also just a + icon as well for a general event addition."
@@ -265,7 +311,10 @@ export function renderActions(): void {
   addButton.addEventListener("click", (event) => {
     // Otherwise `document`'s own click listener closes the panel this opens.
     event.stopPropagation();
-    app.openAddEditor();
+    // The *complete* form, as a screen. Since 2026-09-19 the "+" on the list is
+    // the five-field panel, and this is the only add Alerts and Exams have —
+    // and the only route to Kind, the end time, the link and "No date yet".
+    app.openFullAdd();
   });
   actionsEl.append(addButton);
 
@@ -280,6 +329,217 @@ export function renderActions(): void {
     openHeaderMenu(more);
   });
   actionsEl.append(more);
+  const settings = iconButton("settings", "Settings");
+  settings.addEventListener("click", () => openOptions());
+  actionsEl.append(settings);
+
+  renderQuickFab();
+}
+
+/* -------------------------------------------------------------------------- */
+/* The floating "+"                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The class the stylesheet draws and `screens/editor.ts` looks the control up
+ * by. One constant for the selector and the class (UI house rule 7).
+ */
+export const QUICK_FAB_SELECTOR = ".qfab";
+const QUICK_FAB_CLASS = QUICK_FAB_SELECTOR.slice(1);
+/**
+ * Written on `<body>` while the tab strip is pinned to the bottom of the
+ * document, and read by exactly one rule in `popup-screens.css`. One constant
+ * for the attribute and the selector that matches it (UI house rule 7).
+ */
+export const TABS_AT_BOTTOM_ATTR = "data-tabs-bottom";
+/** Between the panel and the "+" it hangs over. */
+const QUICK_GAP = 8;
+/** What the panel keeps clear of the window's bottom edge when there is no "+". */
+const QUICK_FLOOR = 12;
+
+/**
+ * A "+" that hovers over the list, on the three calendar tabs.
+ *
+ * Sushi asked for it on Day, Week and Month, and *which* tabs is a question
+ * about the document rather than about this function: `render` writes
+ * `body[data-view]` on every draw and a sub-screen writes `body[data-screen]`,
+ * so the stylesheet already knows. Deciding it here instead would mean a second
+ * copy of "which view is on screen" that only a draw could keep true.
+ *
+ * On `<body>`, drawn once, beside the header's controls — never inside `#view`,
+ * which every redraw empties.
+ */
+function renderQuickFab(): void {
+  // `renderActions` is called once, at startup; a second call must not leave two.
+  document.querySelector(QUICK_FAB_SELECTOR)?.remove();
+  const fab = document.createElement("button");
+  fab.type = "button";
+  // `.btn-primary`, and **not** `.btn-icon`: `iconButton` adds that, and
+  // `.btn-icon` is declared after `.btn-primary` in `ui.css` with its own
+  // `color: var(--muted)` and no background — so a filled "+" built with
+  // `iconButton` came out as a muted glyph on the page's own surface. Measured
+  // both ways; see the note in `popup-screens.css`.
+  fab.className = "btn btn-primary";
+  fab.title = "Add a deadline";
+  fab.setAttribute("aria-label", "Add a deadline");
+  fab.append(icon("plus"));
+  /*
+   * `.btn-primary` for the ink, rather than `--accent` and `--accent-ink` here.
+   *
+   * Measured, dark and light: a "+" painted `var(--accent)` on
+   * `var(--accent-ink)` came out `rgb(141,180,242)` under `rgb(236,238,242)` in
+   * the Classical dark palette — about 1.4:1, a glyph you cannot see. The pair
+   * that is guaranteed to go together is the one the design already ships a
+   * filled button in, so the floating "+" *is* that button and this file only
+   * says where it sits and how big it is.
+   */
+  fab.classList.add("btn-primary", QUICK_FAB_CLASS);
+  fab.addEventListener("click", (event) => {
+    // The document's own click listeners close menus, and the quick panel's
+    // closes the panel; neither should see the press that opens it.
+    event.stopPropagation();
+    if (fab.getAttribute("aria-expanded") === "true") {
+      app.closeEditor();
+      return;
+    }
+    app.openAddEditor();
+  });
+  document.body.append(fab);
+}
+
+/**
+ * Lift the "+" clear of a tab strip that lives at the bottom.
+ *
+ * The Classical design moves `#tabs` under the list (`order: 2`, `position:
+ * sticky; bottom: 0`), so a "+" at `bottom: 12px` sits **on top of the Exams
+ * tab** — measured in the real document, dark, before this existed. Which
+ * designs do that is not something to enumerate: it is read off the strip's own
+ * box, so a design that moves it back to the top gets the low "+" with no rule
+ * anywhere naming a design.
+ *
+ * Called from `renderTabs`, which runs on every draw, because the answer
+ * changes with the strip rather than with the "+".
+ */
+export function placeQuickFab(): void {
+  /*
+   * Read from the strip's *style*, not from where it happens to be sitting.
+   *
+   * `renderTabs` runs in the middle of a draw, between `viewEl.replaceChildren()`
+   * and the rows going back in — so for that moment the document is as short as
+   * it ever gets and a strip stuck to the window's bottom is measured half way
+   * up it. Asking whether it is pinned to the bottom, and how tall it is, are
+   * both true at any moment of a draw; asking where it is is not. (Measured: a
+   * rect-based version left the "+" exactly where it had been, on the Exams tab.)
+   */
+  // A draw must not throw into a console nobody has open, and this one runs on
+  // every draw: a harness with no layout engine (linkedom) has no
+  // `getComputedStyle` at all, and there the "+" keeps its floor.
+  /*
+   * Asked of every piece of chrome that can own the window's bottom edge, not
+   * of the tab strip alone.
+   *
+   * This read `tabsEl` and nothing else, on the reasoning that the strip is the
+   * thing a design moves. That is true and it is not the whole question: the
+   * strip and the sources bar TRADE places. Classical puts `#tabs` at the
+   * bottom and `#footer` at the top (`order: -1`); Plain leaves `#footer`
+   * sticky at the bottom and the tabs at the top. So in Plain the strip is not
+   * pinned, the "+" dropped to its floor, and the floor is where the sources
+   * bar is — measured in Plain's popup, the "+" sat on top of "Sync Now"
+   * (Sushi, 2026-09-19: "in the plain popup view the add button on the bottom
+   * right covers the sync now"). Naming both, and summing, so a design that
+   * stacks the two gets cleared of both and a design that pins neither still
+   * gets the low "+". No design is named anywhere.
+   */
+  const measure = typeof getComputedStyle === "function" ? getComputedStyle : undefined;
+  const bottomPinned = (el: HTMLElement): number => {
+    const style = measure?.(el);
+    if (style === undefined) return 0;
+    const pinned = style.position === "sticky" || style.position === "fixed";
+    if (!pinned || style.bottom === "auto" || parseFloat(style.bottom) >= 1) return 0;
+    // `display: none` measures 0 anyway; an empty `.foot` is `display: none`
+    // on the first-run screen and must not reserve a strip's worth of room.
+    return el.offsetHeight;
+  };
+  const tabsHeight = bottomPinned(tabsEl);
+  const chromeHeight = tabsHeight + bottomPinned(footerEl);
+  const atBottom = tabsHeight > 0;
+
+  /*
+   * Tell the stylesheet the strip is the document's last thing, so the room a
+   * panel reserves is taken from *above* it.
+   *
+   * Sushi, on the real popup: "in the day view, when i click the + the bottom
+   * row for today, week, etc. disappears." Measured, Classical dark, a day with
+   * nothing due: window 253 → 397 when the panel opened (the reserve working),
+   * document 253 → 397, and `#tabs` **stayed at 200–253** with 144px of empty
+   * page under it and the panel drawn across it.
+   *
+   * `position: sticky; bottom: 0` is only sticky *upwards*: it stops a box
+   * dropping below the fold, it never pushes one down. The strip's flow
+   * position is the end of the content, and `body` is a flex column, so every
+   * pixel of a `min-height` reserve lands after it. `margin-top: auto` on the
+   * strip absorbs that free space instead (`popup-screens.css`), which changes
+   * nothing when the document is already taller than the window — the ordinary
+   * case, where there is no free space to absorb.
+   *
+   * Derived here rather than named in a sheet because this is where the
+   * question is already answered, and `placeFloating`'s menus reserve room the
+   * same way — so the same one line keeps the strip under a menu too.
+   *
+   * Mutating `atBottom` to a constant `true` survives today, and that is a fact
+   * about the other three designs rather than about this test: Editorial, Rams
+   * and Timetable leave `body` `display: block`, where `margin-top: auto` is
+   * 0 — measured, all three, strip unmoved at 44–86. It stays conditional
+   * because it is the strip that is being asked about, not the design, and a
+   * later design with a flex column and a strip on top would need the answer.
+   */
+  document.body.toggleAttribute(TABS_AT_BOTTOM_ATTR, atBottom);
+
+  const fab = document.querySelector<HTMLElement>(QUICK_FAB_SELECTOR);
+  if (!fab) return;
+  fab.style.bottom = `${chromeHeight + QUICK_FLOOR}px`;
+}
+
+/**
+ * Sit the quick panel over the list, in a window tall enough to show it.
+ *
+ * The same two obligations as `placeFloating`, for the same reason — a `fixed`
+ * panel contributes nothing to the box Chrome measures — and one more that a
+ * menu does not have: the window it is measured in **changes underneath it**,
+ * because asking for the room is what makes Chrome resize the popup. So every
+ * number here is measured from the *bottom* edge, which both the panel and the
+ * "+" it hangs over are anchored to. A `top` computed from the old window would
+ * leave the panel stranded half way up the new one.
+ */
+export function placeQuickPanel(panel: HTMLElement, anchor?: HTMLElement): void {
+  const box = anchor?.getBoundingClientRect();
+  const windowHeight = document.documentElement.clientHeight;
+  // Just above the "+", or off the floor when this view has no "+" to clear.
+  const bottom = box ? Math.max(QUICK_FLOOR, windowHeight - box.top + QUICK_GAP) : QUICK_FLOOR;
+  panel.style.bottom = `${bottom}px`;
+
+  // The full view is an ordinary tab and is however tall it is; the popup is
+  // capped by Chrome whatever the document says.
+  const ceiling = isFullView ? window.innerHeight : MAX_POPUP_HEIGHT;
+  // Never taller than the window can ever be. A form that overflows scrolls
+  // inside itself, which is a scrollbar rather than a Cancel button nobody can
+  // reach — and it keeps its own scroll off the page behind it.
+  panel.style.maxHeight = `${Math.max(140, ceiling - bottom - QUICK_FLOOR)}px`;
+
+  // Measured after the cap, so this is the height the panel will occupy rather
+  // than the one it would like. The full view needs no reserve: its window is
+  // not sized from the document.
+  if (!isFullView) {
+    document.body.style.minHeight = `${Math.min(
+      MAX_POPUP_HEIGHT,
+      bottom + panel.offsetHeight + QUICK_FLOOR,
+    )}px`;
+  }
+}
+
+/** The room the panel asked for, given back the moment it closes. */
+export function releaseQuickPanel(): void {
+  document.body.style.minHeight = "";
 }
 
 /**
@@ -301,14 +561,14 @@ function openHeaderMenu(anchor: HTMLElement): void {
     menu.append(menuItem(label, glyph, onClick));
   };
 
-  if (!isFullView) {
-    // "⤢ full view" named the mechanism. What a student wants from it is that
-    // the window stops vanishing when they click on the course page behind it.
-    add("Open full view", "open-tab", () => {
-      closeMenus();
-      openFullView();
-    });
-  }
+  /*
+   * No "Open full view" here any more (2026-09-19).
+   *
+   * It is an icon button in the header bar, two elements to the left of the ⋯
+   * this menu hangs off — see `renderActions`. Keeping both would be the
+   * `#ledger` strip's duplicate again: one destination, two controls, and the
+   * buried one is the one nobody presses.
+   */
 
   /*
    * Export, here rather than four clicks into Settings.
@@ -376,7 +636,7 @@ function openHeaderMenu(anchor: HTMLElement): void {
   trapMenuKeys(menu, anchor);
 }
 
-function openOptions(section?: string): void {
+export function openOptions(section?: string): void {
   if (isFullView || section) {
     // Already in a tab, so use it. `openOptionsPage` would leave two Illini
     // Dash tabs open, with the one being read behind the one now in front —
@@ -531,14 +791,14 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     const count = counts[name] ?? 0;
     if (count > 0) {
       // Exams counts what is asking for an action (an exam already booked is
-      // not); No date counts every row waiting on a date, and says so.
+      // not); Alerts counts everything on it that is asking, and says so.
       const badge = document.createElement("span");
       badge.className = name === "exams" ? "chip-count is-warn" : "chip-count";
       badge.textContent = String(count);
       tab.append(badge);
       tab.title =
         name === "nodate"
-          ? `${count} waiting on a date`
+          ? `${count} thing${count === 1 ? "" : "s"} waiting for you`
           : `${VIEW_LABEL[name] ?? name} — ${count} need${count === 1 ? "s" : ""} attention`;
     }
 
@@ -557,6 +817,9 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     });
     tabsEl.append(tab);
   }
+  // The floating "+" clears this strip, and where the strip is is a fact about
+  // the document that only a draw knows.
+  placeQuickFab();
 }
 
 export function selectTab(name: ViewName): void {
@@ -571,6 +834,13 @@ export function selectTab(name: ViewName): void {
   state.view = name;
   state.dayOffset = 0;
   writeStored(VIEW_KEY, name);
+  /*
+   * The strip is rebuilt by the redraw, and the tab that had focus goes with
+   * it: ArrowRight selected the next view and then left `<body>` focused, so
+   * the second ArrowRight did nothing (I01, 2026-09-19). The draw that rebuilds
+   * the strip puts focus on the selected tab (popup/focus.ts).
+   */
+  requestFocus({ kind: "tab", view: name });
   void app.refresh();
 }
 
@@ -579,6 +849,8 @@ export function selectTab(name: ViewName): void {
 /* -------------------------------------------------------------------------- */
 
 interface Banner {
+  /** An extra class on the line, for a banner a view needs to be able to name. */
+  className?: string;
   tone: "info" | "warn" | "err";
   glyph: IconName;
   text: string;
@@ -628,6 +900,16 @@ export function renderBanners(stateIn: {
         : `signed out ${stale.hours}h — rows may be old`;
     const login = signInUrl(stale.source, stateIn.sources[stale.source], "needs_login");
     banners.push({
+      /*
+       * Marked, because the Alerts tab opens with this same sentence at
+       * greater length, drawn from the same `staleNotice`. Leaving both on
+       * screen means the tab's first two lines say "Gradescope signed you out"
+       * one above the other. The stylesheet hides *this one* on that tab —
+       * hiding `#banners` wholesale, which is what the Needs-you screen did,
+       * would take the "Deleted … · Undo" strip with it, on the one tab where
+       * Hide and Tick off are pressed.
+       */
+      className: "banner--stale",
       tone: "warn",
       glyph: "warning",
       text: `${SOURCE_NAME[stale.source]}: ${age}`,
@@ -670,7 +952,7 @@ export function renderBanners(stateIn: {
 
 function renderBanner(banner: Banner): HTMLElement {
   const line = document.createElement("div");
-  line.className = `banner-line banner-${banner.tone}`;
+  line.className = `banner-line banner-${banner.tone}${banner.className ? ` ${banner.className}` : ""}`;
   const text = document.createElement("span");
   text.className = "banner-line--text";
   text.textContent = banner.text;
@@ -704,25 +986,51 @@ function renderBanner(banner: Banner): HTMLElement {
  * failure it reported for a month landed below the fold (UI rule 3). A banner
  * in the banner slot is reachable by construction.
  */
+/** The draw-level notice last shown, so a dismissed refusal redraws it alone. */
+let lastNotice: string | undefined;
+
 export function showStatus(text: string | undefined): void {
-  statusEl.replaceChildren();
-  statusEl.hidden = !text;
-  if (!text) return;
-  statusEl.append(renderBanner({ tone: "err", glyph: "warning", text }));
+  lastNotice = text;
+  const lines: Banner[] = [];
+  if (text) lines.push({ tone: "err", glyph: "warning", text });
+  /*
+   * A refused correction stays until it is answered.
+   *
+   * Every draw ends by calling this with its own notice — usually `undefined` —
+   * and that call is what used to erase a refusal about 150ms after it
+   * appeared: `reportOverride` wrote it, the unconditional refresh behind it
+   * wiped it, and the student saw a row that did not change and no reason
+   * (I03, 2026-09-19). The refusal is `state` now, like `pendingUndo`, and is
+   * re-drawn here on every call until Dismiss or a later success clears it
+   * (core/outcome.ts decides which answers are refusals).
+   */
+  if (state.actionError) {
+    lines.push({
+      tone: "err",
+      glyph: "warning",
+      text: state.actionError,
+      action: {
+        label: "Dismiss",
+        run: () => {
+          state.actionError = undefined;
+          showStatus(lastNotice);
+        },
+      },
+    });
+  }
+  statusEl.replaceChildren(...lines.map(renderBanner));
+  statusEl.hidden = lines.length === 0;
 }
 
 /* -------------------------------------------------------------------------- */
 /* The footer strip                                                            */
 /* -------------------------------------------------------------------------- */
 
-/**
- * The class on the footer's source button, and the only spelling of it.
- *
- * One constant, because a selector and the class it matches disagreeing is a
- * guard that is dead from the day it is written (UI rule 7) — and the Needs-you
- * screen restores focus to this button when it closes.
+/*
+ * The class on the footer's source button is `FOOT_HEALTH_CLASS`, one constant
+ * (UI rule 7), declared in popup/focus.ts beside the lookup that returns focus
+ * to the button when the Needs-you screen closes.
  */
-export const FOOT_HEALTH_CLASS = "foot--health";
 
 /**
  * `[dot] 8 sources · synced 2m ago · Sync now` (D10).
@@ -780,15 +1088,25 @@ export function renderFooter(
   health.className = FOOT_HEALTH_CLASS;
   // The screen it opens is in document flow rather than a dialog, so
   // `aria-expanded` rather than the popup `aria-haspopup` would promise.
-  health.setAttribute("aria-expanded", state.screen?.kind === "needs-you" ? "true" : "false");
+  /*
+   * A tab selector since 2026-09-19, so it says which tab it selects.
+   *
+   * It used to open the Needs-you screen in front of the calendar and carried
+   * `aria-expanded` for it. The screen is the Alerts tab now, so this is one
+   * more way to reach a tab that is already on the strip with a badge on it —
+   * `aria-pressed` states whether that tab is the one showing, which is what a
+   * toggle button owes a screen reader.
+   */
+  health.setAttribute("aria-pressed", state.view === "nodate" ? "true" : "false");
   health.title = sourcesTooltip(sources, now);
   health.append(dot, count, sep, when);
   health.addEventListener("click", (event) => {
     event.stopPropagation();
-    // Nothing async behind this press — it swaps `#view` for a screen on the
-    // next redraw — so there is no "Applying…" to show (UI rule 4).
-    if (state.screen?.kind === "needs-you") app.closeNeedsYou();
-    else app.openNeedsYou();
+    // Nothing async behind this press — it selects a tab on the next redraw —
+    // so there is no "Applying…" to show (UI rule 4). Not a toggle any more:
+    // there is nothing to toggle back *to*, because the thing it used to open
+    // no longer sits in front of another view.
+    selectTab("nodate");
   });
 
   /*
@@ -822,6 +1140,15 @@ export function renderFooter(
   });
 
   footerEl.append(health, sync);
+  /*
+   * Nothing after the strip.
+   *
+   * A `#ledger` row used to follow it with "Sources & needs-you ledger ›" and
+   * "Full view". The first opened the sources list, which is what the health
+   * button three lines above already reaches; the second called
+   * `openFullView()`, which `openHeaderMenu` already offers. Two duplicates for
+   * 45px of a 600px window (2026-09-19).
+   */
 }
 
 /* -------------------------------------------------------------------------- */
@@ -944,30 +1271,64 @@ function weekRangeYear(): number {
   return days[days.length - 1]!.date.getFullYear();
 }
 
+/**
+ * `step` says how far ‹ › move. It does **not** say whether the strip exists.
+ *
+ * It used to say both, and that cost Today its date (Sushi, 2026-09-19: "today
+ * doesnt even show the date"). `navFor` builds `Today · Mon, Sep 22` and then
+ * returns `step: 0`, because the day view's arrows were deliberately removed —
+ * Today is anchored on now, and the week and the month are where a student
+ * moves through time. This function read that 0 as "no strip", hid `#nav` and
+ * returned before it appended anything, so the label was computed on every
+ * draw and thrown away. One number answering two questions, and the view that
+ * wanted a label with no arrows had no way to say so.
+ *
+ * So the two questions are separated: **the label decides whether the strip is
+ * drawn** (`default:` in `navFor` returns `""`, which is the view that genuinely
+ * has no running head), and **step decides whether the arrows are**. Week (7)
+ * and Month (28) are unchanged in both, which is what keeps `views/week.ts`
+ * and `views/month.ts` — both of which append controls into this strip after it
+ * is built, one of them by looking `.datenav--label` up — working exactly as
+ * they did.
+ */
 export function renderDateNav(label: string, step: number): void {
   dateNavEl.replaceChildren();
-  dateNavEl.hidden = step === 0;
-  if (step === 0) return;
-
-  const back = iconButton("left", "Back");
-  back.classList.add("btn-sm");
-  back.addEventListener("click", () => {
-    state.dayOffset -= step;
-    void app.refresh();
-  });
+  dateNavEl.hidden = label === "";
+  if (label === "") return;
 
   const text = document.createElement("span");
   text.className = "datenav--label";
   text.textContent = step === 7 ? `${label}, ${weekRangeYear()}` : label;
 
-  const forward = iconButton("right", "Forward");
-  forward.classList.add("btn-sm");
-  forward.addEventListener("click", () => {
-    state.dayOffset += step;
-    void app.refresh();
-  });
+  if (step === 0) {
+    // A running head and nothing to press. Today is the only view here, and
+    // the arrows are not coming back (brief D4).
+    dateNavEl.append(text);
+  } else {
+    // Named, not selected by position. The month sheet styled this pair with
+    // `:first-child` / `:last-child`, and the "Today" pill is appended AFTER
+    // `forward` whenever the student has stepped off today — so `forward`
+    // stopped being the last child and silently lost both its `order` and its
+    // rounded outer corners (measured radius 0px, square corners on the
+    // outside of the pair). A class cannot be taken away by a sibling.
+    const back = iconButton("left", "Back");
+    back.classList.add("datenav--step", "datenav--back");
+    back.classList.add("btn-sm");
+    back.addEventListener("click", () => {
+      state.dayOffset -= step;
+      void app.refresh();
+    });
 
-  dateNavEl.append(back, text, forward);
+    const forward = iconButton("right", "Forward");
+    forward.classList.add("datenav--step", "datenav--fwd");
+    forward.classList.add("btn-sm");
+    forward.addEventListener("click", () => {
+      state.dayOffset += step;
+      void app.refresh();
+    });
+
+    dateNavEl.append(back, text, forward);
+  }
 
   if (state.dayOffset !== 0) {
     const today = document.createElement("button");
@@ -1182,7 +1543,16 @@ export function placeFloating(
   // opens downward: a panel that flipped upward is already inside the document
   // Chrome is showing, and growing `minHeight` for it would add empty space
   // under the list for nothing.
-  if (!flip) {
+  //
+  // And only in the popup. Asking for room is how a page makes Chrome grow a
+  // popup window; the full view is an ordinary tab that is already as tall as
+  // it is, so the same write there is a `min-height` SHORTER than the window
+  // (this caps at 600) fighting the full view's own `min-height: 100vh`.
+  // Measured with a held press on a row menu in the full view: `#tabs` was
+  // yanked from y=947 to y=629.7 for as long as the menu stayed open.
+  // `placeQuickPanel` already had this guard; this one did not, which is why
+  // `popup.css` briefly needed an `!important` to out-rank it.
+  if (!flip && !isFullView) {
     document.body.style.minHeight = `${Math.min(MAX_POPUP_HEIGHT, top + panel.offsetHeight + 8)}px`;
   }
 }
@@ -1383,9 +1753,67 @@ export function menuItem(
 /* Corrections                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** A correction that silently did nothing is worse than one that says so. */
-export function reportOverride(response: Awaited<ReturnType<typeof send>>): void {
-  if (response.type === "error") showStatus(response.message);
+/**
+ * "Applying…" on the pressed control, and the way to take it back.
+ *
+ * Feedback and a diagnostic at once (UI rule 4): a correction is a round trip
+ * to the service worker, it was always wrong for that to look instantaneous,
+ * and if this word never appears the click handler never ran — a different bug
+ * from every one investigated so far, and one that says so without a console.
+ * Four rounds of "I click Hide and nothing happens" produced no evidence
+ * because every channel that could have carried it was somewhere nobody was
+ * looking; the one place a student is definitely looking is the thing they
+ * just clicked.
+ *
+ * The returned function puts the control back. A refusal now leaves the row as
+ * it was (see `settleCorrection`), so the control has to say its own label
+ * again and answer a second press — otherwise a refusal reads as "still
+ * applying", forever.
+ */
+function markBusy(control: HTMLElement | undefined, busy: () => Node[]): () => void {
+  if (!control) return () => undefined;
+  const before = [...control.childNodes];
+  const wasDisabled = control instanceof HTMLButtonElement && control.disabled;
+  const siblings = [...(control.parentElement?.querySelectorAll("button") ?? [])].map(
+    (other) => [other, other.disabled] as const,
+  );
+  control.replaceChildren(...busy());
+  if (control instanceof HTMLButtonElement) control.disabled = true;
+  for (const [other] of siblings) other.disabled = true;
+  return () => {
+    control.replaceChildren(...before);
+    if (control instanceof HTMLButtonElement) control.disabled = wasDisabled;
+    for (const [other, disabled] of siblings) other.disabled = disabled;
+  };
+}
+
+/**
+ * What happens to a correction's answer — the same for every correction.
+ *
+ * Success redraws, and clears whatever refusal was on screen: the list is
+ * about to say what the store now says. A refusal does **not** redraw. It
+ * used to — `send(…).then(reportOverride).then(() => refresh())` — and the
+ * refresh's own `showStatus(undefined)` erased the refusal 150ms after
+ * `reportOverride` wrote it, leaving a row that had not changed and no reason
+ * (I03, 2026-09-19). Now the refusal is kept in `state.actionError`, the
+ * pressed control is restored so it can be pressed again, and `showStatus`
+ * keeps the sentence on screen through every later draw until it is dismissed
+ * or a later correction succeeds. Which answers are refusals is
+ * `core/outcome.ts`'s decision, where a test can reach it.
+ *
+ * The menu closes on either answer: it is anchored to a row that a redraw, or
+ * the student's next press, is about to replace.
+ */
+function settleCorrection(outcome: ActionOutcome, restore: () => void): void {
+  closeMenus();
+  if (outcome.ok) {
+    state.actionError = undefined;
+    void app.refresh();
+    return;
+  }
+  restore();
+  state.actionError = outcome.message;
+  showStatus(lastNotice);
 }
 
 /**
@@ -1400,21 +1828,15 @@ export function reportOverride(response: Awaited<ReturnType<typeof send>>): void
  * are different windows.
  */
 export function applySuggestionRequest(request: Request, control?: HTMLElement): void {
-  if (control) {
-    control.textContent = "Applying…";
-    if (control instanceof HTMLButtonElement) control.disabled = true;
-    for (const other of control.parentElement?.querySelectorAll("button") ?? []) {
-      (other as HTMLButtonElement).disabled = true;
-    }
-  }
+  const restore = markBusy(control, () => [document.createTextNode("Applying…")]);
   console.log(`[illini-dash] ${request.type} requested`);
   void send(request)
-    .then(reportOverride)
-    .then(() => {
-      void app.refresh();
-    })
+    .then((response) => settleCorrection(actionOutcome(response), restore))
     .catch((error: unknown) => {
-      showStatus(error instanceof Error ? error.message : String(error));
+      settleCorrection(
+        { ok: false, message: error instanceof Error ? error.message : String(error) },
+        restore,
+      );
     });
 }
 
@@ -1439,28 +1861,7 @@ export function applySuggestionRequest(request: Request, control?: HTMLElement):
  * path is four chances for the next one to be written without it.
  */
 export function applyOverrideAction(action: OverrideAction, entry?: HTMLElement): void {
-  /*
-   * Say so on the control that was pressed, before anything can go wrong.
-   *
-   * Four rounds of "I click Hide and nothing happens" produced no evidence,
-   * because every channel that could have carried it was somewhere nobody was
-   * looking: the popup's console (not the worker's, which is the one people
-   * open), a status line that rendered below the fold, and an unhandled
-   * rejection that reached neither. The one place a student is definitely
-   * looking is the thing they just clicked.
-   *
-   * So it is feedback and a diagnostic at once. A correction is a round trip to
-   * the service worker and back — it was always wrong for that to look
-   * instantaneous — and if this word never appears, the click handler never
-   * ran, which is a different bug from every one investigated so far and says
-   * so without a console.
-   */
-  if (entry) {
-    entry.replaceChildren(icon("sync"), document.createTextNode("Applying…"));
-    for (const other of entry.parentElement?.querySelectorAll("button") ?? []) {
-      (other as HTMLButtonElement).disabled = true;
-    }
-  }
+  const restore = markBusy(entry, () => [icon("sync"), document.createTextNode("Applying…")]);
   // Logged on this side too, because the two consoles are different windows: a
   // popup's output never appears in the service worker's, and the worker's
   // never appears in the popup's. Chasing this across three rounds, both were
@@ -1468,15 +1869,16 @@ export function applyOverrideAction(action: OverrideAction, entry?: HTMLElement)
   // fault. This line says the click was heard, before anything can go wrong.
   console.log(`[illini-dash] ${action.kind} requested for ${action.itemId}`);
   void send({ type: "override", action })
-    .then(reportOverride)
-    .then(() => {
-      closeMenus();
-      void app.refresh();
-    })
+    .then((response) => settleCorrection(actionOutcome(response), restore))
     .catch((err: unknown) => {
-      closeMenus();
-      showStatus(
-        `Could not ${action.kind} that row: ${err instanceof Error ? err.message : String(err)}`,
+      settleCorrection(
+        {
+          ok: false,
+          message: `Could not ${action.kind} that row: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        },
+        restore,
       );
     });
 }
@@ -1500,7 +1902,23 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
   };
 
   /*
-   * First: the site the row came from.
+   * First: done.
+   *
+   * It was second, under "Open in …", while the row carried a tick box of its
+   * own — so the menu was the second way to mark something done and could
+   * afford to lead with something else. The tick box went on 2026-09-19
+   * ("why do you have 3 dots, a checkbox and an arrow, pick one bro"), which
+   * makes this the **only** route to it, and the first item is where the only
+   * route belongs. Two of the five sources can never report completion, so
+   * without it a finished course-site row sits in the Alerts tab for a week
+   * with only Hide as an escape.
+   */
+  add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", (entry) => {
+    applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id }, entry);
+  });
+
+  /*
+   * Then the site the row came from.
    *
    * Clicking the row already does this, but nothing on screen said so — the
    * only hint was a tooltip on a 40px column. Naming the site here is also the
@@ -1515,13 +1933,6 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
       chrome.tabs.create({ url: open });
     });
   }
-
-  // Then the one a student reaches for most: two of the five sources can never
-  // report completion, so without it a finished course-site row sits in Needs
-  // attention for a week with only Hide as an escape.
-  add(item.done ? "Not done" : "Mark done", item.done ? "close" : "check", (entry) => {
-    applyOverrideAction({ kind: item.done ? "undone" : "done", itemId: item.id }, entry);
-  });
 
   add(item.hidden ? "Unhide" : "Hide", item.hidden ? "plus" : "close", (entry) => {
     applyOverrideAction({ kind: item.hidden ? "unhide" : "hide", itemId: item.id }, entry);
@@ -1627,7 +2038,9 @@ function rowsInView(): HTMLElement[] {
   // that opens the same menu, so it belongs in the same ring.
   // `div.row` too: a manual row with no link is a div, and a ring that skips
   // it loses focus on the way back from its own screen (R2 L3).
-  return [...viewEl.querySelectorAll<HTMLElement>("a.row, div.row, .mpill[role='button']")];
+  // One selector, shared with the focus lookup that returns a screen to its
+  // row (popup/focus.ts): the two must agree about what a row is.
+  return [...viewEl.querySelectorAll<HTMLElement>(ROW_RING_SELECTOR)];
 }
 
 export function makeRowsNavigable(): void {

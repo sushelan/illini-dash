@@ -90,90 +90,31 @@ const pageBuild =
  * never have.
  */
 const stub = `;(() => {\n${readFileSync(stubOut, "utf8")}\n})();`;
-const prelude = `globalThis.__PREVIEW_BUILD__ = ${JSON.stringify(pageBuild)};\n`;
+// Only the preview bundles receive this clock. Freeze before the stub AND real
+// renderers run, so their dates agree; timers still advance for interactions.
+const prelude = `globalThis.__PREVIEW_BUILD__ = ${JSON.stringify(pageBuild)};\n` +
+  readFileSync(join(root, "scripts", "preview-clock.js"), "utf8");
 
 // The stub must define `chrome` before the page bundle runs, so they are
 // concatenated rather than loaded as two modules — module execution order
 // across separate <script type=module> tags is not what you want to bet a
 // harness on.
 /**
- * `?open=health` clicks the health pill once the popup has drawn.
+ * `?open=health`, `?open=deadline` and `?editor=1`: the states that need a
+ * press before they can be looked at.
  *
- * The source list is a click away, so `npm run shots` could never see it — and
- * it shipped clipped half way down its fifth row, because a floating panel adds
- * nothing to the document height that Chrome measures a popup by. A state the
- * harness cannot reach is a state nothing checks.
+ * A real file rather than a template literal here. It used to be one, and the
+ * `.pill` it pressed for `open=health` outlived the header pill it named by a
+ * day — a selector inside a string in a build script is one nothing can read,
+ * so every "Sources" capture taken through it was a picture of the calendar,
+ * silently. `scripts/preview-open.js` publishes the table on
+ * `globalThis.__PREVIEW_OPEN__`, and two tests hold it against the control the
+ * popup actually renders and against `ui-acceptance.mjs`'s own presses.
  *
  * Appended after the page bundle rather than built into it: this is harness
  * scaffolding and has no business in the extension.
  */
-const epilogue = `
-;(() => {
-  const q = new URLSearchParams(location.search);
-  // \`?editor=1\` opens the add form on load. Same argument as \`?open=health\`:
-  // a state that needs a click is a state \`npm run shots\` can never see, and
-  // the editor is now the tallest thing this document can grow by. It is a
-  // synthetic click and proves nothing about *pressing* the button (UI house
-  // rule 5) — it only gets the harness into the state.
-  // \`?open=deadline\` presses the first row, which is the only way into the
-  // deadline screen (brief D8). A **real pointer sequence**, not \`.click()\`:
-  // the row menu bug of 2026-09-18 was invisible to every harness precisely
-  // because a synthetic click fires no pointerdown, no mousedown and no focus
-  // change (UI house rule 5), and a screen opened from a press is the state
-  // worth shooting.
-  // \`?open=health\` presses the header pill, which since D2 opens the
-  // Needs-you screen rather than the popover it used to.
-  const target = q.get("open") === "health"
-    ? ".pill"
-    : q.get("open") === "deadline"
-      ? "#view a.row, #view .row"
-      : q.has("editor")
-        ? '#actions button[aria-label="Add a deadline"]'
-        : undefined;
-  if (!target) return;
-  const press = (el) => {
-    const box = el.getBoundingClientRect();
-    // \`cancelable: true\` is the whole difference between a press and a
-    // gesture nothing can refuse. It defaults to **false**, and a click that
-    // cannot be cancelled ignores every \`preventDefault\` on its way up — so
-    // the row's own handler ran, called \`chrome.tabs.create\`, and the browser
-    // then followed the link anyway, taking preview-popup.html to
-    // gradescope.com. The shot was of a login page.
-    const at = {
-      clientX: box.left + box.width / 2,
-      clientY: box.top + 10,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window,
-    };
-    el.dispatchEvent(new PointerEvent("pointerdown", { ...at, isPrimary: true, button: 0 }));
-    el.dispatchEvent(new MouseEvent("mousedown", { ...at, button: 0 }));
-    el.focus();
-    el.dispatchEvent(new PointerEvent("pointerup", { ...at, isPrimary: true, button: 0 }));
-    el.dispatchEvent(new MouseEvent("mouseup", { ...at, button: 0 }));
-    el.dispatchEvent(new MouseEvent("click", { ...at, button: 0 }));
-  };
-  const open = () => {
-    const el = document.querySelector(target);
-    if (!el) {
-      setTimeout(open, 120);
-      return;
-    }
-    if (q.get("open") !== "deadline") {
-      el.click();
-      return;
-    }
-    press(el);
-    // No fallback: a press that does not open the screen is a defect the shot
-    // must show, not one the harness papers over.
-  };
-  // After the popup's own open-sync has landed and redrawn: a render calls
-  // closeMenus(), so clicking earlier opens a panel that is closed again a
-  // second later, and the shot catches the wrong moment.
-  setTimeout(open, 1900);
-})();
-`;
+const epilogue = readFileSync(join(root, "scripts", "preview-open.js"), "utf8");
 
 for (const [page, out, tail] of [
   ["popup.js", "preview.js", epilogue],
@@ -307,4 +248,4 @@ console.log("");
 console.log("  npx http-server dist -p 8731   (or any static server)");
 console.log("  then open http://localhost:8731/preview-popup.html");
 console.log("  ?view=full for the tab, ?setup=1 for the first-run screen, ?editor=1 for the add form");
-console.log("  ?open=health for the source list, ?open=deadline for the deadline screen");
+console.log("  ?open=health presses the footer strip for Needs you, ?open=deadline for the deadline screen");

@@ -16,7 +16,11 @@ import {
   attentionCount,
   attentionGroups,
   bookings,
+  COURSE_GROUPS,
+  SLOTS_PER_GROUP,
+  courseColour,
   courseColours,
+  courseGroup,
   coursesIn,
   agendaRows,
   allTimed,
@@ -1248,43 +1252,84 @@ describe("overdueItems", () => {
 });
 
 describe("courseColours", () => {
-  const REAL = ["CS357", "CS411", "CS424", "CS425", "ECE374", "PHYS214"];
+  // Sushi's enrolment, and the set the screenshot he rejected was showing.
+  const REAL = ["CS357", "CS411", "CS424", "CS425", "ECE374", "PHYS214", "PHYS435"];
 
-  // classical-spec.md §1: "Academic Course Badges — keyed by DEPARTMENT, not by
-  // arrival order", with --cs-text #1a2744 (--course-0), --phys-text #8e3519
-  // (--course-1) and --math-text a bronzed umber (--course-2).
-  it("puts the three departments the spec names on the slots it names", () => {
-    // Deliberately *not* in the order the slots run (parser rule 10): with the
-    // three spec courses listed CS, PHYS, MATH, the old index-order assignment
-    // happened to produce 0, 1, 2 and this test could not tell the two apart.
-    const colours = courseColours(["MATH257", "PHYS214", "CS357"]);
-    expect(colours.get("CS357")).toBe(0);
-    expect(colours.get("PHYS214")).toBe(1);
-    expect(colours.get("MATH257")).toBe(2);
+  // Sushi, 2026-09-19, on the build before this one: "colors arent that much
+  // different, they should be extremely different man cmon." This is the
+  // sentence the whole scheme answers, and it is about *this* list.
+  it("gives every one of the real courses a different colour", () => {
+    const colours = [...courseColours(REAL).values()];
+    expect(new Set(colours).size).toBe(REAL.length);
   });
 
-  // §4: the week entry's course tag carries "department colours"; §5: the month
-  // dots are "coloured by department". The colour answers "whose is this", and
-  // both of these are CS — the code beside it makes the finer distinction.
-  it("gives two courses in one department the same hue", () => {
+  // The complaint in its smallest form: four CS courses used to be four shades
+  // of one blue, and two of them read as the same colour.
+  it("gives four courses in one department four different colours", () => {
     const colours = courseColours(REAL);
-    expect(colours.get("CS411")).toBe(colours.get("CS357"));
-    expect(colours.get("CS411")).toBe(0);
+    const cs = ["CS357", "CS411", "CS424", "CS425"].map((c) => colours.get(c));
+    expect(new Set(cs).size).toBe(4);
   });
 
-  it("gives a department the same slot whatever else is on the list", () => {
+  // The pair Sushi named in the first report: "CS 374 and CS 340 draw
+  // identically".
+  it("separates two CS courses whose numbers are close", () => {
+    expect(courseColour("CS374")).not.toBe(courseColour("CS340"));
+  });
+
+  // Not luck: his three departments land in three different groups, and two
+  // departments in different groups draw from disjoint slot sets, so *no*
+  // CS course can ever take a PHYS or ECE course's colour.
+  it("puts his three departments in three disjoint groups", () => {
+    const groups = ["CS357", "ECE374", "PHYS214"].map(courseGroup);
+    expect(new Set(groups).size).toBe(3);
+    for (const a of ["CS357", "CS411", "CS424", "CS425"]) {
+      for (const b of ["ECE374", "PHYS214", "PHYS435"]) {
+        expect(courseColour(a) % COURSE_GROUPS, `${a} vs ${b}`).not.toBe(
+          courseColour(b) % COURSE_GROUPS,
+        );
+      }
+    }
+  });
+
+  it("keeps a group's slots inside the palette and disjoint from every other", () => {
+    const seen = new Map<number, number>();
+    for (let group = 0; group < COURSE_GROUPS; group++) {
+      for (let within = 0; within < SLOTS_PER_GROUP; within++) {
+        const slot = group + within * COURSE_GROUPS;
+        expect(slot).toBeLessThan(COURSE_COLOURS);
+        expect(seen.has(slot), `slot ${slot} is in two groups`).toBe(false);
+        seen.set(slot, group);
+      }
+    }
+    expect(seen.size).toBe(COURSE_COLOURS);
+  });
+
+  it("gives a course the same slot whatever else is on the list", () => {
     // The defect this replaces: index order meant enrolling in one more course
-    // repainted every course after it, and CS could come out plum.
+    // repainted every course after it. Nothing may repaint when a course is
+    // *added* or when one is *removed*.
     const before = courseColours(["ECE374", "PHYS214"]);
     const after = courseColours(["CS357", "ECE374", "MATH257", "PHYS214", "STAT425"]);
+    const fewer = courseColours(["ECE374"]);
     expect(after.get("ECE374")).toBe(before.get("ECE374"));
     expect(after.get("PHYS214")).toBe(before.get("PHYS214"));
+    expect(fewer.get("ECE374")).toBe(before.get("ECE374"));
   });
 
   it("reads the department out of a Gradescope-shaped name", () => {
     expect(courseColours(["stat_425_120248_268442"]).get("stat_425_120248_268442")).toBe(
       courseColours(["STAT425"]).get("STAT425"),
     );
+  });
+
+  // §5.1's reading of a course code, not "the first three digits": a Canvas
+  // label that leads with the term would otherwise be coloured by the year.
+  // CS411 and not CS357: 2026 offers `202` to a "first three digits" reading,
+  // and 202 and 357 agree modulo five, so CS357 could not tell the two
+  // readings apart (mutation house rule 4).
+  it("colours a label by its course code and not by a year in front of it", () => {
+    expect(courseColour("Fall 2026 CS 411")).toBe(courseColour("CS411"));
   });
 
   it("gives a name with no course code in it a stable slot rather than throwing", () => {
@@ -1295,13 +1340,16 @@ describe("courseColours", () => {
     expect(colour).toBeLessThan(COURSE_COLOURS);
   });
 
-  it("keeps an unnamed department off the three slots the spec pins", () => {
-    // PHIL, AE and SOC are here because they are adversarial, not because Sushi
-    // takes them: their hashes land on 0, 1 and 2 modulo the whole palette, so
-    // they are the only inputs that can tell "hash into the spare slots" apart
-    // from "hash over all eight" and steal CS's, PHYS's or MATH's colour.
-    // Every realistic department already misses those slots by luck.
-    for (const course of [
+  // `bus_ilbc_open_249233` is §5.1's no-match path: the admin course whose id
+  // digits must not be read as a course number. Two such labels must still be
+  // able to differ — the label's own hash is what places them.
+  it("separates two labels that have no course code at all", () => {
+    expect(courseColour("bus_ilbc_open_249233")).not.toBe(courseColour("Kaufman office hours"));
+  });
+
+  it("stays inside the palette whatever it is given", () => {
+    const many = [
+      ...Array.from({ length: COURSE_COLOURS + 4 }, (_, i) => `DEPT${i}101`),
       "ECE374",
       "STAT425",
       "ME370",
@@ -1309,16 +1357,14 @@ describe("courseColours", () => {
       "AE202",
       "SOC100",
       "Kaufman office hours",
-    ]) {
-      expect(courseColours([course]).get(course), course).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it("stays inside the palette when a course list runs long", () => {
-    const many = Array.from({ length: COURSE_COLOURS + 4 }, (_, i) => `DEPT${i}101`);
-    for (const colour of courseColours(many).values()) {
-      expect(colour).toBeGreaterThanOrEqual(0);
-      expect(colour).toBeLessThan(COURSE_COLOURS);
+      "bus_ilbc_open_249233",
+      "",
+    ];
+    for (const course of many) {
+      const colour = courseColour(course);
+      expect(colour, course).toBeGreaterThanOrEqual(0);
+      expect(colour, course).toBeLessThan(COURSE_COLOURS);
+      expect(Number.isInteger(colour), course).toBe(true);
     }
   });
 

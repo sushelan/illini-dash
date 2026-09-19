@@ -79,7 +79,10 @@
    code invented never reads as one the source printed. */
 .dl--assumed {
   display: block; margin-top: 3px;
-  font-size: 10.5px; font-weight: 500; font-style: italic; color: var(--warn);
+  /* Was italic; the slant went on 2026-09-19 with the rest of it. Here the
+     sentence says the thing outright — "no time stated" — and the warn ink
+     carries it, so the weight is all the emphasis the slant was adding. */
+  font-size: 10.5px; font-weight: 600; font-style: normal; color: var(--warn);
 }
 .dl--count { text-align: right; flex: none; }
 .dl--count-big {
@@ -243,28 +246,26 @@ body[data-screen] #nav { display: none; }
  * Every colour is a token from `ui.css`.
  */
 
-/* ---- the shell, while a screen owns the document ------------------------ */
+/* ---- the Alerts tab ----------------------------------------------------- */
 /*
- * The tab strip, the course chips and the date navigator all describe the
- * calendar underneath, and none of them is answerable from the Needs-you
- * screen. Hidden rather than emptied, for the same reason `.setup` hides them:
- * an empty tab strip is still 42px of a 600px window.
- */
-.needsyou #tabs,
-.needsyou #filters,
-.needsyou #nav,
-/*
- * …and the banners, which on this screen are the same fact twice.
+ * One banner hidden, and nothing else.
  *
- * The stale-source banner is the sentence this screen opens with, drawn from
- * the same `staleNotice`; leaving both on screen means the first two lines of
- * the Needs-you screen say "Gradescope signed you out" one above the other. The
- * booking strip goes with them — a booking window is the calendar's business,
- * and it comes straight back on ‹ back.
+ * Alerts opens with the stale-source sentence at greater length, from the same
+ * `staleNotice` the banner is built from, so leaving both on screen means the
+ * tab's first two lines say "Gradescope signed you out" one above the other.
+ * Only that banner: `#banners` also carries "Deleted … · Undo", and Alerts is
+ * the tab where Hide and Tick off are pressed, so hiding the strip wholesale
+ * would take away the undo for the very presses this tab invites. Keyed on
+ * `data-view`, which `render` sets from `state.view` — never a width query,
+ * which can feed itself (UI rule 8's neighbour).
+ *
+ * The tab strip, the filters and the date navigator all stay: this is a tab
+ * now, not a screen, and a tab that hid the strip it is selected on would have
+ * no way back.
  */
-.needsyou #banners { display: none; }
+body[data-view="nodate"] .banner--stale { display: none; }
 
-/* ---- Needs you (D2, mock 1e) -------------------------------------------- */
+/* ---- Alerts: the sections that came off the Needs-you screen ------------- */
 
 /*
  * The amber sentence, full-bleed across the screen's padding.
@@ -413,3 +414,115 @@ body[data-screen] #nav { display: none; }
 .setup--note { font-size: 10.5px; color: var(--muted); text-align: center; margin: 9px 0 0; }
 
 .pincard--glyph { color: var(--accent); }
+
+/* === W5: the floating "+" and the quick add panel ======================== */
+/*
+ * Sushi, 2026-09-19: "the add should be in a hovering + on a tab in the day,
+ * week, and month that doesnt take up the whole screen, it should just be a
+ * small popup for date, time, name, course, and add/cancel."
+ *
+ * Two elements, both on `<body>` and both `position: fixed` — which is the one
+ * thing this popup has repeatedly got wrong, so it is worth saying exactly how
+ * this one is allowed to:
+ *
+ *   A fixed element contributes **no height** to the document, and the
+ *   document's intrinsic box is the only thing Chrome measures to size a
+ *   popup. `placeQuickPanel` (shell.ts) therefore asks for the room it needs as
+ *   a pixel `min-height` on `body` and gives it back on close, exactly as
+ *   `placeFloating` does for a menu. A pixel minimum *supplies* an intrinsic
+ *   height; the forbidden thing is a percentage or a viewport unit, which takes
+ *   one away.
+ *
+ * Everything positional — `bottom`, `max-height` — is written by that function
+ * and not here, because only it knows how tall the window is and where the "+"
+ * ended up. This file draws them.
+ */
+
+/* ---- the room a reserve takes, and where it is taken from ---- */
+
+/*
+ * `data-tabs-bottom` is written by `placeQuickFab` (shell.ts) whenever the
+ * design has put `#tabs` under the list at `bottom: 0`, and this is the only
+ * rule that reads it.
+ *
+ * Why it exists: the `min-height` reserve above makes `body` taller than its
+ * content, and `body` is a flex column in that layout, so the spare pixels
+ * collect *after* the last child — which is the tab strip. Sticky does not
+ * save it: `bottom: 0` only ever pulls a box up into the window, never down,
+ * so the strip stays where the content ended and the panel is drawn over it.
+ * Measured, day with nothing due, Classical dark: window 253 → 397 on open,
+ * strip still at 200–253 behind a panel at 12–284. Sushi saw exactly that —
+ * "the bottom row for today, week, etc. disappears".
+ *
+ * `margin-top: auto` hands that free space to the gap above the strip instead.
+ * It is inert in the common case: a document already taller than the window
+ * has no free space, so this changes no measurement there (verified — the
+ * reference day, week and month boxes are identical with and without it).
+ */
+body[data-tabs-bottom] > #tabs { margin-top: auto; }
+
+/* ---- the "+" ---- */
+
+/*
+ * Which tabs it appears on is read off the document rather than decided in
+ * script: `render` writes `body[data-view]` on every draw and a sub-screen
+ * writes `body[data-screen]`. The `[data-screen]` rule is last and at the same
+ * specificity, so it wins — a screen covers the list, and a "+" hovering over
+ * the deadline screen would add a row to a list that is not on show.
+ */
+/*
+ * Nothing here sets a colour.
+ *
+ * The ink is `.btn-primary`'s, put on the control in `shell.ts`. Painting it
+ * `var(--accent)` under `var(--accent-ink)` measured `rgb(141,180,242)` on
+ * `rgb(236,238,242)` in the Classical dark palette — about 1.4:1, a "+" you
+ * cannot see — and `rgb(4,18,46)` under `rgb(28,28,23)` in the light one. The
+ * pair a design guarantees goes together is the one its filled button uses.
+ *
+ * `bottom` is written by `placeQuickFab`, which is the only thing that knows
+ * whether this design's tab strip is under the list or over it.
+ */
+.qfab { display: none; }
+body[data-view="day"] .qfab,
+body[data-view="week"] .qfab,
+body[data-view="month"] .qfab {
+  display: inline-flex;
+  position: fixed;
+  right: 12px; bottom: 12px;
+  z-index: 19;                      /* under a menu (20), over the list */
+  width: 40px; height: 40px; padding: 0;
+  box-shadow: 0 3px 12px var(--shadow);
+}
+.qfab svg { width: 18px; height: 18px; }
+body[data-screen] .qfab { display: none; }
+
+/* ---- the panel ---- */
+
+.editor--quick {
+  position: fixed;
+  right: 12px;
+  z-index: 21;                      /* over the "+" it hangs above */
+  width: 336px; max-width: calc(100% - 24px);
+  /* Capped by `placeQuickPanel`; this is what makes the cap a scrollbar rather
+     than a Cancel button below the window's edge. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 11px 11px;
+  box-shadow: 0 8px 26px var(--shadow);
+}
+/*
+ * Two columns, in both windows. The full view widens `.editor--grid` to four
+ * and `.editor--field-wide` to two of them, which is right for a form that is
+ * the width of a tab and wrong for a 336px panel that is the same size in
+ * either window. Both of those are `(0,2,0)` and so is this, and this file
+ * loads after `popup.css` — so it wins on order, which is the only thing
+ * holding it. Anything that restyles these from a *later* sheet has to beat
+ * `(0,2,0)` or it loses silently.
+ */
+.editor--quick .editor--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.editor--quick .editor--field-wide { grid-column: 1 / -1; }
+.editor--quick .editor--head { margin: 0 0 8px; }
+.editor--quick .editor--title { margin: 0; }
+.editor--quick .editor--actions { margin-top: 11px; }

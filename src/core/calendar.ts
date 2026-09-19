@@ -28,6 +28,7 @@
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import { countdown, liveDeadline } from "./grouping.js";
 import { courseDepartment } from "./names.js";
+import { extractCourseCode } from "./normalize.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
@@ -1196,26 +1197,68 @@ export function weekStatus(item: Item, now: Date): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Eight hues, chosen to stay apart at a 3px border in both themes.
+ * The number of colour slots. A slot is a `course-N` class and a
+ * `--course-N` / `--course-N-bg` token pair.
  *
- * Small on purpose: a generated hue per course drifts into neighbours that are
- * indistinguishable at the size these are actually drawn.
+ * The history is the design, so it is written down rather than summarised:
+ *
+ * 1. *Eight hues, one per department.* Two courses in one department drew
+ *    identically on purpose, and the long comment that used to be here argued
+ *    for it from `docs/design/classical-spec.md` §1.
+ * 2. *Seven families, twenty-five shades* (2026-09-19, morning). Sushi asked for
+ *    "each class ... its own unique color", and the answer kept the department
+ *    as a hue *family* and gave each course its own shade of it. It met the
+ *    letter of the request: every course got a different value. It failed the
+ *    request, because five shades of one blue for five CS courses are five
+ *    blues. Measured, the closest two were dE00 4.77 apart; on screen CS 357,
+ *    CS 424 and CS 425 were one colour at a glance.
+ * 3. *This.* Sushi, seeing it built: "colors arent that much different, they
+ *    should be extremely different man cmon." The family structure is gone.
+ *    **"Blue means CS" is given up deliberately** — he would rather tell two CS
+ *    courses apart than know that a colour means CS — and the twenty hues are
+ *    spread around the wheel to maximise the *minimum* distance between any
+ *    two, which is the number he was complaining about.
+ *
+ * Twenty is not a free choice; `COURSE_GROUPS` and `SLOTS_PER_GROUP` below are
+ * its two factors and each is pinned by something real.
  */
-export const COURSE_COLOURS = 8;
+export const COURSE_COLOURS = 20;
 
 /**
- * The three departments the Classical spec names, and the slot each one owns.
+ * How many **disjoint** sets the slots are divided into, and how many slots
+ * each set holds. `COURSE_GROUPS * SLOTS_PER_GROUP === COURSE_COLOURS`.
  *
- * `docs/design/classical-spec.md` §1 prints the values: CS `#1a2744` on
- * `#e8ecf4`, PHYS `#8e3519` on `#fbede8`, MATH a bronzed umber. Those are
- * `--course-0`, `--course-1` and `--course-2` in `design-classical.css`, which
- * is why the mapping is to *slot numbers* rather than to colours: the dark
- * half of every slot lives in the stylesheet and only the stylesheet knows it.
+ * A group is *not* a hue family. Group 0 owns slots 0, 4, 8, 12 and 16, and
+ * those five are as far apart in colour as any other five in the palette —
+ * that is what the palette is optimised for. A group is a *collision domain*,
+ * and it exists because of the one thing a per-course colour cannot have:
+ * co-ordination. `courseColour` reads one label and nothing else (see below for
+ * why), so distinctness cannot be constructed; it can only be made likely.
+ *
+ * Grouping makes it likely in the shape that matters. Two departments in
+ * different groups can **never** collide, whatever courses are added, and two
+ * courses in one department collide only if their numbers differ by a multiple
+ * of five. Sushi's three departments land in three different groups, so all
+ * seven of his courses are distinct *by construction* rather than by luck, and
+ * they stay distinct as he enrols in more CS.
+ *
+ * Both numbers are forced:
+ *
+ * - **Five slots per group**, because his four CS courses are 357, 411, 424 and
+ *   425 and `number % 4` sends 357 and 425 to the same slot. Five is the
+ *   smallest that separates them.
+ * - **Four groups**, because three is not enough: djb2 sends CS, ECE and PHYS
+ *   to the same group modulo 3, and seven courses in five slots is a
+ *   pigeonhole. Modulo 4 they land in groups 1, 2 and 3.
+ *
+ * Going wider costs separation and buys little: the measured minimum distance
+ * across the whole palette falls from dE00 29 at eight slots to 21.8 at twelve
+ * and 16.2 at sixteen. Twenty is the point where the structure above works and
+ * the hues are still obviously different.
  */
-const SPEC_SLOTS: Record<string, number> = { CS: 0, PHYS: 1, MATH: 2 };
-
-/** The slots left for every other department. */
-const FALLBACK_START = Object.keys(SPEC_SLOTS).length;
+export const COURSE_GROUPS = 4;
+/** See `COURSE_GROUPS`. */
+export const SLOTS_PER_GROUP = COURSE_COLOURS / COURSE_GROUPS;
 
 /** djb2. Any stable string hash does; this one is short and has no deps. */
 function hash(text: string): number {
@@ -1224,54 +1267,77 @@ function hash(text: string): number {
   return h >>> 0;
 }
 
+/** The three digits of the course code, or `undefined` for a label with no code. */
+function courseNumber(course: string): number | undefined {
+  // `extractCourseCode` is §5.1's one reading of what a course code is,
+  // including the Gradescope `stat_425_120248` form. Writing a second regex for
+  // the digits over the raw label would be a second copy of that decision
+  // (mutation house rule 3) and would read `120248` as the course, or the year
+  // out of "Fall 2026 CS 411".
+  const code = extractCourseCode(course);
+  const digits = code === undefined ? null : /\d{3}/.exec(code);
+  return digits === null ? undefined : Number(digits[0]);
+}
+
 /**
- * A colour per course, keyed by the course's **department**.
+ * The group a course draws its colour from: its department's, or — for a label
+ * with no readable code at all — one derived from the label itself.
  *
- * Two earlier attempts and why neither stands:
+ * The department and not the course, so that every CS course is in one group
+ * and can therefore never collide with a PHYS one.
+ */
+export function courseGroup(course: string): number {
+  return hash(courseDepartment(course) ?? course) % COURSE_GROUPS;
+}
+
+/**
+ * The slot one course owns, computed from **that course alone**.
  *
- * - *Hash the course label.* It collided on the six courses this student takes,
- *   giving four colours for six courses.
- * - *Walk the sorted course list and hand out 0..7.* Distinct by construction,
- *   but it means CS 357 can come out plum while PHYS 214 comes out slate — the
- *   opposite of what §1 prints — and adding one course repaints every course
- *   after it alphabetically.
+ * This is the property that survived all three designs and is not negotiable:
+ * nothing here reads any other course, so adding or dropping a course cannot
+ * repaint one that stayed. `courseColours` is a `map` over independent calls
+ * for that reason and not as a convenience. The alternative — walk the sorted
+ * course list and hand out slots — is distinct by construction and repaints
+ * everything after the new arrival, which was the version before the version
+ * before this one.
  *
- * The spec settles it: §1 is headed "keyed by DEPARTMENT, not by arrival
- * order", and §4 and §5 ask for "department colours" on the week tag and
- * "coloured by department" on the month dots.
+ * Within the group, the slot comes from **the course number**, not a hash of
+ * the label. A hash of the label was tried first and collided: four colours for
+ * six courses. The number does better at the case that actually happens,
+ * because courses in a department are numbered near each other — 357, 411, 424,
+ * 425 — and two numbers collide modulo five only when they differ by a multiple
+ * of five. A hash throws that structure away and is a fresh birthday problem
+ * every term.
  *
- * **Two courses in the same department therefore share a hue, on purpose.**
- * The colour answers "whose is this" at a glance, and CS 225 and CS 357 are
- * both CS; the row already prints the code for the finer answer. Giving them
- * different hues would spend the palette's only three spec-fixed slots on
- * telling apart two things the text already tells apart, and would put one of
- * them somewhere §1 says CS is not.
+ * The department offset turns the numbers of one department as a block, so that
+ * two departments sharing a group are not forced to agree wherever their
+ * numbers do.
+ */
+export function courseColour(course: string): number {
+  const group = courseGroup(course);
+  const number = courseNumber(course);
+  // No code in the label at all (`bus_ilbc_open_249233`, an instructor's free
+  // text): there is no number to place it with, so the label's own hash does.
+  // `% COURSE_GROUPS` and `% SLOTS_PER_GROUP` of one hash are independent
+  // because 4 and 5 are coprime, so this spreads over all twenty slots.
+  const within =
+    number === undefined
+      ? hash(course) % SLOTS_PER_GROUP
+      : (number + (hash(courseDepartment(course) ?? "") % SLOTS_PER_GROUP)) % SLOTS_PER_GROUP;
+  return group + within * COURSE_GROUPS;
+}
+
+/**
+ * A colour per course.
  *
- * **The fallback is a pure hash, and that is a trade made deliberately.**
- * A department the spec does not name (ECE, STAT, ME) lands on
- * `3 + hash(dept) % 5`. Probing past an occupied slot would avoid more
- * collisions, but the probe depends on which *other* departments are on the
- * list, so enrolling in one more course would repaint the rest — the exact
- * instability this function exists to remove. Stability beats collision
- * avoidance, because a repaint happens on every change and a collision only
- * when two of the five hashes meet.
- *
- * **A label with no readable code** (`bus_ilbc_open_249233`, or an
- * instructor's free text) has no department, so the *label* is hashed into the
- * same fallback range. It is stable, which is all that can be promised; the
- * rename tool is the real fix, and this keeps the row from flickering until
- * someone uses it.
+ * Every hue is checked against the four colours that *mean* something —
+ * `--accent`, `--ok`, `--warn`, `--err`/`--now` — in both themes, because an
+ * 11px chip or a 4px edge bar that happens to be the warning amber is a lie
+ * about the row. The floor is dE00 12 and the stylesheet comment carries the
+ * measured distances.
  */
 export function courseColours(courses: readonly string[]): Map<string, number> {
   return new Map(courses.map((course) => [course, courseColour(course)]));
-}
-
-/** The slot one course owns, computed from that course alone. */
-export function courseColour(course: string): number {
-  const department = courseDepartment(course);
-  const pinned = department === undefined ? undefined : SPEC_SLOTS[department];
-  if (pinned !== undefined) return pinned;
-  return FALLBACK_START + (hash(department ?? course) % (COURSE_COLOURS - FALLBACK_START));
 }
 
 /** Every course present, in the order the chips are drawn. */

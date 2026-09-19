@@ -1,52 +1,5 @@
-/* design-classical-shell.css — the Classical calendar's shell layer.
- *
- * Scoped under `html[data-design="classical"]` like every rule in
- * `design-classical.css`, which loads first and owns the tokens, the type
- * scale and the shared card slip. Spend those here; do not restate them and
- * do not put a hex literal in this file.
- *
- * The invariants it may not break: `html` and `body` are never scroll
- * containers, nothing takes a viewport unit or a percentage height, no rule is
- * keyed on window width, and nothing in the popup is `position: fixed`.
- * See the header of popup.css.
- */
-
-/* --------------------------------------------------------------------------
- * 0. The three colours §2 names that the palette had no token for
- *
- * Each gets a light value and a dark one, because a colour with only a light
- * half is a colour nobody on this project's one machine will ever see
- * correctly. The dark values are not the light ones with an alpha: a wash
- * composites toward its own luminance, and lifting a near-black takes about
- * twice the step that darkening a near-white does.
- *
- * Everything else §2 asks for already has a token and is spent, not restated:
- * `--ink-navy` is `--brand-mark` (navy in light, the gold accent in dark, which
- * is the ink this design's structure is drawn in at that end), `--forest-green`
- * is `--ok`, `--border-rule` is `--line`, `--ink-muted` is `--muted` and
- * `--bg-parchment` is `--bg`.
- * ----------------------------------------------------------------------- */
-/*
- * No token block here.
- *
- * `--bg-subbar`, `--border-subtle` and `--bg-active-tab` were declared in this
- * file *and* in `design-classical.css`, with three different dark values
- * (#201c16 vs #221e18, #332c22 vs #322c23, #352c21 vs #332a20). This sheet
- * loads later, so its copies won — silently, and only in dark, which is the
- * mode nobody would have caught it in from a light screenshot.
- *
- * That is the "two copies of one decision" failure this project has already
- * had in CSS twice. The values live in `design-classical.css` with the rest of
- * §1's palette; this file spends them and declares nothing.
- */
-
-/* --------------------------------------------------------------------------
- * 1. The mark: the book, not the squircle
- *
- * `renderHealth` draws both and this picks. The default rule is unscoped on
- * purpose — it is the one place in this file that speaks for the other three
- * designs, and all it says is "the mark this design introduced is not yours".
- * ----------------------------------------------------------------------- */
+/* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
+ * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
 .appmark-book { display: none; }
 html[data-design="classical"] #health .appmark { display: none; }
 html[data-design="classical"] #health .appmark-book {
@@ -55,34 +8,11 @@ html[data-design="classical"] #health .appmark-book {
   color: var(--brand-mark);
 }
 html[data-design="classical"] #health { align-items: center; gap: 8px; }
-
-/* The wordmark, at §2's weight and tracking. `design-classical.css` already
-   sets the size; this states the two it does not. */
 html[data-design="classical"] .wordmark {
   font-weight: 700;
   letter-spacing: -.01em;
   color: var(--brand-mark);
 }
-
-/* --------------------------------------------------------------------------
- * 2. The health & sync bar — the footer strip, moved to the top
- *
- * A second strip was the alternative and was refused. "How many sources are
- * healthy" is derived once, in `core/health.ts`, and printed once, by
- * `renderFooter` — a second bar means either a second derivation (worker
- * rule 2: the first merged build had one, and it said "4 sources" in green over
- * three that had never been read) or two elements rendering one string, which
- * is the same bug waiting for one of them to be updated alone. So this is the
- * same element, the same call and the same words; only its `order` and its
- * type change.
- *
- * `order`, not `position: fixed` and not a move in the markup. The document is
- * a flex column, so `.bar` at -2 and the strip at -1 put it under the header
- * while both stay in flow and keep contributing their height to the box Chrome
- * measures. `position: static` undoes the sticky it needs at the foot: sticky
- * to the *top* here would be the same pixels, since nothing above it scrolls
- * away, and would add a stacking context for nothing.
- * ----------------------------------------------------------------------- */
 html[data-design="classical"] .bar { order: -2; }
 html[data-design="classical"] #footer {
   order: -1;
@@ -94,16 +24,11 @@ html[data-design="classical"] #footer {
   border-top: 0;
   border-bottom: 1px solid var(--border-subtle);
 }
-/* The warn wash layered over the sub-bar's own ground rather than the
-   surface `popup.css` names — the strip is opaque here too, and a translucent
-   one under the header would show the header's rule through the sentence. */
 html[data-design="classical"] #footer.foot--warn {
   background-color: var(--bg-subbar);
 }
 html[data-design="classical"] .foot--dot { width: 6px; height: 6px; }
 html[data-design="classical"] .foot--dot.is-ok { background: var(--ok); }
-/* 11px, and the count no heavier than the clock beside it: this is a caption
-   under the title, and a 600-weight number in it reads as a second heading. */
 html[data-design="classical"] .foot--health {
   font-family: var(--label);
   font-size: 11px;
@@ -113,7 +38,6 @@ html[data-design="classical"] .foot--count {
   font-weight: 500;
   color: var(--muted);
 }
-/* The sync control: the glyph `renderFooter` always draws, shown only here. */
 .foot--sync .icon { display: none; }
 html[data-design="classical"] .foot--sync {
   display: flex;
@@ -129,37 +53,161 @@ html[data-design="classical"] .foot--sync .icon {
   width: 13px;
   height: 13px;
 }
-/* `Sync Now`, §2's capitalisation, without a second spelling of the string in
-   the TypeScript — the label is one element so the transform reaches the words
-   and not the glyph, and "Syncing…" is unaffected by it. */
 html[data-design="classical"] .foot--sync-label { text-transform: capitalize; }
-
-/* --------------------------------------------------------------------------
- * 3. The tab strip — §2's metrics
- *
- * 48px, a 17px glyph over a 10px letter-spaced uppercase label, and a 2px
- * marker along the top of the selected tab.
- *
- * The marker is an inset `box-shadow`, not `border-top`. A border is 2px of
- * box on one tab out of five, so the selected tab would be 2px shorter inside
- * than its neighbours and the whole strip's height would change as the marker
- * moved; the shadow paints the same two pixels and costs no layout. The strip
- * is the popup's last 48px and height is this popup's recurring bug.
- * ----------------------------------------------------------------------- */
 html[data-design="classical"] .tab {
-  height: 48px;
+  height: 44px;
   gap: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: .05em;
-  text-transform: uppercase;
+  text-transform: none;
 }
-html[data-design="classical"] .tab--label { line-height: 1.1; }
+/* `line-height` in px, not a ratio: 11px × 1.1 is a 12.1px line box, which sets
+   the label tighter than the type it is set in. The tab keeps its 44px — icon
+   20 + gap 2 + label 16 is 38 — so the leading is bought out of air, not
+   height. */
+html[data-design="classical"] .tab--label { line-height: 16px; } /* mock: text-label-sm 11/16 on every tab's label span */
 html[data-design="classical"] .tab[aria-selected="true"] {
   background: var(--bg-active-tab);
-  color: var(--brand-mark);
+  color: var(--muted);
   font-weight: 700;
-  box-shadow: inset 0 2px 0 var(--brand-mark);
+  box-shadow: none;
 }
 html[data-design="classical"] .tab:not([aria-selected="true"]) { color: var(--muted); }
 html[data-design="classical"] .tab:not([aria-selected="true"]):hover { background: var(--tint); }
+
+/* 8px, not 10. The mock's header row is `py-space-xs` — 4px — and the bar's own
+   `min-height: 44px` is what actually sets the height today (content 24 + 20 of
+   padding lands exactly on it). A 28px control at 10px padding measures 48 and
+   grows the bar; 8 is the largest padding that keeps it at 44, and it moves
+   toward the mock rather than away from it. Height is this popup's recurring
+   bug — the bar must not gain 4px to make a gear bigger. */
+html[data-design="classical"] .bar { padding: 8px 16px; gap: 8px; } /* mock: header px-space-md py-space-xs */
+html[data-design="classical"] #health { min-width: 0; flex: 1; }
+html[data-design="classical"] .wordmark { white-space: normal; line-height: 1.2; }
+html[data-design="classical"] .bar--right { flex: none; gap: 2px; }
+html[data-design="classical"] #health .appmark-book { width: 20px; height: 20px; }
+/*
+ * Add, More and Settings. `.btn-icon` is 28×28 with a 16px glyph everywhere
+ * else in this project; `.bar .btn-icon` in `popup.css` takes the popup's three
+ * down to 24 with a 14px glyph, for a bar that then carried a health pill with
+ * a whole sentence in it. The pill moved to the sub-bar on 2026-09-19, so the
+ * reason is gone and the mock's size applies: a 20px symbol inside `p-1`.
+ *
+ * The full view keeps its own 34px. It is excluded by the marker the page sets
+ * from its URL, never by a width query — a layout rule keyed on window width
+ * can feed itself (AGENTS.md).
+ */
+html[data-design="classical"]:not(.view-full) #actions .btn-icon { width: 28px; height: 28px; } /* mock: settings button p-1 around the glyph */
+html[data-design="classical"]:not(.view-full) #actions .btn-icon .icon { width: 20px; height: 20px; } /* mock: settings text-[20px]/text-[19px], menu_book text-[20px] */
+/*
+ * And the nested symbol, which the base rule reaches by accident.
+ *
+ * `.bar .btn-icon svg` is a type selector, so it matches the Material `<svg>`
+ * *inside* the icon as well as the icon itself — and CSS px on a nested svg are
+ * user units of the parent's `viewBox`, which is `0 0 16 16`. At 14 the glyph
+ * drew at seven-eighths scale anchored top-left; at 20 it would overflow by a
+ * quarter and be clipped. Restating the viewBox extent makes the symbol fill
+ * whatever the outer icon measures, here and in the full view.
+ */
+html[data-design="classical"] #actions .btn-icon .icon-material { width: 16px; height: 16px; } /* the outer icon's viewBox extent, not a size */
+html[data-design="classical"] .tab[aria-selected="true"] .icon { color: var(--muted); }
+/*
+ * These style the observer cards on the **Needs-you screen**, which is the only
+ * place they are drawn since the front strip went (2026-09-19). The rules that
+ * placed that strip in the popup's own flow, and the `#ledger` row under it,
+ * went with it.
+ */
+.front-sources { display: flex; flex-wrap: wrap; gap: 8px; }
+.front-source { flex: 1 1 150px; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); text-align: left; cursor: pointer; }
+.front-source > .icon { flex: none; width: 20px; height: 20px; }
+.front-source--copy { min-width: 0; display: flex; flex-direction: column; }
+.front-source--name { font: 600 13px/18px var(--label, var(--sans)); }
+.front-source--status { font: 400 11px/16px var(--label, var(--sans)); color: var(--muted); overflow-wrap: anywhere; }
+.front-source.is-warn { border-color: var(--warn); }
+.front-source.is-err { border-color: var(--err); }
+.front-source--action { font: 600 11px/16px var(--label, var(--sans)); color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ==========================================================================
+ * "Found in a post", on the Needs-you screen
+ *
+ * The row used to be a `.row`, and inherited the calendar card's grid without
+ * carrying any of its area classes — so its four parts auto-placed and the
+ * title ended up in a 34px column near the right edge (Sushi, 2026-09-19:
+ * "why is the name of the assignment on the needs you page to the right").
+ * `renderSuggestions` now builds its own two lines and this draws them.
+ *
+ * Unscoped, like `.front-source` above it: every design needs these rows to
+ * hold together, and only the numbers below the fold are Classical's.
+ * ====================================================================== */
+.sug-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--card-line); border-radius: 3px;
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+.sug-row { padding: 9px 10px 10px; cursor: default; }
+.sug-row + .sug-row { border-top: 1px solid var(--border-subtle); }
+.sug-row:hover { background: var(--hover); }
+/* Line one: the course code, then the title beside it. */
+.sug-head { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.sug-head .chip { flex: none; }
+.sug-title {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--fg);
+  white-space: normal; overflow-wrap: anywhere;
+}
+/* Line two. `.sug-actions` floats, so a wrapped sentence reclaims the full
+   width under it rather than being set in a column beside it. */
+.sug-line { display: block; margin-top: 3px; min-width: 0; }
+.sug-line::after { content: ""; display: block; clear: both; }
+.sug-actions { float: right; display: flex; align-items: center; gap: 5px; margin: -1px 0 2px 10px; }
+.sug-actions .btn { height: 22px; min-height: 0; padding: 0 8px; }
+.sug-facts {
+  display: block; min-width: 0;
+  font-size: 11.5px; line-height: 1.4; color: var(--muted);
+  white-space: normal; overflow-wrap: anywhere;
+}
+/* The stated deadline carries the weight on this line: it is the fact the row
+   is about, and it was a 10.5px afterthought in the corner. */
+#view .sug-facts .row--due {
+  display: inline; text-align: left; white-space: nowrap;
+  font-size: 11.5px; font-weight: 600; color: var(--fg);
+}
+/* …unless this extension invented the hour (worker rule 3). `.row--assumed`
+   keeps its `cursor: help` and the sentence that says so. */
+#view .sug-facts .row--due.row--assumed { font-weight: 500; color: var(--muted); }
+.sug-facts .needsyou--from {
+  display: inline; min-width: 0;
+  overflow: visible; white-space: normal; overflow-wrap: anywhere;
+  font-size: 11.5px; color: var(--muted);
+}
+.sug-facts .row--sep { opacity: .5; margin: 0 3px; }
+html[data-design="classical"] .sug-facts .needsyou--from { font-family: var(--serif); }
+html[data-design="classical"] .sug-title { font-family: var(--serif); }
+html[data-design="classical"] .sug-actions .btn {
+  border: 1px solid var(--nd-act-edge); border-radius: 2px; background: var(--nd-act-bg);
+  font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .06em;
+}
+html[data-design="classical"] .sug-actions .btn-primary { border-color: var(--muted); color: var(--brand-mark); background: var(--nd-act-bg); }
+html[data-design="classical"] .sug-actions .btn:not(.btn-primary) { color: var(--muted); }
+
+/* ==========================================================================
+ * The banner strip, on the page gutter: 12 → 16.
+ *
+ * Every other band in this popup is inset 16 — the header `.bar`, the sub-bar
+ * `#footer`, the date navigator, and each view's own `#view` padding all say
+ * `16px` above or in the per-view sheets. `.banner-line` in `ui.css` is
+ * `padding: 4px 12px`, and it was the only one that did not: the one line that
+ * reports "Gradescope signed you out" started four pixels left of the page it
+ * interrupts, on every view, because a banner is shell rather than view.
+ *
+ * Only the inline half moves. The 4px block padding and the 32px `min-height`
+ * are what keep a banner to one line (`ui.css`), and height is this popup's
+ * recurring bug.
+ *
+ * 16 is written out rather than taken from a token: there is no gutter custom
+ * property in this design yet, and inventing one here would put it in a sheet
+ * that does not own the design's §1 tokens.
+ * ====================================================================== */
+html[data-design="classical"] .banner-line { padding-inline: 16px; } /* was 12, from ui.css; the page gutter is 16 */

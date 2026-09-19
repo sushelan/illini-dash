@@ -28,6 +28,7 @@ import {
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
+import { normalizePageUrl } from "../core/page-url.js";
 import {
   CAMPUSWIRE_MATCH,
   describeObserver,
@@ -35,7 +36,6 @@ import {
 } from "../core/campuswire.js";
 import {
   describePiazza,
-  piazzaChipState,
   PIAZZA_LOGIN_URL,
   PIAZZA_MATCH,
   type PiazzaFacts,
@@ -76,6 +76,7 @@ let lastResults: Gate0Result[] = [];
 
 /* Before the first paint. See src/ui/theme-panel.ts. */
 applyStoredTheme();
+document.getElementById("back")?.replaceChildren(icon("book"), document.createTextNode("Illini Dash"));
 
 /* ---- Build identity -------------------------------------------------------
  * Chrome reloads this page from disk but keeps the old service worker until the
@@ -458,11 +459,20 @@ function renderCapture(result: CaptureResult): void {
 }
 
 captureButton.addEventListener("click", async () => {
-  const url = captureUrl.value.trim();
-  if (!url) {
+  const typed = captureUrl.value.trim();
+  if (!typed) {
     captureStatus.textContent = "Enter a URL first.";
     return;
   }
+  // Before the permission, not after it (I04): text that is not an address
+  // makes `ensureHostPermission` return false without ever asking Chrome, and
+  // every sentence past this point would blame Chrome for the refusal.
+  const address = normalizePageUrl(typed);
+  if (!address.ok) {
+    captureStatus.textContent = address.reason;
+    return;
+  }
+  const url = address.url;
   if (!(await ensureHostPermission(url))) {
     captureStatus.textContent =
       `Chrome did not grant access to ${url}. That host is an optional ` +
@@ -578,7 +588,9 @@ function stateChip(
   const tone =
     state === "ok"
       ? "is-ok"
-      : state === "needs_login"
+      // `needs_permission` is a warning and not a failure: nothing is broken,
+      // and the fix is the button beside it (see `observerRow`).
+      : state === "needs_login" || state === "needs_permission"
         ? "is-warn"
         : state === "disabled" || state === "pending"
           ? ""
@@ -591,6 +603,280 @@ function stateChip(
   );
   if (title) chip.title = title;
   return chip;
+}
+
+/* ---- Piazza and Campuswire ----------------------------------------------
+ *
+ * Two sources that are drawn as sources.
+ *
+ * Until 2026-09-19 each had its own hand-built block: the chip's words came
+ * from `describeObserver` / `describePiazza`, its colour from `piazzaChipState`
+ * for one of them and from the literal "disabled" for the other, and neither
+ * row could say "read successfully" in the vocabulary the six rows above it
+ * use. So a Campuswire that was working and a Campuswire that was off were the
+ * same grey, and the page had two dialects for one question.
+ *
+ * `core/observer-ui.ts`'s `observerRows` derives the popup's version of this and
+ * is not edited from here. It could not serve this row as it stands: its tone is
+ * never `ok`, so it cannot express "I read it, and it was fine" — the whole of
+ * what was asked for — and it knows nothing about the host permission. The state
+ * is therefore derived below from the same `ObserverState` fields it reads, into
+ * the sources' own vocabulary, and the *words* inside the chip still come from
+ * the two describe functions the suite already pins.
+ */
+
+interface ObserverSpec {
+  id: "campuswire" | "piazza";
+  name: string;
+  hint: string;
+  /** The optional host permission the row cannot read anything without (§2.3). */
+  match: string;
+  /** What the chip's tooltip says this source actually does. */
+  title: string;
+  /** Where a student who has to sign in elsewhere is sent. */
+  loginUrl?: string;
+}
+
+const OBSERVERS: readonly ObserverSpec[] = [
+  {
+    id: "campuswire",
+    name: "Campuswire",
+    match: CAMPUSWIRE_MATCH,
+    hint:
+      "Reads deadlines out of the class feeds you open, on this computer. " +
+      "Nothing is sent to Campuswire and no posts are stored.",
+    title: "Illini Dash reads a Campuswire class feed only while you have it open.",
+  },
+  {
+    id: "piazza",
+    name: "Piazza",
+    match: PIAZZA_MATCH,
+    loginUrl: PIAZZA_LOGIN_URL,
+    hint:
+      "Reads the announcements in your Piazza classes on each sync, using the session " +
+      "already in this browser. Nothing is posted and no post is stored.",
+    title: "Illini Dash reads your Piazza class feeds in the background, on each sync.",
+  },
+];
+
+/**
+ * Whether the optional host permission behind a row has actually been granted.
+ *
+ * Asked rather than assumed. The switch is in our own state and the permission
+ * is Chrome's: a student who revokes the host in chrome://extensions leaves the
+ * switch on, and the row then reported "nothing read yet" for ever — a pending
+ * state for a source that can never read anything again.
+ *
+ * A throw here is not a finding about the source, and a render function must
+ * never reject into a console nobody has open (worker rule 8), so it reads as
+ * granted and the row falls back to what the stored facts say.
+ */
+async function hasOrigin(match: string): Promise<boolean> {
+  try {
+    return await chrome.permissions.contains({ origins: [match] });
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The state to show for an observer, in the same words as a fetched source.
+ *
+ * Worker rule 2 decides every branch. `ok` is returned only where something has
+ * actually been read — a Piazza attempt that happened, a Campuswire page that
+ * was seen — so a source the student has just switched on is `pending` and
+ * never green. A stored `ok` with no `lastAttemptAt` is not proof either: it is
+ * what a seed or an older build writes, which is exactly the defect
+ * `displayState` exists for one row up.
+ */
+function observerState(
+  spec: ObserverSpec,
+  facts: ObserverFacts | undefined,
+  granted: boolean,
+): string {
+  if (facts?.enabled !== true) return "disabled";
+  if (!granted) return "needs_permission";
+  if (spec.id === "campuswire") return facts.lastObservedAt === undefined ? "pending" : "ok";
+  const piazza = facts as PiazzaFacts;
+  if (piazza.state === "needs_login") return "needs_login";
+  if (piazza.state === "error") return "parse_error";
+  return piazza.state === "ok" && piazza.lastAttemptAt !== undefined ? "ok" : "pending";
+}
+
+/** The "On · …" tail of a describe line — the facts, without its own state word. */
+function observerDetail(
+  spec: ObserverSpec,
+  facts: ObserverFacts | undefined,
+  now: Date,
+): string | undefined {
+  const line =
+    spec.id === "piazza"
+      ? describePiazza(facts as PiazzaFacts | undefined, now)
+      : describeObserver(facts, now);
+  return line.startsWith("On \u00b7 ") ? line.slice(5) : undefined;
+}
+
+/**
+ * The chip's text: the state word from the family, the facts from the describe
+ * functions.
+ *
+ * Two words are the observers' own. "Permission needed" has no equivalent among
+ * the fetched sources, which are granted up front. And Campuswire is not
+ * *checking* anything while it waits — it reads a feed the student opens, so
+ * `STATE_WORD.pending`'s "Checking…" would claim an activity that is not
+ * happening, which is the same lie as a green dot over a source that never
+ * fetched.
+ */
+function observerChipText(
+  spec: ObserverSpec,
+  shown: string,
+  facts: ObserverFacts | undefined,
+  now: Date,
+): string {
+  const word =
+    shown === "needs_permission"
+      ? "Permission needed"
+      : shown === "pending" && spec.id === "campuswire"
+        ? "Waiting for a feed"
+        : (STATE_WORD[shown] ?? shown);
+  /*
+   * Only a state that *is* about reading carries the reading facts. With the
+   * permission revoked the same line read "Permission needed · last read
+   * 11:14 AM · 3 posts" — a state word and a detail that contradict each
+   * other, and the half a student believes is the cheerful one.
+   */
+  const detail = shown === "ok" || shown === "pending" ? observerDetail(spec, facts, now) : undefined;
+  // "nothing read yet" is what both pending words already say.
+  return detail === undefined || detail === "nothing read yet" ? word : `${word} \u00b7 ${detail}`;
+}
+
+/**
+ * One observer row: the sources' switch, the sources' chip, one button.
+ *
+ * The button is the point of the two states that need a person. `needs_login`
+ * with nothing to press is the defect this project has hit more than once, and
+ * a missing permission that reports itself as a failure sends a student to look
+ * for a bug instead of at a Chrome prompt.
+ */
+async function observerRow(
+  spec: ObserverSpec,
+  facts: ObserverFacts | undefined,
+  missing: readonly string[],
+  now: Date,
+): Promise<HTMLElement> {
+  const unavailable = missing.includes("observers") || missing.includes(`observers.${spec.id}`);
+  const granted = await hasOrigin(spec.match);
+  const shown = unavailable ? "pending" : observerState(spec, facts, granted);
+
+  /*
+   * Held as variables rather than looked up by class when the switch is used.
+   * Three redraw guards in the popup asked for `.menu` while the class was
+   * `menu-surface` and were dead from the day they were written (UI rule 7); a
+   * reference cannot be misspelled.
+   */
+  const chip = stateChip(shown, undefined, spec.title);
+  chip.textContent = observerChipText(spec, shown, facts, now);
+  const lastError = (facts as PiazzaFacts | undefined)?.lastError;
+  if (lastError !== undefined) chip.title = lastError;
+
+  const row = switchRow({
+    name: spec.name,
+    hint: spec.hint,
+    checked: facts?.enabled === true,
+    onChange: (enabled) => {
+      const box = row.querySelector("input");
+      // The control says it is doing something (UI rule 4): this round trip
+      // includes a permission prompt and a first read, and without this a
+      // denied prompt and a click that never ran look identical.
+      if (box) box.disabled = true;
+      // Working, not broken: the tone goes back to neutral while the round trip
+      // is in flight, or a failing row keeps its red under the word "Asking".
+      chip.className = "chip-base chip-state";
+      chip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
+      const restore = (text: string): void => {
+        if (box) {
+          box.disabled = false;
+          box.checked = facts?.enabled === true;
+        }
+        // The chip goes back to the state it was drawn in, tone and all.
+        chip.className = stateChip(shown).className;
+        chip.textContent = observerChipText(spec, shown, facts, now);
+        // On the row, not in the page's status line: `#gate0-status` is in
+        // another section entirely, and a report that lands where the error did
+        // not happen is not a channel (UI rule 3).
+        hint.textContent = text;
+      };
+      // Requested here, synchronously inside the handler: a user gesture does
+      // not survive an await, so the worker cannot ask for this.
+      const asked = enabled
+        ? chrome.permissions.request({ origins: [spec.match] })
+        : Promise.resolve(true);
+      void asked
+        .then((ok) => {
+          if (!ok) {
+            restore(`Permission denied, so ${spec.name} stays off.`);
+            return undefined;
+          }
+          return send({ type: "set-observer-enabled", observer: spec.id, enabled }).then(
+            (response) => {
+              if (response.type === "error") restore(response.message);
+              else void refreshOptions();
+            },
+          );
+        })
+        // Every send from a page gets one (UI rule 2): without it a stale
+        // worker rejects into nothing at all and the switch just springs back.
+        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+    },
+  });
+  const hint = row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  row.append(chip);
+
+  if (unavailable) {
+    /*
+     * The worker is older than this page and has no state for this observer.
+     * Without this the row says "Off", which is the student's own switch, and
+     * the click would grant the host permission and only then reach a worker
+     * that throws on it. The banner at the top says it too; this says it where
+     * the control is (UI rule 3).
+     */
+    const box = row.querySelector("input");
+    if (box) box.disabled = true;
+    chip.textContent = "Reload needed";
+    hint.textContent =
+      `The background part of Illini Dash is still running an older version that has no ` +
+      `${spec.name} support. Open chrome://extensions, click Reload on the Illini Dash ` +
+      `card, then reopen this page.`;
+    return row;
+  }
+
+  if (shown === "needs_permission") {
+    const allow = el("button", "Allow", "btn btn-secondary btn-sm");
+    allow.addEventListener("click", () => {
+      allow.disabled = true;
+      allow.textContent = "Asking\u2026";
+      const back = (text: string): void => {
+        allow.disabled = false;
+        allow.textContent = "Allow";
+        hint.textContent = text;
+      };
+      // Synchronously inside the click, for the same reason as the switch.
+      void chrome.permissions
+        .request({ origins: [spec.match] })
+        .then((ok) => {
+          if (!ok) back(`Permission denied, so ${spec.name} cannot be read.`);
+          else void refreshOptions();
+        })
+        .catch((err: unknown) => back(err instanceof Error ? err.message : String(err)));
+    });
+    row.append(allow);
+  } else if (shown === "needs_login" && spec.loginUrl !== undefined) {
+    const url = spec.loginUrl;
+    const login = el("button", "Sign in", "btn btn-secondary btn-sm");
+    login.addEventListener("click", () => chrome.tabs.create({ url }));
+    row.append(login);
+  }
+  return row;
 }
 
 /* ---- Course-site adapters, grouped by course -----------------------------
@@ -1032,184 +1318,17 @@ async function renderOptions(): Promise<void> {
   }
 
   /*
-   * Campuswire, under the same heading as the sources.
+   * Piazza and Campuswire, in the rows the sources above use.
    *
-   * It belongs here and not under Course websites because what it produces is
-   * deadlines, from a place the student thinks of as a place deadlines come
-   * from — and because a row about reading a page has nothing to do with the
-   * adapter machinery below, which is about fetching URLs. It is appended to
-   * this list rather than given a section of its own because `options.html` is
-   * not this change's to edit; if it grows a second observer it wants a heading.
-   *
-   * It is not a `Source`: nothing is fetched, there is no health to report, and
-   * the chip says what has actually been read rather than what the switch says
-   * (`describeObserver`, worker rule 2).
+   * They belong under this heading because what they produce is deadlines, from
+   * places a student thinks of as places deadlines come from. Everything that
+   * decides what each row says is in `observerRow` and its three helpers above;
+   * this loop only decides the order.
    */
   const observers = (state.observers ?? {}) as Record<string, ObserverFacts | undefined>;
-  const campuswire = observers["campuswire"];
-  /*
-   * Held as variables rather than looked up by class when the switch is used.
-   * Three redraw guards in the popup asked for `.menu` while the class was
-   * `menu-surface` and were dead from the day they were written (UI rule 7); a
-   * reference cannot be misspelled.
-   */
-  const cwChip = stateChip(
-    "disabled",
-    undefined,
-    "Illini Dash reads a Campuswire class feed only while you have it open.",
-  );
-  cwChip.textContent = describeObserver(campuswire);
-  const cwRow = switchRow({
-    name: "Campuswire",
-    hint:
-      "Reads deadlines out of the class feeds you open, on this computer. " +
-      "Nothing is sent to Campuswire and no posts are stored.",
-    checked: campuswire?.enabled === true,
-    onChange: (enabled) => {
-      const box = cwRow.querySelector("input");
-      // The control says it is doing something (UI rule 4): this round trip
-      // includes a permission prompt and a content-script registration, and
-      // without this a denied prompt and a click that never ran look identical.
-      if (box) box.disabled = true;
-      cwChip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
-      const restore = (text: string): void => {
-        if (box) {
-          box.disabled = false;
-          box.checked = campuswire?.enabled === true;
-        }
-        cwChip.textContent = describeObserver(campuswire);
-        // On the row, not in the page's status line: `#gate0-status` is in
-        // another section entirely, and a report that lands where the error did
-        // not happen is not a channel (UI rule 3).
-        cwHint.textContent = text;
-      };
-      // Requested here, synchronously inside the handler: a user gesture does
-      // not survive an await, so the worker cannot ask for this (see the
-      // adapter row above, where asking from the worker silently failed).
-      const asked = enabled
-        ? chrome.permissions.request({ origins: [CAMPUSWIRE_MATCH] })
-        : Promise.resolve(true);
-      void asked
-        .then((granted) => {
-          if (!granted) {
-            restore("Permission denied, so Campuswire stays off.");
-            return undefined;
-          }
-          return send({ type: "set-observer-enabled", observer: "campuswire", enabled }).then(
-            (response) => {
-              if (response.type === "error") restore(response.message);
-              else void refreshOptions();
-            },
-          );
-        })
-        // Every send from a page gets one (UI rule 2): without it a stale
-        // worker rejects into nothing at all and the switch just springs back.
-        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
-    },
-  });
-  const cwHint = cwRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
-  cwRow.append(cwChip);
-  sources.append(cwRow);
-
-  /*
-   * Piazza, beside Campuswire and switched on the same way.
-   *
-   * It says more than Campuswire's row can, because it is *fetched*: there is a
-   * login state, a failure and an attempt behind every word, and all of them
-   * come from `describePiazza` rather than from the switch (worker rule 2). The
-   * Sign in button is the point of the `needs_login` state — the state that
-   * says "sign in" with nothing to press is the defect this project has hit
-   * more than once.
-   */
-  const piazza = observers["piazza"] as PiazzaFacts | undefined;
-  /*
-   * The tone comes from the state, like every Source row below (`displayState`).
-   * It was the literal "disabled", so "Couldn't be read" and "Sign in needed"
-   * were painted the same neutral grey as "Off" — on a page whose other rows
-   * use colour as the scanning signal, which left this row's failure legible
-   * only word by word. The words still come from `describePiazza`.
-   */
-  const pzState = (): string => piazzaChipState(piazza);
-  const pzChip = stateChip(
-    pzState(),
-    undefined,
-    "Illini Dash reads your Piazza class feeds in the background, on each sync.",
-  );
-  pzChip.textContent = describePiazza(piazza);
-  if (piazza?.lastError) pzChip.title = piazza.lastError;
-  const pzRow = switchRow({
-    name: "Piazza",
-    hint:
-      "Reads the announcements in your Piazza classes on each sync, using the session " +
-      "already in this browser. Nothing is posted and no post is stored.",
-    checked: piazza?.enabled === true,
-    onChange: (enabled) => {
-      const box = pzRow.querySelector("input");
-      // The control says it is working (UI rule 4): this round trip includes a
-      // permission prompt and a first poll, and without it a denied prompt and
-      // a click that never ran look identical.
-      if (box) box.disabled = true;
-      // Working, not broken: the tone goes back to neutral while the round trip
-      // is in flight, or a failing row keeps its red under the word "Asking".
-      pzChip.className = "chip-base chip-state";
-      pzChip.textContent = enabled ? "Asking\u2026" : "Turning off\u2026";
-      const restore = (text: string): void => {
-        if (box) {
-          box.disabled = false;
-          box.checked = piazza?.enabled === true;
-        }
-        // The chip goes back to the state it was drawn in, tone and all.
-        pzChip.className = stateChip(pzState()).className;
-        pzChip.textContent = describePiazza(piazza);
-        // On the row, where the error happened (UI rule 3).
-        pzHint.textContent = text;
-      };
-      // Inside the click, synchronously: a user gesture does not survive an
-      // await, so the worker cannot ask for this.
-      const asked = enabled
-        ? chrome.permissions.request({ origins: [PIAZZA_MATCH] })
-        : Promise.resolve(true);
-      void asked
-        .then((granted) => {
-          if (!granted) {
-            restore("Permission denied, so Piazza stays off.");
-            return undefined;
-          }
-          return send({ type: "set-observer-enabled", observer: "piazza", enabled }).then(
-            (response) => {
-              if (response.type === "error") restore(response.message);
-              else void refreshOptions();
-            },
-          );
-        })
-        // UI rule 2: without this a stale worker rejects into nothing at all
-        // and the switch just springs back.
-        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
-    },
-  });
-  const pzHint = pzRow.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
-  pzRow.append(pzChip);
-  if (missing.includes("observers.piazza")) {
-    /*
-     * The worker is older than this page and has no Piazza observer at all.
-     * Without this the row says "Off", which is the student's own switch, and
-     * the click would grant the host permission and only then reach a worker
-     * that throws on it. The banner at the top says it too; this says it where
-     * the control is (UI rule 3).
-     */
-    const box = pzRow.querySelector("input");
-    if (box) box.disabled = true;
-    pzHint.textContent =
-      "The background part of Illini Dash is still running an older version that has no " +
-      "Piazza support. Open chrome://extensions, click Reload on the Illini Dash card, " +
-      "then reopen this page.";
+  for (const spec of OBSERVERS) {
+    sources.append(await observerRow(spec, observers[spec.id], missing, now));
   }
-  if (piazza?.enabled === true && piazza.state === "needs_login") {
-    const login = el("button", "Sign in", "btn btn-secondary btn-sm");
-    login.addEventListener("click", () => chrome.tabs.create({ url: PIAZZA_LOGIN_URL }));
-    pzRow.append(login);
-  }
-  sources.append(pzRow);
 
   // The site source's state still has to be visible somewhere, or a failing
   // adapter loses its only signal (worker rule 2).
@@ -1837,11 +1956,19 @@ const reportStatus = () => document.getElementById("report-status")!;
 const reportResult = () => document.getElementById("report-result")!;
 
 document.getElementById("report-fetch")!.addEventListener("click", async () => {
-  const url = (document.getElementById("report-url") as HTMLInputElement).value.trim();
-  if (!url) {
+  const typed = (document.getElementById("report-url") as HTMLInputElement).value.trim();
+  if (!typed) {
     reportStatus().textContent = "Paste the URL of the page that is not working.";
     return;
   }
+  // I04, as in the capture tool above: a string that is not an address is this
+  // page's finding to report, not Chrome's.
+  const address = normalizePageUrl(typed);
+  if (!address.ok) {
+    reportStatus().textContent = address.reason;
+    return;
+  }
+  const url = address.url;
   if (!(await ensureHostPermission(url))) {
     reportStatus().textContent =
       `Chrome did not grant access to ${url}, so that page cannot be read.`;
@@ -1993,12 +2120,21 @@ const addSiteStatus = document.getElementById("add-site-status")!;
 const addSiteResult = document.getElementById("add-site-result")!;
 
 document.getElementById("add-site-go")!.addEventListener("click", async () => {
-  const url = addSiteUrl.value.trim();
+  const typed = addSiteUrl.value.trim();
   addSiteResult.replaceChildren();
-  if (!url) {
+  if (!typed) {
     addSiteStatus.textContent = "Paste the address of the page first.";
     return;
   }
+  // I04: `not a url` used to reach the permission check, which returned false
+  // because the string never parsed, and the page said Chrome had refused a
+  // host it was never asked about. Say what is wrong with the text instead.
+  const address = normalizePageUrl(typed);
+  if (!address.ok) {
+    addSiteStatus.textContent = address.reason;
+    return;
+  }
+  const url = address.url;
   // Inside the click, because Chrome refuses a permission prompt without a
   // user gesture and a gesture does not survive an await.
   if (!(await ensureHostPermission(url))) {

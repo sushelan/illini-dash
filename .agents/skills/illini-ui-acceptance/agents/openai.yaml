@@ -1,0 +1,4 @@
+interface:
+  display_name: "Illini UI Acceptance"
+  short_description: "Check reference fidelity and every extension journey"
+  default_prompt: "Use $illini-ui-acceptance to audit and repair Illini Dash against its ZIP design contract, recording visual and interaction evidence."

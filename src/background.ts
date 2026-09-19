@@ -1918,6 +1918,7 @@ chrome.runtime.onMessage.addListener(
               type: "state",
               items: store.items,
               sources: store.sources,
+              observers: store.observers,
               settings: store.settings,
               lastSyncAt: store.lastSyncAt,
               courseNames: store.overrides.courseNames,
