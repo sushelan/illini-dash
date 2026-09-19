@@ -675,6 +675,33 @@ const PREVIEW_SUGGESTIONS = [
     // 8). `s1` above deliberately has none.
     postSubject: "Quiz 1 logistics and the PrairieLearn window",
   },
+  /*
+   * The two the "from the …" line is now decided by, appended for the same
+   * reason as the block itself.
+   *
+   * `s3` is Sushi's live row of 2026-09-19: a subject-derived title, cut at its
+   * first parenthesis, with the whole ninety-character subject still on the
+   * grey line — the pair that has to be legible on one clipped line at 400px.
+   * `s4` is the other half of the rule: the title *is* the whole subject, so
+   * quoting it underneath would draw the same words twice and the row falls
+   * back to "from a Piazza post".
+   */
+  {
+    id: "s3", kind: "new", title: "MP1 Demo Signups May have moved location",
+    courseRaw: "CS 425 / ECE 428", courseCode: "CS425",
+    at: at(1, 23, 59), timeAssumed: true,
+    span: "9/20", context: "Please sign up for a demo slot by 9/20.",
+    source: "piazza", postId: "pz-145", postedAt: at(-1, 9, 0), createdAt: at(-1, 9, 1),
+    postSubject:
+      "MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1 report on Gradescope)",
+  },
+  {
+    id: "s4", kind: "new", title: "MP2", courseRaw: "CS 425 / ECE 428", courseCode: "CS425",
+    at: at(8, 23, 59), timeAssumed: true,
+    span: "9/27", context: "MP2 is due 9/27.",
+    source: "piazza", postId: "pz-160", postedAt: at(-1, 10, 0), createdAt: at(-1, 10, 1),
+    postSubject: "MP2",
+  },
 ];
 
 // One row a post moved, so the detail line and its undo are on screen.

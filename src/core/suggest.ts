@@ -276,6 +276,65 @@ export function postSubjectOf(post: ObservedPost): string {
 }
 
 /**
+ * Where a subject line stops being a name and starts being an announcement.
+ *
+ * Every one of these is a *separator* an instructor writes when the subject has
+ * already said what the post is about and they are adding the rest of the
+ * sentence: "MP1 Demo Signups May have moved location (+ Reminder to TAG …)",
+ * "HW1 (All students) Released - And Clarifications (Running Post)". Each is
+ * spelled with its surrounding space so a name cannot be cut by its own
+ * punctuation — "Proj-CNN" and "9:00" are hyphen and colon inside a word, and
+ * neither is here.
+ */
+const SUBJECT_BREAKS = [" (", ": ", " — ", " – ", " - ", " + "];
+
+/**
+ * What the row is called, given what the reading called it and what the post
+ * was titled.
+ *
+ * The cut applies to **a title that is the post's subject line and nothing
+ * else**, whichever rung of `announce.ts`'s `titleFor` produced it — the
+ * subject fallback, or the phrase scan reaching the subject because the
+ * sentence named nothing of its own. Both are the same row from the student's
+ * side: a sentence-length announcement standing in for a name.
+ *
+ * A title the *sentence* named is left alone, parentheses and all: "MP2",
+ * "MP1 Report (4cr only, EXCEPT Coursera)". That is a name an instructor wrote
+ * next to a date, and cutting it at its own punctuation would rename the
+ * student's row after something narrower than the post said.
+ *
+ * Compared as whole trimmed strings rather than by prefix: `titleFor` and
+ * `postSubjectOf` both collapse whitespace, and "is this the subject?" has to
+ * be an equality or every title that merely *starts* like the subject is cut
+ * too.
+ */
+export function rowTitle(title: string, postSubject: string): string {
+  return title.trim() === postSubject.trim() ? shortSubjectTitle(postSubject) : title;
+}
+
+/**
+ * The part of a subject line worth naming a row after.
+ *
+ * The floor is three characters rather than none, because the cut is a guess
+ * and a two-character row ("HW", "Re") is a worse title than the long one it
+ * replaced. When the guess comes back that short, the whole subject stands.
+ *
+ * The `Suggestion` keeps `postSubject` in full either way: the cut decides what
+ * the row is *called*, and the grey line underneath still quotes what the post
+ * was actually titled.
+ */
+export function shortSubjectTitle(subject: string): string {
+  const full = subject.replace(/\s+/g, " ").trim();
+  let cut = full.length;
+  for (const mark of SUBJECT_BREAKS) {
+    const at = full.indexOf(mark);
+    if (at >= 0 && at < cut) cut = at;
+  }
+  const head = full.slice(0, cut).trim();
+  return head.length < 3 ? full : head;
+}
+
+/**
  * What one post does to the list.
  *
  * Nothing is applied here and nothing is written; the caller merges the three
@@ -325,9 +384,10 @@ export function ingestPost(
     // since wave 4 and nothing in `src/` was calling it.
     result.skipped.push({ reason: `no deadline read: ${describeEmpty(post.text)}` });
   }
+  const subject = postSubjectOf(post);
   const resolutions = resolveMentions(mentions, input.items, post.courseHint, {
     ...(post.courseCodes ? { courseCodes: post.courseCodes } : {}),
-    postSubject: postSubjectOf(post),
+    postSubject: subject,
   });
   const byId = new Map(input.items.map((item) => [item.id, item]));
   const reason = describePost(post);
@@ -404,18 +464,19 @@ export function ingestPost(
     }
 
     if (resolution.kind === "new") {
+      const title = rowTitle(resolution.title, subject);
       if (
-        alreadySuggested(input.suggestions, resolution.title, resolution.at, course) ||
-        alreadySuggested(result.suggestions, resolution.title, resolution.at, course)
+        alreadySuggested(input.suggestions, title, resolution.at, course) ||
+        alreadySuggested(result.suggestions, title, resolution.at, course)
       ) {
         result.skipped.push({
           reason:
-            `"${resolution.title}" on ${statedDay(resolution.at)} is already suggested` +
+            `"${title}" on ${statedDay(resolution.at)} is already suggested` +
             ` for ${course || "this class"}`,
         });
         continue;
       }
-      result.suggestions.push(newSuggestion(post, resolution.title, mention, now));
+      result.suggestions.push(newSuggestion(post, title, mention, now));
       continue;
     }
 

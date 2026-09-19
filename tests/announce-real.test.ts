@@ -34,6 +34,7 @@ import {
   type Mention,
   type ReadMention,
 } from "../src/core/announce.js";
+import { shortSubjectTitle } from "../src/core/suggest.js";
 import type { Item } from "../src/sources/types.js";
 
 const HTML = readFileSync(
@@ -372,5 +373,27 @@ describe("a phrase subject against an existing item", () => {
      */
     const items = [item("e2", "Exam 2", "2026-05-05T23:59:00-05:00")];
     expect(resolveMentions(mentionsOf(597), items, "ECE 408")[0]).toMatchObject({ kind: "new" });
+  });
+});
+
+describe("the cut a subject-derived title gets, over this corpus", () => {
+  it("leaves every subject in the capture alone but the two that announce", () => {
+    /*
+     * The cut is for a subject that has stopped being a name — "MP1 Demo
+     * Signups May have moved location (+ …)" on the Piazza corpus. This one is
+     * the other side of that rule: nine real Campuswire subjects, and the
+     * separators are chosen so that eight of them survive untouched. #645's
+     * "Proj-CNN Mini Extension" is the case worth naming — a hyphen *inside* a
+     * word, which a cut on the bare character would have made "Proj".
+     */
+    const subjects = [...POSTS.values()].map((payload) => payload.text.split("\n")[0]!);
+    expect(subjects).toContain("Proj-CNN Mini Extension");
+    const cut = subjects.filter((subject) => shortSubjectTitle(subject) !== subject);
+    // One of the nine, and the cut is the right one: the parenthetical says
+    // *which* Friday, and a row called "No Office Hours This Friday" is the
+    // same row with less of the sentence in it.
+    expect(cut).toEqual(["No Office Hours This Friday (Final Week)"]);
+    expect(shortSubjectTitle(cut[0]!)).toBe("No Office Hours This Friday");
+    expect(shortSubjectTitle("Proj-CNN Mini Extension")).toBe("Proj-CNN Mini Extension");
   });
 });

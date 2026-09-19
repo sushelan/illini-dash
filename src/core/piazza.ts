@@ -1356,6 +1356,20 @@ export interface PiazzaPlan {
    */
   seenPostsForFetch: Record<string, string>;
   /**
+   * How many posts the re-read covers — the `piazza:` marks this plan cleared.
+   *
+   * The count exists on the plan for the reason `seenPostsForFetch` does: the
+   * apply stage cannot work it out any more. `readerUpgrade` runs a second time
+   * inside the write, on a store whose marks this plan's own fetch already
+   * cleared, so it drops 0 and announced "re-reading 0 posts in full" after a
+   * plan that had just re-read 29. Both lines now print this number: the plan
+   * counts, the write applies, and the console reads as one decision rather
+   * than two that disagree (worker rule 5).
+   *
+   * `0` when there is no upgrade to do, which is every sync after the first.
+   */
+  rereadCount: number;
+  /**
    * The state to record when `fetch` is false and the reason is not "off".
    *
    * A switch the student flipped is not a reading, and neither is a permission
@@ -1525,11 +1539,10 @@ export function planPiazza(
   // by the write that happens after the only fetch that could have used it.
   // Three: dropping the marks for real, which is a write and is the worker's.
   const poll = classesToPoll(facts?.classes, rereadAll ? undefined : facts?.lastNr);
-  const seenPostsForFetch = rereadAll
-    ? readerUpgrade(ctx.seenPosts, readerVersionOf(facts)).seenPosts
-    : { ...(ctx.seenPosts ?? {}) };
-  /** Every branch below carries it, so no branch can forget to. */
-  const base = { seenPostsForFetch };
+  const upgrade = rereadAll ? readerUpgrade(ctx.seenPosts, readerVersionOf(facts)) : undefined;
+  const seenPostsForFetch = upgrade ? upgrade.seenPosts : { ...(ctx.seenPosts ?? {}) };
+  /** Every branch below carries them, so no branch can forget to. */
+  const base = { seenPostsForFetch, rereadCount: upgrade?.dropped ?? 0 };
 
   if (facts?.enabled !== true) {
     return { ...base, fetch: false, refreshClasses: false, poll: [], reason: "off" };
@@ -1625,7 +1638,11 @@ export function planPiazza(
     ...(rereadAll ? { rereadAll: true as const } : {}),
     reason: rereadAll
       ? `${polling} — every post here was read by reader ${readerVersionOf(facts)}, ` +
-        `and this build is reader ${PIAZZA_READER_VERSION}: re-reading them in full`
+        `and this build is reader ${PIAZZA_READER_VERSION}: ` +
+        // The same phrase, from the same number, as the line the write logs
+        // when it applies this (mutation rule 3: one spelling of one decision,
+        // or loosening either is masked by the other).
+        rereadPhrase(upgrade?.dropped ?? 0)
       : polling,
   };
 }
@@ -1666,6 +1683,7 @@ export interface ReaderUpgrade {
 export function readerUpgrade(
   seenPosts: Record<string, string> | undefined,
   from: number,
+  announced?: number,
 ): ReaderUpgrade {
   const kept: Record<string, string> = {};
   let dropped = 0;
@@ -1678,8 +1696,17 @@ export function readerUpgrade(
     dropped,
     message:
       `reader upgraded ${from} → ${PIAZZA_READER_VERSION}: ` +
-      `re-reading ${dropped} post${dropped === 1 ? "" : "s"} in full`,
+      // `announced` is the plan's `rereadCount`, and the write passes it
+      // because by then `dropped` is 0: the plan cleared these marks for the
+      // fetch that just happened, so counting them again counts the absence.
+      // The number the student is told is the number of posts re-read.
+      rereadPhrase(announced ?? dropped),
   };
+}
+
+/** What both halves of the upgrade say about one count. */
+function rereadPhrase(count: number): string {
+  return `re-reading ${count} post${count === 1 ? "" : "s"} in full`;
 }
 
 /* -------------------------------------------------------------------------- */

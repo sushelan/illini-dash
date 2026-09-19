@@ -3261,10 +3261,20 @@ function renderSuggestions(suggestions: readonly Suggestion[]): void {
      * drawing empty quotes.
      */
     const postSubject = typeof suggestion.postSubject === "string" ? suggestion.postSubject : "";
-    provenance.textContent =
-      postSubject === ""
-        ? `from a ${SUGGESTION_SOURCE[suggestion.source]}`
-        : `from the ${SUGGESTION_SOURCE[suggestion.source]} \u201C${postSubject}\u201D`;
+    /*
+     * \u2026but only when it says something the title has not.
+     *
+     * A subject-derived title is now cut at its first break, so the usual row
+     * is "MP1 Demo Signups May have moved location" over the whole subject in
+     * quotes, which is worth the line. When the title *is* the whole subject \u2014
+     * a short one, with nothing to cut \u2014 the line quoted the row's own title
+     * back at it, one line below itself. Sushi's live Attention tab drew the
+     * same 90 characters twice for exactly this reason.
+     */
+    const names = postSubject !== "" && postSubject.trim() !== suggestion.title.trim();
+    provenance.textContent = names
+      ? `from the ${SUGGESTION_SOURCE[suggestion.source]} \u201C${postSubject}\u201D`
+      : `from a ${SUGGESTION_SOURCE[suggestion.source]}`;
     /*
      * One line, clipped — UI rule 8, and the reason the span is a tooltip
      * rather than a label.
@@ -3282,8 +3292,7 @@ function renderSuggestions(suggestions: readonly Suggestion[]): void {
     provenance.style.whiteSpace = "nowrap";
     // The instructor's own words, as text. §8.1's rendering rule: a post is
     // remote content and never becomes markup here.
-    provenance.title =
-      postSubject === "" ? suggestion.span : `${postSubject}\n\n${suggestion.span}`;
+    provenance.title = names ? `${postSubject}\n\n${suggestion.span}` : suggestion.span;
     actions.append(provenance);
 
     const add = document.createElement("button");

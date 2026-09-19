@@ -571,6 +571,130 @@ describe("the row says which post (G4)", () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* …and the row is not named after the whole announcement                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Sushi's Attention tab on the 19th drew one row titled *"MP1 Demo Signups May
+ * have moved location (+ Reminder to TAG your MP1 report on Gradescope)"* with
+ * the same ninety characters quoted on the grey line beneath it. The subject
+ * fallback was right — the sentence named nothing — and the *title* was the
+ * announcement rather than the thing due.
+ */
+describe("a title taken from the subject is cut to the name in front of it", () => {
+  /** The real subject of note 145, as `fixtures/piazza/feed.json` spells it. */
+  const LONG = "MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1 report on Gradescope)";
+
+  function subjectTitled(subject: string, body: string, now = NOW): Suggestion[] {
+    return ingestPost(
+      input({ items: [] }),
+      post({ id: "pz-145", source: "piazza", subject, text: `${subject}\n${body}` }),
+      now,
+    ).suggestions;
+  }
+
+  it("cuts the live row at its first parenthesis and keeps the subject whole", () => {
+    const [only] = subjectTitled(LONG, "Please sign up by 9/20 at 11:59pm.");
+    expect(only!.title).toBe("MP1 Demo Signups May have moved location");
+    // The evidence line still has the whole thing to quote — the cut renames
+    // the row, it does not throw the subject away.
+    expect(only!.postSubject).toBe(LONG);
+  });
+
+  it("cuts at a colon, a dash and a plus as well", () => {
+    // Each of the four other separators, one post each, so a regression in any
+    // one of them cannot hide behind the parenthesis above.
+    const cases: [subject: string, title: string][] = [
+      ["Quiz 3: everything you need to know", "Quiz 3"],
+      ["Lab 4 — room change and a reminder", "Lab 4"],
+      ["Lab 5 – room change and a reminder", "Lab 5"],
+      ["Homework 6 - graded and returned", "Homework 6"],
+      ["Project checkpoint + the demo slots", "Project checkpoint"],
+    ];
+    for (const [subject, title] of cases) {
+      const [only] = subjectTitled(subject, "Please sign up by 9/20 at 11:59pm.");
+      expect(only!.title).toBe(title);
+      expect(only!.postSubject).toBe(subject);
+    }
+  });
+
+  it("leaves punctuation inside a word alone", () => {
+    // Campuswire's real #645 subject, and a clock: a hyphen with no spaces
+    // around it is part of a name, and "11:59" is a time. Cutting on the bare
+    // character would have made these "Proj" and "Sign up by 9/20 at 11".
+    for (const subject of ["Proj-CNN Mini Extension", "Sign up by 9/20 at 11:59pm"]) {
+      const [only] = subjectTitled(subject, "Please sign up by 9/20 at 11:59pm.");
+      expect(only!.title).toBe(subject);
+    }
+  });
+
+  it("keeps the whole subject when the cut would leave fewer than three characters", () => {
+    // "HW" is not a row anybody can act on. The floor is deliberately hit by a
+    // subject nobody would write (house rule 10): a realistic one cuts to
+    // something long enough to pass either way.
+    const subject = "HW (All students) — the signup";
+    const [only] = subjectTitled(subject, "Please sign up by 9/20 at 11:59pm.");
+    expect(only!.title).toBe(subject);
+  });
+
+  it("does not touch a title the sentence itself named", () => {
+    /*
+     * The row is named after the assignment whatever the subject says around
+     * it — the cut is for a title that *is* the subject, and this one is not.
+     * Both halves matter: the title is neither the whole subject nor the cut
+     * one, so a rule that rewrote every title from the subject would fail here
+     * twice.
+     */
+    const [only] = subjectTitled(
+      LONG,
+      "MP2 is due 9/20 at 11:59pm.",
+      "2026-09-18T12:00:00-05:00",
+    );
+    expect(only!.title).toBe("MP2");
+    expect(only!.postSubject).toBe(LONG);
+  });
+
+  it("does not cut the sentence a titleless post falls back to", () => {
+    /*
+     * The bottom rung of `titleFor`: no subject and no name in the sentence, so
+     * the row is called after the sentence. Cutting *that* at its first dash
+     * would drop the half of it that says what is due, and the row would read
+     * as a name it never had.
+     *
+     * The sentence is deliberately one nobody would write (house rule 10): two
+     * " - " breaks, so a cut applied here is visible rather than plausible.
+     */
+    const text = "Please turn in the reflection - the short one - by 9/20 at 11:59pm.";
+    const [only] = ingestPost(
+      input({ items: [] }),
+      post({ id: "pz-nosubject", source: "piazza", text }),
+      "2026-09-18T12:00:00-05:00",
+    ).suggestions;
+    expect(only!.title).toBe(text);
+    expect(only!.postSubject).toBeUndefined();
+  });
+
+  it("leaves a phrase's own punctuation to the phrase scan", () => {
+    /*
+     * "MP1 Report (4cr only, EXCEPT Coursera)" was one of the four rows on the
+     * Attention tab, and it is the case this cut must not reach. Today's
+     * grammar never hands one back: the phrase scan stops at the same
+     * separators, so it reads **"MP1"** out of the sentence below and the
+     * parenthetical is gone before any of this runs. Pinned here because that
+     * is the thing being relied on — a phrase scan that started keeping its
+     * parentheses would put the decision back in this module's hands, and this
+     * assertion is where it would say so.
+     */
+    const [only] = subjectTitled(
+      "Some MP1 logistics (please read)",
+      "MP1 Report (4cr only, EXCEPT Coursera) is due 9/20 at 11:59pm.",
+      "2026-09-18T12:00:00-05:00",
+    );
+    expect(only!.title).toBe("MP1");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /* The seven-segment trace, through the pipeline                               */
 /* -------------------------------------------------------------------------- */
 

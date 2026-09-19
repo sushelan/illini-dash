@@ -448,18 +448,42 @@ export function pruneSeenPosts(
 }
 
 /**
- * Drop suggestions that have gone stale or whose deadline has passed.
+ * Drop suggestions that have gone stale, whose deadline has passed, or that
+ * were already past when they were found.
  *
  * Two clocks, because they answer different questions: `createdAt` says nobody
  * is going to act on this, and `at` says acting on it would put a week-old
  * deadline on the calendar. Either one is enough.
+ *
+ * The third test is the store-side twin of `ingestPost`'s ingest rule: a
+ * deadline whose instant precedes the moment it was read had already passed
+ * when this extension found it, and the ingest rule now refuses to write one.
+ * Rows written *before* that rule shipped are still on disk — Sushi's Attention
+ * tab held two of them, found on the 18th and due on the 13th and 14th — and
+ * nothing refused them, because both clocks above measure against *today* and
+ * "13 Sep" is only a week old for a week. This one does not depend on the day
+ * at all: the suggestion carries the evidence that it was useless when it was
+ * made.
  */
 export function pruneSuggestions(suggestions: Suggestion[], now: string): Suggestion[] {
   return suggestions.filter(
     (suggestion) =>
       !isOlderThan(suggestion.createdAt, now, SUGGESTION_AGE_DAYS) &&
-      !isOlderThan(suggestion.at, now, SUGGESTION_PAST_DAYS),
+      !isOlderThan(suggestion.at, now, SUGGESTION_PAST_DAYS) &&
+      !foundAlreadyPast(suggestion),
   );
+}
+
+/**
+ * Whether this suggestion's deadline had already passed when it was read.
+ *
+ * Both fields are validated instants by the time a stored suggestion gets here
+ * (`isUsableSuggestion`), and a `NaN` from either comparison is false, which
+ * keeps the row: house rule 1 at the store — a value this cannot read costs its
+ * own test, never the row.
+ */
+function foundAlreadyPast(suggestion: Suggestion): boolean {
+  return Date.parse(suggestion.at) < Date.parse(suggestion.createdAt);
 }
 
 /**

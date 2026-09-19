@@ -43,7 +43,7 @@ import {
   type PostPayload,
 } from "../src/core/piazza.js";
 import { describeEmpty, extractDeadlineMentions, type EmptyReason } from "../src/core/announce.js";
-import { ingestPost } from "../src/core/suggest.js";
+import { ingestPost, shortSubjectTitle } from "../src/core/suggest.js";
 import {
   memberKey,
   type Item,
@@ -507,5 +507,38 @@ describe("note 28, the Running Post, read in full", () => {
     // Worker rule 3: absent, because the clock is the instructor's. A
     // `timeAssumed: true` here would derank a deadline the source stated.
     expect(override?.timeAssumed).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* What the feed's own subjects would name a row                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The cut, measured on the strings this class actually posted.
+ *
+ * Both subjects below are read out of the capture rather than typed here, so
+ * the pin is over the corpus and not over my memory of it: note 145 is the post
+ * that produced the row on Sushi's Attention tab on 2026-09-19 — titled with
+ * its whole ninety-character subject, and the same ninety characters quoted
+ * underneath — and note 28 is the Running Post.
+ */
+describe("a subject line, cut to the name in front of it", () => {
+  const subjects = new Map(parseFeed(FEED, PAGE).map((post) => [post.nr, post.subject ?? ""]));
+
+  it("names note 145 after the sign-ups and not after the announcement", () => {
+    const subject = subjects.get(145)!;
+    expect(subject).toBe(
+      "MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1 report on Gradescope)",
+    );
+    expect(shortSubjectTitle(subject)).toBe("MP1 Demo Signups May have moved location");
+  });
+
+  it("names note 28 HW1", () => {
+    const subject = subjects.get(28)!;
+    expect(subject).toBe("HW1 (All students) Released - And Clarifications (Running Post)");
+    // The first break is the "(" of "(All students)", four characters in — not
+    // the " - " later, which a scan that took the *last* break would reach.
+    expect(shortSubjectTitle(subject)).toBe("HW1");
   });
 });
