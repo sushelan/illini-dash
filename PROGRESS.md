@@ -7,6 +7,60 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 12 / W4: the header pill opens a screen — 2026-09-19
+
+**2065 tests, unchanged — the suite does not import the popup.** Verified by
+`npm run typecheck`, `npm run build`, `npm test`, and `npm run shots -- popup` in both
+modes (dark first).
+
+**The pill (D2).** `renderHealth` no longer writes its own sentence: it takes the items
+and asks `needsYouPill({ sources, syncing, overdue, suggestions })`, so "2 late" outranks
+"1 needs you" and both outrank "All clear" by one rule in core rather than by two
+copies — the pill and the screen it opens count the same `overdueItems`. `healthPill` is
+untouched and still owns which source broke; nothing in the popup calls it any more.
+Signature: `renderHealth(sources, items, now)` — `lastSyncAt` is gone from it, which is
+worker rule 2 removing the last field the header could have lied from.
+
+**The Needs-you screen (D2, mock 1e)** is `screens/needs-you.ts`, **in document flow**,
+replacing `#view` with `.needsyou` on `body` hiding the tabs, the chips and the date nav
+the way `.setup` does. It replaces the health popover, which is the point: a floating
+panel contributes no height to the box Chrome measures, and that list shipped clipped
+half way down its fifth row. Order is the mock's — the amber `staleNotice` sentence with
+its `actionFor` button, **Late** (the Attention tab's Overdue group, each row followed by
+*Mark done* / *Hide* through `applyOverrideAction`), **Found in a post** (`renderSuggestions`
+moved over unchanged: Add / Ignore, the provenance line, the verbatim span as the
+tooltip), **Sources** (one card, `sourceRows` + `actionButton`), and the "Nothing was
+dropped while X was out" note. `state.screen` holds it; ‹ back and Escape close it and
+return focus to the pill; it re-renders from fresh state on every draw rather than
+holding the redraw, because every sentence on it is a claim about the store.
+
+**One deliberate deviation from mock 1e.** Its source rows read "6 courses · 2m ago" and
+"31 items"; core counts neither, so the detail line says what `sourceRows` gives —
+the state word and "last read 2 min ago". A count this file invented is a count the
+student would trust (worker rule 3).
+
+**First run (D12, mock 1d).** `renderSetup` restyled to the mock: the mark, "One
+calendar, nothing to maintain", the two-sentence blurb, the pin card (unchanged, still
+full-view-only and still `PIN_DISMISSED_KEY`), a "Where to look" list card, **Find my
+deadlines** and a hint line. The switches are **grouped** as the mock groups them —
+PrairieLearn and PrairieTest share one, which sends `set-source-enabled` per source and
+one `sync` — and a pair shows one chip each, because "PrairieLearn connected, PrairieTest
+needs a sign-in" is two facts. Piazza & Campuswire and Course websites are named as the
+mock names them but carry a **Settings** button rather than a switch: both need a host
+permission granted in the click on a page that stays open, which a popup is not.
+"Find my deadlines" now runs `app.runSync()` between `complete-setup` and
+`recheckLogins`, and its `send` has the `.catch` the old one did not.
+
+**Two findings from the inventory.** F10's missing `.catch` on the header's .ics export
+was already fixed when the shell was split (`shell.ts`, `Download .ics`) — nothing to do,
+and the inventory line is stale. The dead `.book` / `.book--text` / `.book--go` rules are
+deleted from `popup.css`; the booking strip has been a `.banner-line` since D-banners.
+
+**Not preserved, deliberately:** `openHealthPopover` and `renderSourceRow` are deleted —
+the screen is the source list now, and the popover's per-source facts survive as the
+pill's tooltip (`pillTooltip`, built from the same `sourceRows`). The pill's
+`aria-haspopup="dialog"` is gone with it; `aria-expanded` stays and now tracks the
+screen.
 ## Wave 12 / W3: the deadline screen and the editor — 2026-09-19
 
 **2065 tests, unchanged** — the suite does not import the popup. Verified by

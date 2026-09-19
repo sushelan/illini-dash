@@ -30,6 +30,7 @@ import { unreadableDeadline, unreadableSummary } from "../../../core/quality.js"
 import { iconButton } from "../../icons.js";
 import type { Item, Status } from "../../../sources/types.js";
 import { HIDDEN_KEY, MENU_CLASS, app, safeUrl, state, viewEl, writeStored } from "../state.js";
+import { leaveNeedsYou } from "./needs-you.js";
 import {
   applyOverrideAction,
   applySuggestionRequest,
@@ -59,6 +60,7 @@ let openedFrom: string | undefined;
 
 export function openDeadline(item: Item): void {
   closeMenus();
+  leaveNeedsYou();
   openedFrom = item.title;
   state.screen = { kind: "deadline", itemId: item.id, view: state.view };
   void app.refresh();
@@ -72,7 +74,7 @@ export function openDeadline(item: Item): void {
  * `state.view` was never changed.
  */
 export function closeScreen(): void {
-  if (!state.screen) return;
+  if (!state.screen || state.screen.kind === "needs-you") return;
   state.screen = undefined;
   const wanted = openedFrom;
   openedFrom = undefined;
@@ -98,6 +100,8 @@ export function closeScreen(): void {
  */
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !state.screen) return;
+  // The Needs-you screen owns its own Escape (screens/needs-you.ts).
+  if (state.screen.kind === "needs-you") return;
   if (document.querySelector(`.${MENU_CLASS}`)) return;
   if (state.editor) return;
   event.preventDefault();
@@ -116,6 +120,8 @@ document.addEventListener("keydown", (event) => {
 export function renderOpenScreen(now: Date): boolean {
   const screen = state.screen;
   if (!screen) return false;
+  // Drawn by the entry before the tabs, never here.
+  if (screen.kind === "needs-you") return false;
   if (screen.view !== state.view) {
     state.screen = undefined;
     return false;

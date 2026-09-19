@@ -22,18 +22,17 @@
  */
 
 import {
-  type HealthPill,
+  type NeedsYouPill,
   type SourceAction,
-  type SourceRow,
   actionFor,
   displayState,
-  healthPill,
+  needsYouPill,
   sourceRows,
   staleNotice,
   summarize,
 } from "../../core/health.js";
 import { courseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
-import { bookings, coursesIn } from "../../core/calendar.js";
+import { bookings, coursesIn, overdueItems } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
 import { downloadIcs } from "../download.js";
@@ -82,8 +81,10 @@ import {
  * existed only in the High-contrast theme), the one that was clickable looked
  * exactly like the five that were not, and nobody scrolled to the line.
  *
- * Everything the pill says comes from `healthPill`, which derives it from
- * `summarize()` — so it cannot claim a source is fine when nothing was fetched.
+ * Everything the pill says comes from `needsYouPill` (D2), which derives every
+ * branch from `summarize()` — so it cannot claim "All clear" over sources that
+ * were never fetched. `healthPill` is still the wording for *which* source
+ * broke, and the Needs-you screen is where that is printed, one row each.
  *
  * **The pill's action button is gone from the bar.** It existed because the
  * pill was the only thing up here that could be pressed and "Gradescope
@@ -93,31 +94,52 @@ import {
  */
 export function renderHealth(
   sources: Record<Source, SourceStatus>,
-  lastSyncAt: string | undefined,
+  items: Item[],
   now: Date,
 ): void {
   healthEl.replaceChildren();
   healthEl.append(appMark(), renderWordmark());
+
   /*
-   * A sync in flight outranks whatever the store still holds.
+   * One derivation, in core, for what the pill says (D2).
    *
-   * The store keeps the *last* outcome, so during a fetch the pill kept saying
-   * "Gradescope couldn't be reached" — the thing the click was in the middle of
-   * fixing. A real sync is five or six requests and takes five to ten seconds,
-   * which is a long time to look at a stale claim with a spinner beside it.
+   * `isSyncing()` rather than a second sentence written here: a sync in flight
+   * outranks whatever the store still holds, because the store keeps the *last*
+   * outcome and a real sync is five to ten seconds of the pill asserting the
+   * thing the click is in the middle of fixing. `needsYouPill` owns that
+   * branch, and every branch below it, so the pill cannot say "All clear" about
+   * sources that were never fetched (worker rule 2).
    *
-   * "Checking…" is not a guess: it is the one thing that is known while a
-   * request is open, which is the whole of worker house rule 2.
+   * The counts are the screen's own: `overdueItems` is the Overdue group by the
+   * same rule the screen draws, and the suggestions are the rows waiting for a
+   * yes. A pill that counted differently from the screen it opens would be two
+   * copies of one decision, and the copy is always the one that goes stale.
    */
-  const pill: HealthPill = isSyncing()
-    ? { tone: "pending", text: "Checking…" }
-    : healthPill(sources, lastSyncAt, now);
+  const pill: NeedsYouPill = needsYouPill({
+    sources,
+    syncing: isSyncing(),
+    overdue: overdueItems(items, now).length,
+    suggestions: state.currentSuggestions.length,
+  });
 
   const button = document.createElement("button");
   button.type = "button";
   button.className = `pill is-${pill.tone}`;
-  button.setAttribute("aria-haspopup", "dialog");
-  button.title = "Which sites were read, and when";
+  button.dataset["kind"] = pill.kind;
+  // Still a button that opens something, and still says whether that thing is
+  // open — the screen it opens is in document flow rather than a dialog, which
+  // is what `aria-haspopup` would promise.
+  button.setAttribute("aria-expanded", state.screen?.kind === "needs-you" ? "true" : "false");
+  /*
+   * The per-source facts, kept as the tooltip (inventory C).
+   *
+   * They were the popover's whole content, and the popover is gone — but "which
+   * site was read, and when" is a question a student asks without wanting to
+   * change anything, and making them open a screen to read it is a worse trade
+   * than a hover. `sourceRows` is the same list the screen draws, so the two can
+   * never disagree.
+   */
+  button.title = pillTooltip(sources, now);
 
   const dot = document.createElement("i");
   dot.className = "pill--dot";
@@ -128,18 +150,31 @@ export function renderHealth(
 
   button.addEventListener("click", (event) => {
     event.stopPropagation();
-    // A toggle, not an opener. `openHealthPopover` closes whatever is open and
-    // then opens its own, so pressing the pill a second time closed the panel
-    // and immediately rebuilt it — the one gesture everybody tries to dismiss
-    // it with was the one that could not.
-    if (button.getAttribute("aria-expanded") === "true") {
-      closeMenus();
-      button.removeAttribute("aria-expanded");
-      return;
-    }
-    openHealthPopover(sources, now, button);
+    // A toggle, not an opener: pressing it a second time is the one gesture
+    // everybody tries to dismiss what it opened with, and for a month that was
+    // the gesture that could not work.
+    if (state.screen?.kind === "needs-you") app.closeNeedsYou();
+    else app.openNeedsYou();
   });
   healthEl.append(button);
+}
+
+/**
+ * "Gradescope — Sign in needed · last read 2 days ago", one source per line.
+ *
+ * Plain text with newlines rather than markup, because it is a `title`: the
+ * facts are `sourceRows`', including the exact stamp and the site's own error
+ * message, which is the difference between "the cookie is not reaching us" and
+ * "the page says something we misread".
+ */
+function pillTooltip(sources: Record<Source, SourceStatus>, now: Date): string {
+  const lines = sourceRows(sources, now).map((row) => {
+    const when = row.lastReadExact ? ` · last read ${row.lastReadExact}` : "";
+    const err = row.lastError ? ` (${row.lastError})` : "";
+    return `${SOURCE_TITLE[row.source]} — ${row.word}${when}${err}`;
+  });
+  if (lines.length === 0) return "No sites are switched on";
+  return ["Which sites were read, and when:", ...lines].join("\n");
 }
 
 /**
@@ -156,80 +191,6 @@ function renderWordmark(): HTMLElement {
   mark.className = "wordmark";
   mark.textContent = "Illini Dash";
   return mark;
-}
-
-/**
- * Every source, with the one thing to do about each.
- *
- * The same facts Settings › Sources shows, from the same `sourceRows` — two
- * surfaces assembling this separately is how the popup came to say "read
- * successfully" where Settings said "ok", about the same source in the same
- * second.
- */
-export function openHealthPopover(
-  sources: Record<Source, SourceStatus>,
-  now: Date,
-  anchor: HTMLElement,
-): void {
-  closeMenus();
-  const menu = document.createElement("div");
-  menu.className = `${MENU_CLASS} popover`;
-  menu.setAttribute("role", "dialog");
-  menu.setAttribute("aria-label", "Source health");
-  menu.addEventListener("click", (event) => event.stopPropagation());
-
-  for (const row of sourceRows(sources, now)) {
-    menu.append(renderSourceRow(row));
-  }
-
-  // Appended first: `placeFloating` measures it, and an element outside the
-  // document has no width or height to measure.
-  document.body.append(menu);
-  /*
-   * Right-aligned, since D9 moved the pill to the right of the header.
-   *
-   * It was `"left"`, which was correct while the pill sat next to the wordmark
-   * at x≈72: the panel opened under its left edge and had 320px of window to
-   * grow into. The pill is now against the two icon buttons, so a left-aligned
-   * panel starts at x≈178 and has to be clamped back by the width of the
-   * window — and a clamp is a rule about what is left over, not about where
-   * the panel belongs. Anchored to the pill's right edge it is 10px from the
-   * window's, which is where a panel opened from a control on the right goes.
-   */
-  placeFloating(menu, anchor, "right");
-  trapMenuKeys(menu, anchor);
-}
-
-function renderSourceRow(row: SourceRow): HTMLElement {
-  const line = document.createElement("div");
-  line.className = "srow";
-
-  const dot = document.createElement("i");
-  dot.className = `srow--dot is-${toneFor(row.state)}`;
-
-  const name = document.createElement("span");
-  name.className = "srow--name";
-  // `SOURCE_TITLE`, not `SOURCE_NAME`: this is a label in a list, and "the
-  // course website" reads as a sentence fragment sitting between Canvas and
-  // PrairieTest.
-  name.textContent = SOURCE_TITLE[row.source];
-
-  const stateEl = document.createElement("span");
-  stateEl.className = `srow--state is-${toneFor(row.state)}`;
-  // "Connected · 5 min ago" rather than two facts in two columns: the second
-  // one only makes sense as a qualifier on the first.
-  stateEl.textContent =
-    row.lastRead && row.state === "ok" ? `${row.word} · ${row.lastRead}` : row.word;
-  if (row.lastReadExact || row.lastError) {
-    stateEl.title = [row.lastError, row.lastReadExact && `last read ${row.lastReadExact}`]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  line.append(dot, name, stateEl);
-  const button = actionButton(row.action);
-  if (button) line.append(button);
-  return line;
 }
 
 /**

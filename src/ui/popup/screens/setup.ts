@@ -1,12 +1,28 @@
 /**
- * The first-run screen: which sites this student's courses actually use.
+ * The first-run screen (brief D12, mock 1d): which sites this student's courses
+ * actually use.
  *
  * It hides the calendar chrome entirely rather than sitting above it, because
  * the thing it replaces was a full calendar shell with one sentence of
  * explanation under it, which reads as a broken app rather than a first step.
  *
- * Nothing here blocks. "Show my calendar" is clickable from the first paint —
+ * Nothing here blocks. The primary button is clickable from the first paint —
  * see the module comment in core/setup.ts for why a gate was the wrong answer.
+ *
+ * **What the redesign changed, and what it did not.** The shape is the mock's:
+ * a mark, a headline that says what the student gets rather than what the
+ * screen wants, a two-sentence blurb, the pin card, one card of switches, and
+ * one primary button with a hint under it. Every *behaviour* under that is the
+ * one that was here — the switch still sends `set-source-enabled` and asks for
+ * a sync, the state chip still says what the last attempt found, the Sign in
+ * buttons still come from `signInUrl`, the summary line is still
+ * `setupSummary(setupProgress(rows), lastFound)`, and the pin card still
+ * dismisses itself for good.
+ *
+ * The one structural change is that the switches are **grouped** the way the
+ * mock groups them: PrairieLearn and PrairieTest are one line, because a
+ * student who takes CS or ECE wants both and nobody has ever wanted one. A
+ * group's switch sends one message per source in it.
  */
 
 import { type SetupRow, loginsToOpen, setupProgress, setupSummary } from "../../../core/setup.js";
@@ -30,7 +46,55 @@ import {
   viewEl,
   writeStored,
 } from "../state.js";
-import { signInUrl } from "../shell.js";
+import { signInUrl, showStatus } from "../shell.js";
+
+/**
+ * The mock's six lines, over the five sources `setupRows` hands us.
+ *
+ * `hint` is the mock's wording rather than `SOURCE_HINT`'s, because a group of
+ * two needs a sentence about the pair and because the mock's lines say what the
+ * site *carries* ("Homework, labs and late windows") where the old ones said
+ * who it is for. Both are useful; this screen has room for one, and a student
+ * deciding whether to switch something on is asking what is in it.
+ *
+ * A group whose sources are all missing from `rows` is not drawn — the list
+ * says what can be switched on here, and a dead switch is worse than an absent
+ * one.
+ */
+const GROUPS: { label: string; hint: string; sources: Source[] }[] = [
+  { label: "Canvas", hint: "Assignments, quizzes and calendar events", sources: ["canvas"] },
+  { label: "Gradescope", hint: "Homework, labs and late windows", sources: ["gradescope"] },
+  {
+    label: "PrairieLearn & PrairieTest",
+    hint: "CS and ECE homework, CBTF exam bookings",
+    sources: ["prairielearn", "prairietest"],
+  },
+  { label: "smartPhysics", hint: "PHYS 211, 212, 213 and 214 only", sources: ["smartphysics"] },
+];
+
+/**
+ * The two lines of the mock's list that are not `Source`s at all.
+ *
+ * Piazza and Campuswire are *observers*, and a course website is an adapter the
+ * student picks one at a time; both need a host permission, which is granted in
+ * the click that asks for it on a page that stays open — which a popup, closing
+ * the moment Chrome's consent window takes focus, is not. So they are stated
+ * here with the one control that is honest about where they live. Drawing a
+ * switch that cannot do what a switch promises would be worse than the mock's
+ * shape is worth.
+ */
+const ELSEWHERE: { label: string; hint: string; section: string }[] = [
+  {
+    label: "Piazza & Campuswire",
+    hint: "Announcements that move a deadline — switched on in Settings",
+    section: "sec-sources",
+  },
+  {
+    label: "Course websites",
+    hint: "Off until you add one, and it asks before reading each — in Settings",
+    section: "sec-sites",
+  },
+];
 
 export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
   document.body.classList.add("setup");
@@ -53,24 +117,53 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
   const page = document.createElement("div");
   page.className = "setup--page";
 
-  const pin = renderPinCard();
-  if (pin) page.append(pin);
+  /*
+   * The mark again, large, above the headline (mock 1d).
+   *
+   * The header's copy is 22px beside a wordmark; this one is the first thing on
+   * a screen that may be the first thing a student ever sees of this extension,
+   * and at 34px it is the only element on it doing the job a product's name
+   * usually does.
+   */
+  const brand = document.createElement("div");
+  brand.className = "setup--mark";
+  brand.append(appMark());
 
   const heading = document.createElement("h1");
   heading.className = "setup--title";
-  heading.textContent = "Which sites do your courses use?";
+  // What they get, not what this screen wants. "Which sites do your courses
+  // use?" is a question asked before anything has been offered in return.
+  heading.textContent = "One calendar, nothing to maintain";
 
   const blurb = document.createElement("p");
   blurb.className = "setup--blurb";
   blurb.textContent =
-    "Illini Dash reads your deadlines from these using the logins already in your browser. " +
-    "It never sees a password, and nothing leaves your computer.";
+    "Illini Dash reads the sites you're already signed into. " +
+    "Nothing leaves your browser, and there's no account to make.";
 
-  page.append(heading, blurb);
+  page.append(brand, heading, blurb);
 
-  for (const row of rows) {
-    page.append(renderSetupRow(row));
+  const pin = renderPinCard();
+  if (pin) page.append(pin);
+
+  const listHead = document.createElement("div");
+  listHead.className = "section-head";
+  const listLabel = document.createElement("span");
+  listLabel.textContent = "Where to look";
+  listHead.append(listLabel);
+
+  const list = document.createElement("div");
+  list.className = "setup--list";
+  for (const group of GROUPS) {
+    const present = group.sources
+      .map((source) => rows.find((row) => row.source === source))
+      .filter((row): row is SetupRow => row !== undefined);
+    if (present.length === 0) continue;
+    list.append(renderGroup(group.label, group.hint, present));
   }
+  for (const entry of ELSEWHERE) list.append(renderElsewhere(entry));
+
+  page.append(listHead, list);
 
   const summary = document.createElement("p");
   summary.className = "setup--summary";
@@ -78,15 +171,7 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
   // last draw's state, so on the first paint it is undefined and the line falls
   // back to the connection count — which is the only true thing available then.
   summary.textContent = setupSummary(setupProgress(rows), state.lastFound);
-
-  // The line Sushi asked for. It goes under the list rather than in the blurb
-  // because this is the worry the list creates — "what if I pick wrong" — and
-  // the answer belongs next to the choice, not three paragraphs above it.
-  const changeable = document.createElement("p");
-  changeable.className = "setup--note";
-  changeable.textContent = "You can change any of this later in Settings.";
-
-  page.append(summary, changeable);
+  page.append(summary);
 
   const actions = document.createElement("div");
   actions.className = "setup--actions";
@@ -103,6 +188,7 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
     .filter((entry): entry is { source: Source; url: string } => entry.url !== undefined);
   if (outstanding.length > 0) {
     const all = document.createElement("button");
+    all.type = "button";
     all.className = "btn btn-secondary";
     all.textContent =
       outstanding.length === 1
@@ -119,21 +205,53 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
     actions.append(all);
   }
 
+  /*
+   * "Find my deadlines" — the thing pressing it does, rather than the screen it
+   * lands on.
+   *
+   * Same sequence as "Show my calendar" had, with the sync it always implied
+   * made explicit: the label now promises a search, so it runs one. `runSync`
+   * owns the spinner cap and the failure sentence, and `recheckLogins` after it
+   * is the old behaviour — pressing this is the clearest "I have finished
+   * signing in" a student can say, and it used to land on a calendar still
+   * asserting nobody was.
+   */
   const done = document.createElement("button");
-  done.className = "btn btn-primary";
-  done.textContent = "Show my calendar";
-  done.addEventListener("click", async () => {
+  done.type = "button";
+  done.className = "btn btn-primary setup--go";
+  done.textContent = "Find my deadlines";
+  done.addEventListener("click", () => {
     done.disabled = true;
-    await send({ type: "complete-setup" });
-    document.body.classList.remove("setup");
-    await app.refresh();
-    // Pressing this is the clearest "I have finished signing in" a student can
-    // say, and it was landing on a calendar still asserting nobody was.
-    recheckLogins();
+    done.textContent = "Looking…";
+    // Every `send` from a page gets a `.catch`, and the one channel this screen
+    // has is `#status` at the top of the document (UI rules 2 and 3).
+    void send({ type: "complete-setup" })
+      .then(async () => {
+        document.body.classList.remove("setup");
+        await app.runSync();
+        recheckLogins();
+      })
+      .catch((err: unknown) => {
+        done.disabled = false;
+        done.textContent = "Find my deadlines";
+        showStatus(
+          `Illini Dash could not finish setting up: ${
+            err instanceof Error ? err.message : String(err)
+          }. Open chrome://extensions and click Reload on the Illini Dash card.`,
+        );
+      });
   });
   actions.append(done);
-
   page.append(actions);
+
+  // The line Sushi asked for, under the button rather than in the blurb: this
+  // is the worry the list creates — "what if I pick wrong" — and the answer
+  // belongs next to the choice, not three paragraphs above it.
+  const hint = document.createElement("p");
+  hint.className = "setup--note";
+  hint.textContent = "Takes about 20 seconds. You can change any of this later in Settings.";
+  page.append(hint);
+
   viewEl.append(page);
 }
 
@@ -148,43 +266,96 @@ function renderMarkOnly(): HTMLElement {
   return wrap;
 }
 
-function renderSetupRow(row: SetupRow): HTMLElement {
+/**
+ * One line of the list: a name, what it carries, a switch, and what it found.
+ *
+ * `rows` is one source or two. Two share a switch and show one chip per source
+ * underneath, because "PrairieLearn connected, PrairieTest needs a sign-in" is
+ * two facts and collapsing them would hide the one with something to do.
+ */
+function renderGroup(label: string, hint: string, rows: SetupRow[]): HTMLElement {
   const line = document.createElement("div");
   line.className = "setup--row";
 
   const box = document.createElement("input");
   box.type = "checkbox";
   box.className = "switch";
-  box.checked = row.enabled;
-  box.id = `setup-${row.source}`;
-  box.addEventListener("change", async () => {
+  // On when *any* of the group is on, so a half-on pair reads as on rather than
+  // as off — switching it then off is one click and switching it on is a no-op
+  // for whichever half was already on.
+  box.checked = rows.some((row) => row.enabled);
+  box.id = `setup-${rows.map((row) => row.source).join("-")}`;
+  box.addEventListener("change", () => {
     box.disabled = true;
-    await send({ type: "set-source-enabled", source: row.source, enabled: box.checked });
-    // A source just switched on has never been fetched, so ask for one now
-    // rather than leaving the row pending until the next poll — the whole
-    // screen is a checklist that is supposed to tick itself.
-    if (box.checked) void send({ type: "sync", trigger: "manual" });
-    await app.refresh();
+    const enabled = box.checked;
+    void Promise.all(
+      rows.map((row) => send({ type: "set-source-enabled", source: row.source, enabled })),
+    )
+      .then(async () => {
+        // A source just switched on has never been fetched, so ask for one now
+        // rather than leaving the row pending until the next poll — the whole
+        // screen is a checklist that is supposed to tick itself.
+        if (enabled) void send({ type: "sync", trigger: "manual" });
+        await app.refresh();
+      })
+      .catch((err: unknown) => {
+        box.disabled = false;
+        box.checked = !enabled;
+        showStatus(
+          `Could not switch ${label} ${enabled ? "on" : "off"}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
   });
 
-  const label = document.createElement("label");
-  label.className = "setup--label";
-  label.htmlFor = box.id;
+  const text = document.createElement("label");
+  text.className = "setup--label";
+  text.htmlFor = box.id;
   const name = document.createElement("span");
   name.className = "setup--name";
-  name.textContent = SOURCE_NAME[row.source];
-  const hint = document.createElement("span");
-  hint.className = "setup--hint";
-  hint.textContent = row.hint;
-  label.append(name, hint);
+  name.textContent = label;
+  const sub = document.createElement("span");
+  sub.className = "setup--hint";
+  sub.textContent = hint;
+  text.append(name, sub);
 
-  // The same chips Settings uses, so a student who has seen one screen can read
-  // the other. "✓ connected", "needs sign-in", "could not read" and "not used"
-  // were four wordings this screen invented for itself.
-  const stateEl = document.createElement("span");
+  const states = document.createElement("span");
+  states.className = "setup--states";
+  for (const row of rows) states.append(renderStateChip(row, rows.length > 1));
+
+  // The action, beside the state rather than instead of it: "Sign in needed"
+  // and a button that does it are two different things, and replacing the first
+  // with the second left a row whose state was a verb.
+  for (const row of rows) {
+    const login = row.enabled ? signInUrl(row.source, row.status) : undefined;
+    if (!login) continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-secondary btn-sm";
+    button.textContent = rows.length > 1 ? `Sign in to ${SOURCE_NAME[row.source]}` : "Sign in";
+    button.title = `Open ${SOURCE_NAME[row.source]}'s login page`;
+    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
+    states.append(button);
+  }
+
+  line.append(box, text, states);
+  return line;
+}
+
+/**
+ * The same chips Settings uses, so a student who has seen one screen can read
+ * the other. "✓ connected", "needs sign-in", "could not read" and "not used"
+ * were four wordings this screen invented for itself.
+ */
+function renderStateChip(row: SetupRow, named: boolean): HTMLElement {
+  const chip = document.createElement("span");
+  // In a pair, the chip has to say which source it is about, or "Connected ·
+  // Sign in needed" is two states and no subjects.
+  const prefix = named ? `${SOURCE_NAME[row.source]}: ` : "";
   if (!row.enabled) {
-    stateEl.className = "chip-base chip-state";
-    stateEl.textContent = "Not used";
+    chip.className = "chip-base chip-state";
+    chip.textContent = `${prefix}Not used`;
   } else if (isSyncing()) {
     /*
      * A sync is in flight, so every other word on this row is about the
@@ -201,43 +372,59 @@ function renderSetupRow(row: SetupRow): HTMLElement {
      * The header pill has said "Checking…" throughout; this screen has no pill,
      * which is exactly why it needed its own.
      */
-    stateEl.className = "chip-base chip-state";
-    stateEl.textContent = "Checking…";
-    stateEl.title = "Reading this site now. This can take a few seconds.";
+    chip.className = "chip-base chip-state";
+    chip.textContent = `${prefix}Checking…`;
+    chip.title = "Reading this site now. This can take a few seconds.";
   } else if (row.status?.lastSuccessAt !== undefined) {
-    stateEl.className = "chip-base chip-state is-ok";
-    stateEl.textContent = "Connected";
+    chip.className = "chip-base chip-state is-ok";
+    chip.textContent = `${prefix}Connected`;
   } else if (row.status?.state === "needs_login") {
-    stateEl.className = "chip-base chip-state is-warn";
-    stateEl.textContent = "Sign in needed";
+    chip.className = "chip-base chip-state is-warn";
+    chip.textContent = `${prefix}Sign in needed`;
     // What the site actually answered. It was already here for the two error
     // states and missing from the one people get stuck on — and it is the
     // difference between "the cookie is not reaching us" and "the page says
     // something we misread", which nothing else on this screen can tell apart.
-    stateEl.title = row.status.lastError ?? "";
+    chip.title = row.status.lastError ?? "";
   } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
-    stateEl.className = "chip-base chip-state is-err";
-    stateEl.textContent = "Couldn't read";
-    stateEl.title = row.status.lastError ?? "";
+    chip.className = "chip-base chip-state is-err";
+    chip.textContent = `${prefix}Couldn't read`;
+    chip.title = row.status.lastError ?? "";
   } else {
-    stateEl.className = "chip-base chip-state";
-    stateEl.textContent = "Checking…";
+    chip.className = "chip-base chip-state";
+    chip.textContent = `${prefix}Checking…`;
   }
+  return chip;
+}
 
-  line.append(box, label, stateEl);
+/** A line for something this screen can name but not switch on. */
+function renderElsewhere(entry: { label: string; hint: string; section: string }): HTMLElement {
+  const line = document.createElement("div");
+  line.className = "setup--row setup--row-quiet";
 
-  // The action, beside the state rather than instead of it: "Sign in needed"
-  // and a button that does it are two different things, and replacing the first
-  // with the second left a row whose state was a verb.
-  const login = row.enabled ? signInUrl(row.source, row.status) : undefined;
-  if (login) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "btn btn-secondary btn-sm";
-    button.textContent = "Sign in";
-    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
-    line.append(button);
-  }
+  const text = document.createElement("div");
+  text.className = "setup--label";
+  const name = document.createElement("span");
+  name.className = "setup--name";
+  name.textContent = entry.label;
+  const sub = document.createElement("span");
+  sub.className = "setup--hint";
+  sub.textContent = entry.hint;
+  text.append(name, sub);
+
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "btn btn-secondary btn-sm";
+  open.textContent = "Settings";
+  open.title = `Open the Settings section for ${entry.label}`;
+  open.addEventListener("click", () => {
+    // A tab, not `openOptionsPage`: the fragment is the only way to land on a
+    // section rather than at the top of a 4000px page, and that call cannot
+    // carry one.
+    void chrome.tabs.create({ url: chrome.runtime.getURL(`options.html#${entry.section}`) });
+  });
+
+  line.append(text, open);
   return line;
 }
 
@@ -259,7 +446,7 @@ function renderPinCard(): HTMLElement | undefined {
    *
    * This is the screen `onInstalled` opens, and the install is the moment the
    * advice is for. In a 400px popup the card costs about 90px of a 600px window
-   * and pushes "Show my calendar" — the one thing on the screen that has to be
+   * and pushes the primary button — the one thing on the screen that has to be
    * reachable — below the fold, to give advice to somebody who has just
    * demonstrated they can find the icon.
    */
@@ -269,7 +456,7 @@ function renderPinCard(): HTMLElement | undefined {
   const card = document.createElement("div");
   card.className = "pincard";
 
-  const glyph = icon("puzzle");
+  const glyph = icon("pin");
   glyph.classList.add("pincard--glyph");
 
   const text = document.createElement("div");
@@ -278,8 +465,8 @@ function renderPinCard(): HTMLElement | undefined {
   title.textContent = "Pin Illini Dash to your toolbar";
   const how = document.createElement("span");
   how.textContent =
-    "Click the puzzle-piece icon at the top right of Chrome, then the pin beside Illini Dash. " +
-    "Until you do, the badge that counts what is due is hidden behind that menu.";
+    "Chrome hides new extensions behind the puzzle icon — so does the badge that tells you " +
+    "something's due. Click it, then the pin beside Illini Dash.";
   text.append(title, how);
 
   const dismiss = iconButton("close", "Dismiss");

@@ -121,6 +121,8 @@ const epilogue = `
   // because a synthetic click fires no pointerdown, no mousedown and no focus
   // change (UI house rule 5), and a screen opened from a press is the state
   // worth shooting.
+  // \`?open=health\` presses the header pill, which since D2 opens the
+  // Needs-you screen rather than the popover it used to.
   const target = q.get("open") === "health"
     ? ".pill"
     : q.get("open") === "deadline"

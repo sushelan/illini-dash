@@ -283,6 +283,17 @@ export const state: {
   lastFound: { items: number; courses: number } | undefined;
   /** The last state drawn, so the header can be repainted without a round trip. */
   lastHealth: { sources: Record<Source, SourceStatus>; lastSyncAt?: string } | undefined;
+  /**
+   * The sub-screen that has taken `#view` over, or nothing.
+   *
+   * A screen is not a view: `view` is the tab the student chose and is
+   * remembered across opens, and a screen sits *in front of* it for one
+   * question — so ‹ back is "stop showing this" and the tab comes back with the
+   * next redraw, rather than a second copy of the tab-remembering rule.
+   *
+   * In flow, always (UI rule 8): every screen replaces `#view` rather than
+   * floating over it, so Chrome has something to measure.
+   */
   /** A sync this page started. */
   syncing: boolean;
   /**
@@ -305,7 +316,10 @@ export const state: {
    * — a press on the tab strip while it is open means the student wants the
    * list, so the screen stands down rather than sitting on top of another view.
    */
-  screen: { kind: "deadline" | "editor"; itemId?: string; view: ViewName } | undefined;
+  screen:
+    | { kind: "deadline" | "editor"; itemId?: string; view: ViewName }
+    | { kind: "needs-you" }
+    | undefined;
   /**
    * The one editor that may be open, and the redraw it is holding off.
    *
@@ -409,6 +423,8 @@ export const app: {
   openGiveDate: (item: Item) => void;
   /** Brief D2: the Needs-you screen the header pill opens (screens/needs-you.ts). */
   openNeedsYou: () => void;
+  /** …and ‹ back off it, which the pill needs so it can be a toggle. */
+  closeNeedsYou: () => void;
 } = {
   refresh: () => Promise.resolve(),
   runSync: () => Promise.resolve(),
@@ -419,4 +435,5 @@ export const app: {
   openDeadline: () => undefined,
   openGiveDate: () => undefined,
   openNeedsYou: () => undefined,
+  closeNeedsYou: () => undefined,
 };
