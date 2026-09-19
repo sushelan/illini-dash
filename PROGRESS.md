@@ -7,6 +7,35 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Live: reader 3 reads 23 bodies; the debounce and the diff hold — 2026-09-19
+
+Sushi's console on build 20260919T052601, read as evidence (worker rule 7). In order:
+"every post here was read by reader 2, and this build is reader 3: re-reading them in
+full"; "CS 424: 4 post(s) in the feed, 3 note(s) to re-read"; "CS 425 / ECE 428: 107
+post(s) in the feed, 20 note(s) to re-read"; "23 new note(s): 23 read in full, 0
+unread"; "reader upgraded 2 → 3"; "2 classes, 25 request(s), 23 new notes, 0 moved, 1
+suggested". The next sync: "0 new note(s) to read", two requests, and the popup-open
+line "inside the 5-minute debounce, so nothing is refetched" — the upgrade ran once, the
+bodies were fetched (25 requests = 2 feeds + 23 bodies), and neither the loop nor the
+popup re-reads. Google Calendar said "nothing changed — 25 events already on the
+calendar" on every pass, which is the content-hash diff doing what it is for.
+
+Three readings of the numbers:
+
+- **29 became 23.** The first live run read 29 notes; reader 3 re-read 23. The six are the
+  classmate-written pinned notes wave 8 now holds back (P5), which makes the open policy
+  question concrete: six of this student's 29 notes are classmate posts, unread until
+  Sushi says whether they may raise suggestions.
+- **HW1 produced nothing, which is right.** Sushi has a Gradescope HW1 for CS 425 (the
+  hide/unhide lines name it); the running post states the same 20 Sep 23:59, so the
+  mention is a zero-distance match and neither a move nor a suggestion — exactly what
+  `tests/piazza-real.test.ts` pins. The one suggestion is something else; asked which.
+- **"reader upgraded 2 → 3: re-reading 0 posts in full"** is a cosmetic contradiction: the
+  apply-time line counts the `piazza:` keys it drops, and by then the fetch had already
+  been planned on the cleared view, so it counted the fresh marks' absence rather than the
+  29 it announced in the plan line. Harmless — the next sync shows no loop — but the two
+  lines should agree; small, and noted for the next Piazza worker.
+
 ## Wave 9: the reader upgrade re-reads for real; the author's schema demands what its validator does — 2026-09-19
 
 **1900 → 1927 tests.** Two workers. The Piazza plan now carries `seenPostsForFetch` — the
