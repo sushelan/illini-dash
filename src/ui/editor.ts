@@ -31,7 +31,7 @@
  *    is a refusal with nowhere to go, not a refusal in the wrong place.
  */
 
-import { icon } from "./icons.js";
+import { icon, iconButton } from "./icons.js";
 import type { Kind } from "../sources/types.js";
 
 /** Exactly what the editor holds, as strings. `core/manual.ts` judges them. */
@@ -50,8 +50,16 @@ export interface EditorValues {
 export interface EditorOptions {
   /** "Add a deadline" / "Edit this deadline". */
   heading: string;
-  /** The word on the button that saves: "Add" or "Save". */
+  /** The word on the button that saves: "Add it" or "Save". */
   submitLabel: string;
+  /**
+   * The sentence under the bar (mock 2b), when the caller has one.
+   *
+   * Optional because an *edit* has nothing to explain — the student is looking
+   * at a row they typed — while the add form is the one surface where "what is
+   * this for" is a real question.
+   */
+  intro?: string;
   /** Course labels currently on screen, offered as suggestions, not a closed list. */
   courses: readonly string[];
   values: Partial<EditorValues>;
@@ -111,6 +119,10 @@ const ERROR_FIELD: readonly { test: RegExp; field: keyof EditorValues }[] = [
   { test: /^Say which course this is for\b/, field: "courseRaw" },
   { test: /^A course name can be at most\b/, field: "courseRaw" },
   { test: /^Give the date as\b/, field: "date" },
+  // Since D11's toggle, a time with no day is a state the form can be left in
+  // by hand — clearing the date and not the clock — so the sentence that
+  // refuses it belongs beside the date rather than at the foot of the form.
+  { test: /^Give this a date\b/, field: "date" },
   { test: /^There is no such date as\b/, field: "date" },
   { test: /^Give the time as\b/, field: "time" },
   { test: /^Give the end time as\b/, field: "endTime" },
@@ -152,13 +164,32 @@ export function createEditor(options: EditorOptions): Editor {
   // form whose refusals are written to say what to do.
   form.noValidate = true;
 
+  /*
+   * The screen bar (mock 2b): ‹ back, the heading, ×.
+   *
+   * Two controls that do the same thing, deliberately. ‹ is where every
+   * sub-screen in this popup puts "leave", and × is what a form is expected to
+   * carry; a student who learns either one is right. Both are `Cancel`, which
+   * is the one path that also runs the caller's `onClose`.
+   */
   const head = document.createElement("div");
-  head.className = "editor--head";
+  head.className = "editor--head screen-bar";
+  const back = iconButton("left", "Back");
+  back.addEventListener("click", () => options.onCancel());
   const heading = document.createElement("h2");
-  heading.className = "editor--title";
+  heading.className = "editor--title screen-bar--title";
   heading.textContent = options.heading;
-  head.append(heading);
+  const dismiss = iconButton("close", "Close this form");
+  dismiss.addEventListener("click", () => options.onCancel());
+  head.append(back, heading, dismiss);
   form.append(head);
+
+  if (options.intro) {
+    const intro = document.createElement("p");
+    intro.className = "editor--intro";
+    intro.textContent = options.intro;
+    form.append(intro);
+  }
 
   const grid = document.createElement("div");
   grid.className = "editor--grid";
@@ -188,7 +219,7 @@ export function createEditor(options: EditorOptions): Editor {
     list.append(option);
   }
   course.setAttribute("list", list.id);
-  const courseField = labelled("Course", course, { wide: true });
+  const courseField = labelled("Course", course);
   courseField.wrap.append(list);
 
   const date = document.createElement("input");
@@ -235,14 +266,65 @@ export function createEditor(options: EditorOptions): Editor {
   url.value = options.values.url ?? "";
   const urlField = labelled("Link", url, { wide: true });
 
+  /*
+   * "No date yet" (brief D11), as a real checkbox with `role="switch"`.
+   *
+   * Not a `<div>` painted to look like the mock's toggle: this is the control
+   * that decides whether a deadline lands on the calendar at all, and a div
+   * cannot be tabbed to, cannot be pressed with the space bar and announces as
+   * nothing. `.switch` in `ui.css` already draws a checkbox as a toggle.
+   *
+   * It *disables* Date and Time rather than clearing them, so a student who
+   * turns it on by mistake gets the date they typed back when they turn it off.
+   * `read()` below is what makes the promise true: a disabled field's value is
+   * not a value the student stated.
+   */
+  const noDateWrap = document.createElement("label");
+  noDateWrap.className = "editor--field-wide editor--nodate";
+  const noDate = document.createElement("input");
+  noDate.type = "checkbox";
+  noDate.className = "switch";
+  noDate.setAttribute("role", "switch");
+  noDate.dataset["field"] = "noDate";
+  // An edit of a row that has no date opens with the toggle already on: the
+  // form would otherwise show whatever day the list was looking at and save it
+  // as a deadline the student never typed.
+  noDate.checked = options.values.date === "";
+  const noDateText = document.createElement("span");
+  noDateText.className = "editor--nodate-text";
+  const noDateTitle = document.createElement("b");
+  noDateTitle.textContent = "No date yet";
+  const noDateNote = document.createElement("span");
+  noDateNote.textContent = "Puts it on the No date tab instead of the calendar.";
+  noDateText.append(noDateTitle, noDateNote);
+  noDateWrap.append(noDate, noDateText);
+
+  /*
+   * End time and Link, folded away.
+   *
+   * `<details>`, not a button that toggles a class: it is open or closed with
+   * no script, it is in the tab order, and it contributes its own height to the
+   * document both ways — which is what Chrome measures the popup by.
+   */
+  const more = document.createElement("details");
+  more.className = "editor--more editor--field-wide";
+  const moreSummary = document.createElement("summary");
+  moreSummary.textContent = "More";
+  const moreGrid = document.createElement("div");
+  moreGrid.className = "editor--more-grid";
+  moreGrid.append(endField.wrap, urlField.wrap);
+  more.append(moreSummary, moreGrid);
+
+  // Mock 2b's order: Title across the top, then Course / Kind and Date / Time
+  // in two columns, the toggle under them, and everything rarer behind "More".
   grid.append(
     titleField.wrap,
     courseField.wrap,
+    kindField.wrap,
     dateField.wrap,
     timeField.wrap,
-    endField.wrap,
-    kindField.wrap,
-    urlField.wrap,
+    noDateWrap,
+    more,
   );
 
   const errors: Record<string, HTMLElement> = {
@@ -270,14 +352,22 @@ export function createEditor(options: EditorOptions): Editor {
   cancel.type = "button";
   cancel.className = "btn btn-quiet btn-sm";
   cancel.textContent = "Cancel";
-  actions.append(cancel, save);
+  // Mock 2b: the filled button takes the width it needs and Cancel sits beside
+  // it, rather than both being pushed to the right edge. The primary action on
+  // a sub-screen is the thing the screen is for.
+  save.classList.add("editor--save");
+  actions.append(save, cancel);
   form.append(actions);
 
   const read = (): EditorValues => ({
     title: title.value,
     courseRaw: course.value,
-    date: date.value,
-    time: time.value,
+    // The toggle wins over both clock fields. `core/manual.ts` accepts a row
+    // with no date and refuses a time with no day, so sending the date the
+    // student left in a disabled box would be sending a deadline they had just
+    // said they did not have.
+    date: noDate.checked ? "" : date.value,
+    time: noDate.checked ? "" : time.value,
     // An end time on a kind that does not show the field is not a value the
     // student stated — it is one left behind by a kind they changed away from,
     // and sending it would build a span nobody asked for.
@@ -285,6 +375,8 @@ export function createEditor(options: EditorOptions): Editor {
     kind: (kind.value || "assignment") as Kind,
     url: url.value,
   });
+
+  const changed = (): void => options.onChange?.(read());
 
   const opened = read();
   const clearErrors = (): void => {
@@ -321,6 +413,18 @@ export function createEditor(options: EditorOptions): Editor {
     control.dataset["field"] = name;
   }
 
+  const syncNoDate = (): void => {
+    date.disabled = noDate.checked;
+    time.disabled = noDate.checked;
+    dateField.wrap.classList.toggle("is-off", noDate.checked);
+    timeField.wrap.classList.toggle("is-off", noDate.checked);
+  };
+  syncNoDate();
+  noDate.addEventListener("change", () => {
+    syncNoDate();
+    changed();
+  });
+
   const syncKind = (): void => {
     // Hidden rather than removed: a `<label>` taken out of the grid re-flows
     // the three columns beside it, so the date moves when the kind changes.
@@ -328,7 +432,6 @@ export function createEditor(options: EditorOptions): Editor {
   };
   syncKind();
 
-  const changed = (): void => options.onChange?.(read());
   for (const control of [date, time, endTime]) {
     control.addEventListener("input", changed);
   }

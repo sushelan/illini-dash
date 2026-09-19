@@ -1,9 +1,9 @@
 /*
  * popup-screens.css — owned by the screens pass of the redesign.
  *
- * Empty on purpose. `popup.css` holds the sizing invariants, the shell and the
- * shared card language (`.card`, `.section-head`, `.screen`); this file is
- * where the screens work adds its own rules, so two parallel changes never touch one
+ * `popup.css` holds the sizing invariants, the shell and the shared card
+ * language (`.card`, `.section-head`, `.screen`); this file is where the
+ * screens work adds its own rules, so two parallel changes never touch one
  * stylesheet. It loads after `popup.css`, so anything here wins.
  *
  * The invariants it may not break, whatever it adds: `html` and `body` are
@@ -12,3 +12,222 @@
  * to decide the popup's size, so a width media query can feed itself. See the
  * header of popup.css.
  */
+
+/* ==========================================================================
+ * === W3: deadline screen + editor ===
+ *
+ * The deadline screen (brief D8, mock 1c) and the editor (D11, mock 2b). Both
+ * render **in document flow** inside `#view` — no `position`, no percentage
+ * height, no viewport unit — so every pixel they occupy is a pixel Chrome can
+ * measure the popup by (UI house rule 8).
+ *
+ * Every colour is a token. `--primary` / `--primary-ink` for the one filled
+ * button on a screen: in light that is the brand navy, and in dark the brand
+ * *is* the page, so the token resolves to the accent by design.
+ * ====================================================================== */
+
+/* ---- the deadline screen ------------------------------------------------ */
+
+.screen--deadline .screen--body {
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.dl--head { display: flex; flex-direction: column; gap: 8px; }
+
+/* The course, as the row's chip one size up: tinted fill, coloured code, the
+   student's own name for it beside. `--course` falls back to the muted ink for
+   a row whose course is not on the colour ring (a booking, a lone manual row). */
+.dl--course {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  max-width: 100%; min-width: 0;
+  padding: 4px 9px; border-radius: 999px;
+  background: var(--course-bg, var(--tint-strong));
+  font-size: 11px; line-height: 1;
+}
+.dl--dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--course, var(--muted));
+}
+.dl--code { color: var(--course, var(--fg)); font-weight: 700; flex: none; }
+.dl--course-name {
+  color: var(--muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Wraps. It is the one string on the screen that may not be truncated: a title
+   cut at 400px is the one fact the student opened this for. */
+.dl--title {
+  margin: 0;
+  font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: -.2px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+/* ---- the due card ---- */
+
+.dl--due { display: flex; align-items: center; gap: 12px; padding: 12px 13px; }
+.dl--due-left { flex: 1; min-width: 0; }
+.dl--due-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+.dl--due-when {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+/* Worker rule 3, on the largest surface that states a deadline: a time this
+   code invented never reads as one the source printed. */
+.dl--assumed {
+  display: block; margin-top: 3px;
+  font-size: 10.5px; font-weight: 500; font-style: italic; color: var(--warn);
+}
+.dl--count { text-align: right; flex: none; }
+.dl--count-big {
+  font-size: 19px; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--fg);
+}
+.dl--count-big.is-late { color: var(--err); }
+.dl--count-cap { margin-top: 4px; font-size: 10px; color: var(--muted); }
+/* The mock's warm edge, on an open deadline only: a row that is done, or has no
+   date to count to, has nothing to be warm about. */
+.dl--due-open { border-color: var(--today-tint); }
+
+/*
+ * No calendar chrome above a screen that is not a calendar.
+ *
+ * `‹ Today · Sat, Sep 19 ›` over one deadline is a control for a list that is
+ * not on screen, and it costs 32 of the 600 pixels the screen has. The marker
+ * is set by whichever screen owns the draw and cleared by the first draw that
+ * does not — never by a media query or anything else keyed on the window, which
+ * in a popup can feed itself.
+ */
+body[data-screen] #nav { display: none; }
+
+/* ---- the facts list ----
+ *
+ * One hairline between rows, made of the container's own background showing
+ * through a 1px gap — so there is no border to double up at the ends and the
+ * whole block clips to one radius. */
+.dl--facts {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--card-line);
+  border: 1px solid var(--card-line); border-radius: 12px;
+  overflow: hidden;
+}
+.fact {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface-raised);
+  font-size: 11.5px;
+}
+.fact--label { width: 74px; flex: none; color: var(--muted); }
+.fact--value {
+  flex: 1; min-width: 0; font-weight: 600; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fact--warn { color: var(--warn); }
+.fact--open { flex: none; font-size: 11px; font-weight: 600; color: var(--brand-mark); }
+
+/* ---- an announcement moved it ---- */
+
+.dl--moved {
+  padding: 10px 12px; border-radius: 11px;
+  background: var(--warn-wash);
+}
+.dl--moved-head {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--warn); margin-bottom: 5px;
+}
+.dl--moved-text { font-size: 11.5px; line-height: 1.5; color: var(--fg); }
+.dl--undo { margin-top: 8px; }
+
+/* ---- the four buttons ---- */
+
+.dl--buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Taller than the shell's `.btn` and allowed to wrap: "Hide ECE 391" in a
+   194px column is two words that must both be readable. */
+.dl--button {
+  height: auto; min-height: 36px; padding: 6px 8px;
+  font-size: 12px; font-weight: 600; text-align: center;
+  white-space: normal; line-height: 1.25;
+}
+
+/* ---- the editor (D11, mock 2b) ------------------------------------------ */
+
+/*
+ * As a screen it is the document, not a card floating in it — no shadow, no
+ * border, no margin under it. When a caller still mounts it inside a week day
+ * box (`container`), `popup.css`'s card treatment is what applies, so both
+ * shapes are one file apart rather than one class apart.
+ */
+#view > .editor {
+  border: 0; border-radius: 0; box-shadow: none;
+  background: transparent;
+  padding: 0 2px 8px; margin: 0;
+}
+#view > .editor .editor--head { margin-bottom: 8px; }
+
+.editor--head { justify-content: flex-start; }
+.editor--title { margin: 0; }
+.editor--intro {
+  margin: 0 2px 12px;
+  font-size: 11.5px; line-height: 1.5; color: var(--muted);
+}
+
+/* The mock's label: smaller, heavier, wider-tracked than the shell's. */
+.editor--label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em; color: var(--muted);
+}
+.editor--grid { gap: 9px; }
+.editor .field { height: 32px; border-radius: 9px; background: var(--surface-raised); }
+.editor select.field { cursor: pointer; }
+/* A field the "No date yet" toggle has switched off. Dimmed rather than
+   removed, so the date typed before the toggle is still visible and comes back
+   when it is turned off again. */
+.editor--field.is-off .editor--label,
+.editor--field.is-off .field { opacity: .55; }
+
+/* ---- No date yet ---- */
+
+.editor--nodate {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; margin-top: 1px;
+  border: 1px solid var(--card-line); border-radius: 10px;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+.editor--nodate .switch { flex: none; }
+.editor--nodate-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.editor--nodate-text b { font-size: 11.5px; font-weight: 600; color: var(--fg); }
+.editor--nodate-text span { font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+
+/* ---- More: the end time and the link ---- */
+
+.editor--more { min-width: 0; }
+.editor--more > summary {
+  cursor: pointer; list-style: none;
+  padding: 4px 2px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
+.editor--more > summary::-webkit-details-marker { display: none; }
+.editor--more > summary::before {
+  content: "\203a"; display: inline-block; width: 12px;
+  transition: transform 120ms ease;
+}
+.editor--more[open] > summary::before { transform: rotate(90deg); }
+.editor--more > summary:hover { color: var(--fg); }
+.editor--more-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px;
+  padding-top: 4px;
+}
+.editor--more-grid .editor--field-wide { grid-column: 1 / -1; }
+
+/* ---- Add it / Cancel ---- */
+
+.editor--actions { justify-content: flex-start; gap: 8px; margin-top: 12px; }
+.editor--actions .btn {
+  height: 36px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
+}
+/* The primary takes the width; Cancel takes what it needs. The one filled
+   button on the screen is the thing the screen is for. */
+.editor--save { flex: 1; font-weight: 700; }
