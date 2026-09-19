@@ -12,3 +12,118 @@
  * to decide the popup's size, so a width media query can feed itself. See the
  * header of popup.css.
  */
+
+/* ==========================================================================
+ * The popup's month (D6, mock 2a)
+ *
+ * Weight per day rather than titles per day: seven columns of a 400px window
+ * leave ~52px each, which is room for a date and four 5px dots and nothing
+ * else. The titles are under the grid, for the one day that was tapped.
+ *
+ * The full view's month — `.mhead`, `.mgrid`, `.mcell`, `.mpill` in popup.css —
+ * is untouched by every rule here; these class names are new.
+ * ====================================================================== */
+.mdow, .mdots {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin: 0 10px;
+  box-sizing: border-box;
+}
+/* The two grids read as one card: the weekday strip is its head. */
+.mdow {
+  background: var(--surface);
+  border: 1px solid var(--card-line); border-bottom: 0;
+  border-radius: 11px 11px 0 0;
+}
+.mdow div {
+  padding: 6px 0; text-align: center;
+  font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted);
+}
+.mdots {
+  background: var(--surface-raised);
+  border: 1px solid var(--card-line);
+  border-radius: 0 0 11px 11px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+/*
+ * A cell is a button, so every day is reachable by Tab and answers Enter and
+ * Space without a line of code. `min-height` rather than a height: a cell with
+ * four dots and one with none must still line up, and a fixed height is the
+ * thing that clips the "+N".
+ */
+.mday {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  box-sizing: border-box;
+  min-height: 46px; padding: 5px 0 6px;
+  border: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+  background: none; color: var(--fg); font: inherit;
+  cursor: pointer;
+}
+/* The grid's own edges are the card's, so the first column and the first row
+   do not draw a second line on top of them. */
+.mday:nth-child(7n + 1) { border-left: 0; }
+.mday:nth-child(-n + 7) { border-top: 0; }
+.mday:hover { background: var(--hover); }
+.mday--num {
+  font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+/* A day of the neighbouring month: there because the grid is rectangular, and
+   quiet because it is not what this month is about. */
+.mday--out .mday--num { color: var(--muted); opacity: .75; }
+.mday--today { background: var(--today-tint); }
+.mday--today .mday--num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  font-weight: 700; line-height: 20px; text-align: center;
+}
+/*
+ * The tapped day, outlined rather than filled.
+ *
+ * `--fg`, not `--brand`: the mock's navy is `--brand`, which in dark mode is
+ * `#0d1626` — an outline the same colour as the window it is drawn in. `--fg`
+ * is the one token guaranteed to contrast with the surface in all six
+ * theme/mode combinations, which is the property an outline needs.
+ *
+ * `inset`, so it costs no layout: an outline that grew the cell would move
+ * every other cell in the row when the selection moved.
+ */
+.mday--on { box-shadow: inset 0 0 0 2px var(--fg); }
+.mday--on .mday--num { font-weight: 700; }
+.mday:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.mday--dots { display: flex; align-items: center; gap: 2px; line-height: 0; }
+.mdot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--course, var(--muted));
+  flex: none;
+}
+/* Finished work still shows — a month with the done days blank would read as a
+   month with nothing on it — but it must not read as work still owed. */
+.mdot--done { opacity: .45; }
+.mdot-more {
+  font-size: 8px; font-weight: 700; line-height: 1;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+
+/* The tapped day's list. `.section-head` carries the date and the count. */
+.mday-list { padding: 12px 10px 10px; }
+.mday-rows { display: flex; flex-direction: column; gap: 6px; }
+.mday-list .empty { margin: 0; padding: 0 4px; }
+
+/*
+ * "Full view ↗", beside the month's name in the date navigator.
+ *
+ * `--brand-mark` is the mock's link colour (`#ad3d02`) and is defined in all
+ * six combinations — in dark it is the accent, which is the one warm thing on
+ * that bar.
+ */
+.mfull {
+  margin-left: 7px; padding: 0;
+  border: 0; background: none;
+  font: inherit; font-size: 11px; font-weight: 500;
+  color: var(--brand-mark); cursor: pointer; white-space: nowrap;
+}
+.mfull:hover { text-decoration: underline; }

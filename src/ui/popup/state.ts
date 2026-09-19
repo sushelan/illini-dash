@@ -180,12 +180,13 @@ export const VIEW_LABEL: Record<string, string> = {
 /**
  * Views the 400px popup cannot hold, which open the full view instead.
  *
- * Empty for now — nothing is full-view-only. The month used to be, on the
- * argument that seven columns need about 100px each; D6 replaces the popup's
- * month with a dot grid, so the set is kept as the mechanism and the entry
- * goes when that view lands.
+ * Empty — nothing is full-view-only. The month used to be, on the argument
+ * that seven columns need about 100px each, which was an argument about the
+ * *pills* rather than about the month: D6's popup month draws a dot per
+ * deadline and names them in a list under the grid, so seven columns need
+ * about 50px each and the tab fits. The set stays as the mechanism.
  */
-export const FULL_VIEW_ONLY: ReadonlySet<ViewName> = new Set<ViewName>(["month"]);
+export const FULL_VIEW_ONLY: ReadonlySet<ViewName> = new Set<ViewName>();
 
 export function storedView(): ViewName {
   const raw = readStored(VIEW_KEY);
