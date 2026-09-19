@@ -119,3 +119,74 @@ export function resolveDark(mode: ModeName, systemPrefersDark: boolean): boolean
 
 /** The class the stylesheet keys on for the dark end of every palette. */
 export const DARK_CLASS = "is-dark";
+
+/* -------------------------------------------------------------------------- */
+/* Tweaks (brief D14)                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Two switches in the theme panel, and neither carries meaning.
+ *
+ * That is the test they had to pass to live beside the palette rather than in
+ * Settings: the palette comment above says a free colour picker "lets someone
+ * choose a scheme in which two of those are the same colour, and the result
+ * looks fine and lies". A tweak that could hide a deadline would be the same
+ * defect with a checkbox in front of it.
+ *
+ * - `urgencyEdge` adds a 4px course-hue edge to each row. The mock's own note
+ *   says urgency is carried by *text* — "in 4h", red once it is past — so the
+ *   edge is decoration, and off by default because it turns a list of white
+ *   cards into eight competing colours.
+ * - `showSourceNames` drops the "· Gradescope" from every row. On by default:
+ *   a student who is looking at a row and wondering whether to trust it wants
+ *   to know who said so, and the same title from two sources is the case §5.3
+ *   exists for. Hiding it is a preference, not a default.
+ *
+ * `localStorage`, like the theme and the mode, and for the same two reasons:
+ * they are per-device display preferences, and they have to be readable before
+ * the first paint — anything in the store costs a round trip to the worker,
+ * which is a visible flash of the other layout on every open.
+ */
+export interface Tweaks {
+  urgencyEdge: boolean;
+  showSourceNames: boolean;
+}
+
+export const DEFAULT_TWEAKS: Tweaks = { urgencyEdge: false, showSourceNames: true };
+
+/**
+ * One key per tweak, like `THEME_KEY` and `MODE_KEY`.
+ *
+ * Not one JSON blob: a blob means every write re-states every other value, so
+ * two pages open at once silently undo each other's change — and a blob that
+ * fails to parse takes both settings with it rather than one.
+ */
+export const TWEAK_KEYS: Record<keyof Tweaks, string> = {
+  urgencyEdge: "illini-dash.tweak.urgencyEdge",
+  showSourceNames: "illini-dash.tweak.showSourceNames",
+};
+
+/**
+ * The stored values, or the defaults — never a throw and never `undefined`.
+ *
+ * Same contract as `normalizeMode`: a value written by a later build, edited by
+ * hand, or lost to a cleared origin must not leave the page unstyled. The
+ * accepted forms are `true`/`false` and the strings `"true"`/`"false"`, because
+ * `localStorage` returns strings and a caller that forgot to parse is the
+ * likelier mistake than one that passed a boolean.
+ *
+ * **Anything else falls back to the default rather than to `false`.**
+ * `Boolean(stored)` would read a missing `showSourceNames` as "off" and silently
+ * strip the source from every row on a fresh install — the defect worker rule 8
+ * describes, one origin over: a stored value is data from another build, not a
+ * typed object.
+ */
+export function normalizeTweaks(stored: Partial<Record<keyof Tweaks, unknown>>): Tweaks {
+  const read = (key: keyof Tweaks): boolean => {
+    const value = stored[key];
+    if (value === true || value === "true") return true;
+    if (value === false || value === "false") return false;
+    return DEFAULT_TWEAKS[key];
+  };
+  return { urgencyEdge: read("urgencyEdge"), showSourceNames: read("showSourceNames") };
+}

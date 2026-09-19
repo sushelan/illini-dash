@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import {
   DARK_CLASS,
   DEFAULT_MODE,
+  DEFAULT_TWEAKS,
+  normalizeTweaks,
+  TWEAK_KEYS,
   DEFAULT_THEME,
   MODES,
   MODE_KEY,
@@ -149,5 +152,56 @@ describe("light or dark", () => {
     // A media query cannot be overridden by a setting without writing every
     // dark value twice, and two copies of a palette is colour-layer.md rule 3.
     expect(DARK_CLASS).toBe("is-dark");
+  });
+});
+
+describe("tweaks (brief D14)", () => {
+  it("is off for the edge and on for the source names", () => {
+    // The mock's own note: urgency is carried by *text* — "in 4h", red once it
+    // is past — so the edge is decoration. And a student wondering whether to
+    // trust a row wants to know who said so, which is the case §5.3 exists for.
+    expect(normalizeTweaks({})).toEqual({ urgencyEdge: false, showSourceNames: true });
+    expect(DEFAULT_TWEAKS).toEqual({ urgencyEdge: false, showSourceNames: true });
+  });
+
+  it("reads what localStorage actually returns, which is strings", () => {
+    expect(normalizeTweaks({ urgencyEdge: "true", showSourceNames: "false" })).toEqual({
+      urgencyEdge: true,
+      showSourceNames: false,
+    });
+    expect(normalizeTweaks({ urgencyEdge: true, showSourceNames: false })).toEqual({
+      urgencyEdge: true,
+      showSourceNames: false,
+    });
+  });
+
+  it("falls back to the default rather than to false, for every junk value", () => {
+    /*
+     * `Boolean(stored)` would read a missing or unparsed `showSourceNames` as
+     * "off" and silently strip the source from every row on a fresh install.
+     * Worker rule 8, one origin over: a stored value is data from another
+     * build, not a typed object — and house rule 5, because `""` and `"0"` both
+     * pass `typeof x === "string"`.
+     */
+    for (const junk of [undefined, null, "", "0", "yes", "TRUE", 1, 0, {}, []]) {
+      const tweaks = normalizeTweaks({ urgencyEdge: junk, showSourceNames: junk });
+      expect(tweaks, String(junk)).toEqual(DEFAULT_TWEAKS);
+    }
+  });
+
+  it("reads each tweak independently, so one junk value cannot spend the other", () => {
+    expect(normalizeTweaks({ urgencyEdge: "true", showSourceNames: "maybe" })).toEqual({
+      urgencyEdge: true,
+      showSourceNames: true,
+    });
+  });
+
+  it("gives each tweak its own key, beside the palette and the mode", () => {
+    // Not one JSON blob: a blob means every write re-states every other value,
+    // so two pages open at once silently undo each other's change.
+    expect(TWEAK_KEYS.urgencyEdge).toBe("illini-dash.tweak.urgencyEdge");
+    expect(TWEAK_KEYS.showSourceNames).toBe("illini-dash.tweak.showSourceNames");
+    const keys = [...Object.values(TWEAK_KEYS), THEME_KEY, MODE_KEY];
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
