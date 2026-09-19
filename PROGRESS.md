@@ -2,10 +2,35 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (1900 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (1927 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Wave 9: the reader upgrade re-reads for real; the author's schema demands what its validator does — 2026-09-19
+
+**1900 → 1927 tests.** Two workers. The Piazza plan now carries `seenPostsForFetch` — the
+store's marks with every `piazza:` key removed when `rereadAll`, computed by the same
+`readerUpgrade` the write uses — and it is the only seen-marks field the fetch stage can
+be handed; the plan hold no longer returns raw marks, so the live mistake is a type error.
+`PIAZZA_READER_VERSION` is 3, because 2 was stamped on real installs without a fetch. The
+test the wave-7 suite lacked now exists: the worker's sequence, plan → postsToSend →
+postsNeedingBody → bodyBatch, over the real feed with every post marked read under an old
+reader, asserting 20 notes sent and "already read" 0 — the exact mutation that was live
+survived all 131 Piazza tests before it and fails now. The per-class line moved into core
+(`feedLine`) and says "N note(s) to re-read", keeping the "already read" clause on that
+branch as a tripwire.
+
+The author's response schema requires `shape, rows, title, due, dueLabel, dateFormat` of
+every shape (Chrome's `responseConstraint` is flat, so the per-shape conditional cannot
+live there); "" means "not given" and, for `title`/`due` off a table, becomes the runner's
+`.`. `columns` left the model's vocabulary — the validator assembles it. A test builds the
+minimal schema-valid object per shape *from the schema* and asserts no rejection reason
+says "needs" or "missing". Each inventory entry now carries a sketch of one row's inside
+("inside one row: p  e.g. "Release: 8/25""), so `title` is a choice from something shown.
+Open: ECE 411's bullets are `Due: 9/7`, so the right answer is the `list` shape with a
+`dueLabel`; if the model still fails, the inventory's ordering (bare `li ×39` above the
+section's list) is the next lever, not the schema.
 
 ## Live: the click survives the sync; the reader upgrade did not — 2026-09-19
 
