@@ -1,0 +1,12 @@
+/* design-classical-shell.css — the Classical calendar's shell layer.
+ *
+ * Scoped under `html[data-design="classical"]` like every rule in
+ * `design-classical.css`, which loads first and owns the tokens, the type
+ * scale and the shared card slip. Spend those here; do not restate them and
+ * do not put a hex literal in this file.
+ *
+ * The invariants it may not break: `html` and `body` are never scroll
+ * containers, nothing takes a viewport unit or a percentage height, no rule is
+ * keyed on window width, and nothing in the popup is `position: fixed`.
+ * See the header of popup.css.
+ */
