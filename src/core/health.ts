@@ -529,6 +529,110 @@ export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
   return { kind: "clear", tone: "ok", text: "All clear" };
 }
 
+/* -------------------------------------------------------------------------- */
+/* The footer strip (brief D10)                                                */
+/* -------------------------------------------------------------------------- */
+
+export interface FooterLine {
+  /** The dot's colour. What the *sources* are doing. */
+  dot: HealthTone;
+  /** "8 sources", or "7 of 8 sources" when they are not all answering. */
+  sources: string;
+  /** "synced 2m ago" · "not synced yet" · "syncing…". */
+  synced: string;
+  /**
+   * The strip's own wash, which is not always the dot's.
+   *
+   * A sync in flight is `pending` across the whole strip — the words say
+   * "syncing…" and an amber background under them would read as a failure that
+   * has already happened. Once it finishes the strip takes the dot's tone
+   * again, which is where D10's `--warn-wash` comes from.
+   */
+  tone: HealthTone;
+}
+
+/**
+ * "2m ago", the footer's clock.
+ *
+ * Not `timeAgo`, which says "2 min ago" and "yesterday" — right for a source
+ * row with a whole line to itself, too wide for a strip that also has to carry
+ * a count and a button inside 400px. Mock 1e: "synced 2m ago".
+ */
+function compactAgo(at: number, now: Date): string {
+  const seconds = Math.round((now.getTime() - at) / 1000);
+  // A clock behind the worker's. "in -3s" is worse than rounding (`timeAgo`
+  // makes the same call for the same reason).
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * The always-present footer: `[dot] N sources · synced 2m ago · Sync now`.
+ *
+ * **There is no `lastSyncAt` parameter, and that is the point.** `runSync`
+ * stamps that field whether or not anything succeeded, so the old
+ * `Synced 10:32` said "synced" just as loudly after four failures — worker
+ * house rule 2's own example. This reads the newest `lastSuccessAt` across the
+ * sources that are switched on, so "synced 2m ago" means at least one source
+ * was actually read 2m ago. A parameter that cannot be passed cannot be used.
+ *
+ * The count is `ok` of `checkable`, so a source that is off, or on with nothing
+ * behind it, is on neither side (`summarize`), and a pending source is not
+ * quietly counted as answering. That makes a cold install read
+ * "0 of 4 sources · not synced yet", which is exactly what has happened.
+ */
+export function footerLine(
+  sources: Partial<Record<Source, SourceStatus>>,
+  syncing: boolean,
+  now: Date,
+): FooterLine {
+  const summary = summarize(sources);
+  const total = summary.checkable.length;
+  const answering = summary.ok.length;
+
+  const dot: HealthTone =
+    total === 0
+      ? "pending"
+      : summary.failing.length > 0
+        ? "warn"
+        : answering < total
+          ? "pending"
+          : "ok";
+
+  // Only from a source the student has switched on: a disabled source's old
+  // success is not evidence about the list in front of them.
+  let newest: number | undefined;
+  for (const source of summary.checkable) {
+    const raw = sources[source]?.lastSuccessAt;
+    if (raw === undefined) continue;
+    const at = Date.parse(raw);
+    if (Number.isNaN(at)) continue;
+    if (newest === undefined || at > newest) newest = at;
+  }
+
+  return {
+    dot,
+    sources:
+      total === 0
+        ? "no sources"
+        : answering === total
+          ? `${total} source${total === 1 ? "" : "s"}`
+          : `${answering} of ${total} sources`,
+    synced: syncing
+      ? "syncing…"
+      : newest === undefined
+        ? "not synced yet"
+        : `synced ${compactAgo(newest, now)}`,
+    tone: syncing ? "pending" : dot,
+  };
+}
+
 /**
  * One source, as the popover and Settings both need it.
  *

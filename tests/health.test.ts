@@ -13,6 +13,7 @@ import {
   displayState,
   actionFor,
   emptyStateFor,
+  footerLine,
   healthPill,
   needsYouPill,
   type NeedsYouInput,
@@ -801,6 +802,106 @@ describe("needsYouPill (brief D2)", () => {
     const noAction = status({ source: "site", state: "needs_login" });
     expect(actionFor("site", "needs_login", noAction.loginUrl)).toBeUndefined();
     expect(pill({ sources: sources({ site: noAction, gradescope: status() }) }).kind).toBe("clear");
+  });
+});
+
+describe("footerLine (brief D10)", () => {
+  it("says how many sources and when one of them last answered", () => {
+    // Mock 1a's footer: "8 sources · synced 2m ago".
+    const line = footerLine(
+      sources({
+        gradescope: status({ lastSuccessAt: iso(120_000) }),
+        canvas: status({ source: "canvas", lastSuccessAt: iso(600_000) }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line).toEqual({ dot: "ok", sources: "2 sources", synced: "synced 2m ago", tone: "ok" });
+  });
+
+  it("turns amber and counts, when a source stops answering", () => {
+    // Mock 1e's footer: "7 of 8 sources · synced 2m ago", on an amber wash.
+    const line = footerLine(
+      sources({
+        gradescope: status({ state: "needs_login", lastSuccessAt: iso(6 * 86_400_000) }),
+        canvas: status({ source: "canvas", lastSuccessAt: iso(120_000) }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line.sources).toBe("1 of 2 sources");
+    expect(line.dot).toBe("warn");
+    expect(line.tone).toBe("warn");
+  });
+
+  it("never reads lastSyncAt, which is stamped whether or not anything worked", () => {
+    /*
+     * Worker house rule 2: "the status line read `Synced 10:32` off
+     * `lastSyncAt`, which the loop sets whether or not anything succeeded."
+     * Structurally impossible here — there is no parameter to pass it in — so
+     * this pins the consequence: four failed sources say "not synced yet".
+     */
+    const line = footerLine(
+      sources({
+        gradescope: status({ state: "network_error", lastSuccessAt: undefined }),
+        canvas: status({ source: "canvas", state: "parse_error", lastSuccessAt: undefined }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line.synced).toBe("not synced yet");
+    expect(line.sources).toBe("0 of 2 sources");
+  });
+
+  it("says nothing green about a cold install", () => {
+    const line = footerLine(emptyStore().sources, false, NOW);
+    expect(line.dot).toBe("pending");
+    expect(line.synced).toBe("not synced yet");
+    expect(line.sources).toMatch(/^0 of \d+ sources$/);
+  });
+
+  it("says syncing on both halves while a sync is in flight", () => {
+    const line = footerLine(sources({ gradescope: status() }), true, NOW);
+    expect(line.synced).toBe("syncing…");
+    // The dot still reports what the sources did; the strip does not go amber
+    // over a sync that has not finished.
+    expect(line.tone).toBe("pending");
+  });
+
+  it("ignores a switched-off source's old success", () => {
+    const line = footerLine(
+      sources({
+        gradescope: status({ lastSuccessAt: iso(3 * 3_600_000) }),
+        canvas: status({ source: "canvas", enabled: false, lastSuccessAt: iso(60_000) }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line.sources).toBe("1 source");
+    expect(line.synced).toBe("synced 3h ago");
+  });
+
+  it("stays compact at every distance, because the strip is 400px wide", () => {
+    const ago = (ms: number) =>
+      footerLine(sources({ gradescope: status({ lastSuccessAt: iso(ms) }) }), false, NOW).synced;
+    expect(ago(30_000)).toBe("synced just now");
+    expect(ago(120_000)).toBe("synced 2m ago");
+    expect(ago(3 * 3_600_000)).toBe("synced 3h ago");
+    expect(ago(2 * 86_400_000)).toBe("synced 2d ago");
+    // Past a week the count stops meaning anything and a date is shorter.
+    expect(ago(30 * 86_400_000)).not.toMatch(/ago/);
+  });
+
+  it("says no sources rather than a vacuous 0 of 0", () => {
+    expect(footerLine(sources({ gradescope: status({ enabled: false }) }), false, NOW)).toMatchObject(
+      { sources: "no sources", dot: "pending", synced: "not synced yet" },
+    );
+  });
+
+  it("drops an unreadable stamp rather than printing Invalid Date", () => {
+    expect(
+      footerLine(sources({ gradescope: status({ lastSuccessAt: "whenever" }) }), false, NOW).synced,
+    ).toBe("not synced yet");
   });
 });
 
