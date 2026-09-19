@@ -390,6 +390,12 @@ export const app: {
   openEditEditor: (item: Item, member: Item["members"][number]) => void;
   deleteManual: (item: Item, member: Item["members"][number], entry: HTMLElement) => void;
   undoDelete: () => void;
+  /** Brief D8: the in-flow deadline screen for one row (screens/deadline.ts). */
+  openDeadline: (item: Item) => void;
+  /** Brief D3: "Give it a date" — the editor prefilled for a source or manual row. */
+  openGiveDate: (item: Item) => void;
+  /** Brief D2: the Needs-you screen the header pill opens (screens/needs-you.ts). */
+  openNeedsYou: () => void;
 } = {
   refresh: () => Promise.resolve(),
   runSync: () => Promise.resolve(),
@@ -397,4 +403,7 @@ export const app: {
   openEditEditor: () => undefined,
   deleteManual: () => undefined,
   undoDelete: () => undefined,
+  openDeadline: () => undefined,
+  openGiveDate: () => undefined,
+  openNeedsYou: () => undefined,
 };

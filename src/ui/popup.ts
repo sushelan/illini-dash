@@ -50,6 +50,7 @@ import {
   anchorDate,
   app,
   isFullView,
+  safeUrl,
   state,
   viewEl,
   writeStored,
@@ -419,6 +420,15 @@ app.openAddEditor = () => openAddEditor();
 app.openEditEditor = openEditEditor;
 app.deleteManual = deleteManual;
 app.undoDelete = undoDelete;
+// Interim stubs until the screens land (brief D8, D3, D2): a row still opens
+// its page, "Give it a date" opens the add form, the pill opens the popover.
+app.openDeadline = (item) => {
+  const url = safeUrl(item.url);
+  if (url) chrome.tabs.create({ url });
+};
+app.openGiveDate = (item) =>
+  openAddEditor({ values: { title: item.title, courseRaw: item.courseLabel } });
+app.openNeedsYou = () => document.querySelector<HTMLElement>(".pill")?.click();
 
 renderActions();
 void refresh();
