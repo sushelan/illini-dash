@@ -110,7 +110,25 @@
   font-size: 10.5px; font-weight: 500; line-height: 1.2; color: var(--muted);
   text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-#view .row--menu { align-self: center; margin-right: -4px; }
+/* The ⋯ overlays the row's right end on hover / focus instead of reserving a
+   24px column on every row. Drawn at 35% it read as an empty margin on the
+   right of every list (Sushi, 2026-09-19); reserved but hidden it was the same
+   margin. `visibility` rather than `display: none` so the row's Shift+F10 / `.`
+   and `:focus-within` can still reach it. It sits on `--hover`, which is the
+   row's own hover fill, so it covers the clock cleanly while the pointer is
+   there and nothing shifts. */
+#view .row--menu {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  margin: 0; visibility: hidden; border-radius: 6px;
+  /* Opaque under the wash: `--hover` alone is a 7% tint, and three 2px dots
+     over a clock showing through it are invisible. */
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--hover), var(--hover));
+}
+#view .row:hover .row--menu,
+#view .row:focus-visible .row--menu,
+#view .row:focus-within .row--menu,
+#view .row--menu[aria-expanded="true"] { visibility: visible; opacity: 1; }
 
 /* The qualifier lines: a move with its undo, an unreadable date, a late
    window. Full width under the card's own grid, as they were under the ruled
@@ -335,15 +353,6 @@ body[data-view="week"] #view {
 }
 #view .row--compact .chip-practice { flex: none; padding: 0 4px; font-size: 9px; }
 #view .row--compact .row--rel { flex: none; font-size: 10.5px; font-weight: 600; }
-/* On hover and on focus only. Eight permanently visible ⋯ down a 27px list is
-   a column of furniture; `visibility` rather than `display: none` so the button
-   keeps its width and nothing shifts sideways when it appears, and so it stays
-   reachable — `display: none` is out of every keyboard's reach. */
-#view .row--compact .row--menu { flex: none; margin-right: -4px; visibility: hidden; }
-#view .row--compact:hover .row--menu,
-#view .row--compact:focus-visible .row--menu,
-#view .row--compact:focus-within .row--menu,
-#view .row--compact .row--menu[aria-expanded="true"] { visibility: visible; opacity: 1; }
 #view .row--compact.row-done .row--title { text-decoration: line-through; opacity: .6; }
 #view .row--compact.row-done .row--rel { color: var(--muted); }
 /* A compact row states its course with the dot and the code; popup.css's ruled
@@ -353,11 +362,6 @@ body[data-view="week"] #view {
 #view .row--compact.row-overdue,
 #view .row--compact.row-event,
 #view .row--compact.row-opening { border: 0; }
-
-/* Visible on hover and whenever it has focus: `display: none` would put it out
-   of every keyboard's reach. */
-.wadd { opacity: 0; align-self: flex-start; }
-#view .wrow:hover .wadd, .wadd:focus-visible { opacity: .75; }
 
 /* ==========================================================================
  * The full view

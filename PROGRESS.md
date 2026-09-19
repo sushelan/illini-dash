@@ -53,7 +53,12 @@ empty hours (the axis §0 ruled out is still out). Rows on Today and Week are on
 line — dot, title, code, status — with no source name, no room, no relative-plus-clock
 pair; the week's nested chips and today-tint are gone, today's date column carries a 3px
 accent edge instead. Source names default off (`DEFAULT_TWEAKS`, one spelling in core).
-First row on a busy Today with one banner: 146px from the top. 2076 tests, typecheck and
+First row on a busy Today with one banner: 146px from the top. From the first live look
+(same day): the week's per-day "+" sat under the rows as a row of its own, so a one-item
+day was as tall as a two-item day — removed, the header "+" and the empty-area press
+remain; and every list carried a ~60px right margin, which was the ⋯ column drawn at 35%
+(invisible in dark) or reserved-but-hidden — the ⋯ now overlays the row's right end on
+hover / focus / Shift+F10 and reserves nothing. 2076 tests, typecheck and
 build green; verified in `preview-popup.html`, dark first, with real pointer presses.
 
 Two things fell out along the way. `npm run shots` had been writing light captures under

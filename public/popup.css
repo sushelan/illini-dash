@@ -1077,19 +1077,8 @@ h2.section.section--err { color: var(--err); opacity: 1; }
    inline from `spanMinutes`, and this is only what makes the box read as one. */
 .row-span { align-items: flex-start; }
 
-/*
- * The per-day "+"s: present for the keyboard, quiet until wanted.
- *
- * `opacity` rather than `display: none`, because a control that does not exist
- * until a pointer hovers it is a control no keyboard can ever tab to — and
- * `:focus-within` on the row is what brings it back for one that has.
- */
-.wadd {
-  float: right; margin: 1px 6px 0 0; opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-.wrow:hover .wadd, .wadd:focus-visible { opacity: .75; }
-.wadd:hover { opacity: 1; }
+/* The month's per-cell "+", quiet until wanted. `opacity` rather than
+   `display: none`, so a keyboard can still tab to it. */
 .mcell { position: relative; }
 .madd {
   position: absolute; top: 2px; right: 2px; opacity: 0;
@@ -1098,7 +1087,7 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .mcell:hover .madd, .madd:focus-visible { opacity: .75; }
 .madd:hover { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
-  .wadd, .madd { transition: none; }
+  .madd { transition: none; }
 }
 
 /* ==========================================================================

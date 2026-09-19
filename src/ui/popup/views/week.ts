@@ -7,12 +7,11 @@
  * day with nothing says "Nothing due"; today's card is tinted and captioned.
  *
  * What the redesign kept from the ruled version: rolling days (`WEEK_MODE`),
- * `quietDay` deciding which cards collapse, a press on the empty part of a day
- * adding something to it, and the per-day "+".
+ * `quietDay` deciding which cards collapse, and a press on the empty part of a
+ * day adding something to it. The per-day "+" went on 2026-09-19 (see below).
  */
 
 import { allTimed, dayKey, quietDay, weekContents, weekStatus } from "../../../core/calendar.js";
-import { iconButton } from "../../icons.js";
 import type { Item } from "../../../sources/types.js";
 import { WEEK_MODE, anchorDate, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
@@ -56,21 +55,9 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
       if (event.target !== box) return;
       openAddEditor({ container: box, where: "end", values: { date: dayKey(day.date) } });
     });
-    const addHere = iconButton(
-      "plus",
-      `Add something on ${day.date.toLocaleDateString(undefined, {
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-      })}`,
-    );
-    // Visible on hover and whenever it has focus: a control that only exists
-    // under a pointer is one no keyboard can ever reach.
-    addHere.classList.add("btn-sm", "wadd");
-    addHere.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openAddEditor({ container: box, where: "end", values: { date: dayKey(day.date) } });
-    });
+    // No per-day "+" any more (Sushi, 2026-09-19): it sat under the rows as a
+    // row of its own, so a one-item day was as tall as a two-item day. The
+    // header's "+" and the press on the empty part of the day both remain.
 
     // A day nobody owes anything on gets the tight card, whether it is empty or
     // holds four things already handed in. The decision is `quietDay`'s; this
@@ -98,7 +85,6 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
       }
     }
 
-    box.append(addHere);
     card.append(head, box);
     viewEl.append(card);
   }
