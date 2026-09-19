@@ -2,10 +2,55 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2071 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2076 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Classical Calendar: the fourth visual-language exploration — 2026-09-19
+
+From Sushi's Stitch bundle (`stitch_extension_ui_design.zip`, five screens) and the
+schema he pasted with it. `public/design-classical.css`, scoped under
+`html[data-design="classical"]` like the three stubs beside it, so nothing applies until
+a device picks it and the shipped design is untouched by every rule in the file.
+
+What it is: warm vellum ground, a serif (`EB Garamond` / `Newsreader` / **Georgia**, which
+is what actually draws — see the caveat below) for everything a person reads, hairline
+rules in place of card borders, 3px corners, and the five tabs moved to the **foot** of
+the window as a labelled icon bar.
+
+Three things it is careful about, all three of them this project's own recurring bugs:
+
+- **The sizing invariants survive.** No `max-height`, no `overflow`, no viewport unit, no
+  percentage height, no width media query. `body` becomes a flex *column* — which still
+  has an intrinsic height for Chrome to measure — and the tab strip is moved by `order`,
+  never `position: fixed`. Measured in the real `preview-popup.html`: `html.offsetWidth`
+  400, `body.scrollWidth` 400, `overflow-y` visible on both, `max-height` none, document
+  917px tall on the week.
+- **It carries a dark half, and dark was verified first.** The dark washes are roughly
+  twice the alpha of the light ones, because a wash composites toward its own luminance
+  and the eye is far less sensitive to lightening a near-black than to darkening a
+  near-white.
+- **It outranks the theme picker on purpose**, via `html[…]:root` — Classical *is* a
+  palette, so it has to beat `.theme-neutral` / `.theme-contrast`, and it does without an
+  `!important` anywhere.
+
+The course palette is re-pigmented to match: eight inks and eight washes, the first three
+being the mock's own (CS prussian, PHYS terracotta, MATH bronze). `.chip` **and**
+`.row--code` both become filled badges — they are one decision ("which class is this?") in
+two elements, and styling only the chip left the week and the timeline uncoloured.
+
+Two small changes outside the sheet, both of which leave the shipped design byte-identical
+on screen: `renderTabs` now builds a glyph per tab (an icon is markup, so it belongs with
+`icons.ts` and not in a `background-image`), `popup.css` hides `.tabs .icon`, and
+`icons.ts` gained `tab-nodate`.
+
+**Caveats, both Sushi's call.** (1) No webfont is bundled — an extension cannot fetch
+Google Fonts under its own CSP — so Georgia draws, not Garamond; bundling one `.woff2`
+into `public/fonts/classical/` is a ten-minute follow-up. (2) There is still **no picker
+UI** for the design switch (there never was); it is set per device in `localStorage`.
+
+Captured dark and light to `docs/ux/design/classical/`. 2076 tests pass.
 
 ## Popup: less on screen — pill removed, booking banner removed, footer opens Needs you — 2026-09-19
 

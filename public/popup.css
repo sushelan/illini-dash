@@ -477,6 +477,16 @@ h2.section {
 .tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); font-weight: 700; }
 .tab .icon { width: 12px; height: 12px; flex: none; }
 .tab[aria-selected="true"] .icon { color: var(--accent); }
+/*
+ * And off, in the shipped design.
+ *
+ * `renderTabs` builds a glyph for every tab because an icon is markup and
+ * belongs with `icons.ts` rather than in a stylesheet. The popup strip has
+ * five labels in 400px and no room beside them, so the default is to draw
+ * none; `design-classical.css` is the one sheet that turns them on, where
+ * they sit *above* the label rather than beside it.
+ */
+.tabs .icon { display: none; }
 
 /* ---- the course chips: one 36px row that scrolls ----
  *

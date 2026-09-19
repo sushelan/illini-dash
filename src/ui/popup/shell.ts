@@ -499,6 +499,16 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     // which claims to be selected — the attribute means nothing without it.
     tab.tabIndex = name === state.view ? 0 : -1;
 
+    /*
+     * The glyph, which the shipped design does not draw.
+     *
+     * `popup.css` hides `.tabs .icon`, so this costs the popup nothing as it
+     * stands; the Classical design turns it on and stacks it over the label.
+     * Built here rather than in that stylesheet because an icon is markup —
+     * a `background-image` would be a second, wronger copy of `icons.ts`.
+     */
+    tab.append(icon(`tab-${name}` as IconName));
+
     const label = document.createElement("span");
     label.className = "tab--label";
     label.textContent = VIEW_LABEL[name] ?? name;

@@ -64,6 +64,9 @@ export const ICON_PATHS = {
   "tab-week": "M2 4h12v8H2zM6 4v8M10 4v8M2 7h12",
   "tab-month": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6 10h1M9 10h1",
   "tab-exams": "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
+  /* The No date tab. The month glyph with its dates struck out: the day is a
+     box that stayed empty, which is exactly what the tab holds. */
+  "tab-nodate": "M3 4h10v9H3zM3 7h10M6 2v2M10 2v2M6.5 9.5l3 3M9.5 9.5l-3 3",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

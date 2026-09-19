@@ -1,0 +1,498 @@
+/* ==========================================================================
+ * design-classical.css — "Classical Calendar", scoped under
+ * `html[data-design="classical"]`.
+ *
+ * A study journal rather than an app: warm vellum ground, a serif for
+ * everything a person reads, hairline rules instead of borders, and the five
+ * tabs moved to the foot of the window as a bottom bar.
+ *
+ * ---- Three things this sheet is careful about ----
+ *
+ * 1. **It never touches `html`/`body` sizing.** No `max-height`, no
+ *    `overflow`, no viewport unit, no percentage height, and no width media
+ *    query. Chrome sizes a popup by measuring the document's intrinsic box, and
+ *    every one of those takes that measurement away — which is what once opened
+ *    this popup at 800x600 with a 400px list in its left half. `body` becomes a
+ *    flex *column* here, which still has an intrinsic height, and the tab strip
+ *    is moved by `order` rather than by `position: fixed` (a fixed strip
+ *    contributes no height at all).
+ *
+ * 2. **It carries a dark half, and the dark half is not the light one with an
+ *    alpha on it.** Sushi's machine is dark; a palette verified only in light
+ *    is a palette nobody who has to be convinced has seen. A wash composites
+ *    toward its own luminance, so the same alpha is not the same change at both
+ *    ends — the dark tints below are roughly double the light ones, measured
+ *    rather than guessed.
+ *
+ * 3. **It outranks the theme picker on purpose.** Classical *is* a palette, so
+ *    it has to beat `.theme-neutral` and `.theme-contrast` in `ui.css`, which
+ *    are two classes deep. `html[…]:root` is one element + one attribute + one
+ *    pseudo-class, which clears them without an `!important` anywhere.
+ *
+ * The mock this comes from is drawn at ~700px wide, phone-shaped. The type
+ * scale below is that scale reduced to 400px: a 16.8px card title in a row
+ * whose title track is 1fr of 400 minus 60 minus 44 minus 92 minus 24 would
+ * ellipse every assignment in the list. Serifs also run small for their size,
+ * so the reduction is not proportional — the title is 13px here, a point and a
+ * half over the sans it replaces.
+ * ====================================================================== */
+
+/* --------------------------------------------------------------------------
+ * 1. Tokens — light (vellum)
+ *
+ * Every value the popup paints with comes from `ui.css`; this block replaces
+ * the values and not one selector that spends them. A hex literal anywhere
+ * below this section would be the second copy of a decision, which is the way
+ * this project's stylesheets have gone wrong before.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"]:root {
+  /* Surfaces. The ground is warm alabaster; a card is white paper on it. */
+  --bg: #fdf9f1;
+  --surface: #f7f3eb;
+  --surface-raised: #ffffff;
+  --line: #e6dfd1;
+  --card-line: #e0d8c7;
+  --card-shadow: 0 1px 2px rgba(60, 48, 28, .06);
+  --shadow: rgba(60, 48, 28, .22);
+
+  /* Ink. Prussian navy for headings and structure, charcoal for body. */
+  --fg: #23272e;
+  --muted: #6b665c;
+
+  /* The brand is the navy, and the mark is the navy — this design has no
+     orange in it. `--accent` doubles as the "this one" wash on a selected tab
+     and the today marker, so it has to be the hue the design is *about*. */
+  --brand: #1a2744;
+  --brand-ink: #fdf9f1;
+  --brand-mark: #1a2744;
+  --accent: #1a2744;
+  --accent-ink: #fdf9f1;
+  --accent-wash: rgba(26, 39, 68, .10);
+  --primary: #1a2744;
+  --primary-ink: #fdf9f1;
+  --focus: #a64b2a;
+
+  /* Semantics, at the low saturation the rest of the palette is drawn at.
+     Terracotta is late, forest is done, gold is "you have to do something". */
+  --ok: #2e6047;
+  --warn: #8a5a15;
+  --err: #a64b2a;
+  --now: #a64b2a;
+
+  --tint: #f3ede2;
+  --tint-strong: #ebe3d4;
+  --hover: rgba(26, 39, 68, .055);
+  --today-tint: #f6e7db;
+  --warn-wash: rgba(180, 122, 40, .13);
+  --warn-wash-strong: rgba(180, 122, 40, .20);
+  --err-wash: rgba(166, 75, 42, .10);
+  --pill-fill: #f3ede2;
+
+  /* ---- the course palette ----
+   *
+   * Eight inks and eight washes, assigned to courses in order by
+   * `courseIndex`. The first three are the mock's own — CS prussian, PHYS
+   * terracotta, MATH warm bronze — and the five after them continue the same
+   * idea: pigments an engraver had, none of them bright, every one of them
+   * separable from its neighbours at the 5px a month dot gets.
+   *
+   * Every ink below is checked against `--bg` (#fdf9f1), not against white:
+   * the darkest is 13.9:1 and the lightest (bronze) is 6.4:1, so a course code
+   * set in any of them clears AA at the 10px the chip is drawn at.
+   */
+  --course-0: #1a2744; --course-0-bg: #e8ecf4;  /* prussian  */
+  --course-1: #8e3519; --course-1-bg: #fbede8;  /* terracotta */
+  --course-2: #6b5326; --course-2-bg: #f1ead9;  /* bronze    */
+  --course-3: #2e6047; --course-3-bg: #e6f0e9;  /* forest    */
+  --course-4: #6e2233; --course-4-bg: #f6e5e9;  /* oxblood   */
+  --course-5: #4a3a6b; --course-5-bg: #eae7f2;  /* plum      */
+  --course-6: #51592a; --course-6-bg: #eef0dd;  /* olive     */
+  --course-7: #1f5566; --course-7-bg: #e2eef1;  /* slate     */
+}
+
+/* --------------------------------------------------------------------------
+ * 2. Tokens — dark (vellum by lamplight)
+ *
+ * Not an inversion. The ground keeps the paper's warmth and loses its light:
+ * every surface here is a brown-black, the ink is parchment rather than white,
+ * and the course inks are the same eight pigments lifted until they read on it.
+ *
+ * The washes are roughly twice the alpha of their light counterparts. 5.5% of
+ * navy on #fdf9f1 drops the surface 12 points out of 255; 6% of a pale hue on
+ * #1a1713 lifts it 8, and the eye is far less sensitive to lightening a
+ * near-black than to darkening a near-white. That is arithmetic, not taste.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"]:root.is-dark {
+  --bg: #1a1713;
+  --surface: #221e18;
+  --surface-raised: #26221b;
+  --line: #3a3328;
+  --card-line: #3d3529;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  --shadow: rgba(0, 0, 0, .58);
+
+  --fg: #ece4d4;
+  --muted: #a89c86;
+
+  /* Navy is invisible on a brown-black, so dark's structural hue is the gold
+     the light palette uses for attention. Same move `ui.css` makes when its
+     own `--brand` becomes unusable in dark: the accent is the one warm thing
+     on the bar. */
+  --brand: #26221b;
+  --brand-ink: #ece4d4;
+  --brand-mark: #d7ab61;
+  --accent: #d7ab61;
+  --accent-ink: #1a1713;
+  --accent-wash: rgba(215, 171, 97, .18);
+  --primary: #d7ab61;
+  --primary-ink: #1a1713;
+  --focus: #d7ab61;
+
+  --ok: #7ab393;
+  --warn: #d7ab61;
+  --err: #d98a68;
+  --now: #d98a68;
+
+  --tint: #262119;
+  --tint-strong: #2e281e;
+  --hover: rgba(236, 228, 212, .07);
+  --today-tint: #332a20;
+  --warn-wash: rgba(215, 171, 97, .14);
+  --warn-wash-strong: rgba(215, 171, 97, .22);
+  --err-wash: rgba(217, 138, 104, .14);
+  --pill-fill: #2b2620;
+
+  --course-0: #93aad8; --course-0-bg: #1d2434;
+  --course-1: #d98a68; --course-1-bg: #32211a;
+  --course-2: #c9b48c; --course-2-bg: #2b2418;
+  --course-3: #79b596; --course-3-bg: #17281f;
+  --course-4: #d98a9c; --course-4-bg: #2d1a20;
+  --course-5: #a898d8; --course-5-bg: #211d32;
+  --course-6: #b0bd74; --course-6-bg: #22260f;
+  --course-7: #7fbcd0; --course-7-bg: #14262c;
+}
+
+/* --------------------------------------------------------------------------
+ * 3. Typography
+ *
+ * One serif for everything a person reads, and the sans kept for the small
+ * uppercase labels — a weekday initial, a section heading — where a serif at
+ * 9px with letter-spacing turns to mud.
+ *
+ * No `@font-face`. An extension cannot fetch Google Fonts under its own CSP,
+ * so a webfont would have to be bundled; until one is, `EB Garamond` and
+ * `Newsreader` are named for the machines that have them and Georgia — which
+ * every machine this runs on does have — is what actually draws.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] {
+  --serif: "EB Garamond", Newsreader, Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+html[data-design="classical"] body { font-family: var(--serif); }
+
+/* The wordmark, at the weight a title page gets. */
+html[data-design="classical"] .wordmark {
+  font-family: var(--serif);
+  font-size: 14px; font-weight: 700; letter-spacing: 0;
+}
+html[data-design="classical"].view-full .wordmark { font-size: 17px; }
+
+/* A section heading is the one place the sans stays: 9.5px, letter-spaced,
+   uppercase — a serif at that size and tracking is unreadable. */
+html[data-design="classical"] .section-head,
+html[data-design="classical"] h2.section,
+html[data-design="classical"] .mdow div,
+html[data-design="classical"] .wday--dow {
+  font-family: var(--sans);
+  letter-spacing: .10em;
+}
+
+/* Titles. The one measurement that matters on this tab: the title track is
+   `minmax(0, 1fr)` of what is left after 60 + 44 + 92 + 24, which is about
+   162px in the popup. 13px of Georgia holds ~26 characters there; 13.5 holds
+   25 and reads no better. */
+html[data-design="classical"] .row--title,
+html[data-design="classical"] .nodate-add--label {
+  font-size: 13px; font-weight: 600; letter-spacing: 0;
+}
+html[data-design="classical"] .row--code { font-family: var(--sans); font-size: 10px; }
+html[data-design="classical"] .row--due,
+html[data-design="classical"] .tclock,
+html[data-design="classical"] .mday--num,
+html[data-design="classical"] .wday--num {
+  font-variant-numeric: tabular-nums;
+}
+/* The date navigator is the page's running head. */
+html[data-design="classical"] .datenav--label {
+  font-family: var(--serif);
+  font-size: 16px; font-weight: 700; letter-spacing: -.1px;
+}
+
+/* --------------------------------------------------------------------------
+ * 4. The shell — and the tab strip at the foot
+ *
+ * `order` on a flex column, not `position: fixed`. The document's height is
+ * the only thing Chrome measures to size the popup, and a fixed strip
+ * contributes none of it: the popup would open 48px too short with the tabs
+ * drawn over the last row.
+ *
+ * `body` gains `display: flex; flex-direction: column` and nothing else. No
+ * height, no `min-height`, no `overflow` — a flex column's intrinsic height is
+ * still its content's, which is the property that has to survive.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] body {
+  display: flex;
+  flex-direction: column;
+}
+/* Everything keeps its DOM order at 0; these two are pulled past it. The
+   footer strip sits directly above the bar, exactly as the mock draws it. */
+html[data-design="classical"] #footer { order: 1; }
+html[data-design="classical"] #tabs { order: 2; }
+
+/* The header: a rule under it, no fill of its own. */
+html[data-design="classical"] .bar {
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The bottom bar.
+ *
+ * `sticky`, in flow, like the footer it replaces at the bottom of the window —
+ * so it is on screen at every scroll position *and* still contributes its 50px
+ * to the box Chrome measures. */
+html[data-design="classical"] .tabs {
+  position: sticky; bottom: 0; top: auto;
+  gap: 0;
+  padding: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+/*
+ * Glyph over label, in a grid rather than a column flex.
+ *
+ * A tab is three children in DOM order — icon, label, count — and a count only
+ * exists on some of them. As a column flex that stacks three deep on the tabs
+ * that have a badge and two deep on the tabs that do not, so the strip's height
+ * depends on what the badges say. The grid pins the icon to its own row across
+ * both columns and puts the label and the count side by side underneath, so
+ * every tab is exactly two rows tall whether or not it is carrying a number.
+ */
+html[data-design="classical"] .tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px;
+  height: 50px;
+  padding: 0 2px;
+  border-radius: 0;
+  font-family: var(--serif);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: .02em; text-transform: uppercase;
+}
+html[data-design="classical"] .tabs .icon {
+  display: block;
+  width: 17px; height: 17px;
+}
+/*
+ * The count leaves the line, rather than the label leaving the tab.
+ *
+ * Measured: a tab is 80px of a 400px window, and "NO DATE" set in small caps
+ * *plus* a two-digit badge beside it is 84 — so the first build of this strip
+ * rendered "NO DA…", which is the one label on the strip a student has never
+ * seen before and cannot infer. Absolute, at the corner of the glyph, so the
+ * label gets the whole 80px and the strip's height stops being a function of
+ * what the badges say.
+ *
+ * Out of flow is safe *here* and nowhere else in this popup: the tab's height
+ * is fixed by the rule above, so this contributes no height that Chrome would
+ * otherwise have to measure.
+ */
+html[data-design="classical"] .tab--label {
+  max-width: 100%;
+}
+html[data-design="classical"] .tab .chip-count {
+  position: absolute;
+  top: 5px; right: 9px;
+}
+/* The selected tab is a block of the today tint with the navy on it — the one
+   filled shape in the chrome, which is what makes it findable at a glance in a
+   strip of five. */
+html[data-design="classical"] .tab[aria-selected="true"] {
+  background: var(--today-tint);
+  color: var(--fg);
+  font-weight: 700;
+}
+html[data-design="classical"] .tab[aria-selected="true"] .icon { color: var(--brand-mark); }
+html[data-design="classical"] .tab:hover { background: var(--tint); }
+
+/*
+ * The footer, which in this design is the sub-bar the mock puts under the
+ * header: the dot, the count, and the one button that reads the sites again.
+ * A hairline above it and the ground under it, so it reads as a colophon
+ * rather than as a second toolbar.
+ */
+html[data-design="classical"] .foot {
+  position: static;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  font-family: var(--serif);
+}
+html[data-design="classical"] .foot--sync {
+  font-family: var(--serif); font-weight: 600;
+}
+
+/* The date navigator: the running head of the page under it, with a rule. */
+html[data-design="classical"] .datenav {
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+/* --------------------------------------------------------------------------
+ * 5. Rules instead of boxes
+ *
+ * The shipped design states a group with a bordered card. A journal states it
+ * with a rule and the white of the page, so the card keeps its fill and gives
+ * up most of its edge.
+ * ----------------------------------------------------------------------- */
+html[data-design="classical"] .card {
+  border-radius: 3px;
+  box-shadow: none;
+  border-color: var(--card-line);
+}
+html[data-design="classical"] .card--dashed { border-radius: 3px; }
+html[data-design="classical"] .mdow { border-radius: 3px 3px 0 0; }
+html[data-design="classical"] .mdots { border-radius: 0 0 3px 3px; box-shadow: none; }
+html[data-design="classical"] .chip-count,
+html[data-design="classical"] .chip-check { border-radius: 3px; }
+
+/*
+ * The course chip becomes a badge: the course's own wash behind its own ink,
+ * rather than an outline in the muted grey. This is the "colour-code the
+ * classes" half of the design, and it is the reason the palette above carries
+ * a `-bg` for every ink — a code set in prussian on a terracotta field would
+ * be two courses at once.
+ *
+ * `letter-spacing` and the sans, because the codes are `CS 225` and `PHYS 212`
+ * — small caps set solid, which is a label rather than prose.
+ */
+html[data-design="classical"] .chip {
+  font-family: var(--sans);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+  border-radius: 3px; padding: 2px 5px;
+  border-color: transparent;
+  color: var(--course, var(--muted));
+  background: var(--course-bg, var(--tint));
+}
+/* `popup-rows.css` repaints the chip's edge in the course ink for a card row;
+   here the fill already says which course it is, so the edge stays out of it. */
+html[data-design="classical"] #view .row[class*="course-"] .chip {
+  border-color: transparent;
+  background: var(--course-bg, var(--tint));
+}
+/* A practice window is the same course, drawn as an outline — the one chip
+   that is deliberately not filled, so "this deadline is the late one" survives
+   the badge treatment. */
+html[data-design="classical"] .chip-practice {
+  background: none;
+  border-color: var(--course, var(--muted));
+  border-style: dashed;
+}
+
+/*
+ * And the same badge on `.row--code`, which is the *other* element that says
+ * which course a row belongs to.
+ *
+ * The week and the timeline print the code in a fixed track rather than a
+ * `.chip`, and styling only the chip left half the popup colour-coded and half
+ * of it not — the two elements are one decision ("which class is this?") in two
+ * places, so they get one appearance. The track is 44px and holds `PHYS 214`
+ * with the padding below; a longer code ellipses as it already did.
+ */
+html[data-design="classical"] .row--code {
+  justify-self: end;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 2px 4px; border-radius: 3px;
+  font-weight: 700; letter-spacing: .04em;
+  color: var(--course, var(--fg));
+  background: var(--course-bg, transparent);
+}
+
+/* The row keeps its grid; what changes is the rule between rows. */
+html[data-design="classical"] #view .row { border-radius: 0; }
+
+/* Overdue reads in terracotta and nothing else — no second red. */
+html[data-design="classical"] .row-overdue .row--due,
+html[data-design="classical"] .row--rel-late { color: var(--err); }
+
+/* "Nothing due" on a quiet day is set in italic, the way a ledger says a day
+   had no entries. */
+html[data-design="classical"] .witems--empty,
+html[data-design="classical"] .quiet--detail,
+html[data-design="classical"] .empty {
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* The week's day column: the date large in the serif, the weekday small in the
+   sans above it, on the shaded edge the mock gives it. */
+html[data-design="classical"] .wday {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+html[data-design="classical"] .wday--num {
+  font-family: var(--serif);
+  font-size: 19px; font-weight: 700; line-height: 1.05;
+  color: var(--brand-mark);
+}
+html[data-design="classical"] .wday--dow {
+  font-size: 9px; font-weight: 700;
+}
+html[data-design="classical"] .wday--today {
+  font-family: var(--mono);
+  font-size: 8.5px; letter-spacing: .06em;
+  border-radius: 2px;
+}
+
+/* The month's selected day: the delicate outlined box of the mock rather than
+   a 2px inset. Still `inset`, so selecting a day costs no layout and the row
+   under it does not move. */
+html[data-design="classical"] .mday--on {
+  box-shadow: inset 0 0 0 1px var(--fg);
+  background: var(--today-tint);
+}
+/* Today is a filled disc in the shipped design, which on a vellum ground reads
+   as a hole punched in the paper. A tint behind the number and the number in
+   the navy says the same thing in the design's own voice. */
+html[data-design="classical"] .mday--today .mday--num {
+  background: none;
+  color: var(--brand-mark);
+  font-weight: 700;
+}
+html[data-design="classical"] .mday--today { background: var(--today-tint); }
+
+/* The "Reserve a seat" button is the one high-contrast object in the whole
+   design — a navy block on paper. That is deliberate: it is the only control
+   the Exams board has that the student must actually press. */
+html[data-design="classical"] .btn-primary {
+  border-radius: 3px;
+  font-family: var(--serif); font-weight: 600;
+}
+
+/* Buttons and inputs: square corners, the serif, the page's ground. */
+html[data-design="classical"] .btn,
+html[data-design="classical"] input,
+html[data-design="classical"] select,
+html[data-design="classical"] textarea {
+  border-radius: 3px;
+  font-family: var(--serif);
+}
+html[data-design="classical"] .btn { letter-spacing: 0; }
+
+/* A menu and a popover are slips of paper too. */
+html[data-design="classical"] .menu-surface,
+html[data-design="classical"] .popover {
+  border-radius: 3px;
+  background: var(--surface-raised);
+}
