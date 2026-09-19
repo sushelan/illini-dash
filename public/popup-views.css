@@ -157,6 +157,17 @@
 .nodate-stack { display: flex; flex-direction: column; gap: 7px; padding: 0 10px; }
 .nodate-card { padding: 4px 6px 8px; }
 /*
+ * The card is the row *and* its three buttons, so the row inside it must not be
+ * a second card.
+ *
+ * `renderRow` is being turned into a white card of its own (D7); mock 2c draws
+ * one card with the actions inside it, not a card within a card. Neutralised
+ * here rather than by asking rows.ts for a variant, because this is the only
+ * place that nests one — and only the fill and the lift are taken, so the tone
+ * edge (`.row-late`, `.row-overdue`) survives.
+ */
+.nodate-card > .row { background: none; box-shadow: none; }
+/*
  * The three answers, under the row they answer.
  *
  * `flex-wrap`, because "Give it a date" is the longest label on the tab and a

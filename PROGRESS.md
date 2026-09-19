@@ -7,6 +7,57 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 12 / W2: the month, the No date tab, and the exam board — 2026-09-19
+
+**2065 tests, unchanged — the suite does not import the popup.** Verified by
+`npm run typecheck`, `npm run build`, `npm run shots -- popup` (18 shots, dark first)
+and by measuring the real `dist/preview-popup.html` in headless Chrome.
+
+**Month (D6, mock 2a).** `renderMonthView` branches on `isFullView`; the full view's
+titled-pill grid is untouched. The popup draws `monthDots` — a 5px course-hue dot per
+deadline, `.45` when done, `MONTH_DOT_CAP` of them and a `+N` rather than a silent
+truncation — over a Sunday-first header taken from a known Sunday rather than a
+hand-written "S M T W T F S". Every cell is a `<button>` with `aria-pressed` and a
+title ("Tuesday, Sep 22 — 2 due"), because a dot says nothing to a screen reader.
+`dayList` names the tapped day underneath through `renderRow`, with **EOD** where §4.5
+invented the time (worker rule 3). The selection is module state — the minute tick and
+the open-sync must not snap it back to today — and is ignored when it falls outside the
+month shown, so the heading can never name a day the grid is not drawing. The month's
+name keeps its place in the date navigator and gains "Full view ↗" beside it.
+`FULL_VIEW_ONLY` is now **empty**: the month was in it because of the pills, which need
+~100px a cell, not because of the month.
+
+**No date (D3, mock 2c).** `views/nodate.ts`: the explainer card, one "Waiting on a
+date" head over both groups, and a card per row — `renderRow` for the body, three
+`.btn-sm` under it. **Give it a date** opens the editor through `app.openGiveDate`;
+**Tick off** and **Hide** go through `applyOverrideAction`, which owns "Applying…", the
+log line and the catch. "Couldn't read" rows carry the amber `check` chip on the
+actions line — not inside the row, which is `rows.ts`'s object — and both groups keep
+their `ATTENTION_NOTE` as the card's tooltip. Nothing is folded: the fold made sense
+when this group was burying two actionable ones, and none on a tab it is all of.
+
+**`views/attention.ts` is deleted.** `SUGGESTION_SOURCE` and `renderSuggestions` moved
+**verbatim** to `src/ui/popup/suggestions.ts` for the Needs-you screen; `ATTENTION_NOTE`
+keeps all three sentences, exported from `views/nodate.ts`, so the Overdue one is not
+written twice.
+
+**Exams**, restyled onto the card language with nothing removed: `h2.section` →
+`.section-head` with the count in its own span, rows stacked in `.exam-stack`, the empty
+sentence in a `.view-note` card. Inventory §M F104–F106 all preserved, including the
+stripped `"Book a slot: "` prefix, `examWhen`'s date-*and*-day and `.row-sat`.
+
+**Measured** on the real document, both modes, all three tabs: `html` 400px,
+`body.scrollWidth` 400, **0 elements past x=401**. A **real pointer press** on Sep 22 —
+CDP `Input.dispatchMouseEvent`, because a synthetic `.click()` proves nothing (UI rule
+5) — moved the heading from "Sat, Sep 19 · 5 due" to "Tue, Sep 22 · 2 due" and moved
+`aria-pressed`. The preview *pane* could not do it: another session was driving the same
+window and its coordinates landed two hundred pixels away, which is UI rule 6 exactly —
+three "the press does nothing" results were the pane, not the code.
+
+**Shots**: `popup-month` and `popup-nodate` added; `popup-attention` is gone, and the two
+entries still asking for `tab=attention` — which now falls back to `day` — were moved to
+`nodate` rather than left quietly capturing the wrong screen.
+
 ## Wave 12 / W0: popup.ts split, and the new shell — 2026-09-19
 
 **1970 tests, unchanged — the suite does not import the popup, so none of this is pinned
