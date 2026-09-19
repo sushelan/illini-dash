@@ -396,7 +396,7 @@ privacy-form answer in `docs/store/privacy-practices.txt` — **eleven blocks no
 (`identity` and `cookies` joined on 2026-09-18), each measured against its 1000-character limit by
 `tests/manifest.test.ts` — and the reviewer's Test instructions drafted in
 `docs/store/test-instructions.txt` around the public ECE 411 page (a reviewer has no UIUC
-account; Sushi to approve the wording). The privacy policy is live and generated from
+account; wording approved by Sushi on 2026-09-19). The privacy policy is live and generated from
 `docs/store/privacy-policy.md` by `npm run site`; it was rewritten on 2026-09-18 for the
 Campuswire observer (a content script, opt-in), Piazza (own session, opt-in), and Google
 Calendar (an export to the student's own account, opt-in).

@@ -7,6 +7,33 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Live: the click survives the sync; the reader upgrade did not — 2026-09-19
+
+Three results from Sushi on build 20260919T002513, read as evidence (worker rule 7).
+
+**The queue fix holds.** Sync now, then Hide pressed while the status still said syncing:
+the row stayed hidden after the sync finished. That is the exact click that the
+re-entrancy flag lost, and the first live proof that a store write during a fetch
+survives. The store's test instructions were approved the same message.
+
+**The reader upgrade fetched nothing.** The console showed the plan's "re-reading them in
+full" line, then per class "0 new note(s) to read, 20 already read", then "reader
+upgraded 1 → 2: re-reading 29 posts in full", then "0 new notes". The plan dropped
+`sinceNr` but the fetch stage was still handed the *pre-upgrade* seen marks
+(`planned.seenPosts` into both `postsToSend` and `postsNeedingBody`), and the apply
+stage then cleared the marks and stamped version 2 — after the only fetch that could have
+used the clearing. The wave-7 tests pinned plan and apply separately and never the
+sequence. Version 2 is burnt on real installs; the fix (wave 9) moves the fetch's
+seen-marks view into the plan, bumps to 3, and pins the worker's sequence end to end
+over the real feed.
+
+**The author asked three times for a shape it could not answer.** "shape "rows" needs
+title": the response schema requires only shape, rows and dateFormat; which keys each
+shape needs lives in the validator the model never sees, and a constrained decode emits
+exactly what the schema requires. Wave 9 makes the schema demand what the validator
+demands, so no schema-valid proposal can be rejected for a missing key, and shows the
+model a sketch of one row's inside so `title` is a choice rather than a guess.
+
 ## Wave 8: the trace's 41 findings, fixed by four workers — 2026-09-18 night
 
 **1783 → 1900 tests.** Four workers by file territory, merged with one conflict (both
