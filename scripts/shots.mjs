@@ -79,6 +79,14 @@ const SHOTS = [
    * less room a floating panel has.
    */
   { name: "popup-sources", query: "tab=attention&open=health", size: [400, 600] },
+  /*
+   * The two sub-screens W3 owns, each behind an interaction the shot has to
+   * perform: the deadline screen is a press on the first row (a real pointer
+   * sequence — see the epilogue in preview.mjs), the editor a press on the
+   * header's +.
+   */
+  { name: "popup-deadline", query: "tab=day&open=deadline", size: [400, 600] },
+  { name: "popup-editor", query: "tab=day&editor=1", size: [400, 600] },
   { name: "popup-unreachable", query: "tab=day&fail=network", size: [400, 600] },
   { name: "popup-unreadable", query: "tab=day&fail=parse", size: [400, 600] },
   { name: "popup-setup", query: "tab=day&setup=1", size: [400, 600] },
