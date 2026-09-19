@@ -1,14 +1,266 @@
 /*
- * popup-rows.css — owned by the rows pass of the redesign.
+ * popup-rows.css — the card row, the Today board, the week's day cards.
  *
- * Empty on purpose. `popup.css` holds the sizing invariants, the shell and the
- * shared card language (`.card`, `.section-head`, `.screen`); this file is
- * where the rows work adds its own rules, so two parallel changes never touch one
- * stylesheet. It loads after `popup.css`, so anything here wins.
+ * `popup.css` holds the sizing invariants, the shell and the shared card
+ * language (`.card`, `.section-head`, `.screen`); this file is everything the
+ * rows-and-views pass adds, so two parallel changes never touch one stylesheet.
+ * It loads after `popup.css`, so anything here wins at equal specificity — and
+ * where `popup.css` reaches the same element with a descendant selector
+ * (`.witems .row`, `.row[class*="course-"]`), the rules below say `#view` so
+ * they win on specificity rather than on order.
  *
- * The invariants it may not break, whatever it adds: `html` and `body` are
- * never scroll containers, nothing takes a viewport unit or a percentage
- * height, and no rule is keyed on window width — Chrome lays the document out
- * to decide the popup's size, so a width media query can feed itself. See the
- * header of popup.css.
+ * The invariants it may not break: `html` and `body` are never scroll
+ * containers, nothing takes a viewport unit or a percentage height, and no rule
+ * is keyed on window width — Chrome lays the document out to decide the popup's
+ * size, so a width media query can feed itself. See the header of popup.css.
+ *
+ * Every colour is a token from `ui.css`. There is no hex in this file, which is
+ * what makes dark, Neutral and High contrast come out right without a second
+ * copy of the palette.
  */
+
+/* ==========================================================================
+ * The row, as a card (brief D7, mock 1a)
+ *
+ *   [dot] Title                        in 4h
+ *         CS425 · Gradescope · room    11:59 PM     [⋯]
+ *
+ * Four tracks rather than the ruled row's five fixed ones. The old grid existed
+ * so that the chip, the source and the clock landed at the same x on every row;
+ * a card carries its own edges, so the alignment is the card's and the columns
+ * are free to size themselves. The title is still the only thing that shrinks.
+ * ====================================================================== */
+#view .row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  background: var(--surface-raised);
+  border: 1px solid var(--card-line);
+  border-top: 1px solid var(--card-line);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+#view .row:hover { background: var(--hover); }
+#view .row--flat { cursor: pointer; }
+
+/* The course hue as a dot, not as an edge.
+ *
+ * The edge is the `urgencyEdge` tweak and off by default (D14): eight cards
+ * each with a 4px colour bar is eight competing colours, and urgency on this
+ * screen is carried by the countdown's text. The dot says whose it is at the
+ * same glance and costs the layout 8px. */
+.row--dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--course, var(--muted));
+}
+.row-event .row--dot, .row-done .row--dot { opacity: .6; }
+
+.row--main { min-width: 0; }
+#view .row--title {
+  display: block;
+  font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--fg);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* One line, and it is allowed to be clipped.
+ *
+ * `overflow: hidden` on the row plus `minmax(0, 1fr)` on this track is what
+ * makes the ellipsis reachable: without both, a long title widens the grid and
+ * takes the card past the 400px document. */
+.row--meta {
+  display: flex; align-items: baseline; gap: 5px;
+  margin-top: 4px; min-width: 0; overflow: hidden;
+  font-size: 10.5px; line-height: 1.2; color: var(--muted); white-space: nowrap;
+}
+.row--code { flex: none; font-size: 10.5px; font-weight: 700; color: var(--course, var(--fg)); }
+.row--sep { flex: none; opacity: .55; }
+#view .row--sources {
+  min-width: 0; text-align: left; letter-spacing: 0; font-size: 10.5px;
+  overflow: hidden; text-overflow: ellipsis; cursor: help;
+}
+#view .row--meta .row--detail-exam { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#view .row--meta .chip-practice { padding: 0 4px; font-size: 9.5px; }
+
+/* The two answers to "when", one above the other: how long there is, then the
+   hour it is at. `tabular-nums` so a column of them lines up on its right edge
+   and a ticking countdown does not flicker wider. */
+.row--when {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  text-align: right;
+}
+.row--rel {
+  font-size: 12px; font-weight: 700; line-height: 1.2; white-space: nowrap;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* Past is red, inside a day is the accent-as-text token, everything else is
+   muted. `--brand-mark` rather than `--accent`: the accent is a fill colour and
+   fails contrast as 12px text on white, which is the whole reason that token
+   exists. */
+.row--rel-late { color: var(--err); }
+.row--rel-soon { color: var(--brand-mark); }
+.row--rel-done { color: var(--ok); }
+#view .row--due {
+  font-size: 10.5px; font-weight: 500; line-height: 1.2; color: var(--muted);
+  text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+#view .row--menu { align-self: center; margin-right: -4px; }
+
+/* The qualifier lines: a move with its undo, an unreadable date, a late
+   window. Full width under the card's own grid, as they were under the ruled
+   row's. */
+#view .row--detail, #view .row--detail-moved, #view .row--detail-error {
+  grid-column: 1 / -1;
+  margin-top: 4px; font-size: 10.5px; line-height: 1.3;
+}
+
+/* The tweak, off by default (D14). A 4px edge in the course hue, inside the
+   card's own radius — an absolutely positioned child rather than a border, so
+   turning it on does not move the text by 4px. */
+.row--edge {
+  position: absolute; inset: 0 auto 0 0; width: 4px;
+  background: var(--course, var(--accent));
+}
+
+/* popup.css gives every `.row[class*="course-"]` a 3px border and 9px of left
+   padding, which is the ruled list's vocabulary. A card states its course with
+   the dot and the code. */
+#view .row[class*="course-"] { border-left: 1px solid var(--card-line); padding-left: 11px; }
+#view .row[class*="course-"] .chip { color: var(--course); border-color: var(--course); }
+
+/* An event is furniture — it says the day has a thing in it and must not
+   compete with work that is owed. The dashed unfilled card is the same
+   vocabulary `.card--dashed` and the "not open yet" edge already use. */
+#view .row-event, #view .row-opening {
+  background: transparent; border-style: dashed; box-shadow: none;
+}
+#view .row-event .row--title { font-weight: 500; color: var(--muted); }
+#view .row-done .row--title { text-decoration: line-through; opacity: .7; }
+#view .row-late { border-color: var(--warn); }
+#view .row-overdue { border-color: var(--err); }
+
+/* ==========================================================================
+ * Today (brief D4, mock 1a)
+ * ====================================================================== */
+body[data-view="day"] #view {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 12px 10px 10px;
+}
+.tsection { display: flex; flex-direction: column; gap: 7px; }
+.tsection .section-head { padding: 0 4px; margin: 0; }
+
+/* The hero: one thing to do next, stated as a sentence rather than as a row.
+ *
+ * `display: block` — its four parts are stacked, and the shared grid above
+ * would put the kicker and the title in two columns. */
+#view .row--hero {
+  display: block;
+  padding: 12px 13px 12px 15px;
+  border-color: var(--accent-wash);
+}
+#view .row--hero::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 4px;
+  background: var(--accent);
+}
+.row--kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.row--kicker-text {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--brand-mark);
+}
+.row--kicker-rule { flex: 1; height: 1px; background: var(--card-line); }
+#view .row--hero .row--rel { color: var(--brand-mark); }
+#view .row--hero .row--title {
+  font-size: 14.5px; line-height: 1.35; margin-bottom: 6px; white-space: normal;
+}
+#view .row--hero .row--meta { margin-top: 0; font-size: 11px; }
+#view .row--hero .row--code { font-size: 11px; }
+#view .row--hero .row--menu { position: absolute; right: 6px; bottom: 6px; }
+
+/* The quiet week (brief D13, mock 1f). Centred, because it is the only thing
+   on the screen and there is nothing for it to align with. */
+.quiet { text-align: center; padding: 30px 22px 26px; }
+.quiet--mark {
+  display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 14px;
+  border-radius: 14px; background: var(--tint-strong); color: var(--ok);
+}
+.quiet--mark svg { width: 22px; height: 22px; }
+.quiet--headline { margin: 0 0 6px; font-size: 15px; font-weight: 700; line-height: 1.35; }
+.quiet--detail { margin: 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
+.quiet--actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+
+/* ==========================================================================
+ * The week's day cards (brief D5, mock 1b)
+ * ====================================================================== */
+body[data-view="week"] #view {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 10px 10px;
+}
+#view .wrow {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px;
+  align-items: start;
+  padding: 9px 10px; border: 0; border-radius: 12px;
+  background: var(--tint);
+}
+/* A day with nothing owed on it is a line, not a card: seven full cards is the
+   whole popup, and `quietDay` already decides which those are. */
+#view .wrow--quiet { background: transparent; padding: 7px 10px; align-items: center; }
+#view .wrow--today {
+  background: var(--today-tint); border: 1px solid var(--accent-wash);
+  padding: 9px 9px;
+}
+#view .wday { padding: 0; border: 0; text-align: center; background: transparent; }
+#view .wday--dow {
+  font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+#view .wday--num { font-size: 17px; font-weight: 600; line-height: 1.15; }
+#view .wrow--today .wday--dow,
+#view .wrow--today .wday--num { color: var(--brand-mark); }
+.wday--today {
+  margin-top: 3px;
+  font-size: 8.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--brand-mark);
+}
+#view .witems {
+  display: flex; flex-direction: column; gap: 5px; padding: 3px 0 0; min-width: 0;
+}
+#view .wrow--quiet .witems { padding: 0; }
+#view .witems--empty {
+  display: block; padding: 0; opacity: 1;
+  font-size: 11px; color: var(--muted);
+}
+
+/* The compact row: code, title, one status word from `weekStatus`. The day card
+   on the left already says which day, so nothing here repeats it. */
+#view .row--compact {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 9px; border-radius: 9px; box-shadow: none;
+}
+#view .row--compact .row--code { font-size: 10px; }
+#view .row--compact .row--title {
+  flex: 1; min-width: 0; font-size: 11.5px; font-weight: 500; line-height: 1.3;
+}
+#view .row--compact .row--rel { flex: none; font-size: 10px; font-weight: 600; }
+#view .row--compact .row--menu { flex: none; margin-right: -4px; }
+#view .wrow--today .row--compact { border-color: var(--accent-wash); }
+
+/* Visible on hover and whenever it has focus: `display: none` would put it out
+   of every keyboard's reach. */
+.wadd { opacity: 0; align-self: flex-start; }
+#view .wrow:hover .wadd, .wadd:focus-visible { opacity: .75; }
+
+/* ==========================================================================
+ * The full view
+ *
+ * The same cards, wider, with a cap on the title so the clock follows the text
+ * instead of being flung at the frame.
+ * ====================================================================== */
+.view-full #view .row { padding: 12px 14px; }
+.view-full #view .row--title { font-size: 14px; }
+.view-full body[data-view="day"] #view { padding: 16px 20px 20px; }
