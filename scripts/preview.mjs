@@ -165,21 +165,8 @@ const epilogue = `
       return;
     }
     press(el);
-    // And if the press did not open the screen, open it the only other way
-    // there is, so the shot exists either way. Which of the two happened is
-    // visible in the console line the fallback prints — a harness that quietly
-    // substitutes one path for another is how a dead control ships.
-    setTimeout(() => {
-      if (document.querySelector(".screen--deadline")) return;
-      const hook = globalThis.__illiniDash;
-      // A dated row: the due card and its countdown are most of this screen,
-      // and the first item in the fixture is an undated booking.
-      const items = hook ? hook.state.currentItems : [];
-      const item = items.find((candidate) => candidate.dueAt) || items[0];
-      if (!item) return;
-      console.log("[preview] the row press did not open the deadline screen; opening it directly");
-      hook.app.openDeadline(item);
-    }, 400);
+    // No fallback: a press that does not open the screen is a defect the shot
+    // must show, not one the harness papers over.
   };
   // After the popup's own open-sync has landed and redrawn: a render calls
   // closeMenus(), so clicking earlier opens a panel that is closed again a

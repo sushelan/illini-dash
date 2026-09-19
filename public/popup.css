@@ -459,7 +459,10 @@ h2.section {
      the other side of it. A long label now ellipses inside its fifth; it can
      no longer push. */
   flex: 1 1 0; min-width: 0;
-  box-sizing: border-box; height: 28px; padding: 0 4px;
+  /* 3px, not 4: "No date" plus its count is the widest fifth at 11.5px/600 and
+     measured 80px in a 74px column — it ellipsed to "No d…". 3px of padding,
+     a 3px gap and the smaller in-tab count below bring it to 71. */
+  box-sizing: border-box; height: 28px; padding: 0 3px;
   font: inherit; font-size: 11.5px; font-weight: 600; line-height: 1;
   border: 0; border-radius: 8px;
   background: none; color: var(--muted); cursor: pointer; white-space: nowrap;
@@ -469,7 +472,8 @@ h2.section {
    tab strip. */
 .view-full .tab { flex: none; justify-content: flex-start; }
 .tab--label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tab .chip-count { flex: none; min-width: 14px; padding: 0 3px; }
+.tab { gap: 3px; }
+.tab .chip-count { flex: none; min-width: 13px; padding: 0 2px; font-size: 9px; }
 .tab:hover { color: var(--fg); background: var(--hover); }
 .tab[aria-selected="true"] { color: var(--fg); background: var(--accent-wash); font-weight: 700; }
 .tab .icon { width: 12px; height: 12px; flex: none; }
@@ -1129,7 +1133,13 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .foot:empty { display: none; }
 /* Amber when a source is failing, which is when the ratio in `.foot--count`
    stops reading "8 sources" and starts reading "7 of 8 sources". */
-.foot--warn { background: var(--warn-wash-strong); }
+/* Layered on the opaque surface, not in place of it: the wash is an rgba and a
+   sticky footer with a translucent back shows the row it is covering through
+   the sentence (seen on the first merged build). */
+.foot--warn {
+  background-color: var(--surface);
+  background-image: linear-gradient(var(--warn-wash-strong), var(--warn-wash-strong));
+}
 .foot--dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
 .foot--dot.is-ok { background: var(--ok); }
 .foot--dot.is-warn { background: var(--warn); }

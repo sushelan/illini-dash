@@ -456,21 +456,6 @@ app.openGiveDate = openGiveDate;
 app.openNeedsYou = openNeedsYou;
 app.closeNeedsYou = closeNeedsYou;
 
-/*
- * The harness's way in, and nothing else's.
- *
- * `npm run preview` appends an epilogue that opens a sub-screen so `npm run
- * shots` can capture one, and until a row's press routes through
- * `app.openDeadline` (D7) there is no route to the deadline screen from
- * outside this module graph — a state the harness cannot reach is a state
- * nothing checks. It is the object the modules already share, under a name
- * nothing else uses; it holds no decision, and the page is an extension
- * document that loads no remote script.
- */
-(globalThis as { __illiniDash?: { app: typeof app; state: typeof state } }).__illiniDash = {
-  app,
-  state,
-};
 
 renderActions();
 void refresh();
