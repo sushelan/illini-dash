@@ -18,6 +18,7 @@ import {
   classListLine,
   classPageAttempts,
   classesToPoll,
+  feedLine,
   feedSignedOut,
   postsNeedingBody,
   readClassList,
@@ -435,7 +436,13 @@ const OLD: PiazzaClass = { ...CS425, nid: "old", termKey: "spring2025", active: 
 describe("planPiazza", () => {
   it("off means no request and no state", () => {
     const plan = planPiazza({ enabled: false }, { granted: true, now: NOW });
-    expect(plan).toEqual({ fetch: false, refreshClasses: false, poll: [], reason: "off" });
+    expect(plan).toEqual({
+      fetch: false,
+      refreshClasses: false,
+      poll: [],
+      reason: "off",
+      seenPostsForFetch: {},
+    });
   });
 
   it("on without the permission is a state, not a fetch", () => {
@@ -1290,8 +1297,21 @@ describe("the reader version", () => {
     expect(readerVersionOf({ enabled: true, readerVersion: 2 })).toBe(2);
   });
 
-  it("this build is reader 2, the one that reads whole bodies", () => {
-    expect(PIAZZA_READER_VERSION).toBe(2);
+  it("this build is reader 3, because 2 was stamped without ever re-reading", () => {
+    /*
+     * 2 is burnt, not superseded. The build that stamped it dropped `sinceNr`
+     * in the plan but filtered the fetch with the pre-upgrade `seenPosts`, so a
+     * real install (Sushi, build 20260919T002513) now says reader 2 over 23
+     * posts nobody opened. A store saying 2 has to be re-read exactly like a
+     * store saying 1, and the version being 3 is what says so.
+     */
+    expect(PIAZZA_READER_VERSION).toBe(3);
+  });
+
+  it("re-reads a store that says reader 2, because that stamp proves nothing", () => {
+    const plan = planPiazza(stored({ readerVersion: 2 }), { granted: true, now: NOW });
+    expect(plan.rereadAll).toBe(true);
+    expect(plan.reason).toContain("reader 2");
   });
 
   it("plans a re-read of everything when the store was written by reader 1", () => {
@@ -1304,10 +1324,13 @@ describe("the reader version", () => {
     expect(plan.reason).toContain(`reader ${PIAZZA_READER_VERSION}`);
   });
 
-  it("plans nothing extra once the store says reader 2", () => {
+  it("plans nothing extra once the store says this reader", () => {
     // Idempotence: the second sync after an upgrade is an ordinary sync, and a
     // `rereadAll` that stayed on would re-read 25 bodies every half hour for ever.
-    const plan = planPiazza(stored({ readerVersion: 2 }), { granted: true, now: NOW });
+    const plan = planPiazza(stored({ readerVersion: PIAZZA_READER_VERSION }), {
+      granted: true,
+      now: NOW,
+    });
     expect(plan.rereadAll).toBeUndefined();
     expect(plan.poll).toEqual([{ nid: NID, courseHint: CS425.courseRaw, courseCodes: ["CS425", "ECE428"], sinceNr: 184 }]);
     expect(plan.reason).not.toContain("reader");
@@ -1331,13 +1354,120 @@ describe("the reader version", () => {
     );
     expect(Object.keys(upgrade.seenPosts).sort()).toEqual(["campuswire:cs357:9", "paste:abc"]);
     expect(upgrade.dropped).toBe(2);
-    expect(upgrade.message).toBe("reader upgraded 1 → 2: re-reading 2 posts in full");
+    expect(upgrade.message).toBe(
+      `reader upgraded 1 → ${PIAZZA_READER_VERSION}: re-reading 2 posts in full`,
+    );
+  });
+
+  /*
+   * The sequence the worker actually runs, on the fixture feed, over a store
+   * that has every post marked read by an older reader.
+   *
+   * The two tests above passed the whole time reader 2 was broken, because they
+   * tested the plan and the write separately and the defect was in neither: the
+   * *fetch* between them still filtered with the store's pre-upgrade
+   * `seenPosts`, so `postsNeedingBody` answered "20 already read", nothing was
+   * fetched, and the write then dropped the marks and stamped the new reader
+   * over posts nobody had opened. Worker rule 6: when a defect turns up in
+   * covered code, the covering tests were pinning the wrong thing. This one
+   * drives plan, postsToSend, postsNeedingBody and bodyBatch in the order and
+   * with the arguments `piazzaRun` uses.
+   */
+  describe("the first sync after an upgrade, driven as the worker drives it", () => {
+    /** Every post in the capture, marked read by the reader that is being left. */
+    const seenUnderOldReader = (): Record<string, string> => {
+      const marks: Record<string, string> = { "campuswire:cs357:9": NOW_ISO };
+      for (const post of posts()) marks[post.id] = "2026-09-17T10:00:00-05:00";
+      return marks;
+    };
+
+    /** The worker's chain: plan, then send, then the bounded body batch. */
+    function sync(facts: PiazzaFacts, seenPosts: Record<string, string>) {
+      const plan = planPiazza(facts, { granted: true, now: NOW, seenPosts });
+      const entry = plan.poll[0]!;
+      const feed = posts();
+      const send = postsToSend(feed, {
+        ...(entry.sinceNr === undefined ? {} : { sinceNr: entry.sinceNr }),
+        seenPosts: plan.seenPostsForFetch,
+      });
+      const needed = postsNeedingBody(send.sent, plan.seenPostsForFetch);
+      const batch = bodyBatch(needed.fetch, feed, MAX_BODIES_PER_SYNC, send.held);
+      return { plan, feed, send, needed, batch };
+    }
+
+    it("sends every note for its body, oldest first, with nothing 'already read'", () => {
+      const { plan, feed, send, needed, batch } = sync(stored(), seenUnderOldReader());
+      expect(plan.rereadAll).toBe(true);
+      // The fix itself: the marks the fetch filters with have lost this
+      // source's keys, and only this source's.
+      expect(Object.keys(plan.seenPostsForFetch)).toEqual(["campuswire:cs357:9"]);
+
+      // Twenty staff notes in the capture; the student notes and the questions
+      // are refused for their own reasons and are not part of this.
+      expect(send.sent).toHaveLength(20);
+      expect(needed.alreadyRead).toBe(0);
+      expect(needed.fetch).toHaveLength(20);
+      expect(batch.batch).toHaveLength(Math.min(20, MAX_BODIES_PER_SYNC));
+      expect(batch.deferred).toBe(0);
+      expect(batch.batch[0]!.nr).toBe(6);
+      expect(batch.batch.map((post) => post.nr)).toEqual(
+        [...batch.batch.map((post) => post.nr)].sort((a, b) => a - b),
+      );
+      // Note 28 is the HW1 Running Post: the deadline the whole upgrade exists
+      // to reach, and the one the live run never fetched.
+      expect(batch.batch.some((post) => post.nr === 28)).toBe(true);
+
+      expect(
+        feedLine({
+          courseHint: PAGE.courseHint,
+          feedCount: feed.length,
+          toRead: batch.batch.length,
+          alreadyRead: needed.alreadyRead,
+          rereadAll: plan.rereadAll,
+        }),
+      ).toBe("CS 425 / ECE 428: Distributed Systems: 31 post(s) in the feed, 20 note(s) to re-read");
+    });
+
+    it("bounds the re-read at MAX_BODIES_PER_SYNC, oldest first", () => {
+      // The cap is what keeps a 106-post class from firing 106 `content.get`s
+      // at once; the rest come back next sync because `lastNr` stops at the batch.
+      const { send, batch } = sync(stored(), seenUnderOldReader());
+      const bounded = bodyBatch(send.sent, posts(), 5, send.held);
+      expect(bounded.batch.map((post) => post.nr)).toEqual([6, 10, 11, 15, 16]);
+      expect(bounded.deferred).toBe(15);
+      expect(bounded.lastNr).toBe(16);
+      expect(batch.batch.length).toBeLessThanOrEqual(MAX_BODIES_PER_SYNC);
+    });
+
+    it("sends nothing on the same store once it says this reader", () => {
+      /*
+       * Read *after* the last edit in the capture, so the one path that may
+       * legitimately re-send a post below `sinceNr` - the Running Post, edited
+       * since it was read - is not what this asserts. It has its own tests.
+       */
+      const marks = Object.fromEntries(
+        Object.keys(seenUnderOldReader()).map((key) => [key, NOW_ISO]),
+      );
+      const { plan, send, needed, batch } = sync(
+        stored({ readerVersion: PIAZZA_READER_VERSION }),
+        marks,
+      );
+      expect(plan.rereadAll).toBeUndefined();
+      // The marks are handed through untouched, and `sinceNr` is back.
+      expect(plan.seenPostsForFetch["campuswire:cs357:9"]).toBe(NOW_ISO);
+      expect(plan.poll[0]?.sinceNr).toBe(184);
+      expect(send.sent).toEqual([]);
+      expect(needed.alreadyRead).toBe(0);
+      expect(batch.batch).toEqual([]);
+    });
   });
 
   it("says so even when there was nothing to drop", () => {
     // Worker rule 5: "the upgrade ran and the store was empty" and "the upgrade
     // never ran" are the same silence otherwise, and they want opposite fixes.
-    expect(readerUpgrade({}, 1).message).toBe("reader upgraded 1 → 2: re-reading 0 posts in full");
+    expect(readerUpgrade({}, 1).message).toBe(
+      `reader upgraded 1 → ${PIAZZA_READER_VERSION}: re-reading 0 posts in full`,
+    );
     expect(readerUpgrade(undefined, 1).dropped).toBe(0);
   });
 });

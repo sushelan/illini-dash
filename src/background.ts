@@ -85,6 +85,7 @@ import {
   parseFeed,
   parsePostBody,
   piazzaNeedsRecheck,
+  feedLine,
   planPiazza,
   postBodyRequest,
   postsNeedingBody,
@@ -1440,6 +1441,9 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
       granted,
       now: new Date(),
       trigger: piazzaTrigger(trigger),
+      // The plan decides what the fetch filters with (`seenPostsForFetch`); the
+      // worker hands it the marks and never interprets them.
+      seenPosts: store.seenPosts,
     });
     if (plan.fetch) {
       store.observers.piazza = { ...facts, lastAttemptAt: new Date().toISOString() };
@@ -1452,7 +1456,10 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
       };
       await saveStore(store);
     }
-    return { plan, facts, seenPosts: store.seenPosts };
+    // No `seenPosts` here on purpose: the only seen-marks view this run may
+    // fetch with is `plan.seenPostsForFetch`, and a second copy in scope is how
+    // the reader-2 upgrade was handed the pre-upgrade marks.
+    return { plan, facts };
   }, "piazza: plan");
 
   const { plan, facts } = planned;
@@ -1544,7 +1551,7 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
            */
           const send = postsToSend(posts, {
             sinceNr: entry.sinceNr,
-            seenPosts: planned.seenPosts,
+            seenPosts: plan.seenPostsForFetch,
           });
           /*
            * The bodies are **not** fetched here. `content_snipet` is the first
@@ -1558,7 +1565,7 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
            * body it could not read. Asking for its body again every sync for
            * the rest of the term is the repeating fetch §6 exists to stop.
            */
-          const needed = postsNeedingBody(send.sent, planned.seenPosts);
+          const needed = postsNeedingBody(send.sent, plan.seenPostsForFetch);
           // `send.held`: the mark stays below a post refused for an unreadable
           // field, so it is offered again rather than skipped for the term.
           const batch = bodyBatch(needed.fetch, posts, MAX_BODIES_PER_SYNC, send.held);
@@ -1574,11 +1581,13 @@ async function piazzaRun(trigger: SyncTrigger): Promise<void> {
           floors[entry.nid] = entry.sinceNr ?? 0;
           for (const post of batch.batch) queued.push({ entry, post });
           feeds.push({ courseHint: entry.courseHint, kind: "ok" });
-          return (
-            `${entry.courseHint}: ${posts.length} post(s) in the feed, ` +
-            `${batch.batch.length} new note(s) to read` +
-            (needed.alreadyRead > 0 ? `, ${needed.alreadyRead} already read` : "")
-          );
+          return feedLine({
+            courseHint: entry.courseHint,
+            feedCount: posts.length,
+            toRead: batch.batch.length,
+            alreadyRead: needed.alreadyRead,
+            ...(plan.rereadAll === true ? { rereadAll: true } : {}),
+          });
         } catch (err) {
           /*
            * Per class, so one class cannot cost the others their announcements
