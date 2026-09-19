@@ -63,7 +63,10 @@ export function openDeadline(item: Item): void {
   leaveNeedsYou();
   openedFrom = item.title;
   state.screen = { kind: "deadline", itemId: item.id, view: state.view };
-  void app.refresh();
+  // Focus lands on ‹ back once drawn (R2 L2).
+  void app.refresh().then(() => {
+    viewEl.querySelector<HTMLElement>(".screen-bar button")?.focus();
+  });
 }
 
 /**
@@ -124,6 +127,7 @@ export function renderOpenScreen(now: Date): boolean {
   if (screen.kind === "needs-you") return false;
   if (screen.view !== state.view) {
     state.screen = undefined;
+    openedFrom = undefined; // R2 L8: nothing to return focus to any more.
     return false;
   }
   if (screen.kind === "editor") {
@@ -267,6 +271,11 @@ function renderBar(item: Item): HTMLElement {
   const more = iconButton("more", "More actions");
   more.addEventListener("click", (event) => {
     event.stopPropagation();
+    // A second press closes, as the header's ⋯ does (R2 L4).
+    if (more.getAttribute("aria-expanded") === "true") {
+      closeMenus();
+      return;
+    }
     openScreenMenu(item, more);
   });
   bar.append(more);

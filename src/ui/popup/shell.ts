@@ -512,7 +512,11 @@ export function openFullView(view_?: ViewName): void {
     writeStored(VIEW_KEY, view_);
     writeStored(HANDOFF_KEY, JSON.stringify({ view: view_, at: Date.now() }));
   }
-  void send({ type: "open-full-view" });
+  void send({ type: "open-full-view" }).catch((err: unknown) => {
+    showStatus(
+      `Could not open the full view: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -557,14 +561,16 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
 
     const count = counts[name] ?? 0;
     if (count > 0) {
-      // Both counts mean "something here is asking for an action". An exam
-      // already booked and a row with no date are not, and neither is counted —
-      // a badge that only ever grows is a badge nobody reads.
+      // Exams counts what is asking for an action (an exam already booked is
+      // not); No date counts every row waiting on a date, and says so.
       const badge = document.createElement("span");
       badge.className = name === "exams" ? "chip-count is-warn" : "chip-count";
       badge.textContent = String(count);
       tab.append(badge);
-      tab.title = `${VIEW_LABEL[name] ?? name} — ${count} need${count === 1 ? "s" : ""} attention`;
+      tab.title =
+        name === "nodate"
+          ? `${count} waiting on a date`
+          : `${VIEW_LABEL[name] ?? name} — ${count} need${count === 1 ? "s" : ""} attention`;
     }
 
     if (!isFullView && FULL_VIEW_ONLY.has(name)) {
@@ -589,6 +595,10 @@ export function selectTab(name: ViewName): void {
     openFullView(name);
     return;
   }
+  // A tab pressed while the add/edit form owns the view: the student wants the
+  // list. Close the form first, or the write below is remembered while the
+  // redraw it asked for is held by the form (R2 M3).
+  if (state.editor) app.closeEditor();
   state.view = name;
   state.dayOffset = 0;
   writeStored(VIEW_KEY, name);
@@ -1028,14 +1038,19 @@ export function drawIsHeld(): boolean {
   return false;
 }
 
+/**
+ * Which control opened which panel. `closeMenus` clears `aria-expanded` on
+ * exactly these anchors: a sweep of every `[aria-expanded="true"]` in the
+ * document also stripped it from the pill, whose expanded state means "the
+ * Needs-you screen is open" and is nobody's panel (R2 M6).
+ */
+const menuAnchors = new WeakMap<Element, HTMLElement>();
+
 export function closeMenus(): void {
-  const open = [...document.querySelectorAll(MENU_SELECTOR)];
-  for (const panel of open) panel.remove();
-  // The expanded state belongs to the panel, and only the focusout path used
-  // to clear it — so after every other kind of close the health pill's toggle
-  // and the Escape handler kept finding a stale "expanded" anchor.
-  for (const anchor of document.querySelectorAll('[aria-expanded="true"]')) {
-    anchor.removeAttribute("aria-expanded");
+  const open = [...document.querySelectorAll<HTMLElement>(MENU_SELECTOR)];
+  for (const panel of open) {
+    menuAnchors.get(panel)?.removeAttribute("aria-expanded");
+    panel.remove();
   }
   // The room a panel asked for is given back the moment it closes, or the popup
   // stays that tall with nothing in the space. See `placeFloating`.
@@ -1167,9 +1182,15 @@ window.addEventListener(
 // Without it the only way out of an open menu with the keyboard was Tab, which
 // walked *into* it and then out the far side of the page.
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && document.querySelector(MENU_SELECTOR)) {
+  const menu = document.querySelector<HTMLElement>(MENU_SELECTOR);
+  if (event.key === "Escape" && menu) {
     event.preventDefault();
-    const anchor = document.querySelector<HTMLElement>('[aria-expanded="true"]');
+    // This listener is registered first (import order), so the screens' own
+    // Escape handlers run after it — and their "not while a menu is open"
+    // guards would look at a document the menu has just left. One press, one
+    // owner: the menu takes it and nothing behind it sees it (R2 M1).
+    event.stopImmediatePropagation();
+    const anchor = menuAnchors.get(menu);
     closeMenus();
     anchor?.focus();
   }
@@ -1190,10 +1211,16 @@ document.addEventListener("keydown", (event) => {
 export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
   const items = () => [...menu.querySelectorAll<HTMLElement>(".menu-item:not(:disabled)")];
   anchor.setAttribute("aria-expanded", "true");
+  menuAnchors.set(menu, anchor);
 
   const focusAt = (index: number) => {
     const all = items();
-    if (all.length === 0) return;
+    if (all.length === 0) {
+      // A panel of radios and switches (Appearance) has no `.menu-item`, and
+      // a dialog focus cannot enter is one the keyboard cannot leave (R2 L6).
+      menu.querySelector<HTMLElement>("input:not(:disabled), button:not(:disabled), [tabindex='0']")?.focus();
+      return;
+    }
     const wrapped = (index + all.length) % all.length;
     for (const item of all) delete item.dataset["active"];
     all[wrapped]!.dataset["active"] = "true";
@@ -1251,7 +1278,9 @@ export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
     if (next instanceof Node && menu.contains(next)) return;
     setTimeout(() => {
       if (!menu.isConnected || menu.contains(document.activeElement)) return;
-      menu.remove();
+      // Through `closeMenus`, never `menu.remove()`: that is what consumes
+      // `redrawAfterMenu` and gives back the body's min-height (R2 M2).
+      closeMenus();
       anchor.removeAttribute("aria-expanded");
     }, 0);
   });
@@ -1524,7 +1553,9 @@ function rowsInView(): HTMLElement[] {
   // The month has no `a.row` at all — it is a grid of pills — so the roving
   // tabindex found nothing there and ↑ ↓ did nothing. A pill is a `role=button`
   // that opens the same menu, so it belongs in the same ring.
-  return [...viewEl.querySelectorAll<HTMLElement>("a.row, .mpill[role='button']")];
+  // `div.row` too: a manual row with no link is a div, and a ring that skips
+  // it loses focus on the way back from its own screen (R2 L3).
+  return [...viewEl.querySelectorAll<HTMLElement>("a.row, div.row, .mpill[role='button']")];
 }
 
 export function makeRowsNavigable(): void {

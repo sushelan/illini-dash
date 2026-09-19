@@ -477,6 +477,10 @@
   /* `position` and `max-height` are set by `placeFloating`, which is the only
      thing that knows how much window there is. */
   position: fixed; z-index: 20; min-width: 190px; max-width: 340px;
+  /* `placeFloating` computes its cap from the window and applies it as
+     `max-height`; on a content box the padding and border sat on top of that
+     cap, and the Appearance panel ended 8px past a 600px window (R2 M5). */
+  box-sizing: border-box;
   /* A panel that scrolls must not hand the scroll on to the page behind it once
      it reaches its end — the page then moves under an open menu. */
   overscroll-behavior: contain;

@@ -33,7 +33,7 @@ import {
 import { SOURCE_NAME, SOURCE_TITLE, courseLabel } from "../../../core/names.js";
 import { icon, iconButton } from "../../icons.js";
 import type { Item, Source, SourceStatus, Suggestion } from "../../../sources/types.js";
-import { app, state, viewEl } from "../state.js";
+import { MENU_SELECTOR, app, state, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
 import {
   actionButton,
@@ -73,7 +73,11 @@ export function openNeedsYou(): void {
   state.screen = { kind: "needs-you" };
   document.body.classList.add(OPEN_CLASS);
   document.addEventListener("keydown", onKeyDown);
-  void app.refresh();
+  // Focus lands on ‹ back once the screen is drawn: a screen that takes the
+  // document over and leaves focus on <body> strands the keyboard (R2 L2).
+  void app.refresh().then(() => {
+    viewEl.querySelector<HTMLElement>(".screen-bar button")?.focus();
+  });
 }
 
 /** ‹ back and Escape: the same thing, and focus goes back where it came from. */
@@ -105,7 +109,7 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.key !== "Escape") return;
   // Not when a menu is open: the menu's own trap owns Escape, and closing the
   // screen out from under it would take the thing being dismissed with it.
-  if (document.querySelector(".menu-surface")) return;
+  if (document.querySelector(MENU_SELECTOR)) return;
   event.preventDefault();
   closeNeedsYou();
 }
@@ -358,8 +362,8 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
     const postSubject = typeof suggestion.postSubject === "string" ? suggestion.postSubject : "";
     const names = postSubject !== "" && postSubject.trim() !== suggestion.title.trim();
     provenance.textContent = names
-      ? `from the ${SUGGESTION_SOURCE[suggestion.source]} “${postSubject}”`
-      : `from a ${SUGGESTION_SOURCE[suggestion.source]}`;
+      ? `from the ${SUGGESTION_SOURCE[suggestion.source] ?? "post"} “${postSubject}”`
+      : `from a ${SUGGESTION_SOURCE[suggestion.source] ?? "post"}`;
     // The instructor's own words, as text. §8.1's rendering rule: a post is
     // remote content and never becomes markup here.
     provenance.title = names ? `${postSubject}\n\n${suggestion.span}` : suggestion.span;

@@ -86,6 +86,10 @@ export async function saveManual(values: EditorValues, sourceId?: string): Promi
     kind: values.kind,
     url: values.url,
   };
+  // Logged on the popup side, like every other request (worker rule 5).
+  console.log(
+    `[illini-dash] ${sourceId === undefined ? "add-manual-item" : `edit-manual-item for manual:${sourceId}`} requested`,
+  );
   const response = await send(
     sourceId === undefined
       ? { type: "add-manual-item", input }
@@ -328,6 +332,7 @@ export function undoDelete(): void {
   const undo = state.pendingUndo;
   if (!undo) return;
   clearUndo();
+  console.log(`[illini-dash] undo delete requested for “${undo.title}”`);
   void saveManual(undo.values)
     .catch((err: unknown) => {
       showStatus(

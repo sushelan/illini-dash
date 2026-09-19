@@ -375,10 +375,9 @@ function renderStateChip(row: SetupRow, named: boolean): HTMLElement {
     chip.className = "chip-base chip-state";
     chip.textContent = `${prefix}Checking…`;
     chip.title = "Reading this site now. This can take a few seconds.";
-  } else if (row.status?.lastSuccessAt !== undefined) {
-    chip.className = "chip-base chip-state is-ok";
-    chip.textContent = `${prefix}Connected`;
   } else if (row.status?.state === "needs_login") {
+    // Before the Connected branch: an expired session has a `lastSuccessAt`
+    // too, and it was rendering a green chip beside its own Sign in (R2 M8).
     chip.className = "chip-base chip-state is-warn";
     chip.textContent = `${prefix}Sign in needed`;
     // What the site actually answered. It was already here for the two error
@@ -386,6 +385,9 @@ function renderStateChip(row: SetupRow, named: boolean): HTMLElement {
     // difference between "the cookie is not reaching us" and "the page says
     // something we misread", which nothing else on this screen can tell apart.
     chip.title = row.status.lastError ?? "";
+  } else if (row.status?.lastSuccessAt !== undefined) {
+    chip.className = "chip-base chip-state is-ok";
+    chip.textContent = `${prefix}Connected`;
   } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
     chip.className = "chip-base chip-state is-err";
     chip.textContent = `${prefix}Couldn't read`;

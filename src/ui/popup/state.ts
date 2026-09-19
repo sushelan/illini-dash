@@ -434,6 +434,7 @@ export const app: {
   runSync: () => Promise<void>;
   openAddEditor: () => void;
   openEditEditor: (item: Item, member: Item["members"][number]) => void;
+  closeEditor: () => void;
   deleteManual: (item: Item, member: Item["members"][number], entry: HTMLElement) => void;
   undoDelete: () => void;
   /** Brief D8: the in-flow deadline screen for one row (screens/deadline.ts). */
@@ -449,6 +450,7 @@ export const app: {
   runSync: () => Promise.resolve(),
   openAddEditor: () => undefined,
   openEditEditor: () => undefined,
+  closeEditor: () => undefined,
   deleteManual: () => undefined,
   undoDelete: () => undefined,
   openDeadline: () => undefined,

@@ -87,6 +87,7 @@ import {
   openEditEditor,
   openGiveDate,
   undoDelete,
+  closeEditor,
 } from "./popup/screens/editor.js";
 import { clearScreenMark, openDeadline, renderOpenScreen } from "./popup/screens/deadline.js";
 
@@ -422,7 +423,14 @@ function repaintChrome(): void {
  */
 let recheckInFlight = false;
 async function recheckLogins(): Promise<void> {
-  if (recheckInFlight || state.syncing) return;
+  if (recheckInFlight || state.syncing) {
+    console.log(
+      `[illini-dash] back on the page — not re-checking logins: ${
+        recheckInFlight ? "a re-check is already running" : "a sync is already running"
+      }`,
+    );
+    return;
+  }
   recheckInFlight = true;
   try {
     const response = await send({ type: "get-state" });
@@ -433,9 +441,12 @@ async function recheckLogins(): Promise<void> {
     const stored = await chrome.storage?.session?.get(NAVIGATED_KEY).catch(() => undefined);
     const navigated = (stored?.[NAVIGATED_KEY] ?? {}) as NavigatedAt;
     const due = sourcesToRecheck(response.sources ?? {}, Date.now(), navigated);
-    if (due.length === 0) return;
     // Both branches logged, or "came back, nothing was waiting on a login" and
     // "came back, the check never ran" are the same silence (worker rule 5).
+    if (due.length === 0) {
+      console.log("[illini-dash] back on the page — no source was waiting on a login");
+      return;
+    }
     console.log(`[illini-dash] back on the page — re-checking ${due.join(", ")}`);
     await runSync();
   } finally {
@@ -452,6 +463,7 @@ app.refresh = refresh;
 app.runSync = runSync;
 app.openAddEditor = () => openAddEditor();
 app.openEditEditor = openEditEditor;
+app.closeEditor = closeEditor;
 app.deleteManual = deleteManual;
 app.undoDelete = undoDelete;
 app.openDeadline = openDeadline;

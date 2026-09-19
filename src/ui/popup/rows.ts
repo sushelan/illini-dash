@@ -85,6 +85,8 @@ export function renderRow(
   const url = safeUrl(item.url);
   const row = document.createElement(url ? "a" : "div");
   row.className = "row";
+  // A div row joins the roving ring too (R2 L3); `makeRowsNavigable` rolls it.
+  if (!url) row.tabIndex = -1;
   if (options.hero) row.classList.add("row--hero");
   if (options.compact) row.classList.add("row--compact");
   if (url && row instanceof HTMLAnchorElement) {
