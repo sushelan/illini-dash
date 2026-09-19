@@ -17,10 +17,15 @@ import {
   mergeItems,
   setCourseDisabled,
   splitItem,
+  studentDueOverride,
+  STUDENT_POST_ID,
   undoDueOverride,
   unhideItem,
 } from "../src/core/overrides.js";
 import { applyRetention, dedupe } from "../src/core/dedupe.js";
+import { anchorOf, attentionGroups, dayKey, dayList, noDateCount } from "../src/core/calendar.js";
+import { unreadableDeadline } from "../src/core/quality.js";
+import { ManualItemError } from "../src/core/manual.js";
 import type { DueOverride, Item, Overrides, RawItem, Suggestion } from "../src/sources/types.js";
 
 const NO_OVERRIDES: Overrides = {
@@ -360,5 +365,132 @@ describe("accepting and dismissing a suggestion", () => {
   it("dismisses by id and leaves the rest", () => {
     const other = { ...suggestion, id: "s2" };
     expect(dismissSuggestion([suggestion, other], "s1")).toEqual([other]);
+  });
+});
+
+describe('"Give it a date" for a source row (brief D3)', () => {
+  const ZONE = "America/Chicago";
+  const APPLIED = "2026-09-10T18:00:00.000Z";
+  const NOW = new Date(2026, 8, 10, 18, 0, 0);
+
+  /** A row Canvas listed and never dated — the commonest No date case. */
+  const undated = () => itemOf([raw("canvas", "u1", "Course syllabus acknowledgement")]);
+  /** A row whose date was there and could not be read. */
+  const unreadable = () =>
+    itemOf([
+      {
+        ...raw("site", "s1", "HW2 Due"),
+        extra: { unparsedDueDate: "Week 4, TBD" },
+      },
+    ]);
+
+  const give = (item: Item, date: string, time?: string) =>
+    applyDueOverride(
+      NO_OVERRIDES,
+      item,
+      studentDueOverride(time === undefined ? { date } : { date, time }, item, ZONE, APPLIED),
+    );
+
+  it("gives an undated row a stated instant, and it leaves the No date group", () => {
+    const item = undated();
+    expect(attentionGroups([item], NOW).map((g) => g.name)).toEqual(["No date at all"]);
+
+    const after = dedupe(item.members, give(item, "2026-09-22", "17:00"))[0]!;
+    expect(after.dueAt).toBe("2026-09-22T17:00:00-05:00");
+    expect(attentionGroups([after], NOW)).toEqual([]);
+    expect(noDateCount([after], NOW)).toBe(0);
+  });
+
+  it("does the same for a row whose date could not be read", () => {
+    // `unreadableDeadline` returns nothing once `dueAt` is set, so the amber
+    // "check" chip goes with it — the whole feature falls out of rules that
+    // already existed.
+    const item = unreadable();
+    expect(attentionGroups([item], NOW).map((g) => g.name)).toEqual(["Couldn't read"]);
+
+    const after = dedupe(item.members, give(item, "2026-09-22", "17:00"))[0]!;
+    expect(unreadableDeadline(after)).toEqual([]);
+    expect(attentionGroups([after], NOW)).toEqual([]);
+  });
+
+  it("puts the row on the calendar, with the time not marked as assumed", () => {
+    const item = undated();
+    const after = dedupe(item.members, give(item, "2026-09-22", "17:00"))[0]!;
+    // The student stated the clock, so nothing downstream may treat it as an
+    // invention: §5.3's precedence, the .ics export and §7's reminders all key
+    // off this flag.
+    expect(after.timeAssumed).toBeUndefined();
+    const anchor = anchorOf(after, NOW)!;
+    expect(anchor.assumed).toBe(false);
+    expect(dayKey(new Date(anchor.at))).toBe("2026-09-22");
+    expect(dayList([after], new Date(2026, 8, 22), NOW).map((r) => r.item.title)).toEqual([
+      "Course syllabus acknowledgement",
+    ]);
+  });
+
+  it("still marks the 23:59 it fills in when only a day was given", () => {
+    /*
+     * Worker house rule 3, and the one place this could quietly go wrong: the
+     * button is called "Give it a date", and a student who gave a *day* has not
+     * stated a clock. Marking it is what keeps §5.3 from ranking this 23:59
+     * above a real deadline a source later reports for the same work, and keeps
+     * §7 from announcing a time nobody said out loud.
+     */
+    const item = undated();
+    const after = dedupe(item.members, give(item, "2026-09-22"))[0]!;
+    expect(after.dueAt).toBe("2026-09-22T23:59:00-05:00");
+    expect(after.timeAssumed).toBe(true);
+    expect(anchorOf(after, NOW)!.assumed).toBe(true);
+  });
+
+  it("survives the group changing, and can be taken back off", () => {
+    // Keyed to every member, exactly as an announcement's correction is: a
+    // date keyed by `Item.id` is spent the moment a second source mirrors it.
+    const item = undated();
+    const overrides = give(item, "2026-09-22", "17:00");
+    const mirrored = [...item.members, raw("gradescope", "g9", "Course syllabus acknowledgement")];
+    const regrouped = dedupe(mirrored, overrides);
+    expect(regrouped).toHaveLength(1);
+    expect(regrouped[0]!.dueAt).toBe("2026-09-22T17:00:00-05:00");
+
+    const undone = undoDueOverride(overrides, memberKeysOf(regrouped[0]!));
+    expect(dedupe(mirrored, undone)[0]!.dueAt).toBeUndefined();
+  });
+
+  it("says the date came from the student, and does not claim it moved", () => {
+    const item = undated();
+    const entry = studentDueOverride({ date: "2026-09-22", time: "17:00" }, item, ZONE, APPLIED);
+    expect(entry.reason).toBe("you");
+    expect(entry.postId).toBe(STUDENT_POST_ID);
+    expect(entry.appliedAt).toBe(APPLIED);
+    // An item that had no date did not move, it arrived — "moved Tue → Fri"
+    // would name a Tuesday that never existed. The key is *absent*, not present
+    // holding undefined: `dueOverrides` goes through JSON on every save, and a
+    // record whose shape depends on which build wrote it is worker rule 8's
+    // problem waiting to happen.
+    expect(entry.from).toBeUndefined();
+    expect(Object.keys(entry)).not.toContain("from");
+  });
+
+  it("records where a dated row moved from, so Undo move can say so", () => {
+    const dated = itemOf([raw("gradescope", "d1", "HW3", "2026-09-11T22:00:00.000Z")]);
+    const entry = studentDueOverride({ date: "2026-09-22", time: "17:00" }, dated, ZONE, APPLIED);
+    expect(entry.from).toBe("2026-09-11T22:00:00.000Z");
+  });
+
+  it("refuses a date nobody could have meant, in the editor's own words", () => {
+    // One set of rules for "what counts as a date a student typed": this goes
+    // through `core/manual.ts`'s anchored regexes, so the message cannot loosen
+    // what the editor already refuses (house rule 5).
+    const item = undated();
+    expect(() => studentDueOverride({ date: "09/22/2026" }, item, ZONE, APPLIED)).toThrow(
+      ManualItemError,
+    );
+    expect(() => studentDueOverride({ date: "2026-09-31" }, item, ZONE, APPLIED)).toThrow(
+      /no such date/,
+    );
+    expect(() =>
+      studentDueOverride({ date: "2026-09-22", time: "5 PM" }, item, ZONE, APPLIED),
+    ).toThrow(/HH:MM/);
   });
 });

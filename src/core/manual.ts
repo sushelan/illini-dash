@@ -154,6 +154,40 @@ function parseUrl(raw: string): string {
 }
 
 /**
+ * A day and an optional clock a student typed, as an instant.
+ *
+ * Exported because two surfaces now collect exactly this — the editor, for a
+ * manual row, and "Give it a date" (brief D3), for a *source* row that gets a
+ * `DueOverride` instead. Written twice, the second would be the looser one:
+ * that is the shape every defect in this file has taken, which is why
+ * `fieldsOf` exists at all. One function means "what counts as a date a student
+ * typed" has one answer and one set of refusals.
+ *
+ * `timeAssumed` comes back rather than being folded in, because the two callers
+ * store it in different places — `extra.timeAssumed` on a `RawItem`, the
+ * `DueOverride.timeAssumed` field on a correction — and both need it for the
+ * same reason (worker house rule 3).
+ */
+export function statedInstant(
+  date: string,
+  time: string | undefined,
+  zone: string,
+): { at: string; timeAssumed: boolean } {
+  const rawDate = text(date);
+  const rawTime = text(time);
+  const parts = parseDate(rawDate);
+  // A blank time is not midnight. §4.5 fills 23:59 for a course page that
+  // prints a bare date and marks it assumed; a student who typed only a day is
+  // in exactly that position, and the mark is what keeps §5.3 from ranking this
+  // invention above a stated Canvas deadline.
+  const timeAssumed = rawTime === "";
+  const clock = timeAssumed ? ASSUMED_TIME : parseTime(rawTime, "time");
+  // `instantOf` rejects a date that does not exist (Feb 30, month 13), so the
+  // regex above does not have to know how long a month is.
+  return { at: instantOf({ ...parts, ...clock }, zone, rawDate), timeAssumed };
+}
+
+/**
  * The fields of a manual row, from validated input.
  *
  * Shared by `newManualItem` and `editManualItem` so that an edit cannot end up
@@ -203,20 +237,16 @@ function fieldsOf(
       throw new ManualItemError("Give this a date, or clear the time as well as the date.");
     }
   } else {
-    const date = parseDate(rawDate);
-    // A blank time is not midnight. §4.5 fills 23:59 for a course page that
-    // prints a bare date and marks it assumed; a student who typed only a day
-    // is in exactly that position, and the mark is what keeps §5.3 from ranking
-    // this invention above a stated Canvas deadline.
-    const timeAssumed = rawTime === "";
-    const time = timeAssumed ? ASSUMED_TIME : parseTime(rawTime, "time");
-    // `instantOf` rejects a date that does not exist (Feb 30, month 13), so the
-    // regex above does not have to know how long a month is.
-    dueAt = instantOf({ ...date, ...time }, zone, rawDate);
-    if (timeAssumed) extra["timeAssumed"] = "true";
+    const stated = statedInstant(rawDate, rawTime, zone);
+    dueAt = stated.at;
+    if (stated.timeAssumed) extra["timeAssumed"] = "true";
 
     if (rawEnd !== "") {
-      const endAt = instantOf({ ...date, ...parseTime(rawEnd, "end time") }, zone, rawDate);
+      const endAt = instantOf(
+        { ...parseDate(rawDate), ...parseTime(rawEnd, "end time") },
+        zone,
+        rawDate,
+      );
       // Not `>=`: a span that ends when it starts is a moment, and the student
       // meant one of the two. Saying so is cheaper than storing a zero-length
       // exam sitting that every consumer then has to decide what to do with.

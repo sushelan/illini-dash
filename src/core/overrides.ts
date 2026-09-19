@@ -8,7 +8,7 @@
 
 import type { DueOverride, Item, Overrides, Suggestion } from "../sources/types.js";
 import { memberKey } from "../sources/types.js";
-import type { ManualInput } from "./manual.js";
+import { statedInstant, type ManualInput } from "./manual.js";
 
 export function memberKeysOf(item: Item): string[] {
   return item.members.map((member) => memberKey(member.source, member.sourceId));
@@ -125,6 +125,54 @@ export function applyDueOverride(overrides: Overrides, item: Item, entry: DueOve
   const next = { ...overrides.dueOverrides };
   for (const key of memberKeysOf(item)) next[key] = entry;
   return { ...overrides, dueOverrides: next };
+}
+
+/**
+ * "Give it a date" (brief D3), as a `DueOverride` entry.
+ *
+ * A source row has no field a student can edit — the next sync overwrites the
+ * whole `RawItem` — so the only durable place to put a date they typed is the
+ * same correction record an announcement writes. That record already outranks
+ * every source in `buildItem`, which is exactly right here: nothing a page said
+ * about this row's date was readable, and the student is the authority.
+ *
+ * **The instant is theirs, so the row leaves the No date group for good.**
+ * `unreadableDeadline` returns nothing once `dueAt` is set, and `anchorOf` then
+ * places the row on the calendar like any other — that is the whole of the
+ * feature, and it falls out of rules that already existed.
+ *
+ * `timeAssumed` still follows worker house rule 3 rather than the button's
+ * name: a student who typed a *day* has stated a day, and the 23:59 is still
+ * this code's invention. Marking it keeps §5.3 from ranking the invention above
+ * a real deadline a source later reports for the same work, and keeps §7 from
+ * announcing a clock nobody said out loud. A student who typed a time gets no
+ * mark, and the row is a stated instant like any other.
+ *
+ * `postId` is a constant rather than an id: nothing reads it back for a
+ * correction that came from a person (`movedByText` shows `reason`), and
+ * `dueOverrides` is keyed by memberKey, so it has no deduplicating work to do
+ * here the way it does for a post.
+ */
+export const STUDENT_POST_ID = "student";
+
+export function studentDueOverride(
+  stated: { date: string; time?: string },
+  item: Item,
+  zone: string,
+  now: string,
+): DueOverride {
+  const { at, timeAssumed } = statedInstant(stated.date, stated.time, zone);
+  return {
+    at,
+    // Only when there was one. "from" drives "moved Tue → Fri"; an item that
+    // had no date did not move, it arrived, and `movedByText` already says
+    // "now due Fri" for that case.
+    ...(item.dueAt !== undefined ? { from: item.dueAt } : {}),
+    reason: "you",
+    postId: STUDENT_POST_ID,
+    appliedAt: now,
+    ...(timeAssumed ? { timeAssumed: true } : {}),
+  };
 }
 
 /**

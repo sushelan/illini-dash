@@ -116,7 +116,19 @@ export type OverrideAction =
   | { kind: "split"; itemId: string }
   | { kind: "merge"; itemId: string; otherItemId: string }
   | { kind: "done"; itemId: string }
-  | { kind: "undone"; itemId: string };
+  | { kind: "undone"; itemId: string }
+  /*
+   * "Give it a date" (brief D3), for a row a source listed and never dated — or
+   * dated unreadably. A source row has no editable field of its own (the next
+   * sync overwrites the whole `RawItem`), so the date lands in the same
+   * `dueOverrides` record an announcement writes, via `studentDueOverride`.
+   *
+   * `date` is `YYYY-MM-DD` and `time` is `HH:MM`; both go through
+   * `core/manual.ts`'s own anchored regexes, so this message cannot loosen what
+   * a student is allowed to type, and a refusal arrives as the same sentence
+   * the editor shows.
+   */
+  | { kind: "set-due"; itemId: string; date: string; time?: string };
 
 export type Response =
   | { type: "pong"; at: string; buildId: string }

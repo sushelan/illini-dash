@@ -47,6 +47,8 @@ import {
   renameCourse,
   setCourseDisabled,
   splitItem,
+  applyDueOverride,
+  studentDueOverride,
   undoDueOverride,
   unhideItem,
 } from "./core/overrides.js";
@@ -892,7 +894,15 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
     else if (action.kind === "split" && item) store.overrides = splitItem(store.overrides, item);
     else if (action.kind === "done" && item) store.overrides = markDone(store.overrides, item);
     else if (action.kind === "undone" && item) store.overrides = markNotDone(store.overrides, item);
-    else if (action.kind === "merge" && item) {
+    // Pure wiring: `studentDueOverride` builds the entry (and refuses a date
+    // nobody could have meant), `applyDueOverride` keys it to every member.
+    else if (action.kind === "set-due" && item) {
+      store.overrides = applyDueOverride(
+        store.overrides,
+        item,
+        studentDueOverride(action, item, SITE_TIMEZONE, new Date().toISOString()),
+      );
+    } else if (action.kind === "merge" && item) {
       const other = store.items.find((candidate) => candidate.id === action.otherItemId);
       if (other) store.overrides = mergeItems(store.overrides, item, other);
       else console.warn(`[illini-dash] merge: no other item ${String(action.otherItemId)}`);
