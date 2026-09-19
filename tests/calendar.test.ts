@@ -31,6 +31,8 @@ import {
   minutesInto,
   MONTH_CELL_ROWS,
   monthCells,
+  todayBoard,
+  WEEK_PREVIEW_ROWS,
   MONTH_DOT_CAP,
   monthDots,
   dayList,
@@ -813,6 +815,122 @@ describe("attentionGroups", () => {
 
   it("shows nothing on the badge when only undated rows exist", () => {
     expect(attentionCount([item({ title: "undated" })], NOW)).toBe(0);
+  });
+});
+
+describe("todayBoard (brief D4, mock 1a)", () => {
+  // NOW is Thursday 2026-09-10, 6:00 PM. Sunday is the 13th.
+  it("leads with the soonest thing still owed today", () => {
+    const board = todayBoard(
+      [
+        item({ title: "MP1 Report", dueAt: at(2026, 8, 10, 23, 59) }),
+        item({ title: "Quiz 1", dueAt: at(2026, 8, 10, 21, 0) }),
+        item({ title: "tomorrow", dueAt: at(2026, 8, 11, 23, 59) }),
+        item({ title: "saturday", dueAt: at(2026, 8, 12, 23, 59) }),
+      ],
+      NOW,
+    );
+    expect(board.nextUp?.title).toBe("Quiz 1");
+    expect(board.nextUpWhen).toBe("today");
+    expect(board.alsoToday.map((i) => i.title)).toEqual(["MP1 Report"]);
+    expect(board.tomorrow.map((i) => i.title)).toEqual(["tomorrow"]);
+    expect(board.thisWeek.map((i) => i.title)).toEqual(["saturday"]);
+    expect(board.weekMore).toBe(0);
+  });
+
+  it("looks ahead a week when today has nothing left, and says so", () => {
+    const board = todayBoard([item({ title: "GPS4", dueAt: at(2026, 8, 12, 23, 59) })], NOW);
+    expect(board.nextUp?.title).toBe("GPS4");
+    expect(board.nextUpWhen).toBe("soon");
+    // And it is not repeated in the group it came out of.
+    expect(board.thisWeek).toEqual([]);
+  });
+
+  it("has no hero when nothing open falls inside a week", () => {
+    const board = todayBoard([item({ title: "Final", dueAt: at(2026, 9, 20, 23) })], NOW);
+    expect(board.nextUp).toBeUndefined();
+    expect(board.nextUpWhen).toBeUndefined();
+  });
+
+  it("never makes an event, a booking or finished work the hero", () => {
+    // The hero is an instruction. An event is something that happens, a
+    // booking is a window, and finished work is finished — but all three are
+    // still part of the day's record.
+    const board = todayBoard(
+      [
+        item({ title: "office hours", kind: "event", dueAt: at(2026, 8, 10, 19) }),
+        item({ title: "handed in", done: true, dueAt: at(2026, 8, 10, 20) }),
+        item({ title: "MP1", dueAt: at(2026, 8, 10, 23, 59) }),
+      ],
+      NOW,
+    );
+    expect(board.nextUp?.title).toBe("MP1");
+    expect(board.alsoToday.map((i) => i.title)).toEqual(["office hours", "handed in"]);
+  });
+
+  it("sinks finished work to the bottom of every group", () => {
+    // The same argument as `sinkDone`'s: a struck-through row must not sit
+    // above the one thing still owed, and in a capped group it must not push
+    // it out of sight altogether.
+    const board = todayBoard(
+      [
+        item({ title: "hero", dueAt: at(2026, 8, 10, 23) }),
+        item({ title: "done early", done: true, dueAt: at(2026, 8, 11, 9) }),
+        item({ title: "open late", dueAt: at(2026, 8, 11, 23) }),
+      ],
+      NOW,
+    );
+    expect(board.tomorrow.map((i) => i.title)).toEqual(["open late", "done early"]);
+  });
+
+  it("caps this week at five rows and counts the rest", () => {
+    const week = Array.from({ length: 8 }, (_, i) =>
+      item({ title: `w${i}`, dueAt: at(2026, 8, 12, 9 + i) }),
+    );
+    const board = todayBoard(week, NOW);
+    expect(WEEK_PREVIEW_ROWS).toBe(5);
+    // One of the eight becomes the hero, leaving seven: five shown, two more.
+    expect(board.nextUp?.title).toBe("w0");
+    expect(board.thisWeek).toHaveLength(5);
+    expect(board.weekMore).toBe(2);
+  });
+
+  it("uses §8.1's own section boundaries rather than a second copy", () => {
+    // Overdue, Later and unreadable rows all belong to other surfaces; a second
+    // `endOfWeek` here is the defect this project keeps finding.
+    const board = todayBoard(
+      [
+        item({ title: "overdue", dueAt: at(2026, 8, 9, 12) }),
+        item({ title: "later", dueAt: at(2026, 8, 30, 12) }),
+        item({ title: "unreadable", members: [member({ unparsedDueDate: "?" })] }),
+      ],
+      NOW,
+    );
+    expect(board.alsoToday).toEqual([]);
+    expect(board.tomorrow).toEqual([]);
+    expect(board.thisWeek).toEqual([]);
+    expect(board.nextUp).toBeUndefined();
+  });
+
+  it("never draws a hidden row", () => {
+    const board = todayBoard(
+      [item({ title: "hidden", hidden: true, dueAt: at(2026, 8, 10, 23) })],
+      NOW,
+    );
+    expect(board.nextUp).toBeUndefined();
+    expect(board.alsoToday).toEqual([]);
+  });
+
+  it("orders each group by instant", () => {
+    const board = todayBoard(
+      [
+        item({ title: "late", dueAt: at(2026, 8, 11, 23) }),
+        item({ title: "early", dueAt: at(2026, 8, 11, 9) }),
+        item({ title: "hero", dueAt: at(2026, 8, 10, 20) }),
+      ],
+      NOW,
+    );
+    expect(board.tomorrow.map((i) => i.title)).toEqual(["early", "late"]);
   });
 });
 

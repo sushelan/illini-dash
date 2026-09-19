@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  countdown,
   examDetail,
   formatDue,
   groupItems,
@@ -675,5 +676,63 @@ describe("liveDeadline and work that is already finished", () => {
       members: [member("graded")],
     });
     expect(liveDeadline(onlyLate, NOW)).toEqual({ at: Date.parse(at(2026, 8, 16, 17)), late: true });
+  });
+});
+
+describe("countdown (brief D4, mock 1a)", () => {
+  // NOW is Thursday 2026-09-10, 6:00 PM.
+  const c = (iso: string, precision?: "coarse" | "fine") => countdown(iso, NOW, precision);
+
+  it("gives the hero its minutes and a row only its hours", () => {
+    // Mock 1a shows the *same* 11:59 PM deadline as "in 4h 12m" in the Next up
+    // hero and "in 4h" in the list below it. The hero is one line with room,
+    // and "how long exactly" is the whole question it exists to answer.
+    const at1159 = at(2026, 8, 10, 22, 12);
+    expect(c(at1159, "fine")).toBe("in 4h 12m");
+    expect(c(at1159)).toBe("in 4h");
+  });
+
+  it("drops a bare 0m rather than saying 'in 4h 0m'", () => {
+    expect(c(at(2026, 8, 10, 22, 0), "fine")).toBe("in 4h");
+  });
+
+  it("counts minutes inside the hour, where they change what you do next", () => {
+    expect(c(at(2026, 8, 10, 19, 0))).toBe("in 1h");
+    expect(c(at(2026, 8, 10, 18, 25))).toBe("in 25m");
+  });
+
+  it("says 'in 1d' for tomorrow and a weekday for the rest of the week", () => {
+    // Mock 1a: the Tomorrow row reads "in 1d"; the This week rows read "Mon"
+    // and "Tue", because "in 4d" makes a reader count.
+    expect(c(at(2026, 8, 11, 23, 59))).toBe("in 1d");
+    expect(c(at(2026, 8, 14, 23, 59))).toBe(
+      new Date(2026, 8, 14).toLocaleDateString(undefined, { weekday: "short" }),
+    );
+  });
+
+  it("counts local days, so it agrees with the heading above the row", () => {
+    // 30 hours can be tomorrow or the day after. A row under TOMORROW reading
+    // "in 2d" is the contradiction nobody reports and everybody notices.
+    expect(c(at(2026, 8, 11, 23, 0))).toBe("in 1d");
+    // And the other way: at 11 PM, something due at 1 AM is two hours off, not
+    // "in 1d", even though the calendar has turned over.
+    expect(countdown(at(2026, 8, 11, 1, 0), new Date(2026, 8, 10, 23, 0))).toBe("in 2h");
+  });
+
+  it("gives a date rather than an ambiguous weekday past a week", () => {
+    expect(c(at(2026, 8, 24, 23, 59))).not.toMatch(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
+    expect(c(at(2026, 8, 24, 23, 59))).toMatch(/\d/);
+  });
+
+  it("says how late, in the coarsest unit still true", () => {
+    // Mock 1b's week card: "1d late".
+    expect(c(at(2026, 8, 9, 23, 59))).toBe("1d late");
+    expect(c(at(2026, 8, 10, 16, 0))).toBe("2h late");
+    expect(c(at(2026, 8, 10, 17, 45))).toBe("15m late");
+  });
+
+  it("draws nothing rather than 'in NaNd' for an instant it cannot read", () => {
+    expect(countdown("whenever", NOW)).toBe("");
+    expect(countdown(Number.NaN, NOW)).toBe("");
   });
 });

@@ -350,6 +350,70 @@ function scoreSoFar(item: Item): string | undefined {
   return percent === undefined ? undefined : `${percent}% so far`;
 }
 
+/**
+ * The right-hand column of a card row (brief D4, mock 1a).
+ *
+ * `formatDue` answers "when is this", which needs a clock and a date because it
+ * is the only thing on the row that says so. The card layout puts the clock
+ * under the title, so this column answers the other question — "how long have I
+ * got" — and that turns out to have a different shape at every distance:
+ *
+ * - **Inside an hour**, minutes, because that is the difference between doing
+ *   it now and missing it.
+ * - **Inside a day**, hours. The hero card gets the minutes too (`"fine"`),
+ *   because it is one line with room and "how long exactly" is the whole
+ *   question it exists to answer; a row does not, and mock 1a shows the same
+ *   11:59 PM deadline as "in 4h 12m" in the hero and "in 4h" in the list.
+ * - **Tomorrow**, "in 1d" — a weekday would be the word the heading already
+ *   carries.
+ * - **Later this week**, the weekday, because "in 4d" makes a reader count.
+ * - **Past**, how late, in the coarsest unit that is still true. Mock 1b's
+ *   "1d late": once something is a day late the minutes stop mattering.
+ *
+ * Whole *local days* rather than 24-hour blocks, so it agrees with the section
+ * the row is sitting under. 30 hours can be tomorrow or the day after, and a
+ * row under **TOMORROW** reading "in 2d" is the kind of contradiction nobody
+ * reports and everybody notices.
+ */
+export function countdown(
+  instant: number | string,
+  now: Date,
+  precision: "coarse" | "fine" = "coarse",
+): string {
+  const at = typeof instant === "string" ? Date.parse(instant) : instant;
+  // Not a countdown at all. A caller with nothing to count from gets nothing to
+  // draw, rather than "in NaNd".
+  if (!Number.isFinite(at)) return "";
+
+  const delta = at - now.getTime();
+  const abs = Math.abs(delta);
+  const days = Math.abs(daysAway(new Date(at), now));
+  const hours = Math.floor(abs / 3_600_000);
+  const minutes = Math.floor(abs / 60_000);
+
+  if (delta < 0) {
+    if (days >= 1) return `${days}d late`;
+    if (hours >= 1) return `${hours}h late`;
+    return `${minutes}m late`;
+  }
+
+  if (days === 0 || (days === 1 && hours < 24)) {
+    // Still inside a day's reach even when the calendar has turned over: at
+    // 11 PM, something due at 1 AM is "in 2h", not "in 1d".
+    if (hours < 1) return `in ${minutes}m`;
+    if (precision === "fine") {
+      const spare = Math.floor((abs - hours * 3_600_000) / 60_000);
+      return spare > 0 ? `in ${hours}h ${spare}m` : `in ${hours}h`;
+    }
+    return `in ${hours}h`;
+  }
+  if (days === 1) return "in 1d";
+  if (days < 7) return new Date(at).toLocaleDateString(undefined, { weekday: "short" });
+  // Past a week a weekday is two different days, and the one a reader assumes
+  // is the near one.
+  return dayOf(new Date(at));
+}
+
 export function formatDue(item: Item, now: Date, section?: SectionName): DueText {
   const text = dueTextFor(item, now, section);
   // Only where the row has nothing else to say. The credit wordings below are
