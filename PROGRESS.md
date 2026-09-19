@@ -7,6 +7,45 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Wave 12 / W1: the card row, Today, the week, the quiet state — 2026-09-19
+
+**D4, D5, D7, D13, D14.** `2065 tests, unchanged` — the suite does not import the popup.
+Verified by `npm run typecheck`, `npm run build`, `npm run shots -- popup` in both modes
+(dark first) and by **real pointer events** in `dist/preview-popup.html`: the row ⋯ opens
+on the right row (menu bottom 544 of 600), "See the week" reaches the week, and a press on
+the new **Source names** switch redrew the list with the source gone.
+
+**The row (D7)** is one function with three variants — card, hero, compact — so the Today
+board, the week's day cards and the exam board cannot drift apart. The one-phrase
+qualifiers moved onto the meta line under the title (source, exam room, "opens 9 AM",
+italic "time assumed", "+2 more", the practice chip); the ones that are a sentence with a
+control in them kept their own full-width line. A plain press calls `app.openDeadline`,
+which is still a no-op stub until D8 lands; ⌘/Ctrl-click and middle click open the source,
+and middle click needed its own `auxclick` because Chrome fires no `click` for it. The
+countdown is `--err` once past and `--brand-mark` inside a day — the accent-as-text token,
+because `--accent` is a fill and fails contrast at 12px.
+
+**Today (D4)** is `todayBoard`, and **the week (D5)** is seven cards with `weekStatus`'s
+one word. **The quiet state (D13)** draws only when `quietState` answers, which is only
+when every checkable source did; `emptyStateFor`'s failure wording is untouched.
+
+**Deliberately replaced** (inventory F71–F89, F93, F94): the day hour grid, its
+drag-to-draft and `renderPlaced`/the untimed band — `views/day.ts` is deleted rather than
+left dead — and the day ‹ › navigator (`navFor` now returns step 0 for the day, so `#nav`
+is hidden and Today is anchored to now). The week's `"—"` empty day is now "Nothing due",
+and its `time not posted` band is a row carrying `EOD`.
+
+**Measured** at 400×600, Today, dark: `html` 400 wide, `body.scrollWidth` 400, **0 elements
+past x=401**, **164px before the first row** (W0 measured 184 with the navigator). Week:
+400 wide, 0 past 401, label "Sep 19 – 25", seven cards.
+
+**One thing left short of clipped.** The Appearance panel gained a "Deadline rows" section,
+and with three palettes, three modes and two switches its content is 641px against a 571px
+box: the second switch sits 70px below the fold. The panel scrolls (`overflow-y: auto`), so
+both are reachable, and a real press on the scrolled-to switch works — but it is UI rule 8
+again and the panel belongs to the shell, so whoever owns `placeFloating` should decide
+whether the section moves to Settings.
+
 ## Wave 12 / W0: popup.ts split, and the new shell — 2026-09-19
 
 **1970 tests, unchanged — the suite does not import the popup, so none of this is pinned
