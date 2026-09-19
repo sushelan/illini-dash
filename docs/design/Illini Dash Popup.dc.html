@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0;background:#f0eee9;font-family:Figtree,system-ui,sans-serif}a{color:#ad3d02}a:hover{color:#8a2f01}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 Figtree,system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Figtree,system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#eaf1fb;border:1px solid #c5d7ee;border-radius:14px;box-shadow:0 8px 24px rgba(16,38,77,.13);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 Figtree,system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Month, manual add, and rows with no date</span></div>
+
+<div style="max-width:760px;margin:0 0 30px;padding:18px 20px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:12px">
+<div style="font:700 12px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f;margin-bottom:10px">What changed</div>
+<div style="display:grid;gap:7px;font:400 12.5px/1.55 Figtree;color:#26364d">
+<div><b style="font-weight:600">The tab strip is five names now</b> — Today · Week · Month · No date · Exams — so <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">Late</span> moves into the header pill, where it reads as a state rather than a place. That is the same count your popup already fits at 400px; the strips in <a class="dv-oid" href="#1a">1a</a> and <a class="dv-oid" href="#1b">1b</a> would be replaced by this one.</div>
+<div><b style="font-weight:600">A month in 400px cannot carry titles</b>, so it carries weight: a dot per deadline in the course's hue, dimmed once finished, and the day you tap opens its list underneath. Tapping the month name is how you would reach the full-view grid <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">popup.css</span> already draws at 1400px.</div>
+<div><b style="font-weight:600">Add by hand</b> is a <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">+</span> in the header — same place on every tab. The form follows <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">core/manual.ts</span>: course, title, kind, date, time, and the refusal printed beside the field it is about.</div>
+<div><b style="font-weight:600">Undated rows get their own tab</b> rather than a fold at the bottom of the list. They never age out, they stay out of the badge, and each one offers the only three things that can end it: give it a date, tick it off, hide it.</div>
+</div>
+</div>
+
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Month — weight per day, list on tap</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+    <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:rgba(200,40,30,.10);border:1px solid rgba(168,31,21,.3)"><span style="width:7px;height:7px;border-radius:50%;background:#a81f15"></span><span style="font:600 11px/1 Figtree;color:#8a1a12">1 late</span></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;background:#fff;border:1px solid #c5d7ee"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#10264d"><path d="M8 3.5v9M3.5 8h9"></path></svg></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+
+  <div style="display:flex;gap:3px;padding:8px 8px 0">
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Today</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Week</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;background:rgba(255,95,5,.13);font:700 11px/1 Figtree;color:#10264d">Month</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">No date</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Exams</div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:11px 12px 7px">
+    <div style="width:26px;height:26px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f"><path d="M10 3 5 8l5 5"></path></svg></div>
+    <div style="flex:1;text-align:center"><span style="font:700 13px/1 Figtree;color:#10264d">September 2026</span><span style="font:500 11px/1 Figtree;color:#ad3d02;margin-left:7px">Full view ↗</span></div>
+    <div style="width:26px;height:26px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f"><path d="M6 3l5 5-5 5"></path></svg></div>
+  </div>
+
+  <div style="margin:0 10px;background:#fff;border:1px solid #dce7f5;border-radius:12px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);background:#dbe7f7">
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">S</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">M</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">T</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">W</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">T</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">F</div>
+      <div style="font:700 9px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#44576f;text-align:center;padding:6px 0">S</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr)">
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#7b93b3">30</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#7b93b3">31</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">1</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">2</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">3</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#2f6fd0;opacity:.45"></span><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">4</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">5</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#8b46cf;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">6</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">7</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">8</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78;opacity:.45"></span><span style="width:5px;height:5px;border-radius:50%;background:#e0670a;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">9</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#8b46cf;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">10</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">11</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">12</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">13</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">14</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78;opacity:.45"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">15</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">16</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#8b46cf"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">17</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">18</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#a81f15"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;background:#fbdcc0;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="width:20px;height:20px;border-radius:50%;background:#ff5f05;color:#1a0d04;font:700 11px/20px Figtree;font-variant-numeric:tabular-nums;text-align:center">19</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78"></span><span style="width:5px;height:5px;border-radius:50%;background:#2f6fd0"></span><span style="width:5px;height:5px;border-radius:50%;background:#0d8fa8"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">20</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#e0670a"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">21</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;box-shadow:inset 0 0 0 2px #13294b;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:700 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">22</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#2f6fd0"></span><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78"></span><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">23</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0f9d78"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">24</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#8b46cf"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">25</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">26</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#0d8fa8"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">27</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">28</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">29</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#e0670a"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#10264d">30</span><div style="display:flex;gap:2px"><span style="width:5px;height:5px;border-radius:50%;background:#2f6fd0"></span></div></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#7b93b3">1</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#7b93b3">2</span></div>
+      <div style="min-height:46px;padding:5px 0 6px;border-top:1px solid #edf2fa;border-left:1px solid #edf2fa;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 11px/1 Figtree;font-variant-numeric:tabular-nums;color:#7b93b3">3</span></div>
+    </div>
+  </div>
+
+  <div style="padding:12px 10px 10px">
+    <div style="display:flex;align-items:baseline;gap:7px;padding:0 4px 8px"><span style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f">Tue, Sep 22</span><span style="font:500 10px/1 Figtree;color:#44576f">3 due</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:#fff;border:1px solid #dce7f5;border-radius:11px"><b style="font:700 10px/1 Figtree;color:#2f6fd0;flex:none">CS425</b><span style="font:600 12px/1.3 Figtree;color:#10264d;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MP1 Report (4cr only)</span><span style="font:600 10.5px/1 Figtree;font-variant-numeric:tabular-nums;color:#44576f;flex:none">11:59 PM</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:#fff;border:1px solid #dce7f5;border-radius:11px"><b style="font:700 10px/1 Figtree;color:#0f9d78;flex:none">CS357</b><span style="font:600 12px/1.3 Figtree;color:#10264d;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">HW5 Rounding and Cancellation</span><span style="font:600 10.5px/1 Figtree;font-variant-numeric:tabular-nums;color:#44576f;flex:none">11:00 PM</span></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:#fff;border:1px solid #dce7f5;border-radius:11px"><b style="font:700 10px/1 Figtree;color:#0f9d78;flex:none">CS357</b><span style="font:600 12px/1.3 Figtree;color:#10264d;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">L5 Rounding and Cancellation</span><span style="font:600 10.5px/1 Figtree;font-variant-numeric:tabular-nums;color:#44576f;flex:none">11:00 PM</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:#dbe7f7;border-top:1px solid #c5d7ee">
+    <span style="width:7px;height:7px;border-radius:50%;background:#166b2c;flex:none"></span>
+    <span style="font:600 11px/1 Figtree;color:#10264d">8 sources</span><span style="color:#8aa3c0;font-size:11px">·</span>
+    <span style="font:500 11px/1 Figtree;color:#44576f;flex:1">synced 2m ago</span>
+    <span style="font:600 11px/1 Figtree;color:#ad3d02">Sync now</span>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Add something by hand</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <div style="width:24px;height:24px;border-radius:8px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M10 3 5 8l5 5"></path></svg></div>
+    <div style="font:700 12px/1 Figtree;color:#13294b;flex:1">Add a deadline</div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+  </div>
+
+  <div style="padding:14px 13px 13px;display:flex;flex-direction:column;gap:13px">
+    <div style="font:400 11.5px/1.5 Figtree;color:#44576f">For work no site lists — a paper problem set, an office-hours slot, something a TA said out loud. It sits in the list like everything else, and no sync can overwrite it.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+      <div style="grid-column:1 / -1;display:flex;flex-direction:column;gap:4px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f">Title</span>
+        <div style="height:34px;padding:0 10px;background:#fff;border:1px solid #c5d7ee;border-radius:9px;display:flex;align-items:center;font:500 12.5px/1 Figtree;color:#10264d">ECE 391 MP2 checkpoint</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f">Course</span>
+        <div style="height:34px;padding:0 10px;background:#fff;border:1px solid #c5d7ee;border-radius:9px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#5b6ad0"></span><span style="font:600 12.5px/1 Figtree;color:#10264d;flex:1">ECE391</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;display:block;color:#44576f"><path d="M3.5 6 8 10.5 12.5 6"></path></svg></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f">Kind</span>
+        <div style="height:34px;padding:0 10px;background:#fff;border:1px solid #c5d7ee;border-radius:9px;display:flex;align-items:center;gap:7px"><span style="font:600 12.5px/1 Figtree;color:#10264d;flex:1">Assignment</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;display:block;color:#44576f"><path d="M3.5 6 8 10.5 12.5 6"></path></svg></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f">Date</span>
+        <div style="height:34px;padding:0 10px;background:#fff;border:1px solid #a81f15;border-radius:9px;display:flex;align-items:center;font:500 12.5px/1 Figtree;color:#10264d;font-variant-numeric:tabular-nums">2026-09-31</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f">Time</span>
+        <div style="height:34px;padding:0 10px;background:#fff;border:1px solid #c5d7ee;border-radius:9px;display:flex;align-items:center;font:500 12.5px/1 Figtree;color:#10264d;font-variant-numeric:tabular-nums">11:59 PM</div>
+      </div>
+      <div style="grid-column:1 / -1;font:400 11px/1.4 Figtree;color:#a81f15;margin-top:-3px">September has 30 days. Give the date as YYYY-MM-DD, like 2026-09-30.</div>
+      <div style="grid-column:1 / -1;display:flex;align-items:center;gap:9px;padding:9px 11px;background:rgba(255,255,255,.6);border:1px solid #dce7f5;border-radius:10px">
+        <div style="width:32px;height:19px;border-radius:999px;background:#c5d7ee;position:relative;flex:none"><div style="position:absolute;top:3px;left:3px;width:13px;height:13px;border-radius:50%;background:#7b93b3"></div></div>
+        <div style="flex:1"><div style="font:600 11.5px/1.3 Figtree;color:#10264d">No date yet</div><div style="font:400 10.5px/1.35 Figtree;color:#44576f">Puts it on the No date tab instead of the calendar.</div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;height:38px;border-radius:10px;background:#13294b;font:700 12.5px/1 Figtree;color:#fff">Add it</div>
+      <div style="display:flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:10px;background:#fff;border:1px solid #c5d7ee;font:600 12.5px/1 Figtree;color:#44576f">Cancel</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>No date — listed somewhere, dated nowhere</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+    <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid #c5d7ee"><span style="width:7px;height:7px;border-radius:50%;background:#166b2c"></span><span style="font:600 11px/1 Figtree;color:#10264d">All clear</span></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;background:#fff;border:1px solid #c5d7ee"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#10264d"><path d="M8 3.5v9M3.5 8h9"></path></svg></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+
+  <div style="display:flex;gap:3px;padding:8px 8px 0">
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Today</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Week</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Month</div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:8px;background:rgba(255,95,5,.13);font:700 11px/1 Figtree;color:#10264d">No date<span style="min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:rgba(19,41,75,.12);color:#13294b;font:700 9px/14px Figtree;text-align:center">4</span></div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11px/1 Figtree;color:#44576f">Exams</div>
+  </div>
+
+  <div style="padding:12px 10px 10px;display:flex;flex-direction:column;gap:12px">
+    <div style="padding:10px 12px;background:rgba(255,255,255,.6);border:1px solid #dce7f5;border-radius:11px;font:400 11.5px/1.5 Figtree;color:#26364d">A source listed these but gave no date anywhere. They are kept out of the calendar and out of the badge, so they cannot bury anything that is actually due.</div>
+
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:baseline;gap:7px;padding:0 4px"><span style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f">Waiting on a date</span><span style="font:500 10px/1 Figtree;color:#44576f">4</span></div>
+
+      <div style="padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#0f9d78;flex:none"></span>
+          <div style="flex:1;min-width:0"><div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Research study survey (extra credit)</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#0f9d78">CS357</b><span style="color:#8aa3c0">·</span><span>PrairieLearn</span><span style="color:#8aa3c0">·</span><span>seen 12 days</span></div></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <div style="display:flex;align-items:center;justify-content:center;height:29px;padding:0 11px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11px/1 Figtree;color:#10264d">Give it a date</div>
+          <div style="display:flex;align-items:center;justify-content:center;height:29px;padding:0 11px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11px/1 Figtree;color:#44576f">Tick off</div>
+          <div style="display:flex;align-items:center;justify-content:center;height:29px;padding:0 11px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11px/1 Figtree;color:#44576f">Hide</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#0f9d78;flex:none"></span>
+        <div style="flex:1;min-width:0"><div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Select your group (NOT FOR CREDIT)</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#0f9d78">CS357</b><span style="color:#8aa3c0">·</span><span>PrairieLearn</span></div></div>
+        <span style="font:600 10px/1 Figtree;padding:3px 7px;border-radius:999px;border:1px dashed #b5cce7;color:#44576f;flex:none">no credit</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#c2255c;flex:none"></span>
+        <div style="flex:1;min-width:0"><div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Course syllabus acknowledgement</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#c2255c">CS411</b><span style="color:#8aa3c0">·</span><span>Canvas</span></div></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:#fff;border:1px solid #f2c9a8;border-radius:12px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#0d8fa8;flex:none"></span>
+        <div style="flex:1;min-width:0"><div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">HW2 Due</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#805400"><b style="font:700 10.5px/1 Figtree;color:#0d8fa8">CS424</b><span style="color:#8aa3c0">·</span><span>Course site · date unreadable</span></div></div>
+        <span style="font:600 10px/1 Figtree;padding:3px 7px;border-radius:999px;background:rgba(180,130,0,.16);color:#5c3d00;flex:none">check</span>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:9px;padding:11px 12px;background:rgba(255,255,255,.6);border:1px dashed #c5d7ee;border-radius:11px">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f;flex:none"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+      <span style="font:600 11.5px/1 Figtree;color:#10264d;flex:1">Add something by hand</span>
+      <span style="font:500 10.5px/1 Figtree;color:#44576f">no site lists it</span>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:#dbe7f7;border-top:1px solid #c5d7ee">
+    <span style="width:7px;height:7px;border-radius:50%;background:#166b2c;flex:none"></span>
+    <span style="font:600 11px/1 Figtree;color:#10264d">8 sources</span><span style="color:#8aa3c0;font-size:11px">·</span>
+    <span style="font:500 11px/1 Figtree;color:#44576f;flex:1">synced 2m ago</span>
+    <span style="font:600 11px/1 Figtree;color:#ad3d02">Sync now</span>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "put the new five-tab strip into <a class="dv-oid" href="#1a">1a</a>" · "dot only the unfinished work in the month" · "mock the settings page too"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Illini Dash — 400px popup, soft card direction</span></div>
+
+<div style="max-width:760px;margin:0 0 30px;padding:18px 20px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:12px">
+<div style="font:700 12px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#44576f;margin-bottom:10px">What I assumed</div>
+<div style="display:grid;gap:7px;font:400 12.5px/1.55 Figtree;color:#26364d">
+<div><b style="font-weight:600">Palette, course hues and the app mark</b> are lifted from your existing <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">ui.css</span> tokens and <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">icon-src/dash.svg</span>, and the glyphs are the real paths from <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">src/ui/icons.ts</span>. The change is shape, not colour: rounded white cards on the blue ground instead of ruled rows, and more air per item.</div>
+<div><b style="font-weight:600">Urgency is text</b> — <span style="color:#ad3d02;font-weight:700">in 4h</span> next to the clock, red once it is past. No colour-coded edges by default — <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">Urgency edge</span> in Tweaks turns them on, and <span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px">Source names</span> drops the source word from every row.</div>
+<div><b style="font-weight:600">Coverage lives in a footer strip</b> that is always there: "8 sources · synced 2m ago". It turns amber and grows a sentence when a source stops answering, which is the only time it asks for anything.</div>
+<div><b style="font-weight:600">Grouping is by time</b>, Today / Tomorrow / This week, with courses identified by a dot + code rather than a fill. Source is a quiet word under the title.</div>
+<div><b style="font-weight:600">Content is real</b> — titles, courses and shapes from your fixtures and preview data, including the awkward ones (merged two-source rows, an unbooked CBTF exam, an assumed time from a course site).</div>
+</div>
+</div>
+
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Default view — what's due next</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+    <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid #c5d7ee"><span style="width:7px;height:7px;border-radius:50%;background:#166b2c"></span><span style="font:600 11px/1 Figtree;color:#10264d">All clear</span></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+
+  <div style="display:flex;gap:4px;padding:8px 10px 0">
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;background:rgba(255,95,5,.13);font:700 11.5px/1 Figtree;color:#10264d">Today</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Week</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Exams</div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Late<span style="min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:rgba(200,40,30,.12);color:#a81f15;font:700 9.5px/15px Figtree;text-align:center">1</span></div>
+  </div>
+
+  <div style="padding:12px 10px 10px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="position:relative;padding:13px 14px;border-radius:13px;background:#fff;border:1px solid #f2c9a8;box-shadow:0 2px 8px rgba(16,38,77,.06);overflow:hidden">
+      <div style="position:absolute;inset:0 auto 0 0;width:4px;background:#ff5f05"></div>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+        <span style="font:700 9.5px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#ad3d02">Next up</span>
+        <span style="flex:1;height:1px;background:#f0dcc9"></span>
+        <span style="font:700 12px/1 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02">in 4h 12m</span>
+      </div>
+      <div style="font:600 14.5px/1.35 Figtree;color:#10264d;margin-bottom:6px">MP1 Report (4cr only, EXCEPT Coursera)</div>
+      <div style="display:flex;align-items:center;gap:7px;font:500 11px/1 Figtree;color:#44576f">
+        <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#2f6fd0"></span><b style="font:700 11px/1 Figtree;color:#2f6fd0;letter-spacing:.02em">CS425</b></span>
+        <span style="color:#8aa3c0">·</span><span>Gradescope</span>
+        <span style="color:#8aa3c0">·</span><span style="font-variant-numeric:tabular-nums">11:59 PM</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:baseline;gap:7px;padding:0 4px"><span style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f">Also today</span><span style="font:500 10px/1 Figtree;color:#44576f">Sat, Sep 19</span></div>
+
+      <div style="position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <sc-if value="{{ urgencyEdge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0 auto 0 0;width:4px;background:#0f9d78"></span></sc-if>
+        <span style="width:8px;height:8px;border-radius:50%;background:#0f9d78"></span>
+        <div style="min-width:0">
+          <div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">CS 357: Quiz 1</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#0f9d78">CS357</b><sc-if value="{{ showSourceNames }}" hint-placeholder-val="{{ true }}"><span style="color:#8aa3c0">·</span><span>PrairieTest</span></sc-if><span style="color:#8aa3c0">·</span><span>Grainger 57</span></div>
+        </div>
+        <div style="text-align:right"><div style="font:700 12px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02">in 1h</div><div style="font:500 10.5px/1.2 Figtree;color:#44576f;margin-top:4px;font-variant-numeric:tabular-nums">9:00 PM</div></div>
+      </div>
+
+      <div style="position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <sc-if value="{{ urgencyEdge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0 auto 0 0;width:4px;background:#0d8fa8"></span></sc-if>
+        <span style="width:8px;height:8px;border-radius:50%;background:#0d8fa8"></span>
+        <div style="min-width:0">
+          <div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Homework 1</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#0d8fa8">CS424</b><sc-if value="{{ showSourceNames }}" hint-placeholder-val="{{ true }}"><span style="color:#8aa3c0">·</span><span>Course site</span></sc-if><span style="color:#8aa3c0">·</span><span style="font-style:italic">time assumed</span></div>
+        </div>
+        <div style="text-align:right"><div style="font:700 12px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02">in 4h</div><div style="font:500 10.5px/1.2 Figtree;color:#44576f;margin-top:4px">end of day</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:10px 13px;background:rgba(255,255,255,.55);border:1px dashed #cddbef;border-radius:12px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#c2255c;opacity:.6"></span>
+        <div style="min-width:0">
+          <div style="font:500 12.5px/1.35 Figtree;color:#44576f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Fall 2026 Office Hours</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#c2255c">CS411</b><span style="color:#8aa3c0">·</span><span>Canvas event</span></div>
+        </div>
+        <div style="font:600 11px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#44576f">8:00 PM</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:baseline;gap:7px;padding:0 4px"><span style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f">Tomorrow</span><span style="font:500 10px/1 Figtree;color:#44576f">Sun, Sep 20</span></div>
+      <div style="position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <sc-if value="{{ urgencyEdge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0 auto 0 0;width:4px;background:#e0670a"></span></sc-if>
+        <span style="width:8px;height:8px;border-radius:50%;background:#e0670a"></span>
+        <div style="min-width:0">
+          <div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPS4 Language Transformations, and CFGs</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#e0670a">ECE374</b><sc-if value="{{ showSourceNames }}" hint-placeholder-val="{{ true }}"><span style="color:#8aa3c0">·</span><span>PrairieLearn</span></sc-if><span style="color:#8aa3c0">·</span><span>opens 9 AM</span></div>
+        </div>
+        <div style="text-align:right"><div style="font:700 12px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#44576f">in 1d</div><div style="font:500 10.5px/1.2 Figtree;color:#44576f;margin-top:4px;font-variant-numeric:tabular-nums">11:59 PM</div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:baseline;gap:7px;padding:0 4px"><span style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f">This week</span><span style="font:500 10px/1 Figtree;color:#44576f">4 more</span></div>
+      <div style="position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <sc-if value="{{ urgencyEdge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0 auto 0 0;width:4px;background:#2f6fd0"></span></sc-if>
+        <span style="width:8px;height:8px;border-radius:50%;background:#2f6fd0"></span>
+        <div style="min-width:0">
+          <div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MP1 Report (4cr only, EXCEPT MC3)</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#2f6fd0">CS425</b><sc-if value="{{ showSourceNames }}" hint-placeholder-val="{{ true }}"><span style="color:#8aa3c0">·</span><span>Gradescope</span></sc-if></div>
+        </div>
+        <div style="text-align:right"><div style="font:700 12px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#44576f">Mon</div><div style="font:500 10.5px/1.2 Figtree;color:#44576f;margin-top:4px;font-variant-numeric:tabular-nums">11:59 PM</div></div>
+      </div>
+      <div style="position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:11px 13px;background:#fff;border:1px solid #dce7f5;border-radius:12px">
+        <sc-if value="{{ urgencyEdge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0 auto 0 0;width:4px;background:#0f9d78"></span></sc-if>
+        <span style="width:8px;height:8px;border-radius:50%;background:#0f9d78"></span>
+        <div style="min-width:0">
+          <div style="font:600 13px/1.35 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">HW5 Rounding and Cancellation</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font:500 10.5px/1 Figtree;color:#44576f"><b style="font:700 10.5px/1 Figtree;color:#0f9d78">CS357</b><sc-if value="{{ showSourceNames }}" hint-placeholder-val="{{ true }}"><span style="color:#8aa3c0">·</span><span>PrairieLearn</span></sc-if><span style="color:#8aa3c0">·</span><span>+2 more</span></div>
+        </div>
+        <div style="text-align:right"><div style="font:700 12px/1.2 Figtree;font-variant-numeric:tabular-nums;color:#44576f">Tue</div><div style="font:500 10.5px/1.2 Figtree;color:#44576f;margin-top:4px;font-variant-numeric:tabular-nums">11:00 PM</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:#dbe7f7;border-top:1px solid #c5d7ee">
+    <span style="width:7px;height:7px;border-radius:50%;background:#166b2c;flex:none"></span>
+    <span style="font:600 11px/1 Figtree;color:#10264d">8 sources</span>
+    <span style="color:#8aa3c0;font-size:11px">·</span>
+    <span style="font:500 11px/1 Figtree;color:#44576f;flex:1">synced 2m ago</span>
+    <span style="font:600 11px/1 Figtree;color:#ad3d02">Sync now</span>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Week view — seven day cards</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+    <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid #c5d7ee"><span style="width:7px;height:7px;border-radius:50%;background:#166b2c"></span><span style="font:600 11px/1 Figtree;color:#10264d">All clear</span></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+  <div style="display:flex;gap:4px;padding:8px 10px 0">
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Today</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;background:rgba(255,95,5,.13);font:700 11.5px/1 Figtree;color:#10264d">Week</div>
+    <div style="flex:1;text-align:center;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Exams</div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 0;border-radius:8px;font:600 11.5px/1 Figtree;color:#44576f">Late<span style="min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:rgba(200,40,30,.12);color:#a81f15;font:700 9.5px/15px Figtree;text-align:center">1</span></div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:11px 12px 5px">
+    <div style="width:26px;height:26px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f"><path d="M10 3 5 8l5 5"></path></svg></div>
+    <div style="flex:1;text-align:center;font:700 13px/1 Figtree;color:#10264d">Sep 14 – 20</div>
+    <div style="width:26px;height:26px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;display:block;color:#44576f"><path d="M6 3l5 5-5 5"></path></svg></div>
+  </div>
+
+  <div style="padding:8px 10px 10px;display:flex;flex-direction:column;gap:8px">
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;background:rgba(255,255,255,.5);border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Mon</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">14</div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;padding-top:4px">
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 9px;background:#fff;border-radius:9px;border:1px solid #e6eef8"><b style="font:700 10px/1 Figtree;color:#0f9d78;flex:none">CS357</b><span style="font:400 11.5px/1.3 Figtree;color:#44576f;text-decoration:line-through;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">HW3 Errors and Big-O</span><span style="font:600 10px/1 Figtree;color:#166b2c;flex:none">done</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;padding:7px 10px;border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Tue</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">15</div></div>
+      <div style="font:400 11px/1 Figtree;color:#44576f">Nothing due</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;background:rgba(255,255,255,.5);border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Wed</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">16</div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;padding-top:4px">
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 9px;background:#fff;border-radius:9px;border:1px solid #f0dcc9"><b style="font:700 10px/1 Figtree;color:#8b46cf;flex:none">PHYS435</b><span style="font:500 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">Homework 2</span><span style="font:600 10px/1 Figtree;color:#805400;flex:none">late ok</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;padding:7px 10px;border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Thu</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">17</div></div>
+      <div style="font:400 11px/1 Figtree;color:#44576f">Nothing due</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;background:rgba(255,255,255,.5);border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Fri</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">18</div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;padding-top:4px">
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 9px;background:#fff;border-radius:9px;border:1px solid #f3cdc9"><b style="font:700 10px/1 Figtree;color:#2f6fd0;flex:none">CS425</b><span style="font:500 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">Reading response 3</span><span style="font:700 10px/1 Figtree;color:#a81f15;flex:none">1d late</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:start;padding:10px;background:#fbdcc0;border:1px solid #f2c9a8;border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#ad3d02">Sat</div><div style="font:700 19px/1.15 Figtree;color:#ad3d02;font-variant-numeric:tabular-nums">19</div><div style="font:600 8.5px/1 Figtree;letter-spacing:.08em;text-transform:uppercase;color:#ad3d02;margin-top:3px">today</div></div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fff;border-radius:9px;border:1px solid #f2c9a8"><b style="font:700 10px/1 Figtree;color:#0f9d78;flex:none">CS357</b><span style="font:600 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">Quiz 1 · Grainger 57</span><span style="font:700 10px/1 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02;flex:none">9:00 PM</span></div>
+        <div style="display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fff;border-radius:9px;border:1px solid #f2c9a8"><b style="font:700 10px/1 Figtree;color:#2f6fd0;flex:none">CS425</b><span style="font:600 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">MP1 Report (4cr only)</span><span style="font:700 10px/1 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02;flex:none">11:59 PM</span></div>
+        <div style="display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fff;border-radius:9px;border:1px solid #f2c9a8"><b style="font:700 10px/1 Figtree;color:#0d8fa8;flex:none">CS424</b><span style="font:600 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">Homework 1</span><span style="font:600 10px/1 Figtree;color:#44576f;flex:none">EOD</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;background:rgba(255,255,255,.5);border-radius:12px">
+      <div style="text-align:center"><div style="font:700 9px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f">Sun</div><div style="font:600 17px/1.15 Figtree;color:#10264d;font-variant-numeric:tabular-nums">20</div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;padding-top:4px">
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 9px;background:#fff;border-radius:9px;border:1px solid #e6eef8"><b style="font:700 10px/1 Figtree;color:#e0670a;flex:none">ECE374</b><span style="font:500 11.5px/1.3 Figtree;color:#10264d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">GPS4 Language Transformations</span><span style="font:600 10px/1 Figtree;font-variant-numeric:tabular-nums;color:#44576f;flex:none">11:59 PM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:#dbe7f7;border-top:1px solid #c5d7ee">
+    <span style="width:7px;height:7px;border-radius:50%;background:#166b2c;flex:none"></span>
+    <span style="font:600 11px/1 Figtree;color:#10264d">8 sources</span><span style="color:#8aa3c0;font-size:11px">·</span>
+    <span style="font:500 11px/1 Figtree;color:#44576f;flex:1">synced 2m ago</span>
+    <span style="font:600 11px/1 Figtree;color:#ad3d02">Sync now</span>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>One deadline, opened</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <div style="width:24px;height:24px;border-radius:8px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M10 3 5 8l5 5"></path></svg></div>
+    <div style="font:700 12px/1 Figtree;color:#13294b;flex:1">Deadline</div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+
+  <div style="padding:16px 14px 14px;display:flex;flex-direction:column;gap:14px">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:#d3e4fd;margin-bottom:10px"><span style="width:7px;height:7px;border-radius:50%;background:#2f6fd0"></span><b style="font:700 11px/1 Figtree;color:#2f6fd0">CS425</b><span style="font:500 11px/1 Figtree;color:#44576f">Distributed Systems</span></div>
+      <div style="font:700 17px/1.32 Figtree;color:#10264d;letter-spacing:-.2px">MP1 Report (4cr only, EXCEPT Coursera)</div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:#fff;border:1px solid #f2c9a8;border-radius:12px">
+      <div style="flex:1"><div style="font:700 9.5px/1 Figtree;letter-spacing:.1em;text-transform:uppercase;color:#44576f;margin-bottom:5px">Due</div><div style="font:600 13.5px/1.2 Figtree;color:#10264d;font-variant-numeric:tabular-nums">Today, 11:59 PM</div></div>
+      <div style="text-align:right"><div style="font:800 20px/1 Figtree;font-variant-numeric:tabular-nums;color:#ad3d02">4h 12m</div><div style="font:500 10px/1 Figtree;color:#44576f;margin-top:4px">remaining</div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1px;background:#dce7f5;border:1px solid #dce7f5;border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#fff"><span style="font:500 11.5px/1 Figtree;color:#44576f;width:74px;flex:none">Source</span><span style="font:600 11.5px/1 Figtree;color:#10264d;flex:1">Gradescope</span><span style="font:600 11px/1 Figtree;color:#ad3d02">Open ↗</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#fff"><span style="font:500 11.5px/1 Figtree;color:#44576f;width:74px;flex:none">Also seen in</span><span style="font:600 11.5px/1 Figtree;color:#10264d;flex:1">Canvas · Campuswire</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#fff"><span style="font:500 11.5px/1 Figtree;color:#44576f;width:74px;flex:none">Status</span><span style="font:600 11.5px/1 Figtree;color:#10264d;flex:1">Not submitted</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#fff"><span style="font:500 11.5px/1 Figtree;color:#44576f;width:74px;flex:none">Late window</span><span style="font:600 11.5px/1 Figtree;color:#805400;flex:1">Until Sep 22, 11:59 PM</span></div>
+    </div>
+
+    <div style="padding:10px 12px;background:rgba(180,130,0,.10);border-radius:11px">
+      <div style="font:700 9.5px/1 Figtree;letter-spacing:.09em;text-transform:uppercase;color:#805400;margin-bottom:5px">Moved by an announcement</div>
+      <div style="font:400 11.5px/1.5 Figtree;color:#26364d">Campuswire, Sep 16: “MP1 report deadline pushed to Friday 11:59pm.” Was Wed, Sep 17.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:10px;background:#13294b;font:700 12.5px/1 Figtree;color:#fff">Mark done</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:10px;background:#fff;border:1px solid #c5d7ee;font:600 12.5px/1 Figtree;color:#10264d">Snooze 1d</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:10px;background:#fff;border:1px solid #c5d7ee;font:600 12.5px/1 Figtree;color:#10264d">Add to Calendar</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:10px;background:#fff;border:1px solid #c5d7ee;font:600 12.5px/1 Figtree;color:#10264d">Hide CS425</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>First run — connect sources</div>
+<div class="dv-card" style="width:400px">
+  <div style="padding:20px 16px 16px;display:flex;flex-direction:column;gap:16px">
+    <div>
+      <div style="margin-bottom:12px"><svg viewBox="0 0 128 128" style="width:34px;height:34px;display:block;flex:none;border-radius:7px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+      <div style="font:800 18px/1.25 Figtree;color:#13294b;letter-spacing:-.3px;margin-bottom:6px">One calendar, nothing to maintain</div>
+      <div style="font:400 12.5px/1.55 Figtree;color:#44576f">Illini Dash reads the sites you're already signed into. Nothing leaves your browser, and there's no account to make.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;padding:11px 13px;background:#fff;border:1px solid #ff5f05;border-radius:12px">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px;display:block;color:#ad3d02;margin-top:1px"><path d="M6 2h4M8 2v5M4.5 12h7l-1.6-3.4a1 1 0 0 1-.1-.4V7h-3.6v1.2a1 1 0 0 1-.1.4zM8 12v2.5"></path></svg>
+      <div><div style="font:600 12px/1.35 Figtree;color:#10264d;margin-bottom:2px">Pin Illini Dash to your toolbar</div><div style="font:400 11px/1.45 Figtree;color:#44576f">Chrome hides new extensions behind the puzzle icon — so does the badge that tells you something's due.</div></div>
+    </div>
+
+    <div>
+      <div style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f;margin:0 0 8px 2px">Where to look</div>
+      <div style="display:flex;flex-direction:column;gap:1px;background:#dce7f5;border:1px solid #dce7f5;border-radius:12px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Canvas</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">Assignments, quizzes and calendar events</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#13294b;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Gradescope</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">Homework, labs and late windows</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#13294b;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">PrairieLearn &amp; PrairieTest</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">CS and ECE homework, CBTF exam bookings</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#13294b;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">smartPhysics</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">PHYS 211, 212, 213 and 214 only</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#13294b;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Piazza &amp; Campuswire</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">Announcements that move a deadline</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#13294b;position:relative;flex:none"><div style="position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+          <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Course websites</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">Ask before reading each one</div></div>
+          <div style="width:34px;height:20px;border-radius:999px;background:#c5d7ee;position:relative;flex:none"><div style="position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#7b93b3"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:center;justify-content:center;height:42px;border-radius:11px;background:#13294b;font:700 13px/1 Figtree;color:#fff">Find my deadlines</div>
+      <div style="font:400 10.5px/1.5 Figtree;color:#44576f;text-align:center;margin-top:9px">Takes about 20 seconds. You can change any of this later.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Something stopped answering</div>
+<div class="dv-card" style="width:400px">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+    <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:rgba(180,130,0,.16);border:1px solid rgba(128,84,0,.35)"><span style="width:7px;height:7px;border-radius:50%;background:#805400"></span><span style="font:600 11px/1 Figtree;color:#5c3d00">1 needs you</span></div>
+    <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:9px;padding:10px 13px;background:rgba(180,130,0,.16);border-bottom:1px solid #c5d7ee">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#805400;flex:none"><path d="M8 2.5 14.5 13.5h-13zM8 6.5v3M8 11.8h.01"></path></svg>
+    <span style="font:500 11.5px/1.35 Figtree;color:#26364d;flex:1">Gradescope signed you out 6 days ago.</span>
+    <span style="font:700 11px/1 Figtree;color:#5c3d00;white-space:nowrap">Sign in ↗</span>
+  </div>
+
+  <div style="padding:14px 12px 12px">
+    <div style="font:700 10px/1 Figtree;letter-spacing:.11em;text-transform:uppercase;color:#44576f;margin:0 0 9px 2px">Sources</div>
+    <div style="display:flex;flex-direction:column;gap:1px;background:#dce7f5;border:1px solid #dce7f5;border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#805400"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Gradescope</div><div style="font:400 10.5px/1.4 Figtree;color:#805400;margin-top:2px">Signed out · last read Sep 13</div></div>
+        <div style="display:flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:8px;background:#fff;border:1px solid #805400;font:600 11px/1 Figtree;color:#5c3d00">Sign in</div>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Canvas</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">6 courses · 2m ago</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">31 items</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">PrairieLearn</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">CS357, ECE374 · 2m ago</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">18 items</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">PrairieTest</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">1 unbooked exam · 2m ago</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">4 items</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">smartPhysics</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">PHYS435 · 5m ago</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">9 items</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Campuswire</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">ECE408 · 2 date changes found</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">2 items</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:#166b2c"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Piazza</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">CS425 · 52 posts, 11 deadlines found</div></div>
+        <span style="font:500 11px/1 Figtree;color:#44576f">1 item</span>
+      </div>
+      <div style="display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 13px;background:#fff">
+        <span style="width:8px;height:8px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 1.5px #b5cce7"></span>
+        <div style="min-width:0"><div style="font:600 12.5px/1.3 Figtree;color:#10264d">Course websites</div><div style="font:400 10.5px/1.4 Figtree;color:#44576f;margin-top:2px">ECE411 waiting for permission</div></div>
+        <div style="display:flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11px/1 Figtree;color:#10264d">Allow</div>
+      </div>
+    </div>
+
+    <div style="padding:11px 13px;margin-top:12px;background:rgba(255,255,255,.6);border:1px solid #dce7f5;border-radius:11px">
+      <div style="font:400 11.5px/1.5 Figtree;color:#26364d">Nothing was dropped while Gradescope was out — the 12 items it last reported are still on your calendar, marked <span style="font-weight:600">last seen Sep 13</span>.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(180,130,0,.16);border-top:1px solid #c5d7ee">
+    <span style="width:7px;height:7px;border-radius:50%;background:#805400;flex:none"></span>
+    <span style="font:600 11px/1 Figtree;color:#10264d">7 of 8 sources</span><span style="color:#8aa3c0;font-size:11px">·</span>
+    <span style="font:500 11px/1 Figtree;color:#44576f;flex:1">synced 2m ago</span>
+    <span style="font:600 11px/1 Figtree;color:#ad3d02">Sync now</span>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Badge and notification</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div class="dv-card" style="width:400px;background:#e7e9ee;border-color:#cfd3db">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
+      <div style="display:flex;gap:5px;flex:1">
+        <div style="width:22px;height:22px;border-radius:6px;background:#fff;border:1px solid #d6dae2"></div>
+        <div style="width:22px;height:22px;border-radius:6px;background:#fff;border:1px solid #d6dae2"></div>
+        <div style="position:relative;width:22px;height:22px">
+          <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <div style="position:absolute;right:-5px;bottom:-4px;min-width:15px;height:15px;padding:0 4px;border-radius:5px;background:#ff5f05;color:#1a0d04;font:800 9.5px/15px Figtree;text-align:center;border:1.5px solid #e7e9ee">3</div>
+        </div>
+      </div>
+      <div style="font:500 10.5px/1 Figtree;color:#5b6270">Chrome toolbar</div>
+    </div>
+  </div>
+
+  <div class="dv-card" style="width:400px;background:#fff;border-color:#dce7f5;padding:14px;display:flex;gap:12px;align-items:flex-start">
+    <svg viewBox="0 0 128 128" style="width:38px;height:38px;display:block;flex:none;border-radius:8px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:baseline;gap:8px"><div style="font:700 13px/1.3 Figtree;color:#10264d;flex:1">Due in 1 hour</div><div style="font:500 10.5px/1 Figtree;color:#44576f">Illini Dash</div></div>
+      <div style="font:400 12px/1.5 Figtree;color:#26364d;margin-top:5px">CS 357 Quiz 1 starts at 9:00 PM in Grainger 57. MP1 Report is due at 11:59 PM.</div>
+      <div style="display:flex;gap:8px;margin-top:11px"><div style="display:flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11.5px/1 Figtree;color:#10264d">Open Illini Dash</div><div style="display:flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid #c5d7ee;font:600 11.5px/1 Figtree;color:#44576f">Snooze 30m</div></div>
+    </div>
+  </div>
+
+  <div class="dv-card" style="width:400px">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#dbe7f7;border-bottom:1px solid #c5d7ee">
+      <svg viewBox="0 0 128 128" style="width:22px;height:22px;display:block;flex:none;border-radius:6px"><rect width="128" height="128" rx="26" fill="#13294b"></rect><rect x="22" y="34" width="84" height="20" rx="10" fill="#ff5f05"></rect><path d="M30 84 L52 104 L100 62" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <div style="font:800 13px/1 Figtree;letter-spacing:-.2px;color:#13294b;flex:1">Illini Dash</div>
+      <div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid #c5d7ee"><span style="width:7px;height:7px;border-radius:50%;background:#166b2c"></span><span style="font:600 11px/1 Figtree;color:#10264d">All clear</span></div>
+      <div style="width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block;color:#44576f"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"></path></svg></div>
+    </div>
+    <div style="padding:34px 26px 30px;text-align:center">
+      <div style="width:44px;height:44px;border-radius:14px;background:#cbeee4;display:grid;place-items:center;margin:0 auto 14px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;display:block;color:#0f9d78"><path d="M3 8.5 6.5 12 13 4.5"></path></svg></div>
+      <div style="font:700 15px/1.35 Figtree;color:#10264d;margin-bottom:6px">Nothing due for 3 days</div>
+      <div style="font:400 12px/1.55 Figtree;color:#44576f">Next up is ECE 374 GPS5 on Tuesday. All 8 sources answered 2 minutes ago.</div>
+      <div style="display:flex;justify-content:center;gap:8px;margin-top:16px"><div style="display:flex;align-items:center;justify-content:center;height:32px;padding:0 13px;border-radius:9px;background:#fff;border:1px solid #c5d7ee;font:600 11.5px/1 Figtree;color:#10264d">See the week</div><div style="display:flex;align-items:center;justify-content:center;height:32px;padding:0 13px;border-radius:9px;background:#fff;border:1px solid #c5d7ee;font:600 11.5px/1 Figtree;color:#44576f">Add something</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#1a">1a</a> denser — drop the Next up hero" · "try a dark version of <a class="dv-oid" href="#1a">1a</a>" · "show <a class="dv-oid" href="#1b">1b</a> as an hour grid instead of day rows"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;urgencyEdge&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Deadline rows&quot;},&quot;showSourceNames&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Deadline rows&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      urgencyEdge: this.props.urgencyEdge ?? false,
+      showSourceNames: this.props.showSourceNames ?? true,
+    };
+  }
+}
+</script>
+</body>
+</html>
