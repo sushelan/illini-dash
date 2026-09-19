@@ -1,5 +1,5 @@
 Test instructions for the Chrome Web Store review (Access tab, 500-character field).
-DRAFT 2026-09-18 — Sushi to approve. A reviewer has no UIUC account, so this names what is
+APPROVED by Sushi 2026-09-19. A reviewer has no UIUC account, so this names what is
 verifiable without one. Character count of the block between the rules is printed by
 `wc -m` on it and must stay at or under 500.
 --------------------------------------------------------------------------------
