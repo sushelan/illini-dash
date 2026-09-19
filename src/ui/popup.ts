@@ -32,6 +32,7 @@ import {
   agendaRows,
   allTimed,
   attentionCount,
+  noDateCount,
   itemTone,
   examBoard,
   examCount,
@@ -1766,13 +1767,13 @@ function writeStored(key: string, value: string): void {
   }
 }
 
-const VIEWS: ViewName[] = ["day", "week", "month", "exams", "attention"];
+const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams"];
 const VIEW_LABEL: Record<ViewName, string> = {
   day: "Day",
   week: "Week",
   month: "Month",
   exams: "Exams",
-  attention: "Attention",
+  nodate: "No date",
 };
 
 /**
@@ -3461,9 +3462,7 @@ function render(
 
   renderTabs({
     exams: examCount(items, now),
-    // Plus the suggestions: each one is a question waiting for an answer, and a
-    // tab that does not count them is a tab nobody opens to find them.
-    attention: attentionCount(owed, now) + currentSuggestions.length,
+    nodate: noDateCount(owed, now),
   });
   // The header bar is sticky, so without this the tabs slide under it and
   // switching views means scrolling back to the top of the list. Measured
@@ -3475,7 +3474,7 @@ function render(
   const nav = navFor(view, now);
   renderDateNav(nav.label, nav.step);
 
-  if (view === "attention") {
+  if (view === "nodate") {
     renderAttentionView(owed, now, colours, currentSuggestions);
     makeRowsNavigable();
     return;

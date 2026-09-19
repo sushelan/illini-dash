@@ -30,7 +30,21 @@ import { liveDeadline } from "./grouping.js";
 import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
-export type ViewName = "day" | "week" | "month" | "exams" | "attention";
+/**
+ * The five tabs (brief D1).
+ *
+ * `"attention"` is gone as a *tab*, not as a set of rules. The groups it drew
+ * were three different things wearing one name: overdue work, which is the
+ * most urgent thing on the screen and now rides in the header pill; rows whose
+ * date could not be read; and rows no source ever dated. The last two are the
+ * same problem from the student's side — "this exists and I do not know when" —
+ * and they get the `nodate` tab, which is the only place "Give it a date" makes
+ * sense.
+ *
+ * A stored `"attention"` is not in this union, so the popup's `VIEWS.includes`
+ * check falls it back to `day` without a migration.
+ */
+export type ViewName = "day" | "week" | "month" | "nodate" | "exams";
 
 /** Local midnight for `when`, offset by whole days. */
 export function startOfDay(when: Date, days = 0): Date {
@@ -739,6 +753,55 @@ export function attentionCount(items: Item[], now: Date): number {
   return attentionGroups(items, now)
     .filter((group) => isActionable(group.name))
     .reduce((total, group) => total + group.items.length, 0);
+}
+
+/**
+ * The No date tab's two groups, undated first (brief D3).
+ *
+ * Undated leads because it is the larger, calmer half and the one the tab is
+ * named after; "Couldn't read" follows, carrying the amber check chip, because
+ * it is the half this extension is at fault for. That is the opposite of
+ * `ATTENTION_ORDER`, where "Couldn't read" led a screen whose other group was
+ * *overdue work* — there, a hidden deadline outranks an undated shell. Here
+ * there is no overdue group to rank against, and putting four rows of "we
+ * failed to read this" above the explainer makes the tab read as an error log.
+ *
+ * Derived from `attentionGroups` rather than re-deriving the buckets, so the
+ * two surfaces cannot disagree about which row is undated and which is
+ * unreadable — the `resolveColumn` lesson from the mutation house rules.
+ */
+export const NO_DATE_ORDER: AttentionName[] = ["No date at all", "Couldn't read"];
+
+export function noDateGroups(items: Item[], now: Date): AttentionGroup[] {
+  const groups = attentionGroups(items, now);
+  return NO_DATE_ORDER.map((name) => groups.find((group) => group.name === name)).filter(
+    (group): group is AttentionGroup => group !== undefined,
+  );
+}
+
+/**
+ * The No date tab's badge: both groups, unlike `attentionCount`.
+ *
+ * `ATTENTION_ACTIONABLE` deliberately left "No date at all" uncounted, because
+ * that count sat on a tab whose *other* contents were late work — a badge
+ * creeping upward all semester over rows asking for nothing. This badge is on
+ * the tab those rows are the whole of. A count of 4 over a tab called "No date"
+ * says how many are waiting; a count of 1 over four visible rows says nothing
+ * at all. Mock 2c shows `4` over three undated rows and one unreadable one.
+ */
+export function noDateCount(items: Item[], now: Date): number {
+  return noDateGroups(items, now).reduce((total, group) => total + group.items.length, 0);
+}
+
+/**
+ * Late work, for the header pill's "N late" and the Needs-you screen (D2).
+ *
+ * The "Overdue" group exactly — including its seven-day window and its
+ * exclusions for exams, events and work already handed in — so the number in
+ * the pill and the rows behind it can never be counted by two different rules.
+ */
+export function overdueItems(items: Item[], now: Date): Item[] {
+  return attentionGroups(items, now).find((group) => group.name === "Overdue")?.items ?? [];
 }
 
 /* -------------------------------------------------------------------------- */

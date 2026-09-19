@@ -31,6 +31,10 @@ import {
   minutesInto,
   MONTH_CELL_ROWS,
   monthCells,
+  NO_DATE_ORDER,
+  noDateCount,
+  noDateGroups,
+  overdueItems,
   quietDay,
   visibleItems,
   weekContents,
@@ -806,6 +810,101 @@ describe("attentionGroups", () => {
 
   it("shows nothing on the badge when only undated rows exist", () => {
     expect(attentionCount([item({ title: "undated" })], NOW)).toBe(0);
+  });
+});
+
+describe("noDateGroups", () => {
+  const MIXED = () => [
+    item({ title: "late", dueAt: at(2026, 8, 8, 23, 59) }),
+    item({ title: "unreadable", members: [member({ unparsedDueDate: "whenever" })] }),
+    item({ title: "undated" }),
+  ];
+
+  it("holds the two groups the No date tab draws, undated first", () => {
+    // Brief D3: "Holds the current Attention groups 'No date at all' and
+    // 'Couldn't read' (the latter carries the amber check chip)". Mock 2c puts
+    // the three undated rows above the one unreadable one.
+    const groups = noDateGroups(MIXED(), NOW);
+    expect(groups.map((g) => g.name)).toEqual(["No date at all", "Couldn't read"]);
+    expect(groups.map((g) => g.items.map((i) => i.title))).toEqual([
+      ["undated"],
+      ["unreadable"],
+    ]);
+  });
+
+  it("is the reverse of ATTENTION_ORDER, which leads with the unreadable ones", () => {
+    // Pinned because the two orders are easy to unify by accident, and the
+    // reason they differ is that ATTENTION_ORDER's other group was overdue work.
+    expect(NO_DATE_ORDER).toEqual(["No date at all", "Couldn't read"]);
+    expect(ATTENTION_ORDER.filter((name) => name !== "Overdue")).toEqual([
+      "Couldn't read",
+      "No date at all",
+    ]);
+  });
+
+  it("never carries overdue work into the tab that offers 'Give it a date'", () => {
+    expect(
+      noDateGroups(MIXED(), NOW).flatMap((g) => g.items.map((i) => i.title)),
+    ).not.toContain("late");
+  });
+
+  it("omits an empty group rather than drawing an empty heading", () => {
+    expect(noDateGroups([item({ title: "undated" })], NOW).map((g) => g.name)).toEqual([
+      "No date at all",
+    ]);
+    expect(noDateGroups([item({ title: "late", dueAt: at(2026, 8, 8, 12) })], NOW)).toEqual([]);
+  });
+});
+
+describe("noDateCount", () => {
+  it("counts both groups, unlike the Attention badge", () => {
+    // Mock 2c wears `4` over three undated rows and one unreadable one. The
+    // reason `attentionCount` leaves undated rows out — a number creeping up
+    // all semester beside *late work* — does not apply to a tab whose whole
+    // contents are those rows.
+    const items = [
+      item({ title: "survey" }),
+      item({ title: "group" }),
+      item({ title: "syllabus" }),
+      item({ title: "HW2 Due", members: [member({ unparsedDueDate: "?" })] }),
+    ];
+    expect(noDateCount(items, NOW)).toBe(4);
+    expect(attentionCount(items, NOW)).toBe(1);
+  });
+
+  it("does not count late work", () => {
+    expect(noDateCount([item({ dueAt: at(2026, 8, 8, 23, 59) })], NOW)).toBe(0);
+  });
+});
+
+describe("overdueItems", () => {
+  it("is exactly the Overdue group, for the pill and the Needs-you screen", () => {
+    const items = [
+      item({ title: "late", dueAt: at(2026, 8, 8, 23, 59) }),
+      item({ title: "undated" }),
+      item({ title: "unreadable", members: [member({ unparsedDueDate: "?" })] }),
+    ];
+    expect(overdueItems(items, NOW).map((i) => i.title)).toEqual(["late"]);
+  });
+
+  it("inherits every exclusion the Overdue group makes", () => {
+    // One count, one rule. A pill reading "2 late" over one row is the same
+    // class of lie as a green dot over a source that was never fetched.
+    expect(
+      overdueItems(
+        [
+          item({ title: "sat exam", kind: "exam", dueAt: at(2026, 8, 9, 19) }),
+          item({ title: "past event", kind: "event", dueAt: at(2026, 8, 9, 15) }),
+          item({ title: "ticked", done: true, dueAt: at(2026, 8, 8, 12) }),
+          item({ title: "ancient", dueAt: at(2026, 8, 1, 12) }),
+        ],
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it("is empty rather than undefined when nothing is late", () => {
+    expect(overdueItems([], NOW)).toEqual([]);
   });
 });
 
