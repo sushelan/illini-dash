@@ -98,12 +98,18 @@ const SUGGESTIONS: Suggestion[] = [
     span: "due Friday at 11:59pm",
     context: "MP3 is due Friday at 11:59pm, no extensions.",
     source: "piazza",
-    postId: "p1",
+    // A real Piazza id, so the provenance is the link it is on a live install
+    // (`postUrl`). `"p1"` matched nothing and left the row on the branch a
+    // student never sees.
+    postId: "piazza:k5p6s9m2d1x:412",
     postSubject: "MP3 deadline",
     postedAt: new Date(now).toISOString(),
     createdAt: new Date(now).toISOString(),
   },
 ];
+
+/** Every URL a control asked Chrome to open, newest last. */
+const opened: string[] = [];
 
 const globals = globalThis as unknown as Record<string, unknown>;
 globals["document"] = popup.document;
@@ -143,7 +149,11 @@ globals["chrome"] = {
     },
     getURL: (path: string) => path,
   },
-  tabs: { create: () => undefined },
+  tabs: {
+    create: (options: { url: string }) => {
+      opened.push(options.url);
+    },
+  },
 };
 
 // Dynamic, with the rest: a static import of anything under `src/ui/popup/`
@@ -234,12 +244,36 @@ describe("a suggestion row (Alerts › Found in a post)", () => {
       "Ignore",
     ]);
     const facts = row.querySelector(".sug-facts")!;
-    expect(shape(facts)).toEqual(["span.row--due", "span.row--sep", "span.muted.needsyou--from"]);
+    // The provenance is a **button** when the post can be addressed, which it
+    // can be for every Piazza and Campuswire suggestion a live sync produces
+    // (2026-09-19). Still one child in the same slot with the same class.
+    expect(shape(facts)).toEqual(["span.row--due", "span.row--sep", "button.link.needsyou--from"]);
     expect(facts.querySelector(".needsyou--from")?.textContent).toContain("MP3 deadline");
     // Nothing that belongs to line two may be drawn on line one, and nothing
     // from line one on line two.
     expect(row.querySelector(".sug-head .sug-actions")).toBeNull();
     expect(row.querySelector(".sug-line .sug-title")).toBeNull();
+  });
+
+  /*
+   * Sushi, 2026-09-19: "if it says from a piazza or campuswire post, i should
+   * be able to get linked to the post in reference."
+   *
+   * The sentence names a thread the student cannot otherwise reach, and the
+   * id the observer recorded is enough to address it. A press has to reach
+   * `chrome.tabs.create` with the post's own page — not the class, not the
+   * site — because a link that lands one level up is a link that makes them
+   * search for the post by hand.
+   */
+  it("opens the post the suggestion was read out of", () => {
+    const link = row.querySelector<HTMLElement>(".needsyou--from")!;
+    expect(link.tagName.toLowerCase()).toBe("button");
+    // The evidence is still on it, and it says what pressing does.
+    expect(link.getAttribute("title")).toContain("due Friday at 11:59pm");
+    expect(link.getAttribute("title")).toContain("Opens the post");
+    const before = opened.length;
+    link.dispatchEvent(new popup.Event("click", { bubbles: true }));
+    expect(opened.slice(before)).toEqual(["https://piazza.com/class/k5p6s9m2d1x/post/412"]);
   });
 });
 

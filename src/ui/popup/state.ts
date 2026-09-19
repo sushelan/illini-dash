@@ -161,7 +161,16 @@ export function writeStored(key: string, value: string): void {
 /* The tabs                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams"];
+/**
+ * The strip, left to right. **Sources** joined it on 2026-09-19.
+ *
+ * It is last on purpose: the first four tabs are the student's work and the
+ * fifth is this extension's own plumbing — "a source with a button on it sits
+ * below the student's own work" (the Alerts note), one level out. It is a tab
+ * rather than a panel because a panel in this popup is a thing that opens
+ * below the 600px fold, which is UI house rule 8's whole subject.
+ */
+export const VIEWS: ViewName[] = ["day", "week", "month", "nodate", "exams", "sources"];
 
 /**
  * The names on the strip (brief D1). Day reads as **Today**.
@@ -187,6 +196,9 @@ export const VIEW_LABEL: Record<ViewName, string> = {
   // navigation uses ... Title Case").
   nodate: "Alerts",
   exams: "Exams",
+  // The health of the four sources and the two observers, expanded. The
+  // footer strip's own sentence is the other way in.
+  sources: "Sources",
 };
 
 /**

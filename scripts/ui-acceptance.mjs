@@ -38,7 +38,7 @@ export function verifyReferences() {
 
 // Capture identifiers stay stable so a baseline and a candidate can be paired.
 export const STATES = [
-  ...["day", "week", "month", "nodate", "exams"].map((tab) => ({ id: `reference-${tab}`, query: `tab=${tab}&dataset=reference` })),
+  ...["day", "week", "month", "nodate", "exams", "sources"].map((tab) => ({ id: `reference-${tab}`, query: `tab=${tab}&dataset=reference` })),
   { id: "stress-day", query: "tab=day&dataset=stress" },
   { id: "stress-week", query: "tab=week&dataset=stress" },
   { id: "empty", query: "tab=day&dataset=empty" },
@@ -52,7 +52,7 @@ export const STATES = [
   { id: "settings-stale", query: "page=options&stale=1&dataset=stress", size: [1280, 900] },
   { id: "settings-denied", query: "page=options&permission=denied&dataset=stress", size: [1280, 900] },
   ...["off", "pending", "read", "login", "error"].map((state) => ({ id: `observers-${state}`, query: `page=options&observer=${state}&dataset=reference`, size: [1280, 900] })),
-  ...["day", "week", "month", "nodate", "exams"].map((tab) => ({ id: `full-${tab}`, query: `tab=${tab}&view=full&dataset=stress`, size: [1280, 800] })),
+  ...["day", "week", "month", "nodate", "exams", "sources"].map((tab) => ({ id: `full-${tab}`, query: `tab=${tab}&view=full&dataset=stress`, size: [1280, 800] })),
   { id: "fresh-default", query: "dataset=reference", modes: ["default"] },
 ];
 export const captureMatrix = () => STATES.flatMap((state) => (state.modes ?? ["dark", "light"]).map((mode) => ({ id: `${state.id}-${mode}`, state: state.id, mode, status: "pending", review: "pending", evidence: [] })));

@@ -37,21 +37,16 @@ import {
   noDateGroups,
   overdueItems,
 } from "../../../core/calendar.js";
-import {
-  type SourceRow,
-  type StaleNotice,
-  actionFor,
-  sourceRows,
-  staleNotice,
-} from "../../../core/health.js";
-import { SOURCE_NAME, SOURCE_TITLE, courseLabel } from "../../../core/names.js";
+import { sourceAlertCount } from "../../../core/health.js";
+import { courseLabel } from "../../../core/names.js";
+import { postUrl } from "../../../core/post-link.js";
 import { unreadableDeadline } from "../../../core/quality.js";
 import { icon } from "../../icons.js";
 import type { Item, Source, SourceStatus, Suggestion } from "../../../sources/types.js";
 import { app, state, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
-import { renderObserverRows } from "../observers.js";
-import { actionButton, applyOverrideAction, applySuggestionRequest, toneFor } from "../shell.js";
+import { applyOverrideAction, applySuggestionRequest, selectTab } from "../shell.js";
+import { sectionHead } from "./section.js";
 
 /**
  * What each group means, as the tooltip on its rows.
@@ -100,92 +95,51 @@ export function renderAlertsView(
   // another pass owns to change nothing anyone can see.
   wrap.className = "screen needsyou alerts";
 
-  const notice = staleNotice(sources, now);
-  const banner = notice ? renderNotice(notice, sources) : undefined;
-  if (banner) wrap.append(banner);
-
   const late = overdueItems(items, now);
-  const rows = sourceRows(sources, now);
-  const actionable = rows.filter((row) => row.action !== undefined).length;
   const undated = noDateCount(owed, now);
+  // Sources are the Sources tab's since 2026-09-19, but a source with a button
+  // on it still decides what the empty state may claim: "nothing needs you"
+  // over an expired Gradescope session is §11's worst failure, said by the one
+  // tab whose job is to notice. `sourceAlertCount` and not a second count
+  // here, so this sentence and the badge on the Sources tab are the same
+  // number — a source that is merely switched off is not "needing a look".
+  const waitingSources = sourceAlertCount(sources);
 
-  if (
-    !banner &&
-    late.length === 0 &&
-    suggestions.length === 0 &&
-    undated === 0 &&
-    actionable === 0
-  ) {
+  if (late.length === 0 && suggestions.length === 0 && undated === 0) {
     // Not "nothing here": that would be a claim about the term. This says what
     // was actually checked.
     const clear = document.createElement("p");
     clear.className = "needsyou--clear card";
     clear.textContent = "Nothing needs you — everything a source listed has a date.";
+    if (waitingSources > 0) {
+      // And the sentence above is only true of the work. A source that cannot
+      // be read is a reason the list may be short, so the tab that says
+      // "nothing needs you" has to say where that is, and take them there.
+      const aside = document.createElement("span");
+      aside.className = "needsyou--clear-aside";
+      aside.textContent =
+        waitingSources === 1
+          ? " One source needs a look — it is on the Sources tab."
+          : ` ${waitingSources} sources need a look — they are on the Sources tab.`;
+      const go = document.createElement("button");
+      go.type = "button";
+      go.className = "btn btn-sm btn-secondary needsyou--clear-go";
+      go.textContent = "Open Sources";
+      // A tab selection, nothing async: no "Applying…" to write (UI rule 4).
+      go.addEventListener("click", () => selectTab("sources"));
+      clear.append(aside, document.createTextNode(" "), go);
+    }
     wrap.append(clear);
   }
 
   if (late.length > 0) wrap.append(renderLate(late, now));
   if (suggestions.length > 0) wrap.append(renderSuggestions(suggestions));
   wrap.append(...renderUndated(owed, now, colours));
-  wrap.append(renderSources(rows, now));
-  if (notice) {
-    const kept = renderKeptNote(notice, items, sources, now);
-    if (kept) wrap.append(kept);
-  }
   // The dashed "Add something by hand" card that used to close this tab is gone
   // (Sushi, 2026-09-19: "remove the add something by hand in the alerts"). Adding
   // by hand is the header's `+` on every tab, and the floating `+` on Day, Week and
   // Month; this screen is for what the sources DID report and could not place.
   viewEl.append(wrap);
-}
-
-/* -------------------------------------------------------------------------- */
-/* (a) The one sentence at the top                                             */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The source most worth saying something about, said in one sentence.
- *
- * `staleNotice` picks it — never-succeeded first, then a login, then oldest —
- * and `actionFor` decides the button, so this cannot name a source as broken
- * and then offer nothing to press, which is the defect the popover had for a
- * month.
- */
-function renderNotice(
-  notice: StaleNotice,
-  sources: Record<Source, SourceStatus>,
-): HTMLElement | undefined {
-  const line = document.createElement("div");
-  line.className = "needsyou--notice";
-  const glyph = icon("warning");
-  glyph.classList.add("needsyou--notice-glyph");
-
-  const text = document.createElement("span");
-  text.className = "needsyou--notice-text";
-  text.textContent = noticeSentence(notice);
-
-  line.append(glyph, text);
-  const button = actionButton(
-    actionFor(notice.source, notice.state, sources[notice.source]?.loginUrl),
-  );
-  if (button) line.append(button);
-  // The exact message the site answered with, for the one student in ten who
-  // wants to know whether it is the cookie or the page.
-  if (notice.lastError) line.title = notice.lastError;
-  return line;
-}
-
-function noticeSentence(notice: StaleNotice): string {
-  const name = SOURCE_NAME[notice.source];
-  if (notice.hours === undefined) {
-    return notice.needsLogin
-      ? `${name} has never been signed in, so nothing from it is listed.`
-      : `${name} has never been read, so nothing from it is listed.`;
-  }
-  const ago = notice.hours < 48 ? `${notice.hours} hours ago` : `${Math.floor(notice.hours / 24)} days ago`;
-  if (notice.needsLogin) return `${name} signed you out ${ago}.`;
-  if (notice.state === "parse_error") return `${name} last looked different ${ago}.`;
-  return `${name} last answered ${ago}.`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -332,8 +286,34 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
 
     const actions = document.createElement("span");
     actions.className = "sug-actions";
-    const provenance = document.createElement("span");
-    provenance.className = "muted needsyou--from";
+    /*
+     * The post itself, when this extension can address it (2026-09-19).
+     *
+     * Sushi: "if it says from a piazza or campuswire post, i should be able to
+     * get linked to the post." The sentence names evidence the student cannot
+     * read otherwise — a subject line with no thread behind it is a claim
+     * about a post rather than the post — so where `postUrl` can derive the
+     * page from the id the observer recorded, the sentence *is* the link.
+     *
+     * A `<button>` rather than an `<a href>`: a popup that follows a link in
+     * place navigates the popup, and `chrome.tabs.create` is what every other
+     * "open the source" control here uses. Where there is no page — a pasted
+     * post — it stays the plain span it always was rather than a dead control.
+     */
+    const href = postUrl(suggestion.postId);
+    let provenance: HTMLElement;
+    if (href) {
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "link needsyou--from";
+      open.addEventListener("click", () => {
+        void chrome.tabs.create({ url: href });
+      });
+      provenance = open;
+    } else {
+      provenance = document.createElement("span");
+      provenance.className = "muted needsyou--from";
+    }
     /*
      * Name the post when the suggestion knows it — but only when the name says
      * something the title has not.
@@ -352,7 +332,10 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
       : `from a ${SUGGESTION_SOURCE[suggestion.source] ?? "post"}`;
     // The instructor's own words, as text. §8.1's rendering rule: a post is
     // remote content and never becomes markup here.
-    provenance.title = names ? `${postSubject}\n\n${suggestion.span}` : suggestion.span;
+    const evidence = names ? `${postSubject}\n\n${suggestion.span}` : suggestion.span;
+    // The instructor's words either way; the link says so as well, because a
+    // control that opens a tab has to say where it goes before it is pressed.
+    provenance.title = href ? `${evidence}\n\nOpens the post in a new tab.` : evidence;
 
     const add = document.createElement("button");
     add.type = "button";
@@ -640,130 +623,4 @@ function renderNoDateCard(
   actions.append(give, tick, hide);
   card.append(actions);
   return card;
-}
-
-/* -------------------------------------------------------------------------- */
-/* (e) Sources                                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Every source, its state, when it was last read, and the one thing to do.
- *
- * The same three facts and the same `actionButton` the popover had — so Sign
- * in, Allow, Turn on and Retry all behave exactly as they did, including the
- * recheck-on-return that `NAVIGATED_KEY` drives and the permission request that
- * has to happen inside the click.
- *
- * **Piazza and Campuswire are in this list** (2026-09-19). They were two cards
- * of a different shape underneath it, which said in layout that they were a
- * different kind of thing; they are not. `renderObserverRows` draws them as the
- * same row with the same dot, and `observerRows` keeps owning every word.
- *
- * **The detail line says only what `sourceRows` gives it.** A number this file
- * invented would be a number the student trusts (worker rule 3). The state word
- * and the last read are what an attempt actually produced.
- */
-function renderSources(rows: SourceRow[], now: Date): HTMLElement {
-  const wrap = document.createElement("section");
-  wrap.className = "needsyou--group";
-  wrap.append(sectionHead("Sources"));
-
-  const list = document.createElement("div");
-  list.className = "needsyou--list";
-
-  for (const row of rows) {
-    const line = document.createElement("div");
-    line.className = "needsyou--source";
-
-    const dot = document.createElement("i");
-    dot.className = `needsyou--dot is-${toneFor(row.state)}`;
-
-    const text = document.createElement("div");
-    text.className = "needsyou--source-text";
-    const name = document.createElement("div");
-    name.className = "needsyou--source-name";
-    // `SOURCE_TITLE`, not `SOURCE_NAME`: this is a label in a list, and "the
-    // course website" reads as a sentence fragment between Canvas and
-    // PrairieTest.
-    name.textContent = SOURCE_TITLE[row.source];
-    const detail = document.createElement("div");
-    detail.className = `needsyou--source-detail is-${toneFor(row.state)}`;
-    detail.textContent = row.lastRead ? `${row.word} · last read ${row.lastRead}` : row.word;
-    if (row.lastReadExact || row.lastError) {
-      detail.title = [row.lastError, row.lastReadExact && `last read ${row.lastReadExact}`]
-        .filter(Boolean)
-        .join("\n");
-    }
-    text.append(name, detail);
-
-    line.append(dot, text);
-    const button = actionButton(row.action);
-    if (button) line.append(button);
-    list.append(line);
-  }
-
-  list.append(...renderObserverRows(now));
-
-  wrap.append(list);
-  return wrap;
-}
-
-/* -------------------------------------------------------------------------- */
-/* (f) "Nothing was dropped", and the one card for what nothing lists          */
-/* -------------------------------------------------------------------------- */
-
-/**
- * What a failed source did *not* cost, in one sentence.
- *
- * `runSync`'s failure branch keeps a source's previously fetched rows on
- * purpose, so the list does not go blank — and nothing on screen ever said so.
- * A student who reads "Gradescope signed you out 6 days ago" has every reason
- * to assume six days of Gradescope deadlines are missing, and the reassurance
- * is the difference between fixing it today and fixing it in a panic.
- *
- * Only when there is something to reassure about: a source that has never
- * succeeded has no rows behind it, and the sentence would be a lie in the exact
- * shape §11 ranks worst.
- */
-function renderKeptNote(
-  notice: StaleNotice,
-  items: Item[],
-  sources: Record<Source, SourceStatus>,
-  now: Date,
-): HTMLElement | undefined {
-  if (notice.hours === undefined) return undefined;
-  const kept = items.filter((item) =>
-    item.members.some((member) => member.source === notice.source),
-  ).length;
-  if (kept === 0) return undefined;
-  const lastRead = sourceRows(sources, now).find((row) => row.source === notice.source)?.lastRead;
-  if (!lastRead) return undefined;
-
-  const note = document.createElement("p");
-  note.className = "needsyou--kept card";
-  const lead = document.createTextNode(
-    `Nothing was dropped while ${SOURCE_NAME[notice.source]} was out — the ${kept} item${
-      kept === 1 ? "" : "s"
-    } it last reported ${kept === 1 ? "is" : "are"} still on your calendar, marked `,
-  );
-  const stamp = document.createElement("b");
-  stamp.textContent = `last seen ${lastRead}`;
-  note.append(lead, stamp, document.createTextNode("."));
-  return note;
-}
-
-/* -------------------------------------------------------------------------- */
-
-function sectionHead(label: string, count?: string): HTMLElement {
-  const head = document.createElement("div");
-  head.className = "section-head";
-  const text = document.createElement("span");
-  text.textContent = label;
-  head.append(text);
-  if (count !== undefined) {
-    const right = document.createElement("span");
-    right.textContent = count;
-    head.append(right);
-  }
-  return head;
 }

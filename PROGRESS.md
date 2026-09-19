@@ -2,10 +2,51 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2227 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2279 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Sources is a tab, and a post's row links to the post — 2026-09-19
+
+Two asks from Sushi on the running extension: "the sources page in alerts should be in
+the sources tab after i click on it at the top of the popup", and "if it says from a
+piazza or campuswire post, i should be able to get linked to the post in reference."
+
+- **The source list is the sixth tab.** It was the last section of Alerts, under late
+  work, the post suggestions and two groups of undated rows — about 900px down a 600px
+  window, which is UI house rule 8 in its usual costume. `views/sources.ts` now holds the
+  stale notice, the list (the four sources, the two observers) and the "nothing was
+  dropped" sentence; Alerts keeps only what the student can answer. The footer strip's
+  health button selects `sources` rather than `nodate`, and `aria-pressed` follows it.
+  The badge split with the list: `alertCount` no longer counts sources and
+  `sourceAlertCount` (core, `actionFor`-derived) is the Sources badge, so the number and
+  the buttons under it cannot disagree. Six labelled tabs fit 400px measured — every
+  label's `scrollWidth === clientWidth`, `#tabs` does not overflow, and `body`/`html`
+  stay 400 wide.
+- **`core/post-link.ts`.** `postUrl("piazza:<nid>:<nr>")` and
+  `postUrl("campuswire:<code>:<n>")` derive the thread from the id the observer already
+  recorded — no store field, no backfill. Anchored regexes over each part, exact
+  prefixes, https on the source's own origin or nothing (house rules 5, 6, 7): `piazza::3`
+  and `https://evil.example/piazza:abc:1` both answer `undefined`, where a `split(":")`
+  version answers a URL that resolves and goes somewhere else. A pasted post and the
+  student's own `"student"` id have no page and keep the plain sentence.
+- **Three surfaces use it.** The "from the Piazza post “…”" line on Alerts is the link
+  (a `<button>`, because a popup that follows an `<a href>` navigates itself; dotted
+  underline, no button chrome); the deadline screen's moved-by note gains **Open the
+  post ↗** beside Undo move; and `acceptSuggestion` carries the post as the accepted
+  row's `url`, so "Open ↗" on a row added from a post lands on the sentence it was read
+  out of.
+- **The harness followed.** `preview-data.ts`'s suggestions carried invented ids
+  (`pz-2`, `cw-1`) that no observer produces, so the link branch was unreachable from
+  `npm run shots`; three now carry real-shaped ids and one keeps the old shape on purpose
+  so both branches are on screen. `popup-sources` is `tab=sources`, plus
+  `popup-sources-from-footer` for the press that used to open the panel.
+- Mutation-checked with count asserts: unanchoring the Piazza id, sending the footer back
+  to `nodate`, re-adding a source row to Alerts and forcing the provenance back to a span
+  each failed the suite. Verified in the real preview document in **dark** and light —
+  the Sources tab, the Alerts tab without it, and the moved-by note — and the link was
+  pressed: `chrome.tabs.create` received `https://campuswire.com/c/G794D32E4/feed/682`.
 
 ## Live: five defects from Sushi's own screenshots — 2026-09-19
 

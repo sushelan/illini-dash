@@ -9,6 +9,7 @@
 import type { DueOverride, Item, Overrides, Suggestion } from "../sources/types.js";
 import { memberKey } from "../sources/types.js";
 import { statedInstant, type ManualInput } from "./manual.js";
+import { postUrl } from "./post-link.js";
 
 export function memberKeysOf(item: Item): string[] {
   return item.members.map((member) => memberKey(member.source, member.sourceId));
@@ -264,6 +265,18 @@ export function acceptSuggestion(
       // list and "MP3 is due Fri 10/2" in a note are the difference between
       // trusting the row and re-reading the thread.
       note: suggestion.context.replace(/\s+/g, " ").slice(0, 500),
+      /*
+       * And the thread itself, as the row's link (2026-09-19).
+       *
+       * Every other row's `url` is "where this came from", and for a row
+       * accepted out of a post that is the post — so "Open ↗" on the deadline
+       * screen lands on the sentence the row was read out of rather than
+       * nowhere. `postUrl` is https on the source's own origin or it is
+       * `undefined` (house rule 7), and `newManualItem` refuses anything else,
+       * so a pasted post simply contributes no link. Spread rather than set to
+       * `undefined`: `ManualInput.url` is optional and `""` is not a link.
+       */
+      ...(postUrl(suggestion.postId) ? { url: postUrl(suggestion.postId)! } : {}),
     },
     suggestions: dismissSuggestion(suggestions, id),
   };

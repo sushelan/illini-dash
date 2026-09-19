@@ -33,7 +33,7 @@ import { unreadableDeadline } from "./quality.js";
 import type { Item, Settings } from "../sources/types.js";
 
 /**
- * The five tabs (brief D1).
+ * The six tabs (brief D1, plus Sources on 2026-09-19).
  *
  * `"attention"` is gone as a *tab*, not as a set of rules. The groups it drew
  * were three different things wearing one name: overdue work, which is the
@@ -45,8 +45,15 @@ import type { Item, Settings } from "../sources/types.js";
  *
  * A stored `"attention"` is not in this union, so the popup's `VIEWS.includes`
  * check falls it back to `day` without a migration.
+ *
+ * `"sources"` is the sixth, and it holds no items at all: it is the source
+ * list that used to be the last section of the Alerts tab, about 900px down a
+ * 600px window (Sushi, 2026-09-19 — "the sources page in alerts should be in
+ * the sources tab"). It is in this union because the strip, the stored tab and
+ * every focus request are keyed by it; nothing in this module buckets items
+ * into it.
  */
-export type ViewName = "day" | "week" | "month" | "nodate" | "exams";
+export type ViewName = "day" | "week" | "month" | "nodate" | "exams" | "sources";
 
 /** Local midnight for `when`, offset by whole days. */
 export function startOfDay(when: Date, days = 0): Date {

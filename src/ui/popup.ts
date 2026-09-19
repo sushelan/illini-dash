@@ -34,7 +34,13 @@ import {
   type ViewName,
 } from "../core/calendar.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
-import { alertCount, emptyStateFor, sourcesToRecheck, type NavigatedAt } from "../core/health.js";
+import {
+  alertCount,
+  emptyStateFor,
+  sourceAlertCount,
+  sourcesToRecheck,
+  type NavigatedAt,
+} from "../core/health.js";
 import { SOURCE_NAME } from "../core/names.js";
 import { DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
 import { SYNC_SPINNER_CAP_MS } from "../core/sync.js";
@@ -80,6 +86,7 @@ import { renderWeekView } from "./popup/views/week.js";
 import { renderMonthView } from "./popup/views/month.js";
 import { renderExamsView } from "./popup/views/exams.js";
 import { renderAlertsView } from "./popup/views/alerts.js";
+import { renderSourcesView } from "./popup/views/sources.js";
 import { renderSetup } from "./popup/screens/setup.js";
 import {
   deleteManual,
@@ -314,11 +321,14 @@ function render(
      * would send a student past three late assignments to a "2".
      */
     nodate: alertCount({
-      sources,
       overdue: overdueItems(items, now).length,
       suggestions: state.currentSuggestions.length,
       undated: noDateCount(owed, now),
     }),
+    // The sources with a button on them, which is the half of the old Alerts
+    // badge that went with the list (2026-09-19). Derived by `actionFor`, so
+    // the badge and the buttons on the tab cannot disagree.
+    sources: sourceAlertCount(sources),
   });
   renderHiddenNote();
   // The header bar is sticky, so without this the tabs slide under it and
@@ -344,6 +354,14 @@ function render(
     // the undated groups, which is the list this tab has always drawn.
     renderAlertsView(items, owed, sources, state.currentSuggestions, now, colours);
     makeRowsNavigable();
+    return true;
+  }
+  if (state.view === "sources") {
+    // Everything this extension fetches from, and what each last did. `items`
+    // unfiltered: the "nothing was dropped" sentence counts what a failed
+    // source last reported, and a course the student switched off is still a
+    // thing that was kept.
+    renderSourcesView(items, sources, now);
     return true;
   }
   if (state.view === "exams") {

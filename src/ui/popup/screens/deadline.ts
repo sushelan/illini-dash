@@ -28,6 +28,7 @@ import { googleCalendarUrl } from "../../../core/ics.js";
 import { sameCourse } from "../../../core/dedupe.js";
 import { STUDENT_POST_ID } from "../../../core/overrides.js";
 import { assumedTimeNote, movedHeading } from "../../../core/provenance.js";
+import { postUrl } from "../../../core/post-link.js";
 import { unreadableDeadline, unreadableSummary } from "../../../core/quality.js";
 import { iconButton } from "../../icons.js";
 import type { Item, Status } from "../../../sources/types.js";
@@ -263,6 +264,31 @@ function renderDeadlineScreen(item: Item, now: Date): HTMLElement {
     const line = el("div", "dl--moved-text", moved);
     if (item.movedBy?.reason && !byStudent) line.title = item.movedBy.reason;
     note.append(line);
+    /*
+     * The post that moved it, opened (2026-09-19).
+     *
+     * "An announcement moved this" is a claim about a thread the student
+     * cannot see from here, and the reason line quotes a sentence out of it —
+     * so the one thing worth offering is the thread. `postUrl` derives it from
+     * the id the observer recorded and answers `undefined` for the student's
+     * own `"student"` id and for a pasted post, which have no page (Sushi:
+     * "i should be able to get linked to the post").
+     */
+    const postHref = postUrl(item.movedBy?.postId);
+    if (postHref) {
+      const open = document.createElement("button");
+      open.type = "button";
+      // The same control Undo move is, beside it: two presses on one note
+      // that look like two different kinds of thing is the corner Sushi has
+      // objected to twice.
+      open.className = "btn btn-secondary btn-sm dl--moved-open";
+      open.textContent = "Open the post ↗";
+      open.title = "Read the post this came out of, in a new tab";
+      open.addEventListener("click", () => {
+        void chrome.tabs.create({ url: postHref });
+      });
+      note.append(open);
+    }
     // A date the student set outranks the source's for as long as it stands
     // (R3 M5 — open decision in PROGRESS). Until that is decided, the screen
     // at least says when the source now disagrees, so the override is never

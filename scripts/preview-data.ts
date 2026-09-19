@@ -682,13 +682,13 @@ const PREVIEW_SUGGESTIONS = [
     id: "s1", kind: "new", title: "MP3", courseRaw: "CS 425", courseCode: "CS425",
     at: at(15, 23, 59), timeAssumed: false,
     span: "Fri Oct 3 at 11:59pm", context: "MP3 is due Fri Oct 3 at 11:59pm.",
-    source: "campuswire", postId: "cw-1", postedAt: at(-1, 15, 0), createdAt: at(-1, 15, 1),
+    source: "campuswire", postId: "campuswire:G794D32E4:682", postedAt: at(-1, 15, 0), createdAt: at(-1, 15, 1),
   },
   {
     id: "s2", kind: "new", title: "Quiz 1", courseRaw: "CS 357", courseCode: "CS357",
     at: at(9, 23, 59), timeAssumed: true,
     span: "10/12", context: "Quiz 1 is due 10/12. It opens on PrairieLearn the morning of.",
-    source: "piazza", postId: "pz-2", postedAt: at(-2, 9, 0), createdAt: at(-2, 9, 1),
+    source: "piazza", postId: "piazza:k5p6s9m2d1x:412", postedAt: at(-2, 9, 0), createdAt: at(-2, 9, 1),
     // Only one of the two carries `postSubject`, because that is the pair the
     // row has to draw: a suggestion written by this build names its post, and
     // one written before the field existed keeps the old wording (worker rule
@@ -711,7 +711,7 @@ const PREVIEW_SUGGESTIONS = [
     courseRaw: "CS 425 / ECE 428", courseCode: "CS425",
     at: at(1, 23, 59), timeAssumed: true,
     span: "9/20", context: "Please sign up for a demo slot by 9/20.",
-    source: "piazza", postId: "pz-145", postedAt: at(-1, 9, 0), createdAt: at(-1, 9, 1),
+    source: "piazza", postId: "piazza:k5p6s9m2d1x:145", postedAt: at(-1, 9, 0), createdAt: at(-1, 9, 1),
     postSubject:
       "MP1 Demo Signups May have moved location (+ Reminder to TAG your MP1 report on Gradescope)",
   },
@@ -719,6 +719,10 @@ const PREVIEW_SUGGESTIONS = [
     id: "s4", kind: "new", title: "MP2", courseRaw: "CS 425 / ECE 428", courseCode: "CS425",
     at: at(8, 23, 59), timeAssumed: true,
     span: "9/27", context: "MP2 is due 9/27.",
+    // Left in the pre-2026-09-19 shape on purpose: `postUrl` can address every
+    // other row here, and this one has to keep the plain "from a Piazza post"
+    // sentence so the harness shows both branches. An id this shape is what a
+    // suggestion written by an older build carries (worker rule 8).
     source: "piazza", postId: "pz-160", postedAt: at(-1, 10, 0), createdAt: at(-1, 10, 1),
     postSubject: "MP2",
   },
@@ -728,7 +732,7 @@ const PREVIEW_SUGGESTIONS = [
 if (dataset !== "reference" && dataset !== "empty") items.push(
   item({
     courseLabel: "CS425", title: "MP2: Distributed Logging", dueAt: at(5, 23, 59),
-    movedBy: { reason: "Campuswire post 2026-09-17", from: at(2, 23, 59), postId: "cw-0" },
+    movedBy: { reason: "Campuswire post 2026-09-17", from: at(2, 23, 59), postId: "campuswire:G794D32E4:640" },
   }),
 );
 

@@ -288,27 +288,29 @@ describe("I02 — a screen opened or closed by a held press focuses the right co
   });
 
   /*
-   * The footer's source button selects the Alerts tab (2026-09-19).
+   * The footer's source button selects the **Sources** tab (2026-09-19).
    *
    * It used to open the Needs-you *screen* in front of the calendar, and this
    * test pinned ‹ back returning focus to the rebuilt footer button. There is
-   * no screen and no ‹ back any more: the sources live on a tab, so the button
-   * is a second way to reach a tab that is already on the strip. What has to
-   * stay true is that the press leaves no `.screen-bar` behind and that focus
-   * lands on the tab the draw rebuilt rather than on `<body>` (I01).
+   * no screen and no ‹ back any more: the source list is its own tab (Sushi:
+   * "the sources page in alerts should be in the sources tab after i click on
+   * it at the top of the popup"), so the button is a second way to reach a tab
+   * that is already on the strip. What has to stay true is that the press
+   * leaves no `.screen-bar` behind and that focus lands on the tab the draw
+   * rebuilt rather than on `<body>` (I01).
    */
-  it("selects the Alerts tab from the footer's source button, and focuses it", async () => {
+  it("selects the Sources tab from the footer's source button, and focuses it", async () => {
     shell.selectTab("day");
     await settle();
     const health = document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!;
     expect(health.getAttribute("aria-pressed")).toBe("false");
     click(health); // outside #view: not held, draws at once
     await settle();
-    expect(state.view).toBe("nodate");
+    expect(state.view).toBe("sources");
     expect(view().querySelector(".screen-bar")).toBeNull();
-    expect(view().querySelector(".needsyou")).not.toBeNull();
+    expect(view().querySelector(".sources")).not.toBeNull();
     const tab = tabs().querySelector<HTMLElement>("[role='tab'][aria-selected='true']")!;
-    expect(tab.textContent).toContain(VIEW_LABEL.nodate);
+    expect(tab.textContent).toContain(VIEW_LABEL.sources);
     expect(document.activeElement).toBe(tab);
     expect(
       document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!.getAttribute("aria-pressed"),
@@ -374,16 +376,17 @@ describe("I01 — arrow keys keep working across the strip's redraws", () => {
   });
 });
 
-describe("the Alerts tab gathers five things in one order", () => {
+describe("the Alerts tab gathers what is asking, in one order", () => {
   /*
    * Sushi, 2026-09-19: "combine no date and needs you in the same tab." The
    * order is what has a deadline behind it first and what is merely unfinished
-   * last — the stale-source notice (which may mean everything under it is
-   * incomplete), Late, Found in a post, the two undated groups, the sources
-   * themselves, then the two reassurances. A section drawn out of that order is
-   * a student meeting this extension's problems before their own.
+   * last — Late, Found in a post, then the two undated groups. The sources
+   * themselves left this tab later the same day ("the sources page in alerts
+   * should be in the sources tab"), and the sections below pin that they are
+   * *gone* from here rather than merely last: a section drawn out of that
+   * order is a student meeting this extension's problems before their own.
    */
-  it("draws the sections in the written order, and the add card last", async () => {
+  it("draws the sections in the written order, and no source list", async () => {
     shell.selectTab("nodate");
     await settle();
     const wrap = view().querySelector<HTMLElement>(".needsyou")!;
@@ -395,21 +398,24 @@ describe("the Alerts tab gathers five things in one order", () => {
     const heads = [...wrap.querySelectorAll<HTMLElement>(".section-head")].map(
       (head) => head.firstElementChild?.textContent ?? "",
     );
-    const wanted = ["Late", "Found in a post", "No date at all", "Couldn't read", "Sources"];
+    const wanted = ["Late", "Found in a post", "No date at all", "Couldn't read"];
     expect(heads.filter((name) => wanted.includes(name))).toEqual(
       wanted.filter((name) => heads.includes(name)),
     );
-    // Sources is drawn, and it is last of the five.
-    expect(heads.at(-1)).toBe("Sources");
-    // …and nothing follows it. A dashed "Add something by hand" card used to
-    // close the tab; it was removed on 2026-09-19 ("remove the add something by
-    // hand in the alerts"). Adding by hand is the header's `+` on every tab and
-    // the floating `+` on Day, Week and Month.
+    // The sources are on their own tab: not the last section here, not any
+    // section here, and no source row left behind either.
+    expect(heads).not.toContain("Sources");
+    expect(wrap.querySelector(".needsyou--source")).toBe(null);
+    expect(wrap.querySelector(".needsyou--notice")).toBe(null);
+    // …and nothing follows the last group. A dashed "Add something by hand"
+    // card used to close the tab; it was removed on 2026-09-19 ("remove the add
+    // something by hand in the alerts"). Adding by hand is the header's `+` on
+    // every tab and the floating `+` on Day, Week and Month.
     expect(wrap.querySelector(".nodate-add")).toBe(null);
   });
 
-  it("puts Piazza and Campuswire in the Sources list, as rows of the same shape", async () => {
-    shell.selectTab("nodate");
+  it("puts Piazza and Campuswire in the Sources tab's list, as rows of the same shape", async () => {
+    shell.selectTab("sources");
     await settle();
     // "why is needs you in sources" — they were two cards of a different shape
     // under the list, which said in layout that they were a different kind of

@@ -86,15 +86,20 @@ const SHOTS = [
    * wrong for a week.
    */
   /*
-   * The health popover, on the tab whose list is shortest.
+   * The source list — a tab of its own since 2026-09-19, so a plain `tab=`.
    *
-   * It shipped clipped half way down its fifth row and no shot could show it,
-   * because opening it takes a click. No date is the right tab to check on
-   * (it inherits this from Attention, which it replaced): the shorter the page,
-   * the shorter the popup window Chrome measures, and the less room a floating
-   * panel has.
+   * It was a floating panel and shipped clipped half way down its fifth row,
+   * which is why this shot exists at all; it then became the last section of
+   * the Alerts tab, ~900px down a 600px window, and is now the Sources tab
+   * (Sushi: "the sources page in alerts should be in the sources tab"). The
+   * shot follows it rather than going on pressing something — a selector
+   * spelled in a harness outliving what it named is UI house rule 4's finding.
    */
-  { name: "popup-sources", query: "tab=nodate&open=health", size: [400, 600] },
+  { name: "popup-sources", query: "tab=sources", size: [400, 600] },
+  // And the footer strip's own way in, which is the press that used to open
+  // the panel. It has to land on the Sources tab, or the button that says
+  // "8 sources · synced 2m ago" leads somewhere else.
+  { name: "popup-sources-from-footer", query: "tab=day&open=health", size: [400, 600] },
   /*
    * The two sub-screens W3 owns, each behind an interaction the shot has to
    * perform: the deadline screen is a press on the first row (a real pointer
@@ -128,6 +133,7 @@ const SHOTS = [
   { name: "components", query: "page=components", size: [960, 1700] },
   { name: "full-exams", query: "tab=exams&view=full", size: [1280, 800] },
   { name: "full-nodate", query: "tab=nodate&view=full", size: [1280, 800] },
+  { name: "full-sources", query: "tab=sources&view=full", size: [1280, 800] },
   /*
    * Store assets, which are one file each rather than a dark and a light one.
    *

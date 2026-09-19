@@ -405,6 +405,36 @@ describe("accepting and dismissing a suggestion", () => {
     expect("courseCode" in accepted.input).toBe(false);
   });
 
+  it("carries the post as the accepted row's link (2026-09-19)", () => {
+    /*
+     * Every other row's `url` is where it came from, and for a row accepted
+     * out of a post that is the post — so "Open ↗" on the deadline screen
+     * lands on the sentence the row was read out of (Sushi: "if it says from
+     * a piazza or campuswire post, i should be able to get linked to the
+     * post"). `newManualItem` is what actually stores it, and it refuses
+     * anything that is not https, so this asserts the row and not only the
+     * input.
+     */
+    const posted = { ...suggestion, postId: "campuswire:G794D32E4:682" };
+    const accepted = acceptSuggestion([posted], "s1", "America/Chicago")!;
+    expect(accepted.input.url).toBe("https://campuswire.com/c/G794D32E4/feed/682");
+    expect(
+      newManualItem(accepted.input, "2026-09-18T13:00:00.000Z", "America/Chicago").url,
+    ).toBe("https://campuswire.com/c/G794D32E4/feed/682");
+  });
+
+  it("leaves a pasted post's row with no link rather than a guess", () => {
+    // A pasted post never existed on a site this extension knows, so there is
+    // nothing to open. `url` is absent, not `""`: `newManualItem` refuses a
+    // link it cannot parse, and `""` would be a refusal on every accept.
+    const pasted = { ...suggestion, source: "paste" as const, postId: "paste:1758230000000" };
+    const accepted = acceptSuggestion([pasted], "s1", "America/Chicago")!;
+    expect("url" in accepted.input).toBe(false);
+    expect(
+      newManualItem(accepted.input, "2026-09-18T13:00:00.000Z", "America/Chicago").url,
+    ).toBeUndefined();
+  });
+
   it("answers undefined for an id that is no longer on the list", () => {
     expect(acceptSuggestion([suggestion], "gone", "America/Chicago")).toBeUndefined();
   });

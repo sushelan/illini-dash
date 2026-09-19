@@ -551,11 +551,10 @@ export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
 }
 
 /* -------------------------------------------------------------------------- */
-/* The Alerts tab's badge (2026-09-19)                                         */
+/* The Alerts and Sources tab badges (2026-09-19)                             */
 /* -------------------------------------------------------------------------- */
 
 export interface AlertsInput {
-  sources: Partial<Record<Source, SourceStatus>>;
   /** `overdueItems(...).length` — work already late. */
   overdue: number;
   /** Open suggestions from posts, each one a question waiting for an answer. */
@@ -572,27 +571,36 @@ export interface AlertsInput {
 /**
  * What the Alerts tab's badge counts: everything on the tab that is asking.
  *
- * The tab gathers five things that used to be in two places — late work, a
- * post's claim waiting for a yes, rows with no date, rows whose date could not
- * be read, and a source with a button on it — so the badge is their sum and
- * nothing else.
+ * The tab gathers three things the student can answer — late work, a post's
+ * claim waiting for a yes, and rows with no date or no readable date — so the
+ * badge is their sum and nothing else.
  *
- * **Sources are counted by `actionFor`, not by `isFailing`** (worker rule 2).
- * A source that is off has nothing to press; a source that has never been
- * attempted is `pending`, and `actionFor` returns nothing for `pending` — so a
- * cold install cannot claim an alert about a fetch that never happened, and the
- * badge can never promise a button the Sources section does not draw. It is the
- * same derivation `needsYouPill` and `sourceRows` use, which is what stops the
- * three disagreeing.
+ * **Sources are not in it any more** (2026-09-19). They were, while the source
+ * list was the tab's last section; the list is the Sources tab now, and a
+ * badge that counted a broken Gradescope would send a student to a tab where
+ * there is nothing about Gradescope to press. `sourceAlertCount` is that
+ * number, on that tab.
  */
 export function alertCount(input: AlertsInput): number {
-  const summary = summarize(input.sources);
-  const actionable = summary.failing.filter(
-    (source) =>
-      actionFor(source, displayState(input.sources[source]!), input.sources[source]?.loginUrl) !==
-      undefined,
+  return input.overdue + input.suggestions + input.undated;
+}
+
+/**
+ * The Sources tab's badge: sources with something to press.
+ *
+ * **Counted by `actionFor`, not by `isFailing`** (worker rule 2). A source
+ * that is off has nothing to press; a source that has never been attempted is
+ * `pending`, and `actionFor` returns nothing for `pending` — so a cold install
+ * cannot claim an alert about a fetch that never happened, and the badge can
+ * never promise a button the list below it does not draw. It is the same
+ * derivation `needsYouPill` and `sourceRows` use, which is what stops the
+ * three disagreeing.
+ */
+export function sourceAlertCount(sources: Partial<Record<Source, SourceStatus>>): number {
+  const summary = summarize(sources);
+  return summary.failing.filter(
+    (source) => actionFor(source, displayState(sources[source]!), sources[source]?.loginUrl) !== undefined,
   ).length;
-  return input.overdue + input.suggestions + input.undated + actionable;
 }
 
 /* -------------------------------------------------------------------------- */

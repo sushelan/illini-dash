@@ -18,6 +18,7 @@ import {
   needsYouPill,
   quietState,
   alertCount,
+  sourceAlertCount,
   type AlertsInput,
   type NeedsYouInput,
   sourceRows,
@@ -714,9 +715,8 @@ describe("healthPill (what replaces the six dots)", () => {
 });
 
 describe("alertCount — the Alerts tab's badge (2026-09-19)", () => {
-  const OK = () => sources({ gradescope: status(), canvas: status({ source: "canvas" }) });
   const count = (partial: Partial<AlertsInput> = {}) =>
-    alertCount({ sources: OK(), overdue: 0, suggestions: 0, undated: 0, ...partial });
+    alertCount({ overdue: 0, suggestions: 0, undated: 0, ...partial });
 
   it("counts nothing when nothing on the tab is asking", () => {
     expect(count()).toBe(0);
@@ -727,21 +727,34 @@ describe("alertCount — the Alerts tab's badge (2026-09-19)", () => {
      * The badge has to count what the tab *holds*, or it sends a student past
      * three late assignments to a "2". `undated` is `noDateCount`, which is
      * already "No date at all" plus "Couldn't read" — the two sections the tab
-     * draws — so the four numbers here are the four things on screen.
+     * draws — so the three numbers here are the three things on screen.
      */
     expect(count({ overdue: 3, suggestions: 2, undated: 4 })).toBe(9);
   });
 
+  it("no longer counts sources, which are their own tab", () => {
+    /*
+     * The source list moved to the Sources tab on 2026-09-19 ("the sources
+     * page in alerts should be in the sources tab"). A badge on Alerts that
+     * counted a broken Gradescope would send a student to a tab with nothing
+     * about Gradescope on it — the count belongs where the buttons are, which
+     * is `sourceAlertCount`.
+     */
+    const broken = sources({ gradescope: status({ state: "needs_login" }) });
+    expect(count()).toBe(0);
+    expect(sourceAlertCount(broken)).toBe(1);
+  });
+});
+
+describe("sourceAlertCount — the Sources tab's badge (2026-09-19)", () => {
   it("counts a source only when there is something to press", () => {
     // `actionFor` decides, so the badge can never promise a button the Sources
-    // section does not draw: needs_login has a login page, parse_error has the
-    // site to open, network_error has Retry.
+    // tab does not draw: needs_login has a login page, network_error has Retry.
+    expect(sourceAlertCount(sources({ gradescope: status({ state: "needs_login" }) }))).toBe(1);
+    expect(sourceAlertCount(sources({ gradescope: status({ state: "network_error" }) }))).toBe(1);
     expect(
-      count({ sources: sources({ gradescope: status({ state: "needs_login" }) }) }),
-    ).toBe(1);
-    expect(
-      count({ sources: sources({ gradescope: status({ state: "network_error" }) }) }),
-    ).toBe(1);
+      sourceAlertCount(sources({ gradescope: status(), canvas: status({ source: "canvas" }) })),
+    ).toBe(0);
   });
 
   it("never counts a source that was not fetched (worker rule 2)", () => {
@@ -754,26 +767,23 @@ describe("alertCount — the Alerts tab's badge (2026-09-19)", () => {
      * never ran. A source switched off is the same claim in the other
      * direction: it has no button, so it is not an alert.
      */
-    expect(alertCount({ sources: emptyStore().sources, overdue: 0, suggestions: 0, undated: 0 })).toBe(0);
-    expect(count({ sources: sources({ gradescope: status({ enabled: false, state: "needs_login" }) }) })).toBe(0);
-    // …and the student's own work still counts over a cold install: the rows
-    // are real whatever the sources did.
+    expect(sourceAlertCount(emptyStore().sources)).toBe(0);
     expect(
-      alertCount({ sources: emptyStore().sources, overdue: 2, suggestions: 0, undated: 1 }),
-    ).toBe(3);
+      sourceAlertCount(sources({ gradescope: status({ enabled: false, state: "needs_login" }) })),
+    ).toBe(0);
   });
 
-  it("agrees with the Sources section about how many rows carry a button", () => {
-    // One derivation or two. `sourceRows` is what the tab draws and `alertCount`
-    // is what the strip promises, and the two disagreeing is the defect the
-    // shared `actionFor` exists to prevent (mutation rule 3's finding).
+  it("agrees with the Sources list about how many rows carry a button", () => {
+    // One derivation or two. `sourceRows` is what the tab draws and
+    // `sourceAlertCount` is what the badge promises, and the two disagreeing is
+    // the defect the shared `actionFor` exists to prevent (mutation rule 3).
     const broken = sources({
       gradescope: status({ state: "needs_login" }),
       canvas: status({ source: "canvas", state: "parse_error" }),
       prairielearn: status({ source: "prairielearn", state: "pending", lastAttemptAt: undefined }),
     });
     const drawn = sourceRows(broken, NOW).filter((row) => row.action !== undefined).length;
-    expect(alertCount({ sources: broken, overdue: 0, suggestions: 0, undated: 0 })).toBe(drawn);
+    expect(sourceAlertCount(broken)).toBe(drawn);
     expect(drawn).toBe(2);
   });
 });

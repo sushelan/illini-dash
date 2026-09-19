@@ -27,7 +27,7 @@ const NS = "http://www.w3.org/2000/svg";
 /**
  * The paths. One entry per icon, so adding one is a line rather than a file.
  *
- * `tab-*` are the five view icons, which the popup drew from its own table
+ * `tab-*` are the six view icons, which the popup drew from its own table
  * before this existed. Kept on the same grid as the rest so a tab icon and a
  * header icon are the same weight.
  */
@@ -101,6 +101,17 @@ export const ICON_PATHS = {
    * curve is a thing to keep in sync for nothing.
    */
   "tab-nodate": "M8 2a3.5 3.5 0 0 0-3.5 3.5c0 2.6-1 3.5-1 3.5h9s-1-.9-1-3.5A3.5 3.5 0 0 0 8 2zM6.8 12a1.3 1.3 0 0 0 2.4 0",
+  /*
+   * The Sources tab: a cloud (2026-09-19).
+   *
+   * Every source on that tab is a site this extension fetches — Canvas,
+   * Gradescope, PrairieLearn, PrairieTest, and the two observers — so the one
+   * thing they have in common is that they are somewhere else. A plug, a
+   * database cylinder or a stack of sheets each say something more specific
+   * and wronger. Drawn on this file's 16×16 / 1.5-stroke grid, like its
+   * neighbours.
+   */
+  "tab-sources": "M5 12.5h6.2a2.6 2.6 0 0 0 .3-5.2 3.8 3.8 0 0 0-7.2-1.1A2.7 2.7 0 0 0 5 12.5z",
   /* ---- added for the ZIP acceptance pass (2026-09-19) ----
    *
    * The mock names a Material Symbol beside eight more facts than the set above

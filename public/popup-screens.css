@@ -142,7 +142,11 @@ body[data-screen] #nav { display: none; }
   color: var(--warn); margin-bottom: 5px;
 }
 .dl--moved-text { font-size: 11.5px; line-height: 1.5; color: var(--fg); }
-.dl--undo { margin-top: 8px; }
+/* The two presses the moved note can carry, on one line under the sentence:
+   "Open the post ↗" (2026-09-19) and Undo move. Same margin, same size, so
+   neither reads as the more important of the two. */
+.dl--moved-open, .dl--undo { margin-top: 8px; }
+.dl--moved-open + .dl--undo { margin-left: 6px; }
 
 /* ---- the four buttons ---- */
 
@@ -246,13 +250,17 @@ body[data-screen] #nav { display: none; }
  * Every colour is a token from `ui.css`.
  */
 
-/* ---- the Alerts tab ----------------------------------------------------- */
+/* ---- the Sources tab ---------------------------------------------------- */
 /*
  * One banner hidden, and nothing else.
  *
- * Alerts opens with the stale-source sentence at greater length, from the same
- * `staleNotice` the banner is built from, so leaving both on screen means the
- * tab's first two lines say "Gradescope signed you out" one above the other.
+ * Sources opens with the stale-source sentence at greater length, from the
+ * same `staleNotice` the banner is built from, so leaving both on screen means
+ * the tab's first two lines say "Gradescope signed you out" one above the
+ * other. It was Alerts that drew that sentence until the source list became
+ * its own tab (2026-09-19); the sentence went with the list, and so does this
+ * rule — hiding the banner on Alerts as well would take the warning off the
+ * tab that no longer repeats it.
  * Only that banner: `#banners` also carries "Deleted … · Undo", and Alerts is
  * the tab where Hide and Tick off are pressed, so hiding the strip wholesale
  * would take away the undo for the very presses this tab invites. Keyed on
@@ -263,7 +271,7 @@ body[data-screen] #nav { display: none; }
  * now, not a screen, and a tab that hid the strip it is selected on would have
  * no way back.
  */
-body[data-view="nodate"] .banner--stale { display: none; }
+body[data-view="sources"] .banner--stale { display: none; }
 
 /* ---- Alerts: the sections that came off the Needs-you screen ------------- */
 
@@ -355,7 +363,37 @@ body[data-view="nodate"] .banner--stale { display: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/*
+ * The provenance, when it is the post itself (2026-09-19).
+ *
+ * "from the Piazza post “MP3 deadline”" is a `<button>` whenever `postUrl` can
+ * address the thread, because a popup that follows an `<a href>` navigates
+ * itself. It must not *look* like a button: the sentence is the target, it
+ * sits inside a line of facts, and a 24px control there would push the two
+ * answers off the row. So every piece of button chrome is taken off and the
+ * one thing left is a dotted underline — enough to say "pressable" at 11.5px
+ * without competing with Add and Ignore beside it.
+ *
+ * `color: inherit` on purpose: `design-classical-shell.css` sets the muted ink
+ * for `.sug-facts .needsyou--from` at (0,2,0) and wins here, which is wanted —
+ * the sentence keeps the colour it had. The hover rule is (0,2,1) so it beats
+ * that one, which is the specificity check the No Date badge failed.
+ */
+button.needsyou--from {
+  appearance: none; -webkit-appearance: none;
+  margin: 0; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px;
+}
+button.needsyou--from:hover,
+button.needsyou--from:focus-visible {
+  color: var(--brand-mark); text-decoration-style: solid;
+}
+
 .needsyou--clear { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
+/* "…and one source needs a look", with the tab it is on. Inline, because it is
+   the second half of the sentence above it rather than a second claim. */
+.needsyou--clear-go { margin-left: 6px; vertical-align: baseline; }
 .needsyou--kept { margin: 12px 0 0; font-size: 11.5px; line-height: 1.5; }
 .needsyou--kept b { font-weight: 600; }
 

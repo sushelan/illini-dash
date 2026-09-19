@@ -799,7 +799,9 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
       tab.title =
         name === "nodate"
           ? `${count} thing${count === 1 ? "" : "s"} waiting for you`
-          : `${VIEW_LABEL[name] ?? name} — ${count} need${count === 1 ? "s" : ""} attention`;
+          : name === "sources"
+            ? `${count} source${count === 1 ? "" : "s"} with something to press`
+            : `${VIEW_LABEL[name] ?? name} — ${count} need${count === 1 ? "s" : ""} attention`;
     }
 
     if (!isFullView && FULL_VIEW_ONLY.has(name)) {
@@ -901,10 +903,11 @@ export function renderBanners(stateIn: {
     const login = signInUrl(stale.source, stateIn.sources[stale.source], "needs_login");
     banners.push({
       /*
-       * Marked, because the Alerts tab opens with this same sentence at
-       * greater length, drawn from the same `staleNotice`. Leaving both on
-       * screen means the tab's first two lines say "Gradescope signed you out"
-       * one above the other. The stylesheet hides *this one* on that tab —
+       * Marked, because the Sources tab opens with this same sentence at
+       * greater length, drawn from the same `staleNotice` (it was Alerts until
+       * the list moved, 2026-09-19). Leaving both on screen means the tab's
+       * first two lines say "Gradescope signed you out" one above the other.
+       * The stylesheet hides *this one* on that tab —
        * hiding `#banners` wholesale, which is what the Needs-you screen did,
        * would take the "Deleted … · Undo" strip with it, on the one tab where
        * Hide and Tick off are pressed.
@@ -1092,12 +1095,12 @@ export function renderFooter(
    * A tab selector since 2026-09-19, so it says which tab it selects.
    *
    * It used to open the Needs-you screen in front of the calendar and carried
-   * `aria-expanded` for it. The screen is the Alerts tab now, so this is one
-   * more way to reach a tab that is already on the strip with a badge on it —
-   * `aria-pressed` states whether that tab is the one showing, which is what a
-   * toggle button owes a screen reader.
+   * `aria-expanded` for it. The list it opened is the **Sources** tab since
+   * 2026-09-19, so this is one more way to reach a tab that is already on the
+   * strip with a badge on it — `aria-pressed` states whether that tab is the
+   * one showing, which is what a toggle button owes a screen reader.
    */
-  health.setAttribute("aria-pressed", state.view === "nodate" ? "true" : "false");
+  health.setAttribute("aria-pressed", state.view === "sources" ? "true" : "false");
   health.title = sourcesTooltip(sources, now);
   health.append(dot, count, sep, when);
   health.addEventListener("click", (event) => {
@@ -1106,7 +1109,7 @@ export function renderFooter(
     // so there is no "Applying…" to show (UI rule 4). Not a toggle any more:
     // there is nothing to toggle back *to*, because the thing it used to open
     // no longer sits in front of another view.
-    selectTab("nodate");
+    selectTab("sources");
   });
 
   /*
