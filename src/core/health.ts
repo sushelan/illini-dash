@@ -439,6 +439,96 @@ export function healthPill(
   return { tone: "ok", text: clock ? `${named} · ${clock}` : named };
 }
 
+/* -------------------------------------------------------------------------- */
+/* The header pill, redesigned (brief D2)                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Why the pill says what it says.
+ *
+ * The caller needs this rather than the text: the pill is a button, and what
+ * clicking it should open is a function of the state, not of the sentence. A
+ * page that switched on `text === "All clear"` would break the first time the
+ * wording did.
+ */
+export type PillKind = "syncing" | "pending" | "late" | "needs-you" | "clear";
+
+export interface NeedsYouPill {
+  text: string;
+  tone: HealthTone;
+  kind: PillKind;
+}
+
+export interface NeedsYouInput {
+  sources: Partial<Record<Source, SourceStatus>>;
+  /** A sync is in flight right now. */
+  syncing: boolean;
+  /** `overdueItems(...).length` — the Overdue group, counted by one rule. */
+  overdue: number;
+  /** Open suggestions from posts, each one a question waiting for an answer. */
+  suggestions: number;
+}
+
+/**
+ * The header pill the redesign puts "Late" into (brief D2).
+ *
+ * `healthPill` answers "are the sources fine", which is a question about this
+ * extension. This answers "is anything asking for you", which is a question
+ * about the student's week — and the mock puts it where six source dots used to
+ * be, because the source dots are the thing nobody was looking at.
+ *
+ * The order is not severity, it is **how much the words can be trusted**:
+ *
+ * 1. A sync is running, so every count below is about to change — say so rather
+ *    than flash a number that is one second old.
+ * 2. Nothing has been fetched yet, so every count below is about nothing.
+ *    Worker house rule 2, exactly: a green "All clear" over a source that was
+ *    never read is the fresh-install green dot in a wider costume, and this
+ *    time it says the student has no work. `displayState` calls an unattempted
+ *    source `pending`, and `pending` is never `ok`.
+ * 3. Late work, which is the one thing with a deadline behind it.
+ * 4. Something needs the student: a source with an action to press, or a
+ *    suggestion waiting for a yes. Both are one click from done.
+ * 5. Nothing — and only now can that be said.
+ *
+ * `healthPill` stays exactly as it is: it still owns the wording for *which*
+ * source is broken, which the Needs-you screen (D2) prints per row.
+ */
+export function needsYouPill(input: NeedsYouInput): NeedsYouPill {
+  const { sources, syncing, overdue, suggestions } = input;
+
+  if (syncing) return { kind: "syncing", tone: "pending", text: "Syncing…" };
+
+  const summary = summarize(sources);
+
+  // Not "All clear": nothing has been switched on, so nothing has been read,
+  // and the student's list is empty because this extension never looked.
+  if (summary.checkable.length === 0) {
+    return { kind: "pending", tone: "pending", text: "No sites are switched on" };
+  }
+  // *Every* checkable source unattempted, not merely one: once a single source
+  // has answered, the counts below describe something real, and the sources
+  // still waiting are named on the Needs-you screen rather than in three words.
+  if (summary.pending.length === summary.checkable.length) {
+    return { kind: "pending", tone: "pending", text: "Not synced yet" };
+  }
+
+  if (overdue > 0) return { kind: "late", tone: "err", text: `${overdue} late` };
+
+  // A source with something to press, plus every suggestion waiting for a yes.
+  // `actionFor` rather than `isFailing`, because the pill is an invitation: a
+  // failure nobody can act on is a sentence for the Needs-you screen, not a
+  // count on a button. It is the same derivation the screen's rows use, so the
+  // pill can never promise a button that is not there.
+  const actionable = summary.failing.filter(
+    (source) => actionFor(source, displayState(sources[source]!), sources[source]?.loginUrl) !== undefined,
+  ).length;
+  const needsYou = actionable + suggestions;
+  if (needsYou > 0) return { kind: "needs-you", tone: "warn", text: `${needsYou} needs you` };
+
+  return { kind: "clear", tone: "ok", text: "All clear" };
+}
+
 /**
  * One source, as the popover and Settings both need it.
  *

@@ -14,6 +14,8 @@ import {
   actionFor,
   emptyStateFor,
   healthPill,
+  needsYouPill,
+  type NeedsYouInput,
   sourceRows,
   sourcesToRecheck,
   gcalRow,
@@ -704,6 +706,101 @@ describe("healthPill (what replaces the six dots)", () => {
   it("drops the clock rather than printing Invalid Date", () => {
     const pill = healthPill(sources({ gradescope: status() }), "not a date", NOW);
     expect(pill.text).toBe("Gradescope OK");
+  });
+});
+
+describe("needsYouPill (brief D2)", () => {
+  const OK = () => sources({ gradescope: status(), canvas: status({ source: "canvas" }) });
+  const pill = (partial: Partial<NeedsYouInput> = {}) =>
+    needsYouPill({ sources: OK(), syncing: false, overdue: 0, suggestions: 0, ...partial });
+
+  it('says "All clear" only when every source answered and nothing is asking', () => {
+    // Mock 1a and 2c both wear this over a green dot.
+    expect(pill()).toEqual({ kind: "clear", tone: "ok", text: "All clear" });
+  });
+
+  it('says "Syncing…" above everything else, because every count is about to change', () => {
+    expect(pill({ syncing: true, overdue: 4 })).toEqual({
+      kind: "syncing",
+      tone: "pending",
+      text: "Syncing…",
+    });
+  });
+
+  it('says "Not synced yet" rather than "All clear" on a cold install', () => {
+    /*
+     * Worker house rule 2: "a green dot must mean 'I fetched, and it was fine'
+     * — never 'I did not fetch'." `emptyStore()` seeds every enabled source
+     * with no attempt behind it, and an "All clear" there tells a student they
+     * have no work when it means this extension has not looked.
+     */
+    const cold = needsYouPill({
+      sources: emptyStore().sources,
+      syncing: false,
+      overdue: 0,
+      suggestions: 0,
+    });
+    expect(cold).toEqual({ kind: "pending", tone: "pending", text: "Not synced yet" });
+  });
+
+  it("stops being pending as soon as one source has actually answered", () => {
+    // One real attempt is enough to make the counts describe something; the
+    // sources still waiting are named on the Needs-you screen, not in the pill.
+    expect(
+      pill({
+        sources: sources({
+          gradescope: status(),
+          canvas: status({ source: "canvas", state: "pending", lastAttemptAt: undefined }),
+        }),
+      }).kind,
+    ).toBe("clear");
+  });
+
+  it("never claims anything about a source nobody switched on", () => {
+    expect(
+      needsYouPill({ sources: sources({}), syncing: false, overdue: 0, suggestions: 0 }),
+    ).toEqual({ kind: "pending", tone: "pending", text: "No sites are switched on" });
+  });
+
+  it('counts late work as "N late", in err', () => {
+    // Mock 2a's header: "1 late".
+    expect(pill({ overdue: 1 })).toEqual({ kind: "late", tone: "err", text: "1 late" });
+    expect(pill({ overdue: 3 }).text).toBe("3 late");
+  });
+
+  it("puts late work above anything merely asking for a click", () => {
+    expect(
+      pill({
+        overdue: 2,
+        suggestions: 5,
+        sources: sources({ gradescope: status({ state: "needs_login" }) }),
+      }).text,
+    ).toBe("2 late");
+  });
+
+  it('counts a source with something to press, plus every open suggestion', () => {
+    // Mock 1e's header: "1 needs you", over a Gradescope that signed the
+    // student out and offers a Sign in button.
+    expect(
+      pill({ sources: sources({ gradescope: status({ state: "needs_login" }) }) }),
+    ).toEqual({ kind: "needs-you", tone: "warn", text: "1 needs you" });
+    expect(pill({ suggestions: 2 }).text).toBe("2 needs you");
+    expect(
+      pill({ suggestions: 1, sources: sources({ gradescope: status({ state: "needs_login" }) }) })
+        .text,
+    ).toBe("2 needs you");
+  });
+
+  it("does not count a failure with nothing to press", () => {
+    /*
+     * `actionFor` returns nothing for a course website that is signed out with
+     * no login form of its own — the case that once rendered "Sign in needed"
+     * over nothing to click. A pill that counted it would promise a button the
+     * Needs-you screen cannot draw.
+     */
+    const noAction = status({ source: "site", state: "needs_login" });
+    expect(actionFor("site", "needs_login", noAction.loginUrl)).toBeUndefined();
+    expect(pill({ sources: sources({ site: noAction, gradescope: status() }) }).kind).toBe("clear");
   });
 });
 
