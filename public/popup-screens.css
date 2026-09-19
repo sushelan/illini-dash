@@ -1,0 +1,14 @@
+/*
+ * popup-screens.css — owned by the screens pass of the redesign.
+ *
+ * Empty on purpose. `popup.css` holds the sizing invariants, the shell and the
+ * shared card language (`.card`, `.section-head`, `.screen`); this file is
+ * where the screens work adds its own rules, so two parallel changes never touch one
+ * stylesheet. It loads after `popup.css`, so anything here wins.
+ *
+ * The invariants it may not break, whatever it adds: `html` and `body` are
+ * never scroll containers, nothing takes a viewport unit or a percentage
+ * height, and no rule is keyed on window width — Chrome lays the document out
+ * to decide the popup's size, so a width media query can feed itself. See the
+ * header of popup.css.
+ */

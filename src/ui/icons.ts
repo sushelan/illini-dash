@@ -112,3 +112,54 @@ export function iconButton(name: IconName, label: string): HTMLButtonElement {
   button.append(icon(name));
   return button;
 }
+
+/**
+ * The app mark: the squircle, the orange bar and the check (D9, mock 1a/2a).
+ *
+ * The one graphic in this project that is not `currentColor` — it is an
+ * identity, so the fill has to be the same shape in every theme rather than
+ * whatever colour the surrounding text happens to be. Both values are tokens:
+ * `--brand-mark` is a real ink in all six theme/mode combinations (navy-orange
+ * in light Illini, the accent in dark, plain `--fg` in Neutral and
+ * High-contrast), and `--surface-raised` is the card colour, so the bar and the
+ * check read as cut out of the square rather than painted on it.
+ *
+ * Drawn with `createElementNS` like every other icon here, never from a markup
+ * string: §8.1's rendering rule is that nothing on these pages is inserted as
+ * markup, and keeping one path means there is no `innerHTML` for a later change
+ * to reach for.
+ */
+export function appMark(): SVGElement {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 128 128");
+  svg.setAttribute("width", "20");
+  svg.setAttribute("height", "20");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("appmark");
+
+  const plate = document.createElementNS(NS, "rect");
+  plate.setAttribute("width", "128");
+  plate.setAttribute("height", "128");
+  plate.setAttribute("rx", "26");
+  plate.setAttribute("fill", "var(--brand-mark)");
+
+  const bar = document.createElementNS(NS, "rect");
+  bar.setAttribute("x", "22");
+  bar.setAttribute("y", "34");
+  bar.setAttribute("width", "84");
+  bar.setAttribute("height", "20");
+  bar.setAttribute("rx", "10");
+  bar.setAttribute("fill", "var(--surface-raised)");
+  bar.setAttribute("opacity", "0.62");
+
+  const tick = document.createElementNS(NS, "path");
+  tick.setAttribute("d", "M30 84 L52 104 L100 62");
+  tick.setAttribute("fill", "none");
+  tick.setAttribute("stroke", "var(--surface-raised)");
+  tick.setAttribute("stroke-width", "17");
+  tick.setAttribute("stroke-linecap", "round");
+  tick.setAttribute("stroke-linejoin", "round");
+
+  svg.append(plate, bar, tick);
+  return svg;
+}
