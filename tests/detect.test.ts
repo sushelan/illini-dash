@@ -11,13 +11,18 @@ import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
   adapterFromCandidate,
+  candidatesFoundLine,
   detectCandidates,
+  detectListCandidates,
   noCandidateReason,
+  proposeCandidates,
   rowSelectorForList,
   selectorForTable,
+  type Candidate,
 } from "../src/core/detect.js";
 import { validateProposal } from "../src/core/author.js";
-import { validateAdapter } from "../src/core/registry.js";
+import { repeatedStructures } from "../src/core/skeleton.js";
+import { validateAdapter, validateRegistry } from "../src/core/registry.js";
 import { runAdapter } from "../src/sources/site.js";
 import type { Adapter } from "../src/sources/types.js";
 
@@ -341,20 +346,41 @@ describe("noCandidateReason", () => {
     expect(noCandidateReason(docFrom("<div>loading…</div>"))).toContain("JavaScript");
   });
 
-  it("says a list can be read, because it can", () => {
+  it("names both shapes it reads, because a list is now one of them", () => {
     /*
-     * The sentence used to end "or it is a list rather than a table — those
-     * need a hand-written entry", and it was the only thing on screen after
-     * Sushi pasted ECE 411's assignments page. Two things were wrong with it by
-     * then: `runAdapter` had gained `dueLabel` and `titleFrom` that morning, so
-     * a list *is* readable; and the model branch that could propose one had
-     * just run, invisibly, immediately underneath it.
+     * This sentence has been wrong twice, in opposite directions.
+     *
+     * It first said a list "needs a hand-written entry" — false the morning
+     * `runAdapter` gained `dueLabel` and `titleFrom`. It was then rewritten to
+     * say a list "can be read — this search only looks at tables, but Chrome's
+     * built-in model can propose one", which is what a student pasting ECE 411
+     * read on 2026-09-19. That is false now: `detectListCandidates` reads a
+     * labelled list, deterministically, with no model involved. Rewritten
+     * rather than annotated, because the sentence a student reads first is the
+     * one that has to be true.
      */
-    const reason = noCandidateReason(docFrom("<h3>mp_setup</h3><ul><li>Due: 9/7</li></ul>"));
-    expect(reason).toContain("list rather than a table");
-    expect(reason).toContain("can be read");
+    const doc = docFrom("<h3>mp_setup</h3><ul><li>Attendance: required</li></ul>");
+    const reason = noCandidateReason(doc, repeatedStructures(doc));
+    expect(reason).toContain("a table with a header row naming its columns");
+    expect(reason).toContain("a list of “Due: 9/7” lines under a heading");
+    expect(reason).not.toContain("only looks at tables");
     expect(reason).toContain("built-in model");
-    expect(reason).not.toContain("those need a hand-written entry");
+  });
+
+  it("says what it did find, so an unreadable page teaches something", () => {
+    // "No candidates" is the least useful thing this could say, and the numbers
+    // are the student's only handle on *why*: a page whose best group is three
+    // lines with two dates is a different problem from one with none.
+    const doc = fixture("ece411-fa2026-syllabus.html");
+    const reason = noCandidateReason(doc, repeatedStructures(doc));
+    expect(reason).toContain("The nearest thing to a schedule is #schedule ul.simple > li");
+    expect(reason).toContain("3 lines, 2 with a date this can read");
+  });
+
+  it("says so plainly when the page's best group carries no date at all", () => {
+    const doc = docFrom("<ul><li>Office hours: Tuesdays</li><li>Office hours: Fridays</li></ul>");
+    const reason = noCandidateReason(doc, repeatedStructures(doc));
+    expect(reason).toContain("carries no date this can read");
   });
 
   it("lists the formats when the table is fine and the dates are not", () => {
@@ -482,5 +508,241 @@ describe("the entry saved for a candidate the student approved", () => {
 
   it("asks for exactly the host it is about", () => {
     expect(built!["hostPattern"]).toBe("https://courses.grainger.illinois.edu/*");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The list shape: ECE 411, read with no model at all                          */
+/* -------------------------------------------------------------------------- */
+
+const ECE411_URL = "https://courses.grainger.illinois.edu/ece411/fa2026/assignments.html";
+
+/** The shipped entry this proposal has to land on, character for character. */
+function shipped(id: string): Adapter {
+  const text = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+  const entry = validateRegistry(text).adapters.find((adapter) => adapter.id === id);
+  if (!entry) throw new Error(`no adapter ${id} in the bundled registry`);
+  return entry;
+}
+
+function propose(doc: Document): Candidate[] {
+  return proposeCandidates(doc, REFERENCE, ZONE, repeatedStructures(doc, ZONE, REFERENCE));
+}
+
+describe("the real ECE 411 assignments page, with no model", () => {
+  const doc = fixture("ece411-fa2026-assignments.html");
+  const found = propose(doc);
+
+  it("proposes exactly one entry, and it is a list", () => {
+    // Three live runs of the on-device model on this page ended with no rows
+    // (2026-09-18 twice, 2026-09-19 once). The page never reaches the model now.
+    expect(found).toHaveLength(1);
+    expect(found[0]!.columns).toBeUndefined();
+    expect(found[0]!.dueLabel).toBe("Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due");
+    expect(found[0]!.titleFrom).toBe("section >> h3");
+    expect(found[0]!.dateFormat).toBe("M/d");
+  });
+
+  it("matches the same elements as the hand-written entry, by identity", () => {
+    // Not "the same string": two selectors can spell one set of rows and only
+    // the elements decide whether this reads the course or a sixth of it.
+    const mine = [...doc.querySelectorAll(found[0]!.rows)];
+    const theirs = [...doc.querySelectorAll(shipped("ece411-fa26-mp").rows)];
+    expect(mine).toHaveLength(16);
+    expect(mine).toEqual(theirs);
+  });
+
+  it("produces the rows the hand-written entry produces", () => {
+    // What the student confirms has to be what the extension would record, and
+    // `ece411-fa26-mp` is the only proof available that this page can be read.
+    const page = { url: ECE411_URL, fetchedAt: REFERENCE };
+    const theirs = runAdapter(shipped("ece411-fa26-mp"), doc, page);
+    const adapter = adapterFromCandidate(found[0]!, ECE411_URL, "ECE411", "fa26");
+    const { adapter: mine } = validateAdapter(adapter);
+    const items = runAdapter(mine as Adapter, doc, page);
+    expect(items.map((i) => [i.title, i.dueAt])).toEqual(theirs.map((i) => [i.title, i.dueAt]));
+    expect(items.map((i) => [i.title, i.dueAt])).toEqual([
+      ["mp_setup", "2026-09-07T23:59:00-05:00"],
+      ["mp_verif", "2026-09-07T23:59:00-05:00"],
+    ]);
+  });
+
+  it("says a list, with its numbers, rather than \"one table\"", () => {
+    expect(candidatesFoundLine(found)).toBe(
+      "Found a list of 2 dated lines that looks like a schedule.",
+    );
+  });
+});
+
+describe("the ECE 411 page with its checkpoints dated (adversarial fixture)", () => {
+  /*
+   * The live page has every checkpoint at TBD, so it cannot show what this
+   * proposer does with a dated one — parser rule 10, and the fixture's own
+   * banner says how it is unrealistic. Two things it can show and the live
+   * capture cannot: three checkpoints of one MP getting three distinct titles,
+   * and `Due Date: 11/3` — which CONTAINS "Due" — not being taken as the label.
+   */
+  const doc = fixture("ece411-fa2026-assignments-dated.html");
+  const found = propose(doc);
+  const list = found.find((c) => c.rows === "#mp-information ul.simple > li")!;
+
+  it("reads the checkpoints, each with its own title", () => {
+    expect(list.sample.map((row) => row.title)).toEqual([
+      "mp_setup",
+      "mp_verif",
+      "mp_pipeline CP1",
+      "mp_pipeline CP2",
+      "mp_pipeline CP3",
+    ]);
+    expect(list.dated).toBe(5);
+  });
+
+  it("does not take \"Due Date\" as a due label (house rule 6)", () => {
+    // A label chosen by substring would take it, date mp_pipeline from 11/3,
+    // and nothing on the page would look wrong.
+    expect(list.dueLabel).not.toContain("Due Date");
+    expect(list.sample.some((row) => row.due.startsWith("2026-11-03"))).toBe(false);
+  });
+});
+
+describe("what the list proposer refuses", () => {
+  it("refuses a list whose stated lines are mostly not dates", () => {
+    // A list has no header to corroborate a partial read: one line in three
+    // reading as a date is prose with a date in it, not a schedule.
+    const doc = docFrom(
+      "<section><h3>Notes</h3><ul>" +
+        "<li>Due: 9/7</li><li>Due: see Canvas</li><li>Due: ask in lecture</li>" +
+        "</ul></section>",
+    );
+    expect(detectListCandidates(doc, repeatedStructures(doc, ZONE, REFERENCE), REFERENCE, ZONE))
+      .toEqual([]);
+  });
+
+  it("refuses a labelled list with no heading to take a title from", () => {
+    // Every row would be titled "Due", and §3.1 hashes the title — three rows
+    // with one title collide on one sourceId and KeyGuard keeps one of three.
+    const doc = docFrom("<ul><li>Due: 9/7</li><li>Due: 9/14</li><li>Due: 9/21</li></ul>");
+    expect(detectListCandidates(doc, repeatedStructures(doc, ZONE, REFERENCE), REFERENCE, ZONE))
+      .toEqual([]);
+  });
+
+  it("refuses a list of dated lines whose labels are not due labels", () => {
+    // `Release: 8/25` parses exactly as cleanly as `Due: 9/7`. The label is the
+    // only thing that says one is a deadline, so a group with no due label is
+    // not something this may propose a deadline out of.
+    const doc = docFrom(
+      "<section><h3>mp_x</h3><ul>" +
+        "<li>Release: 8/25</li><li>Released: 9/1</li><li>Posted: 9/8</li>" +
+        "</ul></section>",
+    );
+    expect(detectListCandidates(doc, repeatedStructures(doc, ZONE, REFERENCE), REFERENCE, ZONE))
+      .toEqual([]);
+  });
+
+  it("leaves a table's rows to the table proposer", () => {
+    // A table row read as a `Label: value` line is house rule 3 through the
+    // back door: nothing anchors which cell was read.
+    const doc = fixture("ece310-fa2026-index.html");
+    expect(detectListCandidates(doc, repeatedStructures(doc, ZONE, REFERENCE), REFERENCE, ZONE))
+      .toEqual([]);
+  });
+
+  it("leaves a table's cells alone even when they read like labelled lines", () => {
+    /*
+     * Deliberately unrealistic, and it has to be: a `<td>` has no cells of its
+     * own, so a group of them is read as `Label: value` lines like any other
+     * row — and a table whose every cell reads "Due: 9/7" is the one shape
+     * where that produces a deadline off an unanchored cell. House rule 3 by
+     * the back door: nothing says which column was read, so a course adding
+     * one is a page of mis-dated items with no error. Over the real captures
+     * the label check already refuses every table group, which is why this
+     * fixture is written rather than captured (mutation rule 2).
+     */
+    const doc = docFrom(
+      "<section id='mp'><h3>MP1</h3><table><tbody><tr>" +
+        "<td>Due: 9/7</td><td>Due: 9/14</td><td>Due: 9/21</td>" +
+        "</tr></tbody></table></section>",
+    );
+    const structures = repeatedStructures(doc, ZONE, REFERENCE);
+    // The cells are a group, and they do carry dates and a due label…
+    const cells = structures.find((s) => s.selector.endsWith("td"))!;
+    expect(cells.dated).toMatchObject({ rows: 3, label: "Due" });
+    // …and they carry no `titleFrom`, which is what refuses them: the <h3> over
+    // a table is not the name of one of its cells.
+    expect(cells.titleFrom).toBeUndefined();
+    expect(detectListCandidates(doc, structures, REFERENCE, ZONE)).toEqual([]);
+  });
+
+  it("refuses the whole list when one kept row's value cannot be read", () => {
+    /*
+     * "Due: see Canvas" is not TBD, so `filter.exclude` does not drop it: the
+     * runner keeps it as an item with `extra.unparsedDate` and no date. Shown
+     * in the preview it is a deadline whose date this merely failed to read,
+     * which §11 ranks above every other failure — and it usually means the
+     * group or the format is wrong, not that one line is odd.
+     *
+     * Five of six lines dated is over the 80% this asks of a list, so the
+     * candidate reaches the runner and is refused there. The same list with
+     * that line reading "TBD" is proposed, because a deadline the course has
+     * not set is a different thing from one this could not read.
+     */
+    const lines = ["9/7", "9/14", "9/21", "9/28", "10/5"];
+    const list = (last: string) =>
+      docFrom(
+        "<section><h3>MP1</h3><ul>" +
+          [...lines, last].map((value) => `<li>Due: ${value}</li>`).join("") +
+          "</ul></section>",
+      );
+    const unreadable = list("see Canvas");
+    expect(
+      detectListCandidates(
+        unreadable,
+        repeatedStructures(unreadable, ZONE, REFERENCE),
+        REFERENCE,
+        ZONE,
+      ),
+    ).toEqual([]);
+
+    const pending = list("TBD");
+    const found = detectListCandidates(
+      pending,
+      repeatedStructures(pending, ZONE, REFERENCE),
+      REFERENCE,
+      ZONE,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]!.dated).toBe(5);
+  });
+
+  it("does not reach the ECE 411 exam list, and the findings doc says why", () => {
+    // Its labels are the exams' own names — "Midterm 1", "Midterm 2", "Final" —
+    // so there is no shared due convention to build a `dueLabel` from, and the
+    // clock is in a nested list (`time: "ul"`) with `kind: "exam"` on top. That
+    // is a hand-written entry, and `docs/ece411-findings.md` says so.
+    const doc = fixture("ece411-fa2026-syllabus.html");
+    expect(propose(doc)).toEqual([]);
+  });
+});
+
+describe("the table proposer still wins where a table is the answer", () => {
+  it("proposes the homework table on ECE 310 and no list", () => {
+    const found = propose(fixture("ece310-fa2026-index.html"));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.rows).toBe("#homework table tbody tr");
+    expect(candidatesFoundLine(found)).toBe("Found one table that looks like a schedule.");
+  });
+
+  it("puts a table first where a page offers both", () => {
+    // A header table is the shape whose evidence is independent of the search:
+    // the page itself named the column.
+    const doc = docFrom(
+      "<table id='t'><thead><tr><th>Assignment</th><th>Due</th></tr></thead>" +
+        "<tbody><tr><td>HW1</td><td>9/7</td></tr><tr><td>HW2</td><td>9/14</td></tr></tbody></table>" +
+        "<section><h3>MP1</h3><ul><li>Due: 10/1</li><li>Release: 9/1</li><li>Due: 10/8</li></ul></section>",
+    );
+    const found = propose(doc);
+    expect(found.length).toBeGreaterThan(1);
+    expect(found[0]!.columns).toBeDefined();
+    expect(candidatesFoundLine(found)).toContain("1 table and 1 list");
   });
 });

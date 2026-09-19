@@ -82,6 +82,24 @@ does carry it.
 
 The final is `TBD` in both the date and the time field and is excluded.
 
+**And this list is not reachable by the deterministic proposer — it needs the entry that
+was written by hand.** Three things about it, each of which alone would be enough:
+
+1. **The labels are the exams' own names.** `Midterm 1`, `Midterm 2`, `Final` — one line
+   each, no convention. `dated.label` is built from labels that end in the word *due*,
+   or failing that from a label at least two dated rows share; this list offers neither,
+   and a proposer that guessed "the label is whatever this line starts with" would
+   produce a `dueLabel` covering one exam.
+2. **The clock is in a nested `<li>`**, reached by `time: "ul"`. Nothing in the group's
+   own rows says so, and without it every exam lands at an invented 23:59.
+3. **`kind: "exam"`** is a fact about what the page lists, not about its markup.
+
+The inventory does say the group carries dates — `#schedule ul.simple > li ×3 dated 2/3
+(1 TBD)`, read off the `<p>` child rather than the flattened row, which is what the
+shipped entry reads — so a model shown this page is pointed at the right group. The
+deterministic search declines it, and says so: *"The nearest thing to a schedule is
+#schedule ul.simple > li: 3 lines, 2 with a date this can read."*
+
 ## The live schedule is in a Google Sheets iframe, and cannot be read
 
 `syllabus.html` opens its Schedule section with:
@@ -122,9 +140,19 @@ wrong date — `TBD` produces no row — but a student should not read an empty 
 - **"An adapter is a course."** It is a *page*. A course with deadlines on two pages is
   two adapters sharing a `courseCode`, and nothing in §4.5 forbids that once you notice
   only `id` is checked for uniqueness.
-- **What the author flow now depends on (2026-09-18).** The on-device author proposes
-  from an inventory of the page's repeated groups (`repeatedStructures`), not from a
-  guess. Over `assignments.html` the inventory's fourth entry is `#mp-information
-  ul.simple > li` (×16) — character for character the selector `ece411-fa26-mp` uses — and
-  over `syllabus.html` `#schedule ul.simple > li` (×3) reaches the same elements as the
-  shipped exam entry's `#schedule > ul.simple > li`. A test pins both by element identity.
+- **This page is read without a model (2026-09-19).** `assignments.html` was the page
+  that sent the on-device author three failing runs, one build apart; the last of them
+  ended *"only 1 of 3 rows carried a readable date"*. It is now read by the
+  deterministic search: `detectListCandidates` takes the inventory group
+  `#mp-information ul.simple > li` (×16 — character for character the selector
+  `ece411-fa26-mp` uses), reads `Due|CP1 Due|CP2 Due|CP3 Due|Advance Features Due` off
+  the lines themselves, takes `section >> h3` as the title, and runs the result through
+  the real runner: `mp_setup` and `mp_verif`, both 2026-09-07T23:59-05:00, which is what
+  the hand-written entry produces. `tests/detect.test.ts` pins the rows by element
+  identity and the items against the shipped entry. The model is not asked about this
+  page at all, and on a machine without one the page is readable anyway.
+
+  What made the difference was measuring which groups carry dates: four of this group's
+  sixteen lines state one and the other twelve read `TBD`, so counted as *4 of 4 stated*
+  it is the best group on the page, and counted as *4 of 16* it sits below a bare `li`
+  (×39) that covers the whole document. See `docs/adapter-author.md`.

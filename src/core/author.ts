@@ -36,7 +36,13 @@ import { ParseError, type Adapter, type Kind, type PageCtx } from "../sources/ty
 import { isHeaderRowOutsideTbody, rowSelectorForTable } from "./detect.js";
 import type { Candidate, DetectedRow } from "./detect.js";
 import { validateAdapter } from "./registry.js";
-import { renderStructures, repeatedStructures, type RepeatedStructure } from "./skeleton.js";
+import {
+  MAX_DATED_NOTE_CHARS,
+  renderDatedGroups,
+  renderStructures,
+  repeatedStructures,
+  type RepeatedStructure,
+} from "./skeleton.js";
 
 /**
  * The fields the model may name, in one place.
@@ -720,7 +726,23 @@ function groundProposal(
 
 export type ValidationOutcome =
   | { ok: true; candidate: Candidate }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      /**
+       * True when the rejection was about *dates* — no date read, too few rows
+       * dated, or a tail the reader could not consume.
+       *
+       * A flag rather than the retry sniffing the sentence. Three rejections
+       * share one answer ("here are the groups that do carry dates") and they
+       * are three different sentences; matching them by substring is house rule
+       * 6's mistake, and a reworded reason would silently stop earning the one
+       * note that would have ended the loop. Live, three builds running, ECE
+       * 411 ended on "only 1 of 3 rows carried a readable date" with nothing
+       * anywhere saying which group had the other fifteen.
+       */
+      dateProblem?: true;
+    };
 
 /** Rows shown in the preview, matching what `detect.ts` offers. */
 const SAMPLE_ROWS = 6;
@@ -992,6 +1014,7 @@ export function validateProposal(
   if (dated.length === 0) {
     return {
       ok: false,
+      dateProblem: true,
       reason:
         `nothing in ${dueName} read as a date in ${adapter.dateFormat} format. ` +
         `Check where the deadline is and the format (${supportedDateFormats().join(", ")}).`,
@@ -1000,6 +1023,7 @@ export function validateProposal(
   if (dated.length / items.length < MIN_DATED_SHARE) {
     return {
       ok: false,
+      dateProblem: true,
       reason: `only ${dated.length} of ${items.length} rows carried a readable date`,
     };
   }
@@ -1017,6 +1041,7 @@ export function validateProposal(
   if (unparsed) {
     return {
       ok: false,
+      dateProblem: true,
       reason:
         `row ${JSON.stringify(unparsed.title)} has a date this could not fully read ` +
         `(${unparsed.extra?.["unparsedDate"] ?? unparsed.extra?.["unparsedTime"]})`,
@@ -1171,8 +1196,15 @@ export function rowSketchNote(
   return `Inside one ${rows} row: ${structure.sketch}.`;
 }
 
-/** The text appended to `base` on every attempt after the first. */
-export function retrySuffix(reason: string, sketch?: string): string {
+/**
+ * The text appended to `base` on every attempt after the first.
+ *
+ * `dated` is the answer to the rejection the model could not act on: when the
+ * refusal was about dates, the next attempt is handed the groups that *do*
+ * carry them, with their labels, so the answer is a copy rather than another
+ * search over the same twelve lines.
+ */
+export function retrySuffix(reason: string, sketch?: string, dated?: string): string {
   const quoted =
     reason.length > MAX_RETRY_REASON_CHARS
       ? `${reason.slice(0, MAX_RETRY_REASON_CHARS - 1)}…`
@@ -1186,8 +1218,15 @@ export function retrySuffix(reason: string, sketch?: string): string {
       : sketch.length > MAX_SKETCH_NOTE_CHARS
         ? `${sketch.slice(0, MAX_SKETCH_NOTE_CHARS - 1)}…\n`
         : `${sketch}\n`;
+  const groups =
+    dated === undefined
+      ? ""
+      : `${dated.length > MAX_DATED_NOTE_CHARS ? `${dated.slice(0, MAX_DATED_NOTE_CHARS - 1)}…` : dated}\n`;
   return (
-    `\n\nYour previous answer was rejected: ${quoted}\n` + note + "Answer again, correcting that."
+    `\n\nYour previous answer was rejected: ${quoted}\n` +
+    note +
+    groups +
+    "Answer again, correcting that."
   );
 }
 
@@ -1202,6 +1241,7 @@ export function retrySuffix(reason: string, sketch?: string): string {
 export const RETRY_SUFFIX_CHARS = retrySuffix(
   "x".repeat(MAX_RETRY_REASON_CHARS),
   "x".repeat(MAX_SKETCH_NOTE_CHARS),
+  "x".repeat(MAX_DATED_NOTE_CHARS),
 ).length;
 
 const DEFAULT_ATTEMPTS = 3;
@@ -1245,8 +1285,10 @@ export async function authorAdapter(
   let reason = "";
   /** The row sketch the last rejection earned, repeated on the next attempt. */
   let sketch: string | undefined;
+  /** And the dated groups, when the last rejection was about dates. */
+  let dated: string | undefined;
   for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const text = attempt === 1 ? base : `${base}${retrySuffix(reason, sketch)}`;
+    const text = attempt === 1 ? base : `${base}${retrySuffix(reason, sketch, dated)}`;
 
     let answer: string;
     try {
@@ -1266,6 +1308,7 @@ export async function authorAdapter(
     } catch {
       reason = "that was not JSON";
       sketch = undefined;
+      dated = undefined;
       say({
         attempt,
         outcome: "not-json",
@@ -1303,6 +1346,10 @@ export async function authorAdapter(
     }
     reason = outcome.reason;
     sketch = rowSketchNote(parsed, structures);
+    // Only for a rejection about dates: on any other one the groups that carry
+    // them are not the correction, and a sentence repeated on every retry is a
+    // sentence the model stops reading.
+    dated = outcome.dateProblem ? renderDatedGroups(structures) : undefined;
     say({
       attempt,
       outcome: "rejected",

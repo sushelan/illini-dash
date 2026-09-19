@@ -23,12 +23,25 @@
  */
 
 import { ParseError } from "../sources/types.js";
+import { parseAdapterDateParts, supportedDateFormats } from "../sources/site.js";
 import {
   isHeaderRowOutsideTbody,
+  PLACEHOLDER,
   rowSelectorForList,
   rowSelectorForTable,
   selectorForTable,
+  SITE_TIMEZONE,
 } from "./detect.js";
+
+/**
+ * The instant a bare `9/7` is read against when the caller states none.
+ *
+ * Only the *year* depends on it, and whether a group carries dates does not —
+ * so a fixed instant keeps this file pure (no `Date.now()` in a function whose
+ * answer a test pins) while a caller holding the page's own `fetchedAt` passes
+ * it and gets the runner's exact reading.
+ */
+const DATING_REFERENCE = "2026-01-01T00:00:00.000Z";
 
 /** Tags that are all bytes and no structure. */
 const DROPPED = new Set([
@@ -237,7 +250,19 @@ function renderTable(table: Element, selector: string, budget: number, inv: Inve
  * colon in the middle of it is a paragraph that happens to be in a list, and a
  * page of those is not a page `dueLabel` can read.
  */
-const LABEL_LINE = /^[^:]{1,60}:\s*\S/;
+const LABEL_LINE = /^([^:]{1,60}):\s*(\S.*)$/;
+
+/**
+ * The label and the value of such a line, or nothing.
+ *
+ * One regex, two questions — "is this a labelled line?" and "what does it say
+ * after the colon?" — because the second is the one the date reader below asks
+ * and a second spelling of the first is how the two would drift apart.
+ */
+export function labelledValue(text: string): { label: string; value: string } | undefined {
+  const match = LABEL_LINE.exec(text);
+  return match ? { label: match[1]!.trim(), value: match[2]!.trim() } : undefined;
+}
 
 /** The share of a list's lines that must be labelled before it is offered. */
 const MIN_LABELLED_SHARE = 0.5;
@@ -622,6 +647,24 @@ export interface RepeatedStructure {
    * sentence with nothing after the colon.
    */
   sketch: string;
+  /**
+   * How much of this group carries a date, and under what label.
+   *
+   * The first thing the list is ordered on, because it is the only thing in it
+   * that answers the question actually being asked — *where are the deadlines*
+   * — and because nothing else here distinguished ECE 411's four dated lines
+   * from the thirty-nine bullets containing them.
+   */
+  dated: DatedRows;
+  /**
+   * The `titleFrom` spec a list-shaped entry over this group would carry.
+   *
+   * A row in a list has no name of its own; the name is the heading above it.
+   * Carried here rather than re-derived by `detect.ts`'s list proposer so the
+   * heading decision is written once (mutation rule 3), and absent for a group
+   * whose rows are table cells or that has no heading over it.
+   */
+  titleFrom?: string;
 }
 
 /** A row sketch names this many parts at most; a row is not an outline. */
@@ -650,6 +693,216 @@ export function rowSketch(row: Element): string {
   );
   if (ownText) parts.push("text");
   return clip(parts.join(", "), MAX_SKETCH_CHARS);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Which groups carry dates — read with the runner's own date reader           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a group of rows states about dates, measured rather than guessed.
+ *
+ * The inventory used to say what a page *repeats* and nothing about which of
+ * those groups carries a deadline, so the only thing ordering it was "does this
+ * look like a row" — and on ECE 411 that put a bare `li` (×39, four of them
+ * dated) three places above `#mp-information ul.simple > li` (×16, every stated
+ * line dated), which is the selector the shipped entry uses. Three live runs in
+ * a row the model picked a small wrong group; nothing in what it was shown said
+ * which group actually had dates in it.
+ *
+ * Measured with `parseAdapterDateParts` — the reader `runAdapter` uses — rather
+ * than a regex of this file's own, so a group this says is dated is a group the
+ * runner can read. A tail the reader could not consume counts as *not* dated,
+ * because `validateProposal` refuses exactly that.
+ */
+export interface DatedRows {
+  /** Rows of the group whose date the runner's reader could read. */
+  rows: number;
+  /** Rows in the group. */
+  of: number;
+  /**
+   * Rows stating `TBD`, `TBA` or `N/A` where their value goes.
+   *
+   * Not undated: a course that has not set a deadline yet is not a page this
+   * read wrongly, and `filter.exclude` drops these rows in both shipped
+   * entries. Kept apart so the share below is *dated out of stated* — 4 of 4 on
+   * the ECE 411 capture, not 4 of 16.
+   */
+  pending: number;
+  /** One dated row's text, so a person or a model can see what was read. */
+  sample: string;
+  /** The format most of the dated rows matched; "" when none did. */
+  format: string;
+  /**
+   * The `dueLabel` this group would carry, when its lines are labelled.
+   *
+   * Every label ending in the word *due* — `Due|CP1 Due|CP2 Due|CP3 Due|Advance
+   * Features Due` on ECE 411, which is character for character what
+   * `ece411-fa26-mp` carries. `Release: 8/25` parses just as cleanly as
+   * `Due: 9/7` and is not a deadline, so "a label that carries a date" is the
+   * wrong test and "a label that says due" is the right one (`site.ts`'s
+   * `matchDueLabel` makes the same distinction from the other end). House rule
+   * 6 keeps it exact: `Due Date` does not end in *due* and is not taken.
+   */
+  label?: string;
+}
+
+/** Enough dated rows kept to choose a sample from; a sample is not a listing. */
+const MAX_DATED_SAMPLES = 8;
+
+/** A label that means "this line is the deadline", exactly (house rule 6). */
+const DUE_LABEL = /\bdue$|^deadline$/i;
+
+/** A label has to say "due" on this many dated rows before it is the convention. */
+const MIN_SHARED_LABEL_ROWS = 2;
+
+/**
+ * The values one row states, as the runner would read them.
+ *
+ * A table row states one per cell — never positionally (house rule 3): every
+ * cell is tried and the row is dated if any of them reads. A list row states
+ * one after its label, which is the whole reason `dueLabel` exists: the date
+ * formats are `^`-anchored, so `Due: 9/7` reads as nothing until `Due:` comes
+ * off the front.
+ */
+function rowFields(row: Element): { value: string; label?: string }[] {
+  const cells = [...row.querySelectorAll("th, td")];
+  if (cells.length > 0) return cells.map((cell) => ({ value: squash(cell.textContent) }));
+  /*
+   * The row's own text, and then each child's — because both are answers the
+   * runner takes, and reading only the first mislabels a page.
+   *
+   * ECE 411's syllabus prints `<li><p>Midterm 1: September 29</p><ul><li>Time:
+   * 7-9PM</li>…</ul></li>`. Flattened, the row reads "Midterm 1: September 29
+   * Location: ECEB 1002 Time: 7-9PM", whose tail the date reader cannot consume
+   * — so the row's own text is *not* a date, and a group of them would be
+   * reported as carrying none, on the one page whose exams are in it. The
+   * shipped entry reads `due: "p"`, which is the child; so does this.
+   */
+  const fields: { value: string; label?: string }[] = [];
+  for (const text of [squash(row.textContent), ...[...row.children].map((c) => squash(c.textContent))]) {
+    if (text === "") continue;
+    const labelled = labelledValue(text);
+    fields.push(labelled ? { label: labelled.label, value: labelled.value } : { value: text });
+  }
+  return fields;
+}
+
+/** The format that reads this value cleanly, or nothing. */
+function formatFor(value: string, timezone: string, reference: string): string | undefined {
+  if (!value || PLACEHOLDER.test(value)) return undefined;
+  return supportedDateFormats().find((format) => {
+    const parts = parseAdapterDateParts(value, format, timezone, reference);
+    // A tail the reader could not consume — `09/04 @ 11:59pm` read as `09/04` —
+    // is the rejection `validateProposal` gives a proposal, so counting the row
+    // as dated here would rank a group the runner will refuse.
+    return parts !== undefined && parts.unparsedTime === undefined;
+  });
+}
+
+/**
+ * How many rows of a group carry a date, with what format and under what label.
+ *
+ * Pure and parameterised on the clock: `timezone` and `reference` are the
+ * runner's, so this reads a page exactly as the adapter that would be written
+ * against it. The defaults are there because the classification barely depends
+ * on them — a bare `9/7` is a date in every year — and a caller with the page's
+ * own fetch instant should still pass it.
+ */
+export function datedRows(
+  rows: readonly Element[],
+  timezone: string = SITE_TIMEZONE,
+  reference: string = DATING_REFERENCE,
+): DatedRows {
+  const formatCounts = new Map<string, number>();
+  /** Every label the group states, in document order, dated or not. */
+  const labels: string[] = [];
+  const datedLabels = new Map<string, number>();
+  /** The first few dated rows, so the sample can be chosen after the label is. */
+  const datedSamples: { text: string; label?: string }[] = [];
+  let dated = 0;
+  let pending = 0;
+
+  for (const row of rows) {
+    const fields = rowFields(row);
+    const label = fields[0]?.label;
+    if (label !== undefined && !labels.includes(label)) labels.push(label);
+
+    let format: string | undefined;
+    for (const field of fields) {
+      format = formatFor(field.value, timezone, reference);
+      if (format) break;
+    }
+    const text = squash(row.textContent);
+    if (format !== undefined) {
+      dated += 1;
+      formatCounts.set(format, (formatCounts.get(format) ?? 0) + 1);
+      if (label !== undefined) datedLabels.set(label, (datedLabels.get(label) ?? 0) + 1);
+      if (datedSamples.length < MAX_DATED_SAMPLES) {
+        datedSamples.push({ text: clip(text, MAX_STRUCTURE_SAMPLE), ...(label ? { label } : {}) });
+      }
+    } else if (PLACEHOLDER.test(text)) {
+      pending += 1;
+    }
+  }
+
+  let format = "";
+  let best = 0;
+  for (const [name, n] of formatCounts) {
+    if (n > best) {
+      best = n;
+      format = name;
+    }
+  }
+
+  /*
+   * Every "due" label, or the one label most of the dated rows share.
+   *
+   * The first branch takes the labels of *every* row, not only the dated ones:
+   * on the capture `CP1 Due` through `Advance Features Due` all read TBD, and a
+   * `dueLabel` built from the dated lines alone would miss every checkpoint the
+   * moment the course fills one in — an adapter that reads the page today and
+   * silently stops covering it next week.
+   */
+  const due = labels.filter((label) => DUE_LABEL.test(label));
+  let label: string | undefined;
+  if (due.length > 0) {
+    label = due.join("|");
+  } else {
+    let shared: { label: string; n: number } | undefined;
+    for (const [name, n] of datedLabels) {
+      if (n < MIN_SHARED_LABEL_ROWS) continue;
+      if (!shared || n > shared.n) shared = { label: name, n };
+    }
+    label = shared?.label;
+  }
+
+  /*
+   * A dated row carrying the chosen label, where there is one.
+   *
+   * On the ECE 411 capture the first dated row is `Release: 8/25`, and a line
+   * reading `dated 4/16 (label "Due|…")  e.g. "Release: 8/25"` shows the model
+   * the one line on the page that looks exactly like a deadline and is not one.
+   * The sample is what a person checks the label against, so it is chosen after
+   * the label rather than before it.
+   */
+  const wanted = new Set((label ?? "").split("|"));
+  const sample =
+    (datedSamples.find((row) => row.label !== undefined && wanted.has(row.label)) ??
+      datedSamples[0])?.text ?? "";
+
+  return { rows: dated, of: rows.length, pending, sample, format, ...(label ? { label } : {}) };
+}
+
+/**
+ * Dated rows out of *stated* rows — the number the inventory is ranked on.
+ *
+ * A group whose every stated line is a deadline is the answer even when most of
+ * its lines still read TBD, which is the whole of ECE 411 in one sentence.
+ */
+export function datedShare(structure: RepeatedStructure): number {
+  const stated = structure.dated.of - structure.dated.pending;
+  return stated > 0 ? structure.dated.rows / stated : 0;
 }
 
 /** Shown to the model, and enumerated in the schema. Both want a short list. */
@@ -693,11 +946,25 @@ function anchorSelector(parent: Element): string | undefined {
  * spellings of the same seventeen `<li>`s are one answer, and the shortest is
  * the one a model copies correctly.
  */
-export function repeatedStructures(doc: Document): RepeatedStructure[] {
+export function repeatedStructures(
+  doc: Document,
+  /** The runner's clock, so "carries a date" means what the runner means. */
+  timezone: string = SITE_TIMEZONE,
+  reference: string = DATING_REFERENCE,
+): RepeatedStructure[] {
   const order = new Map<Element, number>();
   for (const [i, element] of [...doc.querySelectorAll("*")].entries()) order.set(element, i);
 
-  const best = new Map<string, RepeatedStructure>();
+  const best = new Map<string, Omit<RepeatedStructure, "dated" | "titleFrom">>();
+  /*
+   * The rows behind each surviving group, kept for the dating pass below.
+   *
+   * Dating is the expensive question — every row against every format — and
+   * `consider` runs on far more selectors than survive `best`, which keeps one
+   * spelling per *matched set*. Asked there, a 0.5MB page pays for the same
+   * elements under three spellings; asked here, once each.
+   */
+  const rowsOf = new Map<string, Element[]>();
   /*
    * One evaluation per distinct selector string, which is what makes this
    * linear enough to run on the options page's main thread.
@@ -757,6 +1024,7 @@ export function repeatedStructures(doc: Document): RepeatedStructure[] {
       rowLike: rows / matched.length >= MIN_ROW_LIKE_SHARE,
       sketch: rowSketch(matched[0]!),
     });
+    rowsOf.set(key, matched);
   };
 
   // The two shapes that already have a spelling, taken from the code that
@@ -804,9 +1072,39 @@ export function repeatedStructures(doc: Document): RepeatedStructure[] {
    * right one, which is a worse failure than the invented selector this list
    * was written to prevent. A schedule has more rows than a summary box.
    */
-  return [...best.values()]
+  const structures: RepeatedStructure[] = [...best.entries()].map(([key, structure]) => {
+    const rows = rowsOf.get(key)!;
+    // A table row's name is in its own cells, so a heading over the table is
+    // not a `titleFrom` — offering one would be a spec the runner resolves to
+    // the same string for every row on the page.
+    const heading = rows[0]!.closest("table") ? undefined : headingFor(rows[0]!);
+    return {
+      ...structure,
+      dated: datedRows(rows, timezone, reference),
+      ...(heading ? { titleFrom: heading.spec } : {}),
+    };
+  });
+
+  /*
+   * Dated rows first — as a *share of the rows that state anything at all* —
+   * then the number of them, and only then the old order.
+   *
+   * The share rather than the count, measured on the two real captures:
+   * counting put ECE 411's bare `li` (×39, four dated) level with every group
+   * inside it and the old tie-breaks handed the page to the widest one, which
+   * is the run Sushi saw three times. Sharing puts `#mp-information ul.simple >
+   * li` first (four of four stated lines dated, twelve still TBD) and, on ECE
+   * 310, `#homework table tbody tr` (13 of 13) above the schedule table (16 of
+   * 39) — in both cases the selector a person wrote by hand.
+   *
+   * The count still breaks the tie between two groups that are all dates, which
+   * is what keeps one MP's two bullets below the sixteen covering the course.
+   */
+  return structures
     .sort(
       (a, b) =>
+        datedShare(b) - datedShare(a) ||
+        b.dated.rows - a.dated.rows ||
         Number(b.rowLike) - Number(a.rowLike) ||
         b.count - a.count ||
         a.selector.length - b.selector.length,
@@ -827,9 +1125,66 @@ export function renderStructures(structures: RepeatedStructure[]): string {
     "REPEATED STRUCTURES ON THIS PAGE — the rows selector must be one of these:",
     ...structures.map(
       (s) =>
-        `  ${s.selector}  ×${s.count}` +
+        `  ${s.selector}  ×${s.count}  ${datedPhrase(s.dated)}` +
         `  inside one row: ${s.sketch}` +
-        `  e.g. ${JSON.stringify(s.sample)}`,
+        // The *dated* row's text where there is one, and the group's first row
+        // otherwise. One sample, not two: printing both spent a line of the
+        // window saying the same thing twice on every group whose first row is
+        // dated, and the interesting one is the row that carries a deadline.
+        `  e.g. ${JSON.stringify(s.dated.rows > 0 ? s.dated.sample : s.sample)}`,
     ),
   ].join("\n");
+}
+
+/**
+ * `dated 4/16 (12 TBD)  e.g. "Due: 9/7" (label "Due")` — the missing half.
+ *
+ * The inventory told the model what the page repeats and left it to guess which
+ * of a dozen groups held deadlines. Every field here is measured: the counts by
+ * the runner's date reader, the sample off the page, the label off the lines
+ * themselves. A group with no dates says so, which is as useful — it is what
+ * lets the model rule one out without proposing it first.
+ */
+export function datedPhrase(dated: DatedRows): string {
+  if (dated.rows === 0) {
+    return dated.pending > 0 ? `no dates yet (${dated.pending} TBD)` : "no dates";
+  }
+  return (
+    `dated ${dated.rows}/${dated.of}` +
+    (dated.pending > 0 ? ` (${dated.pending} TBD)` : "") +
+    (dated.label ? ` (label ${JSON.stringify(clip(dated.label, MAX_LABEL_CHARS))})` : "")
+  );
+}
+
+/** A `dueLabel` with twenty alternatives is data, not prompt text. */
+const MAX_LABEL_CHARS = 80;
+
+/** The groups a retry is pointed at, and the longest that sentence may run. */
+const MAX_DATED_GROUPS = 3;
+export const MAX_DATED_NOTE_CHARS = 200;
+
+/**
+ * "Groups on this page that do carry dates: …" — or nothing.
+ *
+ * Attached to a retry whose rejection was *about dates* ("only 1 of 3 rows
+ * carried a readable date"), which is the rejection the model kept earning on
+ * ECE 411 and the one it had nothing to act on: the inventory in the prompt
+ * said what the page repeats, the rejection said this group was not it, and
+ * nothing anywhere said which group was. With this, the next answer is a copy
+ * rather than another search.
+ */
+export function renderDatedGroups(structures: RepeatedStructure[]): string | undefined {
+  const dated = structures
+    .filter((structure) => structure.dated.rows > 0)
+    .slice(0, MAX_DATED_GROUPS);
+  if (dated.length === 0) return undefined;
+  const list = dated
+    .map(
+      (s) =>
+        `${s.selector} (${s.dated.rows} of ${s.dated.of} dated` +
+        (s.dated.label ? `, label ${JSON.stringify(clip(s.dated.label, MAX_LABEL_CHARS))}` : "") +
+        ")",
+    )
+    .join("; ");
+  return clip(`Groups on this page that do carry dates: ${list}.`, MAX_DATED_NOTE_CHARS);
 }

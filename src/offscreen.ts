@@ -10,7 +10,8 @@ import { currentTermCourses } from "./sources/gradescope.js";
 import { parseCourseList as parseSmartPhysicsCourseList } from "./sources/smartphysics.js";
 import { getParser } from "./sources/registry.js";
 import { runAdapter } from "./sources/site.js";
-import { detectCandidates, noCandidateReason } from "./core/detect.js";
+import { noCandidateReason, proposeCandidates } from "./core/detect.js";
+import { repeatedStructures } from "./core/skeleton.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
 
 chrome.runtime.onMessage.addListener(
@@ -37,11 +38,20 @@ chrome.runtime.onMessage.addListener(
         // §4.5 self-serve: propose selectors for a page nobody has an adapter
         // for. Here rather than in the worker for the same reason as every
         // other op — there is no DOMParser in a service worker.
-        const candidates = detectCandidates(doc, message.reference, message.timezone);
+        // The inventory is computed here and used twice: the list proposer is
+        // a search over it, and the "nothing found" sentence is read off it.
+        // Computing it twice would let the two disagree about the same page.
+        const structures = repeatedStructures(doc, message.timezone, message.reference);
+        const candidates = proposeCandidates(
+          doc,
+          message.reference,
+          message.timezone,
+          structures,
+        );
         sendResponse({
           ok: true,
           candidates,
-          reason: candidates.length === 0 ? noCandidateReason(doc) : undefined,
+          reason: candidates.length === 0 ? noCandidateReason(doc, structures) : undefined,
         });
       } else {
         throw new Error("unknown offscreen message");
