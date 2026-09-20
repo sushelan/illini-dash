@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   clockFromText,
   clockGroups,
+  clockOf,
   matchDueLabel,
   matchDuePhrase,
   parseAdapterDate,
@@ -532,7 +533,11 @@ describe("the bundled registry", () => {
      * refuses wholesale on one new field would break the shipped courses.
      */
     const { adapters, rejected } = validateRegistry(text, "1.0.0");
-    expect(rejected.map((line) => line.split(":")[0])).toEqual(["cs425-fa26"]);
+    expect(rejected.map((line) => line.split(":")[0])).toEqual([
+      "cs425-fa26",
+      "cs374a-fa26-hw",
+      "cs374a-fa26-gps",
+    ]);
     for (const line of rejected) expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
     expect(adapters.map((a) => a.id)).toEqual([
       "cs424-fa26",
@@ -1608,6 +1613,277 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       const withFilter = runAdapter(filtered, load("cs425-fa2026-assignments-adversarial.html"), ctx);
       expect(withFilter.some((i) => i.title === "HW6 Document")).toBe(true);
     });
+  });
+});
+
+/**
+ * CS/ECE 374 A — §4.5's fifth page shape: the date is the row's *sibling*.
+ *
+ * A definition list. The date is the `<dt>` and the assignment is the `<dd>`
+ * after it, so the date is outside the row and no selector, column or scope
+ * reaches it. And the clock is stated once, in a paragraph above the list:
+ * "Written homeworks are due every **Tuesday at 9pm**".
+ *
+ * Both pages are unmodified `curl` captures of the public pages, 2026-09-18.
+ */
+describe("ECE 374 A: the date is the dt before each dd", () => {
+  const registryText = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+  const shipped = (id: string): Adapter =>
+    validateRegistry(registryText).adapters.find((a) => a.id === id)!;
+  const load = (name: string) =>
+    doc(readFileSync(new URL(`../fixtures/sites/${name}`, import.meta.url), "utf8"));
+  const at = { fetchedAt: "2026-09-18T12:00:00.000Z" };
+
+  describe("the homeworks page", () => {
+    const hw = shipped("cs374a-fa26-hw");
+    const items = runAdapter(hw, load("cs374a-fa2026-homeworks.html"), { url: hw.url, ...at });
+
+    it("ships a valid adapter", () => {
+      expect(validateAdapter(hw).adapter).toBeDefined();
+    });
+
+    it("reads all eleven homeworks, each from the dt before it", () => {
+      expect(items.map((i) => [i.title, i.dueAt])).toEqual([
+        ["Homework 1", "2026-09-01T21:00:00-05:00"],
+        ["Homework 2", "2026-09-09T21:00:00-05:00"],
+        ["Homework 3", "2026-09-15T21:00:00-05:00"],
+        ["Homework 4", "2026-09-22T21:00:00-05:00"],
+        ["Homework 5", "2026-10-06T21:00:00-05:00"],
+        ["Homework 6", "2026-10-13T21:00:00-05:00"],
+        ["Homework 7", "2026-10-20T21:00:00-05:00"],
+        ["Homework 8", "2026-10-27T21:00:00-05:00"],
+        ["Homework 9", "2026-11-03T21:00:00-06:00"],
+        ["Homework 10", "2026-11-17T21:00:00-06:00"],
+        ["Homework 11", "2026-12-01T21:00:00-06:00"],
+      ]);
+    });
+
+    it("reads a date the page wrapped in <em><strong>", () => {
+      // "Wed Sep 09" is the one deadline that moved off a Tuesday, and the page
+      // marks it by bolding the whole `<dt>`. `duePrev` reads the element, not
+      // its first text node, so the emphasis costs nothing.
+      expect(items[1]!.extra?.["dueText"]).toBe("Wed Sep 09");
+    });
+
+    it("puts every one at 21:00 and still calls the clock assumed", () => {
+      /*
+       * Worker rule 3, and the reason `defaultTime` does not clear the flag.
+       * The page states 9pm once, in prose, about homework in general — 21:00
+       * on a row is this extension's inference from that sentence, not a clock
+       * the row carries. §5.3 ranks `site` above `canvas`, so an unflagged
+       * inference would silently replace a real instructor-set Canvas deadline.
+       */
+      for (const item of items) expect(item.extra?.["timeAssumed"], item.title).toBe("true");
+      expect(items.every((i) => i.dueAt!.includes("T21:00:00"))).toBe(true);
+    });
+
+    it("would land three hours late without it", () => {
+      // The whole point: §4.5's fallback is 23:59, and a 2-hour reminder aimed
+      // at that fires at 21:59 — an hour after the real deadline passed.
+      const without = { ...hw, defaultTime: undefined } as unknown as Adapter;
+      const late = runAdapter(without, load("cs374a-fa2026-homeworks.html"), { url: hw.url, ...at });
+      expect(late[0]!.dueAt).toBe("2026-09-01T23:59:00-05:00");
+    });
+
+    it("titles each row from the head of the dd", () => {
+      // "Homework 1: Strings and induction — [solutions]". §3.1 hashes the
+      // title, so the topic (which the course edits) must not be in it.
+      expect(items.every((i) => /^Homework \d+$/.test(i.title))).toBe(true);
+    });
+
+    it("links the four homeworks that have a PDF, resolved against the page", () => {
+      /*
+       * The href is `homeworks/hw1.pdf` — relative to the page, not to the
+       * origin. Resolving it against the bare origin gives
+       * `https://courses.grainger.illinois.edu/homeworks/hw1.pdf`: same origin,
+       * https, passes every check in `sameOriginHttpsUrl`, and 404s.
+       */
+      expect(items[0]!.url).toBe(
+        "https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks/hw1.pdf",
+      );
+      // The later homeworks are not posted yet and carry no link at all.
+      expect(items[10]!.url).toBe(hw.url);
+    });
+
+    it("throws, naming duePrev, when no row has a preceding dt", () => {
+      /*
+       * House rule 2, and the one locator that can fail this way: the hook is
+       * outside the row, so a course wrapping each pair in a `<div>` leaves
+       * every `<dd>` matching and every one titled, and the course simply stops
+       * producing dates.
+       */
+      const moved = { ...hw, duePrev: "h4" } as unknown as Adapter;
+      expect(() =>
+        runAdapter(moved, load("cs374a-fa2026-homeworks.html"), { url: hw.url, ...at }),
+      ).toThrow(/none had a preceding "h4" sibling/);
+    });
+  });
+
+  describe("the guided problem sets page", () => {
+    const gps = shipped("cs374a-fa26-gps");
+    const items = runAdapter(gps, load("cs374a-fa2026-gps.html"), { url: gps.url, ...at });
+
+    it("reads all eleven, on the Mondays the page states", () => {
+      expect(items).toHaveLength(11);
+      expect(items[0]!.title).toBe("Guided problem set 1");
+      expect(items[0]!.dueAt).toBe("2026-08-31T21:00:00-05:00");
+      expect(items[10]!.dueAt).toBe("2026-12-07T21:00:00-06:00");
+    });
+
+    it("falls every row back to the course page, because the links are off-origin", () => {
+      // House rule 7: every GPS links us.prairielearn.com. An off-origin href
+      // is the fallback, never silently accepted.
+      for (const item of items) expect(item.url).toBe(gps.url);
+    });
+
+    it("is a separate entry under the same courseCode", () => {
+      // An adapter has one fixed url and this course keeps homeworks and GPSs
+      // on two pages, so half of it could never be read by one entry.
+      expect(items[0]!.courseCode).toBe("CS374");
+      expect(gps.url).not.toBe(shipped("cs374a-fa26-hw").url);
+    });
+  });
+
+  /**
+   * The live page is eleven well-formed pairs, so a right implementation and
+   * several wrong ones read it identically (parser rule 10). The fixture's own
+   * banner says which rows are invented and what each one is for.
+   */
+  describe("the adversarial fixture", () => {
+    const hw = shipped("cs374a-fa26-hw");
+    const items = runAdapter(hw, load("cs374a-fa2026-homeworks-adversarial.html"), {
+      url: hw.url,
+      ...at,
+    });
+    const by = (name: string) => items.find((i) => i.title === name);
+
+    it("skips a dd that has no dt before it, rather than reaching out of the list", () => {
+      // `titleFrom`'s document-order walk would reach past the `<hr>` into the
+      // `<ul>` above and date this row from whatever it found — one assignment
+      // dated from another, with nothing looking wrong.
+      expect(by("Homework 0")).toBeUndefined();
+    });
+
+    it("takes the nearest of two dts, not the first", () => {
+      expect(by("Homework 13")!.dueAt).toBe("2026-12-08T21:00:00-06:00");
+      expect(items.some((i) => i.dueAt?.startsWith("2026-12-07"))).toBe(false);
+    });
+
+    it("keeps a row whose dt is not a date, and records what it said", () => {
+      // House rule 1's other half: the hook is there and the *value* is
+      // unreadable, so it costs its own field rather than the row.
+      const hw14 = by("Homework 14")!;
+      expect(hw14.dueAt).toBeUndefined();
+      expect(hw14.extra?.["unparsedDate"]).toBe("Mid-semester break");
+    });
+
+    it("lets a clock the row states beat the page's default hour", () => {
+      /*
+       * Precedence: the date cell, then this row, then `defaultTime`, then
+       * 23:59. A page-wide default that overrode a row would be the worst of
+       * both — an inference outranking a statement — and it would not even be
+       * visible, since both instants are on the right day.
+       */
+      const hw15 = by("Homework 15")!;
+      expect(hw15.dueAt).toBe("2026-12-15T23:59:00-06:00");
+      expect(hw15.extra?.["timeAssumed"]).toBeUndefined();
+    });
+
+    it("leaves the eleven real rows exactly as they were", () => {
+      expect(by("Homework 1")!.dueAt).toBe("2026-09-01T21:00:00-05:00");
+      expect(items).toHaveLength(14);
+    });
+  });
+
+  /**
+   * The assumed-time merge, mirrored for `defaultTime`.
+   *
+   * `tests/site.test.ts`'s "assumed times in a merge" pins the same rule for
+   * §4.5's 23:59. This is the one that would be easy to get wrong: 21:00 looks
+   * much more like a real deadline than 23:59 does, and it is still an
+   * inference from one sentence of prose.
+   */
+  describe("a defaultTime row in a merge", () => {
+    const overrides = {
+      mergeGroups: [],
+      splitKeys: [],
+      hiddenKeys: [],
+      disabledCourses: [],
+      doneKeys: [],
+      keptCourses: [],
+      courseNames: {},
+      dueOverrides: {},
+    };
+
+    it("loses to a stated Canvas instant, as §5.3 intends", () => {
+      const hw = shipped("cs374a-fa26-hw");
+      const site = runAdapter(hw, load("cs374a-fa2026-homeworks.html"), { url: hw.url, ...at })[0]!;
+      const real = "2026-09-01T17:00:00.000-05:00";
+      const merged = dedupe(
+        [
+          site,
+          {
+            source: "canvas",
+            sourceId: "c1",
+            courseRaw: "CS 374",
+            courseCode: "CS374",
+            title: "Homework 1",
+            kind: "assignment",
+            dueAt: real,
+            url: "https://canvas.illinois.edu/courses/1/assignments/1",
+            status: "unknown",
+            extra: {},
+            fetchedAt: "2026-09-18T12:00:00.000Z",
+          },
+        ] as never,
+        overrides,
+      );
+      const row = merged.find((i) => i.courseCode === "CS374")!;
+      expect(row.members).toHaveLength(2);
+      expect(row.dueAt).toBe(real);
+    });
+  });
+});
+
+describe("clockOf and defaultTime validation", () => {
+  it("reads a 24-hour HH:mm", () => {
+    expect(clockOf("21:00")).toEqual({ hour: 21, minute: 0 });
+    expect(clockOf("00:00")).toEqual({ hour: 0, minute: 0 });
+    expect(clockOf("23:59")).toEqual({ hour: 23, minute: 59 });
+  });
+
+  it("refuses anything else rather than reading it as midnight", () => {
+    // House rule 5: `Number("")` is 0, and split-and-Number would put every
+    // deadline on the page at 00:00 — a whole day early, looking like a real
+    // answer.
+    for (const bad of ["", "9pm", "9:00", "24:00", "21:60", "21", "2100", "21:0", " 21:00"]) {
+      expect(clockOf(bad), bad).toBeUndefined();
+    }
+  });
+
+  it("is what the registry checks", () => {
+    expect(validateAdapter({ ...ADAPTER, defaultTime: "21:00" }).adapter).toBeDefined();
+    for (const bad of ["9pm", "24:00", "", "9:00"]) {
+      expect(validateAdapter({ ...ADAPTER, defaultTime: bad }).reason, bad).toMatch(
+        /defaultTime/,
+      );
+    }
+  });
+
+  it("refuses an entry that locates the date twice", () => {
+    const both = {
+      ...ADAPTER,
+      columns: { title: "Exercises", due: "Due Date" },
+      duePrev: "dt",
+    };
+    expect(validateAdapter(both).reason).toMatch(/declare one/);
+  });
+
+  it("refuses an empty or oversized duePrev", () => {
+    expect(validateAdapter({ ...ADAPTER, duePrev: "" }).reason).toMatch(/bad duePrev/);
+    expect(validateAdapter({ ...ADAPTER, duePrev: "x".repeat(201) }).reason).toMatch(
+      /bad duePrev/,
+    );
   });
 });
 

@@ -210,6 +210,21 @@ export interface Clock {
   minute: number;
 }
 
+/**
+ * `defaultTime`'s shape: `HH:mm`, 24-hour, anchored.
+ *
+ * Positively, not `Number(x.split(":")[0])` — house rule 5: `Number("")` is 0,
+ * so an empty or malformed `defaultTime` would land every deadline on the page
+ * at midnight, which is a whole day early and looks exactly like a real answer.
+ */
+export const DEFAULT_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** `"21:00"` → `{ hour: 21, minute: 0 }`, or undefined when it is not one. */
+export function clockOf(hhmm: string): Clock | undefined {
+  const match = DEFAULT_TIME.exec(hhmm);
+  return match ? { hour: Number(match[1]), minute: Number(match[2]) } : undefined;
+}
+
 /** `TIME`'s alternatives, coalesced — and the ambiguity rule, in one place. */
 export interface ClockGroups {
   /**
@@ -771,7 +786,9 @@ export function parseAdapterDateParts(
   timezone: string,
   reference: string,
   /** A cutoff the row stated elsewhere; used only when this cell states none. */
-  statedElsewhere?: { hour: number; minute: number },
+  statedElsewhere?: Clock,
+  /** §4.5's `defaultTime`: the hour this *page* says its work is due at. */
+  defaultClock?: Clock,
 ): AdapterDate | undefined {
   const pattern = DATE_FORMATS[format];
   if (!pattern) return undefined;
@@ -790,17 +807,23 @@ export function parseAdapterDateParts(
   const stated = written.hour !== undefined && !written.ambiguous;
 
   /*
-   * The date cell wins: a time beside the date is this row's own answer, and a
-   * sentence elsewhere in the row is consulted only when there is none.
+   * Cell, then the row, then the page, then 23:59.
    *
-   * That precedence is the `stated ?` in the two lines below and nowhere else.
-   * A `stated ? undefined : statedElsewhere` guard was written here first and
+   * The date cell wins: a time beside the date is this row's own answer. Then
+   * `statedElsewhere` — a sentence in this row. Then `defaultClock`, which is a
+   * rule the adapter wrote down about the *page* ("Written homeworks are due
+   * every Tuesday at 9pm"), so a row that states something else means it and
+   * has to win. Then the invention.
+   *
+   * That precedence is the `stated ?` and the `??` below and nowhere else. A
+   * `stated ? undefined : statedElsewhere` guard was written here first and
    * **survived its mutation** — because these ternaries already reject exactly
    * what it rejected. Mutation house rule 2's third case: a second guard
    * duplicating a reachable one is not defence, it is another thing to read.
    */
-  const hour = stated ? written.hour! : (statedElsewhere?.hour ?? 23);
-  const minute = stated ? written.minute : (statedElsewhere?.minute ?? 59);
+  const fallback = statedElsewhere ?? defaultClock;
+  const hour = stated ? written.hour! : (fallback?.hour ?? 23);
+  const minute = stated ? written.minute : (fallback?.minute ?? 59);
 
   const parts = { month, day: Number(g["day"]), hour, minute };
   // Checked before inferYear, which builds candidate instants itself and would
@@ -825,7 +848,15 @@ export function parseAdapterDateParts(
   try {
     return {
       iso: wallClockToIso({ ...parts, year }, timezone),
-      // Not assumed when the row said it, wherever in the row it said it.
+      /*
+       * Not assumed when the row said it, wherever in the row it said it — and
+       * **still assumed** when it came from `defaultTime`, which is a rule an
+       * adapter wrote down about the page rather than a clock this row states.
+       * ECE 374 A prints "Written homeworks are due every Tuesday at 9pm" once,
+       * in a paragraph above the list; 21:00 on a row is this extension's
+       * inference from that sentence, and §5.3 must go on ranking a real Canvas
+       * instant above it (worker rule 3).
+       */
       timeAssumed: !stated && statedElsewhere === undefined,
       ...(unparsedTime ? { unparsedTime } : {}),
     };
@@ -852,7 +883,39 @@ export function parseAdapterDateParts(
 /** Where a row's date text comes from. Ordered: the first one declared wins. */
 export type DueLocator =
   | { kind: "column"; header: string }
+  | { kind: "prev"; selector: string }
   | { kind: "selector"; spec: string };
+
+/**
+ * The nearest **preceding sibling** that matches, and its text.
+ *
+ * `duePrev`'s reader. ECE 374 A's homework page is a definition list — the date
+ * is the `<dt>` and the assignment is the `<dd>` after it:
+ *
+ *     <dt>Tue Sep 01</dt><dd><a href="…">Homework 1</a>: Strings and induction</dd>
+ *
+ * The date is not inside the row, not in a cell of it, and not in an ancestor
+ * either, so none of `select`, `cellByHeader` or `resolveScoped` can reach it.
+ * `nearestPreceding` (which `titleFrom` uses) would, but it walks the whole
+ * document backwards and would happily take a `<dt>` from the list above when a
+ * row has no `<dt>` of its own — silently dating one assignment from another.
+ * This stays inside the row's own parent for that reason.
+ *
+ * `@attr` is honoured, so a page that writes `<dt><time datetime="…">` can name
+ * it; the plain form reads the whole element, which is what a wrapped
+ * `<dt><em><strong>Wed Sep 09</strong></em></dt>` needs — the page uses that to
+ * mark a week whose deadline moved, and a `dt > text()` reading would miss it.
+ */
+function previousSiblingMatching(row: Element, spec: string): string | undefined {
+  const [selector, attribute] = spec.split("@");
+  if (!selector) return undefined;
+  for (let node = row.previousElementSibling; node; node = node.previousElementSibling) {
+    if (!node.matches(selector)) continue;
+    const value = attribute ? node.getAttribute(attribute) : textOf(node);
+    return value?.trim() || undefined;
+  }
+  return undefined;
+}
 
 /** How the date is read out of the located text. */
 export type DueReader =
@@ -860,9 +923,16 @@ export type DueReader =
   | { kind: "label"; labels: string }
   | { kind: "phrase"; keywords: string };
 
-/** `columns.due` beats `due`; `due` is the fallback every entry carries. */
+/**
+ * `columns.due` beats `duePrev` beats `due`.
+ *
+ * They are mutually exclusive in the schema (`validateAdapter` refuses two), so
+ * this order is belt to that braces; `due` is the fallback every entry carries
+ * and is what an entry declaring neither of the others uses.
+ */
 export function dueLocatorOf(adapter: Adapter): DueLocator {
   if (adapter.columns) return { kind: "column", header: adapter.columns.due };
+  if (adapter.duePrev) return { kind: "prev", selector: adapter.duePrev };
   return { kind: "selector", spec: adapter.due };
 }
 
@@ -904,7 +974,9 @@ export function locateDue(row: Element, adapter: Adapter): DueLocation {
   const located =
     locator.kind === "column"
       ? cellByHeader(row, locator.header)
-      : select(row, locator.spec);
+      : locator.kind === "prev"
+        ? previousSiblingMatching(row, locator.selector)
+        : select(row, locator.spec);
   const hookSeen =
     locator.kind === "column" ? headerExists(row, locator.header) : located !== undefined;
 
@@ -1012,8 +1084,12 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   }
 
   const reader = dueReaderOf(adapter);
+  const locator = dueLocatorOf(adapter);
+  // Read once for the page, not once per row: it is a constant of the adapter.
+  const defaultClock = adapter.defaultTime ? clockOf(adapter.defaultTime) : undefined;
   let sawTitledRow = false;
   let sawDueReader = false;
+  let sawDueHook = false;
   let sawTitleFrom = false;
   for (const row of rows) {
     const located = locateTitle(row, adapter);
@@ -1039,6 +1115,19 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      */
     const due = locateDue(row, adapter);
     if (due.readerSeen) sawDueReader = true;
+    if (due.hookSeen) sawDueHook = true;
+    /*
+     * A `prev` row with no preceding sibling is not this adapter's row.
+     *
+     * The other locators put the hook *inside* the row, so an empty due cell
+     * means "this week has no homework" and an undated row is the honest
+     * answer. `prev` puts it outside: in a definition list a `<dd>` with no
+     * `<dt>` is not an item at all — it is a continuation or an annotation —
+     * and emitting it undated would put a row in the student's list claiming to
+     * be a deadline whose date this parser failed to read. Skipped for exactly
+     * the reason a line whose label was not declared is skipped on ECE 411.
+     */
+    if (locator.kind === "prev" && !due.hookSeen) continue;
     if (reader.kind !== "whole" && !due.readerSeen) continue;
 
     // A row in a list inherits its section's heading. Unresolved for one row is
@@ -1090,6 +1179,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         adapter.timezone,
         page.fetchedAt,
         statedElsewhere,
+        defaultClock,
       );
       if (parsed) {
         dueText = text;
@@ -1105,9 +1195,13 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       : adapter.link
         ? select(row, adapter.link)
         : undefined;
+    // Resolved against the *page*, not the origin: a course page writes
+    // `homeworks/hw1.pdf`, and resolving that against the bare origin gives a
+    // same-origin https URL that 404s.
     const url = sameOriginHttpsUrl(
       linkHref,
       new URL(adapter.url).origin,
+      adapter.url,
       adapter.url,
     );
 
@@ -1188,6 +1282,23 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     const spec = reader.kind === "label" ? reader.labels : reader.keywords;
     throw new ParseError(
       `adapter ${adapter.id}: ${rows.length} rows, none carried a ${what} ${JSON.stringify(spec)}`,
+    );
+  }
+
+  /*
+   * House rule 2 again, one locator over.
+   *
+   * `duePrev` is the only locator whose hook lives *outside* the row, so it is
+   * the only one that can vanish while the rows themselves are untouched: a
+   * course reordering its definition list, or wrapping each pair in a `<div>`,
+   * leaves every `<dd>` matching and every one titled, with no date on any of
+   * them. That is a page of undated rows rather than a silent empty, which is
+   * better — and still wrong, because it reads as "the course has set no dates"
+   * when the truth is "the selectors need one edit".
+   */
+  if (locator.kind === "prev" && !sawDueHook) {
+    throw new ParseError(
+      `adapter ${adapter.id}: ${rows.length} rows, none had a preceding ${JSON.stringify(locator.selector)} sibling`,
     );
   }
   if (adapter.titleFrom && !sawTitleFrom) {

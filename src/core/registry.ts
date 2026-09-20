@@ -17,7 +17,7 @@ import { GRADESCOPE_ORIGIN } from "../sources/gradescope.js";
 import { PRAIRIELEARN_ORIGIN } from "../sources/prairielearn.js";
 import { PRAIRIETEST_ORIGIN } from "../sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../sources/smartphysics.js";
-import { supportedDateFormats } from "../sources/site.js";
+import { DEFAULT_TIME, supportedDateFormats } from "../sources/site.js";
 import type { Adapter, Kind } from "../sources/types.js";
 
 /**
@@ -106,6 +106,8 @@ const KNOWN_FIELDS = {
   columns: true,
   dueLabel: true,
   duePhrase: true,
+  duePrev: true,
+  defaultTime: true,
   titleBefore: true,
   titleFrom: true,
   time: true,
@@ -349,10 +351,29 @@ export function validateAdapter(
   if (a["titleBefore"] !== undefined && !isPlainString(a["titleBefore"], 8)) {
     return fail("bad titleBefore");
   }
+  if (a["duePrev"] !== undefined && !isPlainString(a["duePrev"], 200)) return fail("bad duePrev");
+  /*
+   * `HH:mm`, checked with an anchored regex rather than split-and-Number.
+   * House rule 5: `Number("")` is 0, so a malformed `defaultTime` would put
+   * every deadline on the page at midnight — a whole day early, and looking
+   * exactly like a real answer.
+   */
+  const defaultTime = a["defaultTime"];
+  if (defaultTime !== undefined) {
+    if (!isPlainString(defaultTime, 5) || !DEFAULT_TIME.test(defaultTime)) {
+      return fail("bad defaultTime (HH:mm, 24-hour)");
+    }
+  }
 
-  // Two readers of one text is not a precedence question, it is an entry that
-  // has not decided what the page looks like. Refused rather than silently
-  // ranked, because the ranking would be invisible in the preview.
+  /*
+   * Two answers to one question is not a precedence problem, it is an entry
+   * that has not decided what the page looks like. Refused rather than silently
+   * ranked, because the ranking would be invisible in the preview — what the
+   * student approves would not be what the runner goes on reading.
+   */
+  if (a["columns"] !== undefined && a["duePrev"] !== undefined) {
+    return fail("columns.due and duePrev each locate the date cell; declare one");
+  }
   if (dueLabel !== undefined && duePhrase !== undefined) {
     return fail("dueLabel and duePhrase both read the date out of the located text; declare one");
   }

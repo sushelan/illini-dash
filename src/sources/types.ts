@@ -462,6 +462,38 @@ export interface Adapter {
    */
   duePhrase?: string;
   /**
+   * A selector for the nearest **preceding sibling** that carries the date.
+   *
+   * ECE 374 A's homework page is a definition list: the date is the `<dt>` and
+   * the assignment is the `<dd>` after it. The date is not inside the row, not
+   * in a cell of it and not in an ancestor either, so `due`, `columns.due` and
+   * `titleFrom`'s `>>` all fail to reach it.
+   *
+   * The walk stops at the row's own parent, deliberately: `titleFrom`'s
+   * document-order walk would take a `<dt>` from the list above whenever a row
+   * has none of its own, which dates one assignment from another silently.
+   * `@attr` is honoured; the plain form reads the whole element, because the
+   * page wraps some of its dates in `<em><strong>`.
+   *
+   * Mutually exclusive with `columns.due`: `validateAdapter` refuses both.
+   */
+  duePrev?: string;
+  /**
+   * `HH:mm`: the hour this *page* states its work is due at, once, in prose.
+   *
+   * ECE 374 A prints "Written homeworks are due every **Tuesday at 9pm**" in a
+   * paragraph above the list and then writes bare dates — so every row lands on
+   * §4.5's invented 23:59, three hours late, and a two-hour reminder for it
+   * arrives at 21:59, an hour after the deadline passed.
+   *
+   * Lowest precedence but one: a clock in the date cell wins, then a clock the
+   * row states elsewhere, then this, then 23:59. And `extra.timeAssumed` is
+   * **still set** — this is an adapter's inference from a sentence, not a clock
+   * this row states, and §5.3 must go on preferring a real Canvas instant
+   * (worker rule 3).
+   */
+  defaultTime?: string;
+  /**
    * A literal separator; the title is everything before its first occurrence.
    *
    * The prose shape's rows are a whole sentence, and the name is the head of it:

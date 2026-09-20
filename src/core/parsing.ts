@@ -50,10 +50,22 @@ export function sameOriginHttpsUrl(
   raw: string | null | undefined,
   origin: string,
   fallback: string,
+  /**
+   * What a *relative* href is resolved against. Defaults to `origin`, which is
+   * right only when every href on the page is absolute or root-relative.
+   *
+   * ECE 374 A's homework page links `homeworks/hw1.pdf` from
+   * `/cs374al1/fa2026/homeworks.html`, and resolving that against the bare
+   * origin produced `https://courses.grainger.illinois.edu/homeworks/hw1.pdf` —
+   * same origin, https, so it passed every check here and 404s in the browser.
+   * A row that links nowhere is worse than one that links to the course page,
+   * because the student has no way to tell which happened.
+   */
+  base: string = origin,
 ): string {
   if (typeof raw !== "string" || raw === "") return fallback;
   try {
-    const url = new URL(raw, origin);
+    const url = new URL(raw, base);
     return url.protocol === "https:" && url.origin === origin ? url.toString() : fallback;
   } catch {
     return fallback;

@@ -1,0 +1,26 @@
+<!DOCTYPE html><head><meta charset="utf-8"><meta name="viewport" content="width=divice-width,initial-scale=1"><link rel="stylesheet" type="text/css" href="style.css"><script>MathJax = {
+  options: {
+    renderActions: {
+      find: [10, function (doc) {
+        for (const node of document.querySelectorAll('span.math')) {
+          const display = node.classList.contains('math-display');
+          const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+          const text = document.createTextNode('');
+          node.parentNode.replaceChild(text, node);
+          math.start = {node: text, delim: '', n: 0};
+          math.end = {node: text, delim: '', n: 0};
+          doc.math.push(math);
+        }
+      }, '']
+    }
+  }
+};
+</script><script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script><title>CS/ECE 374 A | Homeworks</title></head><body><header><div id="navbar"><ul id="navbarlist"><li class="navbaritem" id="homeanchor"><span class="navbarheader" tabindex="0"><a href="index.html">CS/ECE 374 A, Fa 26</a></span></li><li class="navbaritem navbarhasdropdown"><span class="navbarheader" tabindex="0">Info</span><ul class="navdropdown"><li><a href="announcements.html">Announcements</a></li><li><a href="about.html">About this course</a></li><li><a href="staff.html">Course staff</a></li><li><a href="prereqs.html">Stuff you already know</a></li></ul></li><li class="navbaritem navbarhasdropdown"><span class="navbarheader" tabindex="0">Schedules</span><ul class="navdropdown"><li><a href="calendar.html">Course calendar (with lecture notes and videos)</a></li><li><a href="weekly.html">Weekly events (including office hours)</a></li></ul></li><li class="navbaritem navbarhasdropdown"><span class="navbarheader" tabindex="0">Coursework</span><ul class="navdropdown"><li><a href="misc/rubrics.pdf">Standard grading rubric for homeworks and exams</a></li><li><a href="labs.html">Lab handouts and solutions</a></li><li><a href="gps.html">Guided problem sets</a></li><li><a href="homeworks.html">Homeworks and solutions</a></li><li><a href="exams.html">Exams and solutions</a></li></ul></li><li class="navbaritem navbarhasdropdown"><span class="navbarheader" tabindex="0">Policies</span><ul class="navdropdown"><li><a href="hw-pol.html">Homework policies</a></li><li><a href="exam-pol.html">Exam policies</a></li><li><a href="grading.html">Grading policies</a></li><li><a href="accommodations.html">Accommodations</a></li><li><a href="health.html">Health and wellness</a></li><li><a href="integrity.html">Academic integrity</a></li><li><a href="conduct.html">Conduct</a></li></ul></li><li class="navbaritem navbarhasdropdown"><span class="navbarheader" tabindex="0">Links</span><ul class="navdropdown"><li><a href="https://us.prairielearn.com/pl/course_instance/223826">PrairieLearn (for GPSs)</a></li><li><a href="https://www.gradescope.com/courses/1349512">Gradescope (entry code V43R5J)</a></li><li><a href="https://mediaspace.illinois.edu/channel/CS_ECE+374+A+Fall+2026/414216542">MediaSpace (lecture videos)</a></li><li><a href="https://edstem.org/us/join/2X43sp">Ed Discussion</a></li><li><a href="https://discord.gg/svmUTH8MBv">Discord</a></li><li><a href="resources.html">Other useful recourses</a></li></ul></li></ul></div></header><main><h1>Homeworks</h1><p>Written homeworks are due every <strong>Tuesday at 9pm</strong> unless announced otherwise.
+We post each week’s homework at least one full week before its due date; we post solutions at most a day after the due date. (Links to future homeworks and solutions are placeholders;
+topics of future homeworks are subject to change.) </p>
+<ul>
+<li>A <a href="misc/hw-template.zip">LaTeX template</a> is available for typsetting homework solutions.</li>
+<li><a href="misc/rubrics.pdf">Standard grading rubrics</a> are available for many problem types.</li>
+<li>Don’t forget to read the <a href="hw-pol.html">homework policies</a></li>
+</ul>
+<hr><dl class="calendar"><dt>Tue Sep 01</dt><dd><a href="homeworks/hw1.pdf">Homework 1</a>: Strings and induction — [<span class="extra-links"><a href="solutions/hw1-sol.pdf">solutions</a></span>]</dd><dt><em><strong>Wed Sep 09</strong></em></dt><dd><a href="homeworks/hw2.pdf">Homework 2</a>: Regular expressions, DFAs — [<span class="extra-links"><a href="solutions/hw2-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 15</dt><dd><a href="homeworks/hw3.pdf">Homework 3</a>: Proving irregularity, regular or not? — [<span class="extra-links"><a href="solutions/hw3-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 22</dt><dd><a href="homeworks/hw4.pdf">Homework 4</a>: Language transformations, CFGs</dd><dt>Tue Oct 06</dt><dd>Homework 5: Divide and conquer</dd><dt>Tue Oct 13</dt><dd>Homework 6: Dynamic programming</dd><dt>Tue Oct 20</dt><dd>Homework 7: More dynamic programming</dd><dt>Tue Oct 27</dt><dd>Homework 8: Graph algorithms</dd><dt>Tue Nov 03</dt><dd>Homework 9: More graph algorithms</dd><dt>Tue Nov 17</dt><dd>Homework 10: NP-hardness</dd><dt>Tue Dec 01</dt><dd>Homework 11: More NP-hardness</dd></dl></main></body>

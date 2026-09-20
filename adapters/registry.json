@@ -112,6 +112,44 @@
       "dateFormat": "M/d",
       "timezone": "America/Chicago",
       "minExtensionVersion": "1.1.0"
+    },
+    {
+      "$comment": "ECE 374 A's homeworks page is a definition list: the date is the <dt> and the assignment is the <dd> after it, so the date is outside the row and duePrev is the only locator that reaches it. The page states the clock once, in prose above the list (\"Written homeworks are due every Tuesday at 9pm\"), which is what defaultTime carries. See docs/cs374a-findings.md.",
+      "id": "cs374a-fa26-hw",
+      "label": "CS/ECE 374 A course site",
+      "courseCode": "CS374",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "dl.calendar > dd",
+      "title": ".",
+      "titleBefore": ":",
+      "due": ".",
+      "duePrev": "dt",
+      "link": "a@href",
+      "defaultTime": "21:00",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.1.0"
+    },
+    {
+      "$comment": "The guided problem sets, same page shape on a second URL \u2014 an adapter has one fixed url, so the course is two entries. Every link here is on us.prairielearn.com, so house rule 7 falls every row back to the course page.",
+      "id": "cs374a-fa26-gps",
+      "label": "CS/ECE 374 A guided problem sets",
+      "courseCode": "CS374",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs374al1/fa2026/gps.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "dl.calendar > dd",
+      "title": ".",
+      "titleBefore": ":",
+      "due": ".",
+      "duePrev": "dt",
+      "link": "a@href",
+      "defaultTime": "21:00",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.1.0"
     }
   ]
 }
