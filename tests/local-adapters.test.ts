@@ -170,6 +170,13 @@ describe("guessCourseCode", () => {
     expect(guessCourseCode("https://courses.grainger.illinois.edu/ece310/fa2026/")).toBe("ECE310");
   });
 
+  it("reads past a section suffix, which the Grainger host puts in the slug", () => {
+    // Live, 2026-09-20: the box read "CS225" (its placeholder) for both CS 374 A
+    // pages, because `cs374al1` is not `cs374`.
+    expect(guessCourseCode("https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html")).toBe("CS374");
+    expect(guessCourseCode("https://courses.grainger.illinois.edu/ECE374BL1/fa2026/")).toBe("ECE374");
+  });
+
   it("is not fooled by the term, which is also letters and digits", () => {
     // `fa2026` is four digits, and a course number is three.
     expect(guessCourseCode("https://x.illinois.edu/fa2026/")).toBeUndefined();

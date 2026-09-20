@@ -390,6 +390,8 @@ interface Ran {
   count: number;
   /** Every dated item landed on an hour this code invented, not one stated. */
   assumed: boolean;
+  /** The rows this hook dated, for the nested-reading rule in `dedupe`. */
+  datedRows: readonly Element[];
 }
 
 /** A (group, hook) pair the search looked at and would not propose. */
@@ -481,7 +483,7 @@ export function searchCandidates(
         refuse(outcome.reason);
         continue;
       }
-      ran.push(outcome);
+      ran.push({ ...outcome, datedRows: evidence.datedAt.map((at) => rows[at]!) });
     }
   }
 
@@ -562,11 +564,42 @@ function dedupe(ranked: readonly Ran[]): Candidate[] {
       if (other.pairs.join("\n") === key) return true;
       if (locatorKindOf(other.candidate) !== locatorKindOf(candidate.candidate)) return false;
       const theirs = new Set(other.pairs);
-      return candidate.pairs.every((pair) => theirs.has(pair));
+      if (candidate.pairs.every((pair) => theirs.has(pair))) return true;
+      return readsInside(candidate, other);
     });
     if (!covered) kept.push(candidate);
   }
   return kept.map((outcome) => outcome.candidate);
+}
+
+/**
+ * Whether `inner` is a reading of the same deadlines from *inside* `outer`'s
+ * rows.
+ *
+ * CS 425's assignments are `<li>[HW1 Document]: <span>Released 8/27. Due @
+ * 9/20 …</span></li>`, and both the `li` and the `span` repeat, so the phrase
+ * hook reads the same eight dates twice — once titled `HW1 Document`, once
+ * titled by the whole sentence. The pairs differ (the titles do), so the
+ * subset rule above does not see them as one answer, and the student was shown
+ * a second box of sentence-length names under the right one. An element inside
+ * a row is not a second row: when every one of a candidate's rows sits inside
+ * one of a kept candidate's rows and it dates nothing the kept one does not,
+ * it is the kept one read from further in, and the outer reading — which is
+ * where the row's own name lives — is the one to show. Only the rows each hook
+ * *dated* are compared: a bare `span` selector also matches the page's nav,
+ * and those are nobody's rows.
+ */
+function readsInside(inner: Ran, outer: Ran): boolean {
+  const outerDues = new Set(outer.pairs.map(dueOf));
+  if (!inner.pairs.every((pair) => outerDues.has(dueOf(pair)))) return false;
+  return inner.datedRows.every((row) =>
+    outer.datedRows.some((host) => host !== row && host.contains(row)),
+  );
+}
+
+/** The instant half of a `title\0dueAt` pair. */
+function dueOf(pair: string): string {
+  return pair.slice(pair.indexOf("\0") + 1);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -798,7 +831,7 @@ function runCandidate(
   doc: Document,
   reference: string,
   timezone: string,
-): ({ ok: true } & Ran) | { ok: false; reason: string } {
+): ({ ok: true } & Omit<Ran, "datedRows">) | { ok: false; reason: string } {
   /*
    * A stand-in URL, because this path has not got the real one.
    *
@@ -1007,7 +1040,7 @@ function withDefaultTime(
     );
     // A refusal here leaves the candidate as it was: the hour is an improvement
     // on an invented 23:59, never a reason to lose a reading that worked.
-    if (again.ok) ran[index] = again;
+    if (again.ok) ran[index] = { ...again, datedRows: outcome.datedRows };
   }
 }
 
@@ -1287,7 +1320,11 @@ export function guessCourseCode(url: string): string | undefined {
     return undefined;
   }
   for (const segment of path.split("/")) {
-    const match = /^([a-z]{2,4})[\s_-]?(\d{3})$/i.exec(segment);
+    // A section suffix (`cs374al1`, `ECE374BL1`) is part of the slug on the
+    // Grainger host and no part of the code: the student saw "CS225" in that
+    // box for a CS 374 page until this read past it. Letters then at most two
+    // digits, so `fa2026` — four digits — still matches nothing.
+    const match = /^([a-z]{2,4})[\s_-]?(\d{3})(?:[a-z]{1,3}\d{0,2})?$/i.exec(segment);
     if (match) return `${match[1]!.toUpperCase()}${match[2]}`;
   }
   return undefined;

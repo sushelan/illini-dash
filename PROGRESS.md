@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2455 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2459 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -88,12 +88,16 @@ commits, on top of 0f74bc2.
 - **Still open.** The calendar's `(11:59pm)` and `7:00pm- 9:00pm` clocks inside `<dd>`
   text; a trailing weekday is consumed but not cross-checked against the date; ECE 391's
   exams page has no entry (a registry edit, not a decision).
-- **Waiting on Sushi**, one action: reload the unpacked build, Settings → Add a course
-  site, paste `https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html`, press
-  Read this page, and look for the literal line `8 of 8 rows have a date this can read.`
-  Then the ECE 374 A homeworks and GPS pages (`11 of 11` each). Then enable the three
-  registry rows and read `[registry] 8 adapters accepted by 1.1.0, 0 rejected` in the
-  **worker** console.
+- **Verified by Sushi in the real options page, 2026-09-20**: CS 425 `8 of 8 rows have a
+  date this can read.` with the right instants and `Read from` text; ECE 374 A homeworks
+  and GPS `11 of 11` each at 21:00 with the `defaultTime` note. Two papercuts in what he
+  pasted, both fixed the same morning with tests and four count-asserted mutations: the
+  course-code box read its placeholder for `cs374al1` (the guesser now reads past a
+  section suffix), and under the right CS 425 box sat a second one, `span`, 7 of 7,
+  every name a sentence long — a reading of the same dates from *inside* each row.
+  `dedupe` folds a candidate whose dated rows all sit inside a kept candidate's dated
+  rows and date nothing new. Still to do: enable the three registry rows and read
+  `[registry] 8 adapters accepted by 1.1.0, 0 rejected` in the **worker** console.
 
 **Amendments recorded this day:** §4.5 — an entry is `rows` plus exactly one date locator
 and one reader, not `title`/`due` selectors; four new fields (`duePrev`, `duePhrase`,

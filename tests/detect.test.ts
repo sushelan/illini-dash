@@ -802,6 +802,14 @@ describe("the real CS 425 page: a keyword mid-sentence", () => {
   it("names the keyword it read, so the student can see what selected the date", () => {
     expect(locatorDescription(best)).toBe("date after the word “due” in each line");
   });
+
+  it("offers one reading, not the same eight dates again from the span inside each line", () => {
+    // Live, 2026-09-20: under the right box sat a second one, `span`, 7 of 7,
+    // every name a sentence long. The span is inside the li and dates nothing
+    // the li does not; it is the same answer read from further in.
+    expect(found).toHaveLength(1);
+    expect(found[0]!.rows).not.toBe("span");
+  });
 });
 
 describe("the real CS/ECE 374 A pages: the date in the sibling before the row", () => {
@@ -1112,6 +1120,56 @@ describe("two spellings of one set of deadlines", () => {
     // bullet is the one that goes on meaning something else when the page grows.
     expect(found[0]!.rows).toBe("ul.simple > li");
     expect(doc.querySelectorAll("li")).toHaveLength(6);
+  });
+
+  it("folds a reading taken from inside each row into the row's own reading", () => {
+    /*
+     * Deliberately unrealistic in one respect (parser rule 10): on the real
+     * CS 425 page the span reads one row fewer than the li, so the subset rule
+     * alone cannot tell whether the nesting rule ever ran. Here the span and
+     * the li read the same three dates, with different names, so only the
+     * nesting rule can fold them.
+     */
+    // Two spans per line, because a group is a *repeated* child: one span
+    // per li is not a group the inventory offers, and a test written that way
+    // passed with the rule deleted (mutation rule 4).
+    const nested = docFrom(
+      "<ul id='hw'>" +
+        "<li>[HW1]: <span>Released 8/27.</span> <span>Due @ 9/20 at 11:59 PM</span></li>" +
+        "<li>[HW2]: <span>Released 9/21.</span> <span>Due @ 10/4 at 11:59 PM</span></li>" +
+        "<li>[HW3]: <span>Released 10/12.</span> <span>Due @ 11/1 at 11:59 PM</span></li>" +
+        "</ul>",
+    );
+    expect(nested.querySelectorAll("span")).toHaveLength(6);
+    const offered = propose(nested);
+    expect(offered).toHaveLength(1);
+    expect(offered[0]!.rows).toBe("#hw > li");
+    expect(offered[0]!.sample.map((row) => row.title)).toEqual(["HW1", "HW2", "HW3"]);
+  });
+
+  it("keeps an inner reading that dates something the outer one does not", () => {
+    /*
+     * The li's own "due" is the assignment's; two of the spans carry a late
+     * deadline the li reading never reaches. Two answers — and the span one
+     * has to rank *below* the li one (two dated rows against four) for the
+     * question to be asked at all: a reading that ranks first is kept before
+     * anything is compared to it, and the first version of this test, with the
+     * span reading on top, passed with the dates check deleted (mutation
+     * rule 4).
+     */
+    const nested = docFrom(
+      "<ul id='hw'>" +
+        "<li>[HW1]: Due @ 9/20 <span>pdf</span> <span>solutions</span></li>" +
+        "<li>[HW2]: Due @ 10/4 <span>pdf</span> <span>solutions</span></li>" +
+        "<li>[HW3]: Due @ 11/1 <span>pdf</span> <span>Late work due 11/3</span></li>" +
+        "<li>[HW4]: Due @ 12/3 <span>pdf</span> <span>Late work due 12/5</span></li>" +
+        "</ul>",
+    );
+    const offered = propose(nested);
+    expect(offered.map((candidate) => [candidate.rows, candidate.dated])).toEqual([
+      ["#hw > li", 4],
+      ["#hw span", 2],
+    ]);
   });
 
   it("does not offer a group that reads three of the same five rows", () => {
