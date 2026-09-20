@@ -3,18 +3,25 @@
 *Decision by Sushi, 2026-09-18.*
 
 "Add a course site" in Settings reads a page and proposes an adapter for it. The
-proposer in `src/core/detect.ts` is a search, not a model, and it reads **two**
-shapes: a table with a header row (every column crossed with every supported
-date format, kept when enough rows parse) and, since 2026-09-19, a **labelled
-list** — `Due: 9/7` bullets under a heading, the shape ECE 411's page is made
-of. Both are deterministic, mutation-testable, need no download and work on
-every machine — and they are the answer whenever they have one.
+proposer in `src/core/detect.ts` is a search, not a model: it crosses the page's
+own repeated element groups with the six ways `runAdapter` can locate a row's
+date, and runs the real runner on every crossing that clears its thresholds. It
+is deterministic, mutation-testable, needs no download and works on every
+machine — and it is the answer whenever it has one.
 
-It does not always have one. CS 424's schedule has no header row, uses `rowspan`
-so cells shift between rows, and packs two events into one cell. For pages like
-it the honest answer has been "this needs a hand-written entry", which means
-waiting for one person to read the markup — the bottleneck the self-serve flow
-exists to remove.
+**Amended 2026-09-20.** Until then it read **two page shapes** — a header table,
+and a labelled list of `Due: 9/7` bullets — and three public UIUC course pages
+students are in fell outside both. The paragraph here used to name CS 424 as the
+page no search could reach: no header row, `rowspan` shifting cells between
+rows, two events in one cell. It reaches it now, and CS 425 and ECE 374 A with
+it, because "where is this row's date" is a *value* in the adapter rather than a
+shape in the proposer (`docs/adapters.md`). A seventh page shape is no longer a
+change to this file; a seventh **locator** is a field, a branch in `locateDue`
+and a probe.
+
+It still does not always have an answer, and the pages that defeat it now are
+the ones whose deadlines are built by JavaScript after the page loads, or that
+have a single deadline on them and so repeat nothing.
 
 So when the search returns nothing, and only then, Chrome's built-in model is
 asked. What it proposes is run through the real runner on the page that was just
@@ -34,8 +41,8 @@ are fixed below — the three shapes, and the status line.
 | Step | Where | What |
 |---|---|---|
 | Fetch the page | `background.ts` → `capture` | Unchanged. The HTML now comes back with the candidates (`htmlForAuthoring`), so nothing is fetched twice |
-| **Inventory the page** | offscreen → `core/skeleton.ts` | `repeatedStructures(doc, timezone, reference)` — the page's repeated element groups, each with a selector that has been run and matched, a count, a sketch of one row's insides, and **how many of its rows carry a date** |
-| Propose deterministically | offscreen → `core/detect.ts` | `proposeCandidates` — the table search, then `detectListCandidates` over the inventory. Candidates → the existing preview |
+| **Inventory the page** | offscreen → `core/skeleton.ts` | `repeatedStructures(doc, timezone, reference)` — the page's repeated element groups, each with a selector that has been run and matched, a count, a sketch of one row's insides, how many of its rows carry a date, and **`locators`: every hook that reaches its dates, measured with `locateDue`** |
+| Propose deterministically | offscreen → `core/detect.ts` | `searchCandidates` — each group × each of its locators, thresholded, built into a trial adapter and run through the real `runAdapter`; ranked and deduped by the rows they produce. Candidates → the existing preview, plus `nearest` for the failure sentence |
 | **Summarise the page** | `core/skeleton.ts` | `skeletonise(doc, budgetChars)` — tags, ids, classes, table structure; scripts, styles, nav and footer dropped |
 | **Ask** | `core/author.ts` + `ui/options.ts` | `buildPrompt` → `LanguageModel.prompt(text, { responseConstraint })`, with `rows` enumerated from the inventory and every key the validator can demand required |
 | **Ground** | `core/author.ts` | `groundProposal` — every selector checked against the DOM, before the runner is paid for |
@@ -162,8 +169,18 @@ bad" and "the prompt did not fit" have opposite fixes.
 ## The three shapes it may propose
 
 The model states which shape it saw, and the shape decides which fields it may
-name. They are the three `runAdapter` reads, and no others — `docs/adapters.md`
-describes each one as a hand-written entry.
+name. `docs/adapters.md` describes each one as a hand-written entry.
+
+**The model branch is untouched as of 2026-09-20, and these are still three.**
+The deterministic search above no longer has page shapes at all, but
+`core/author.ts`, `buildPrompt`, `proposalSchema` and `validateProposal` do —
+they were not changed when the locators landed, so a model **cannot** propose
+`duePrev`, `duePhrase`, `dueSlot`, `titleSlot`, `titleBefore` or `defaultTime`.
+It does not need to for any page seen so far: every page that used to fall
+through to the model is now read by the search, which is the branch that runs
+first. Teaching the schema the locators is a later change, and it costs a
+prompt, an enum per field and a round of live runs — the search reaching those
+pages is what made it not urgent rather than what made it unnecessary.
 
 Every answer carries the same six keys — `shape`, `rows`, `title`, `due`,
 `dueLabel`, `dateFormat` — and the shape decides what two of them *mean* and
@@ -317,9 +334,10 @@ published registry entry clears — rather than by a second copy of those rules
 here. A `kind` this file waved past would reach `Item.kind` as a value no
 `switch` in the UI has a branch for, and `examBoard` filters on it.
 
-## The inventory says which groups carry dates, and the search reads lists
+## The inventory says which groups carry dates, and the search reads them
 
-*2026-09-19, from three live runs on the same page.*
+*2026-09-19, from three live runs on the same page. Extended 2026-09-20, when
+the search stopped having page shapes.*
 
 ECE 411's assignments page went to the model three times, one build apart, and
 never produced a row:
@@ -380,42 +398,110 @@ the next answer is a copy rather than another search. It costs the page summary
 about two rows; the reserve's test now allows a fifteenth of the smallest window
 instead of a twentieth, and says why.
 
-### And the deterministic proposer reads the list itself
+### And the deterministic proposer reads the whole page itself
 
-`detectListCandidates` turns an inventory group into a candidate when all of:
+`searchCandidates` takes each inventory group, each hook `locatorEvidence`
+measured on it, and asks three questions before the runner is paid for:
 
-- at least 3 rows;
-- at least **80%** of its *stated* rows dated — far stricter than the half a
-  table's column needs, because a table's column is named by its header and a
-  list's only evidence is that its lines read as dates;
-- a `dueLabel` convention (`dated.label`);
-- a `titleFrom` — the heading over the rows. This is also what keeps the list
-  proposer off a table: a group of table rows or cells is given no `titleFrom`,
-  because a heading over a table is not a row's name. An explicit "not a table"
-  guard was measured redundant with it and deleted (mutation rule 2).
+- **at least `MIN_DATED_ROWS` (2) rows dated.** One stray "9/11" is not a
+  schedule, and "1 of 1" is a 100% hit rate with a single sample behind it.
+- **the share.** A named column needs `MIN_DATED_SHARE` (half) of the table's
+  data rows, and placeholders count against it. Every other hook needs
+  `MIN_HOOKED_SHARE` (**80%**) of the rows *it reached*, minus the ones that
+  read TBD. Stricter for a reason: a column is named by the page's own header,
+  so "most of it parses" confirms a choice the page made, while a label, a
+  keyword, a preceding sibling or a `<time>` tag has nothing behind it but the
+  fact that those lines read as dates.
+- **what it builds is buildable.** A label candidate needs a `titleFrom` — the
+  heading over the rows — because a row in a list has no name of its own and
+  §3.1 hashes the title, so three rows titled "Due" collide on one `sourceId`.
+  A grid candidate needs a column whose cells say "due" on the dated rows;
+  without that page-side evidence the search would offer the column beside the
+  date, which on CS 424 is the lecture topic.
 
-The candidate is `rows` + `title: "."` + `due: "."` + `dueLabel` + `titleFrom` +
-`filter.exclude` for TBD/N/A, and it is run through the **real runner** on the
-real page: at least one row, every kept row's value read whole. Over the ECE 411
-capture it matches the same sixteen `<li>`s as `ece411-fa26-mp` *by element
-identity* and produces the same two rows, `mp_setup` and `mp_verif` at
-2026-09-07T23:59-05:00. **That page no longer reaches the model at all.**
+Then the trial adapter goes through the **real runner** on the real page: at
+least one row kept, no row kept with an empty name, and — for every hook but a
+named column — no kept row whose value it could not read. A placeholder is not
+such a value: `Due Date: TBD` is a deadline the course has not set, and read as
+an unreadable one it refuses the whole page the week before a course fills one
+in. A named column is exempt because a schedule has section breaks, "no class"
+weeks and the odd note, and refusing a table over one of them refuses most real
+schedules.
 
-Not everything list-shaped is reachable, and the exam list on ECE 411's syllabus
-is the example: see `docs/ece411-findings.md`.
+What survives is ranked — `dated`, then the share of what it keeps, then
+**specificity** (a named column 6, a declared label 5, a preceding sibling 4, a
+keyword 3, a `<time>` tag 2, a grid slot 1), then the narrowest group — and
+deduped by the `(title, dueAt)` pairs it produced, so the same deadlines reached
+through `li` and through `#mp-information ul.simple > li` are one proposal and
+the narrower spelling is the one kept. A reading that finds a proper subset of a
+kept one's rows goes too, within its own kind.
+
+Over the real captures, every proposal lands on the entry a person wrote:
+
+| Page | Hook | Proposal | Against |
+|---|---|---|---|
+| ECE 310 index | header | `#homework table tbody tr`, "due date" / "exercises" | 13 of 13 rows |
+| ECE 411 assignments | label | the same sixteen `<li>`s as `ece411-fa26-mp`, *by element identity* | its two rows |
+| CS 425 assignments | phrase | `duePhrase: "due"`, `titleBefore: ":"` | `cs425-fa26`'s eight |
+| ECE 374 A homeworks / GPS | prev | `duePrev: "dt"`, `titleBefore: ":"`, `defaultTime: "21:00"` | each entry's eleven |
+| CS 424 schedule | slot | `dueSlot: 1`, `titleSlot: 4`, `splitTitle: ";"` | `cs424-fa26`'s nine |
+
+**None of those pages reaches the model at all.** Not everything is reachable:
+the exam list on ECE 411's syllabus still is not, and `docs/ece411-findings.md`
+says why — its labels are the exams' own names, so there is no shared due
+convention to build a `dueLabel` from.
+
+`defaultTime` is proposed where the page states one cutoff in prose **outside
+every candidate's rows** and every dated row would otherwise land on an invented
+23:59. ECE 374 A prints "Written homeworks are due every Tuesday at 9pm" above
+its list; exactly one such clock, or none, because two sentences stating
+different hours mean the page has no single default and picking one is an
+invention.
 
 ### What a student is told now
 
 `candidatesFoundLine` (in core, where a test can quote it) says what ran:
 *"Found a list of 2 dated lines that looks like a schedule."*, *"Found one table
 that looks like a schedule."*, *"Found 1 table and 1 list that could be the
-schedule."* The old line said "table" whatever was found.
+schedule."* The old line said "table" whatever was found. A grid candidate
+counts as a table — it *is* one, with nothing to name — rather than as a list.
 
-`noCandidateReason` no longer says the search "only looks at tables" — it names
-both shapes it reads, and then says what it *did* find: *"The nearest thing to a
-schedule is `#schedule ul.simple > li`: 3 lines, 2 with a date this can read."*
-A student on an unreadable page learns something about their page rather than
-about this feature.
+The heading over each proposal is `locatorDescription`, which says where the
+date and the name come from in the page's own terms — *"date in the “Due Date”
+column, name in the “Exercises” column"*, *"date in the `<dt>` before each
+entry"*, *"date in column 2 of a table with no header row, name in column 5"*.
+It used to be the selector and the label spec, which is a true sentence about
+the adapter and tells a student nothing about their page. Under it,
+`candidateNotes` names every decision the search took on their behalf and that
+the rows cannot show: the rows selector, the `N of M` count, that a grid is read
+by position and a column added later breaks it, that cells are split on a
+semicolon, and that every deadline with no stated time is set to 21:00 because
+the page says so once. The preview carries the instant **and** the text it was
+read from, because either alone hides a column that reads plausibly and lands on
+the wrong day. Five proposals are drawn; the rest are behind "Show N more".
+
+`noCandidateReason` no longer names the shapes it reads — there are none to name
+— and it has four branches. When the search looked at something and refused it,
+it says which and why: *"The nearest thing to a schedule is `ul > li`, where
+only 5 of 7 rows carry a date this can read, which is under the 80% this
+needs."* When it never got that far, it says what the page has: *"The nearest
+thing to a schedule is `#schedule ul.simple > li`: 3 lines, 2 with a date this
+can read."*, *"The largest repeated group, `li` (2 lines), carries no date this
+can read."*, or — when the page repeats nothing at all — the JavaScript case and
+the model. A student on an unreadable page learns something about their page
+rather than about this feature.
+
+### Running it without a browser
+
+`npm run propose fixtures/sites/<page>.html` runs the inventory and the search
+from the command line, out of the same TypeScript bundled in memory (the pattern
+`scripts/scrub-file.mjs` uses — a second implementation here would be a proposer
+that agrees with nothing). It prints the found-line, each candidate's fields,
+its notes and its sample rows with what each date was read from, and on a page
+that yields nothing it prints `noCandidateReason` plus what the page repeats and
+which hooks reached anything. With `--url <page url>` it also prints the
+registry entry "Use this one" would save, which makes the loop for a new course:
+capture the page, run this, read the rows, paste the entry.
 
 ## The summary has to show a list, not mention one
 
@@ -538,7 +624,11 @@ the model's outcome was nothing at all.
 
 `noCandidateReason`'s no-table sentence changed with it: it used to end "it is a
 list rather than a table — those need a hand-written entry", which stopped being
-true the morning `dueLabel` landed.
+true the morning `dueLabel` landed. It was rewritten again on 2026-09-19 to name
+the two shapes the search read, and a third time on 2026-09-20 to name none —
+a sentence enumerating what the search can read has to be rewritten every time
+it learns something, and has been wrong between each rewrite and the one after
+it. What the *page* has cannot go stale.
 
 ## Checking the three lines without a model
 

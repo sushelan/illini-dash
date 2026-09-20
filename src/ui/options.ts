@@ -12,7 +12,8 @@ import {
   candidateNotes,
   candidatesFoundLine,
   locatorDescription,
-  MAX_SHOWN,
+  showMoreLabel,
+  shownCandidates,
   SITE_TIMEZONE,
   type Candidate,
 } from "../core/detect.js";
@@ -2481,22 +2482,12 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     return box;
   };
 
-  /*
-   * Five, and a button for the rest.
-   *
-   * The search crosses every repeated group with every hook, so a busy page can
-   * yield a dozen readings that all work — and a list nobody finishes reading
-   * is one where the choice is made by whichever came first. Five is what fits
-   * above the fold of the options page; the rest are one click away rather than
-   * discarded, because the sixth is sometimes the right one and this file is
-   * not the thing that can tell.
-   */
-  for (const candidate of candidates.slice(0, MAX_SHOWN)) {
-    addSiteResult.append(candidateBox(candidate));
-  }
-  const hidden = candidates.slice(MAX_SHOWN);
+  // Five, and a button for the rest. Which five is `shownCandidates`, in core
+  // where a test can reach it (worker rule 1); this file draws them.
+  const { shown, hidden } = shownCandidates(candidates);
+  for (const candidate of shown) addSiteResult.append(candidateBox(candidate));
   if (hidden.length > 0) {
-    const more = el("button", `Show ${hidden.length} more`);
+    const more = el("button", showMoreLabel(hidden.length));
     more.addEventListener("click", () => {
       more.remove();
       for (const candidate of hidden) addSiteResult.append(candidateBox(candidate));

@@ -25,6 +25,8 @@ import {
   rowSelectorForList,
   searchCandidates,
   selectorForTable,
+  showMoreLabel,
+  shownCandidates,
   type Candidate,
 } from "../src/core/detect.js";
 import { validateProposal } from "../src/core/author.js";
@@ -1029,6 +1031,58 @@ describe("a grid whose columns move", () => {
     );
     expect(propose(doc)).toEqual([]);
   });
+
+  it("refuses a grid where one row says “due” and the others do not", () => {
+    /*
+     * The row that separates the rule from `filter.include`, which otherwise
+     * masks it: with no "due" column at all the filter drops every row and the
+     * candidate dies anyway, so dropping the two-row floor survived its
+     * mutation. With exactly one such cell the filter keeps that row, and the
+     * search would offer a whole page's schedule read through a column one row
+     * happened to name — which is `MIN_DATED_ROWS`' own argument ("1 of 1 is a
+     * 100% hit rate with a single sample behind it") one column over.
+     */
+    const doc = docFrom(
+      `<table id="s">` +
+        `<tr><td>Week 1</td><td>9/11</td><td>Intro</td></tr>` +
+        `<tr><td>Week 2</td><td>9/18</td><td>Regex</td></tr>` +
+        `<tr><td>Week 3</td><td>9/25</td><td>HW1 Due</td></tr>` +
+        `</table>`,
+    );
+    expect(propose(doc)).toEqual([]);
+  });
+});
+
+describe("a page with more readable groups than the inventory can carry", () => {
+  /*
+   * The inventory keeps twelve, and it used to rank them on what a row states
+   * *in itself* — so a definition list, whose every row is dated through the
+   * `<dt>` beside it, scored zero and was cut before the search could look at
+   * it. A page with a dozen other groups carrying dates is what makes that
+   * visible; on the real captures nothing has enough groups for the cap to
+   * bite, which is why this one is written (mutation rule 4: a survivor can
+   * mean the adversarial input never reached the line).
+   */
+  const doc = docFrom(
+    "<main>" +
+      '<dl class="calendar">' +
+      "<dt>Sep 1</dt><dd>HW1: strings</dd>" +
+      "<dt>Sep 8</dt><dd>HW2: graphs</dd>" +
+      "<dt>Sep 15</dt><dd>HW3: flows</dd>" +
+      "</dl>" +
+      Array.from(
+        { length: 13 },
+        (_, i) => `<div id="n${i}"><span>10/${i + 1}</span><span>11/${i + 1}</span></div>`,
+      ).join("") +
+      "</main>",
+  );
+
+  it("still proposes the group whose dates are in the siblings beside it", () => {
+    const found = propose(doc);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.duePrev).toBe("dt");
+    expect(found[0]!.dated).toBe(3);
+  });
 });
 
 describe("two spellings of one set of deadlines", () => {
@@ -1066,6 +1120,106 @@ describe("two spellings of one set of deadlines", () => {
     // with nothing on screen saying which is which.
     expect(found[0]!.dated).toBe(5);
     expect(found.some((candidate) => candidate.rows.startsWith("#a"))).toBe(false);
+  });
+});
+
+describe("the runner is the oracle, not the evidence that got a candidate this far", () => {
+  /*
+   * The counts the thresholds are read off come from `locatorEvidence`, which
+   * measures the *hook*. What the adapter keeps is decided by `filter`,
+   * `splitTitle` and `titleBefore` as well, so the two can disagree — and when
+   * they do, only one of them is what the extension will record every morning.
+   *
+   * Five of six lines dated is over the 80% a label needs, so this candidate
+   * reaches the runner and is refused there: "Due: see Canvas" is not TBD, so
+   * nothing drops it, and the runner keeps it as an item with `unparsedDate`
+   * and no date. Shown in the preview it is a deadline this merely failed to
+   * read, which §11 ranks above every other failure — and it usually means the
+   * group or the format is wrong, not that one line is odd.
+   */
+  const lines = ["9/7", "9/14", "9/21", "9/28", "10/5"];
+  const list = (last: string) =>
+    docFrom(
+      "<section><h3>MP1</h3><ul>" +
+        [...lines, last].map((value) => `<li>Due: ${value}</li>`).join("") +
+        "</ul></section>",
+    );
+
+  it("refuses the whole page when one kept row's value cannot be read", () => {
+    expect(propose(list("see Canvas"))).toEqual([]);
+    expect(why(list("see Canvas"))).toContain("could not read whole");
+  });
+
+  it("proposes the same page when that row reads TBD instead", () => {
+    // A deadline the course has not set is a different thing from one this
+    // could not read, and `filter.exclude` drops it.
+    const found = propose(list("TBD"));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.dated).toBe(5);
+  });
+});
+
+describe("the hour a page states once", () => {
+  const list = (prose: string) =>
+    docFrom(
+      `<main><p>${prose}</p>` +
+        '<dl class="calendar">' +
+        "<dt>Sep 1</dt><dd>HW1: strings</dd>" +
+        "<dt>Sep 8</dt><dd>HW2: graphs</dd>" +
+        "<dt>Sep 15</dt><dd>HW3: flows</dd>" +
+        "</dl></main>",
+    );
+
+  it("is proposed when the page states exactly one, outside the rows", () => {
+    const best = propose(list("Homeworks are due at 9pm."))[0]!;
+    expect(best.defaultTime).toBe("21:00");
+    expect(best.sample[0]!.due).toContain("T21:00:00");
+  });
+
+  it("is not proposed when the page states two different ones", () => {
+    /*
+     * Two sentences stating different hours mean the page has no single
+     * default, and picking one of them is an invention this code would then
+     * present as the course's own answer (worker rule 3). 23:59 is also an
+     * invention — but it is the one §4.5 already makes, and `timeAssumed`
+     * marks it, so a real Canvas instant still outranks it.
+     */
+    const best = propose(list("Homeworks are due at 9pm. Labs are due by 5pm."))[0]!;
+    expect(best.defaultTime).toBeUndefined();
+    expect(best.sample[0]!.due).toContain("T23:59:00");
+  });
+
+  it("is not read out of the rows it would be applied to", () => {
+    // A cutoff inside a row is that row's own, and `runAdapter` already reads
+    // it; a page-wide default built from one row's sentence puts that row's
+    // hour on every other row.
+    const doc = docFrom(
+      '<main><dl class="calendar">' +
+        "<dt>Sep 1</dt><dd>HW1: strings, due at 9pm</dd>" +
+        "<dt>Sep 8</dt><dd>HW2: graphs</dd>" +
+        "<dt>Sep 15</dt><dd>HW3: flows</dd>" +
+        "</dl></main>",
+    );
+    const best = propose(doc)[0]!;
+    expect(best.defaultTime).toBeUndefined();
+    expect(best.sample.map((row) => row.due.slice(11, 16))).toEqual(["21:00", "23:59", "23:59"]);
+  });
+});
+
+describe("how many proposals the page draws", () => {
+  // The split is in core, where a test can reach it: the options page is one
+  // of the two files the suite cannot see (worker rule 1).
+  const many = Array.from({ length: 8 }, (_, i) => ({ rows: `#${i}`, dateFormat: "M/d", total: 1, dated: 1, sample: [] }));
+
+  it("draws five and hides the rest", () => {
+    const { shown, hidden } = shownCandidates(many);
+    expect(shown).toHaveLength(5);
+    expect(hidden).toHaveLength(3);
+    expect(showMoreLabel(hidden.length)).toBe("Show 3 more");
+  });
+
+  it("hides nothing when the page yields five or fewer", () => {
+    expect(shownCandidates(many.slice(0, 5)).hidden).toEqual([]);
   });
 });
 

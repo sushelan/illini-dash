@@ -227,6 +227,28 @@ const SAMPLE_ROWS = 6;
 /** Proposals the options page draws before it offers a "Show N more" button. */
 export const MAX_SHOWN = 5;
 
+/**
+ * Which proposals are drawn and which are behind the button.
+ *
+ * A decision, so it is in core where a test can reach it rather than in the one
+ * file the suite cannot see (worker rule 1). The search crosses every repeated
+ * group with every hook, so a busy page yields a dozen readings that all work —
+ * and a list nobody finishes reading is one where the choice is made by
+ * whichever came first. The rest are one click away rather than discarded,
+ * because the sixth is sometimes the right one and nothing here can tell.
+ */
+export function shownCandidates(candidates: readonly Candidate[]): {
+  shown: Candidate[];
+  hidden: Candidate[];
+} {
+  return { shown: candidates.slice(0, MAX_SHOWN), hidden: candidates.slice(MAX_SHOWN) };
+}
+
+/** The button's own words, beside the count it is hiding. */
+export function showMoreLabel(hidden: number): string {
+  return `Show ${hidden} more`;
+}
+
 function textOf(node: Element | null | undefined): string {
   return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
 }
@@ -911,18 +933,39 @@ function statedDefaultTime(doc: Document, rows: readonly Element[]): string | un
   const clocks = new Set<string>();
   for (const element of doc.querySelectorAll(PROSE)) {
     if (excluded.has(element)) continue;
-    const stated = statedTimeInText(textOf(element));
-    if (!stated) continue;
+    const stated = clocksIn(textOf(element));
+    if (stated.length === 0) continue;
     // The innermost element that states it, so one sentence in a `<p>` inside a
     // `<div>` is one statement rather than two.
-    if ([...element.querySelectorAll(PROSE)].some((child) => statedTimeInText(textOf(child)))) {
+    if ([...element.querySelectorAll(PROSE)].some((child) => clocksIn(textOf(child)).length > 0)) {
       continue;
     }
-    clocks.add(
+    for (const clock of stated) clocks.add(clock);
+  }
+  return clocks.size === 1 ? [...clocks][0] : undefined;
+}
+
+/**
+ * Every cutoff a passage states, not the first one.
+ *
+ * `statedTimeInText` answers about a *row*, where one sentence is the whole
+ * question. A paragraph is not a row: "Homeworks are due at 9pm. Labs are due by
+ * 5pm." states two different defaults, and reading only the first turns a page
+ * with no single answer into a confident one. Split on the sentence boundary
+ * the reader itself cannot cross — its `[^.;]{0,24}` will not span a `.` or a
+ * `;` — so nothing is lost by asking sentence by sentence. The whitespace in
+ * the split is what keeps "11.59 PM" one token.
+ */
+function clocksIn(text: string): string[] {
+  const found: string[] = [];
+  for (const sentence of text.split(/(?<=[.;])\s+/)) {
+    const stated = statedTimeInText(sentence);
+    if (!stated) continue;
+    found.push(
       `${String(stated.hour).padStart(2, "0")}:${String(stated.minute).padStart(2, "0")}`,
     );
   }
-  return clocks.size === 1 ? [...clocks][0] : undefined;
+  return found;
 }
 
 /** A candidate read back as the adapter it came from — its results dropped. */
