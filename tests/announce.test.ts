@@ -183,6 +183,18 @@ describe("times this grammar refuses to guess at", () => {
     expect(read("HW9 is due Friday at noon.").at).toBe("2026-09-25T12:00:00-05:00");
     expect(read("HW9 is due Friday at midnight.").at).toBe("2026-09-25T00:00:00-05:00");
   });
+
+  it("reads a dotted clock, because the clock rule is site.ts's own", () => {
+    /*
+     * `clockGroups` is shared with `src/sources/site.ts` (mutation house rule
+     * 3: one decision, one copy). An instructor posting "11.59 PM" writes it
+     * the way their course page does — CS 425 writes every deadline that way —
+     * and the two readings must not be able to drift apart.
+     */
+    const mention = read("HW9 is due Friday at 11.59 PM.");
+    expect(mention.at).toBe("2026-09-25T23:59:00-05:00");
+    expect(mention.timeAssumed).toBe(false);
+  });
 });
 
 describe("date-like phrases that cannot be read (parser rule 1)", () => {

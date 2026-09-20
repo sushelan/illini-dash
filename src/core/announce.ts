@@ -24,7 +24,7 @@
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "./dates.js";
 import { extractCourseCodes, isSubsetOf, jaccard, normalizeTitle } from "./normalize.js";
 import { isInstant } from "./parsing.js";
-import { MONTHS, SEP, TIME, WEEKDAY_NAME } from "../sources/site.js";
+import { MONTHS, SEP, TIME, WEEKDAY_NAME, clockGroups } from "../sources/site.js";
 import { ParseError } from "../sources/types.js";
 import type { Item } from "../sources/types.js";
 
@@ -586,7 +586,11 @@ function sentences(masked: string): Sentence[] {
 /* Clock                                                                       */
 /* -------------------------------------------------------------------------- */
 
-interface Clock {
+/**
+ * What prose gives a deadline: a clock, whether it was invented, and what could
+ * not be read. Richer than site.ts's `Clock`, which is just an hour and minute.
+ */
+interface ProseClock {
   hour: number;
   minute: number;
   timeAssumed: boolean;
@@ -596,7 +600,7 @@ interface Clock {
 /** §4.5's invention, in one place so it is greppable: end of the stated day. */
 const ASSUMED_CLOCK = { hour: 23, minute: 59, timeAssumed: true } as const;
 
-function readClock(g: Record<string, string | undefined>): Clock {
+function readClock(g: Record<string, string | undefined>): ProseClock {
   const word = g["word"]?.toLowerCase();
   // "midnight Friday" is read as 00:00 on Friday, the same reading site.ts's
   // `statedTimeInText` gives it. Colloquially it often means the end of Friday;
@@ -605,26 +609,23 @@ function readClock(g: Record<string, string | undefined>): Clock {
   if (word === "noon") return { hour: 12, minute: 0, timeAssumed: false };
   if (word === "midnight") return { hour: 0, minute: 0, timeAssumed: false };
 
-  const rawHour = g["hour"] ?? g["hour12"];
-  const ampm = (g["ampm"] ?? g["ampm12"])?.toLowerCase();
-  if (rawHour !== undefined) {
-    // site.ts's rule, unchanged: a bare `h:mm` under 13 with no meridiem and no
-    // leading zero could be either end of the day, and reading "5:00" as 05:00
-    // moves a 5 PM deadline twelve hours while looking stated.
-    const ambiguous =
-      ampm === undefined &&
-      g["minute"] !== undefined &&
-      Number(rawHour) < 13 &&
-      !/^0\d$/.test(rawHour);
-    const minute = g["minute"] ? Number(g["minute"]) : 0;
-    let hour = Number(rawHour);
-    if (ampm === "pm" && hour < 12) hour += 12;
-    if (ampm === "am" && hour === 12) hour = 0;
-    if (!ambiguous && hour <= 23 && minute <= 59) return { hour, minute, timeAssumed: false };
-    return {
-      ...ASSUMED_CLOCK,
-      unparsedTime: g["minute"] === undefined ? rawHour : `${rawHour}:${g["minute"]}`,
-    };
+  /*
+   * `TIME`'s alternatives and its ambiguity rule, read by site.ts's own
+   * function rather than a second copy of it here.
+   *
+   * There were two copies, and mutation house rule 3 is exactly that case: a
+   * mutation loosening one is masked by the other staying strict, so no test
+   * can reach it. The range check below stays here, because the two callers
+   * genuinely disagree about an out-of-range hour — site.ts lets
+   * `isRealWallClock` reject the whole date, and prose records it and falls
+   * back to 23:59, which is the right answer for a sentence.
+   */
+  const written = clockGroups(g);
+  if (written.hour !== undefined) {
+    if (!written.ambiguous && written.hour <= 23 && written.minute <= 59) {
+      return { hour: written.hour, minute: written.minute, timeAssumed: false };
+    }
+    return { ...ASSUMED_CLOCK, unparsedTime: written.written };
   }
 
   const part = g["part"]?.toLowerCase();

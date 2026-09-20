@@ -141,16 +141,133 @@ const WEEKDAY = `${WEEKDAY_NAME}\\.?,?\\s+`;
 export const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
 
 /**
- * A stated time, in the two shapes that are not ambiguous.
+ * The weekday spellings, listed out and longest first.
  *
- * `h:mm` with optional am/pm, or a bare hour that *must* carry am/pm. A bare
- * "5" with no meridiem is not read as a time at all: on a course page it could
- * be either, and guessing would put a 5 PM deadline at 05:00 — worse than
+ * `WEEKDAY_NAME`'s `[a-z]*` tail is fine as a *prefix*, where whatever follows
+ * has to be a date and a wrong guess simply fails to parse. It is not fine
+ * after one: "9/1 Monthly report at 5pm" would have "Monthly" swallowed as a
+ * weekday and then read 5pm as this deadline's cutoff. `announce.ts` learned
+ * the same thing about "monthly" and "satisfied" and answered it with an exact
+ * table; this is that table, for the trailing position only.
+ *
+ * The list alone is not enough — `mon` is on it, and it matches the first three
+ * letters of "Monthly" quite happily — so `WEEKDAY_AFTER` puts a `\b` after it.
+ * Longest first so "Tuesday" is not read as "Tue" with "sday" left over.
+ */
+const WEEKDAY_AFTER_NAME =
+  "(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday" +
+  "|sun|mon|tues|tue|weds|wed|thurs|thur|thu|fri|sat)";
+
+/**
+ * The weekday a page prints *after* the date, and the footnote mark after that.
+ *
+ * CS 374 A writes "Tue Sep 01" and ECE 310 writes "09/03 Thu."; CS 425 writes
+ * "9/13 11.59 PM Central Time (Sun)". Without this the trailing name is
+ * leftover text, which is harmless — until the leftover *also* holds the clock,
+ * because the formats are start-anchored and stop at the first thing they
+ * cannot read. "09/24, Thursday 11.59 PM" landed at an invented 23:59 that
+ * happened to be right, and "09/24, Thursday 5 PM" would have landed six hours
+ * late while looking stated (worker rule 3).
+ *
+ * The footnote marks are on the end because a schedule that footnotes a date
+ * ("08/27 Thu¹ — no discussion that week") puts the mark between the weekday
+ * and anything else, and a leftover "¹" is enough to make `timeLikeTail` look
+ * at text the parser had no business stopping before.
+ */
+const WEEKDAY_AFTER = `(?:[\\s,]*\\(?${WEEKDAY_AFTER_NAME}\\b\\)?\\.?[¹²³⁴⁵⁶⁷⁸⁹⁰*†‡]*)?`;
+
+/**
+ * A stated time, in the three shapes that are not ambiguous.
+ *
+ * `h:mm` (or `h.mm`) with optional am/pm, a bare hour that *must* carry am/pm,
+ * or a four-digit 24-hour clock that the page itself labels `hrs`. A bare "5"
+ * with no meridiem is not read as a time at all: on a course page it could be
+ * either, and guessing would put a 5 PM deadline at 05:00 — worse than
  * admitting the time is unknown, because it looks stated.
+ *
+ * Two additions, both from real fa26 pages:
+ *
+ * - **`.` as the minute separator.** CS 425 writes every deadline as
+ *   "11.59 PM Central Time", on all eight of them. With only `:` the format
+ *   stopped at the date and invented 23:59 — which happens to be the same
+ *   instant, and so was invisible, but carried `timeAssumed` and would
+ *   therefore have lost to any Canvas row (§5.3 + worker rule 3).
+ * - **`hhmm hrs`.** "Tue 9/8 0930 - 1045 hrs." is how a lab page writes a
+ *   session. Four digits with no separator are only a clock when the page says
+ *   `hrs`: "Sep 11 1045" is far more likely to be a room, a section or a
+ *   fragment of a year, so it is left unread. A range gives its start, for the
+ *   reason `clockFromText` does — the start is when a student has to be there.
  */
 export const TIME =
-  `(?:(?<hour>\\d{1,2}):(?<minute>\\d{2})\\s*(?<ampm>am|pm)?` +
+  `(?:(?<hour24>[01]\\d|2[0-3])(?<minute24>[0-5]\\d)` +
+  `(?:\\s*(?:[-–—]|to)\\s*\\d{3,4})?\\s*hrs?\\b` +
+  `|(?<hour>\\d{1,2})[:.](?<minute>\\d{2})\\s*(?<ampm>am|pm)?` +
   `|(?<hour12>\\d{1,2})\\s*(?<ampm12>am|pm))`;
+
+/** One wall-clock reading: what a page stated, or what an adapter defaults to. */
+export interface Clock {
+  hour: number;
+  minute: number;
+}
+
+/** `TIME`'s alternatives, coalesced — and the ambiguity rule, in one place. */
+export interface ClockGroups {
+  /**
+   * The hour the text wrote, with the meridiem already applied. Undefined when
+   * the text wrote no clock at all.
+   */
+  hour?: number;
+  minute: number;
+  /**
+   * True when a clock is written but could mean either end of the day.
+   *
+   * A bare `h:mm` under 13 with no meridiem: "5:00" on a course page is
+   * genuinely either, and reading it as 05:00 moves a 5 PM deadline twelve
+   * hours while looking exactly like a stated time. A leading zero settles it
+   * (nobody writes an evening deadline as "09:00"), and so does the page
+   * writing `hrs`.
+   */
+  ambiguous: boolean;
+  /** The clock as the text wrote it (`"5"`, `"5:00"`), for recording a failure. */
+  written?: string;
+}
+
+/**
+ * Reads `TIME`'s named groups into one clock.
+ *
+ * Exported and used by `core/announce.ts` as well, because instructor prose and
+ * a course page must read a clock the same way — and the ambiguity rule above
+ * is the single rule in this file most likely to be re-derived wrongly. It was
+ * written out twice for a while, and mutation house rule 3 is exactly that
+ * case: a mutation to one copy is masked by the other staying strict.
+ *
+ * The range check is deliberately *not* here. The two callers disagree about
+ * what an out-of-range hour means — this file lets `isRealWallClock` reject the
+ * whole date, `announce.ts` records it and falls back to 23:59 — and folding
+ * one of those answers in here would change the other's behaviour silently.
+ */
+export function clockGroups(g: Record<string, string | undefined>): ClockGroups {
+  const rawHour = g["hour"] ?? g["hour12"] ?? g["hour24"];
+  if (rawHour === undefined) return { minute: 0, ambiguous: false };
+  const rawMinute = g["minute"] ?? g["minute24"];
+  const ampm = (g["ampm"] ?? g["ampm12"])?.toLowerCase();
+  // `0930 hrs` is 24-hour by the page's own say-so, so it is never ambiguous.
+  const ambiguous =
+    g["hour24"] === undefined &&
+    ampm === undefined &&
+    rawMinute !== undefined &&
+    Number(rawHour) < 13 &&
+    !/^0\d$/.test(rawHour);
+  let hour = Number(rawHour);
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  return {
+    hour,
+    minute: rawMinute === undefined ? 0 : Number(rawMinute),
+    ambiguous,
+    written: rawMinute === undefined ? rawHour : `${rawHour}:${rawMinute}`,
+  };
+}
 
 /**
  * Token formats an adapter may declare. Deliberately a closed set: an adapter
@@ -164,18 +281,20 @@ export const TIME =
 const DATE_FORMATS: Record<string, RegExp> = {
   // 2026-09-11 · 2026-09-11 23:59 · Fri, 2026-09-11 at 18:00
   "yyyy-MM-dd": new RegExp(
-    `^(?:${WEEKDAY})?(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})(?:${SEP}${TIME})?`,
+    `^(?:${WEEKDAY})?(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
   "MMM d, h:mm a": new RegExp(
     `^(?:${WEEKDAY})?(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
-      `(?:${SEP}${TIME})?`,
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
-  // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8
+  // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM
   "M/d": new RegExp(
-    `^(?:${WEEKDAY})?(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?(?:${SEP}${TIME})?`,
+    `^(?:${WEEKDAY})?(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
 };
@@ -193,7 +312,16 @@ const DATE_FORMATS: Record<string, RegExp> = {
 export function timeLikeTail(tail: string): string | undefined {
   const trimmed = tail.trim();
   if (trimmed === "") return undefined;
-  return /\d{1,2}\s*:\s*\d{2}|\d\s*(?:am|pm)\b|\bnoon\b|\bmidnight\b/i.test(trimmed)
+  // `\d{4}\s*hrs?` is here for the same reason the rest is: `TIME` reads
+  // "0930 hrs" only where `SEP` can reach it, so a lab page that writes the
+  // session further along the line leaves a clock behind, and an unflagged
+  // leftover reads as "the page stated no time".
+  //
+  // `11.59` with no meridiem is deliberately *not* listed. `\d\s*(?:am|pm)`
+  // already catches every dotted time a page actually writes — CS 425's is
+  // "11.59 PM" — and `\d{1,2}\.\d{2}` on its own would flag "worth 12.50
+  // points" as an unreadable clock on every row that says so.
+  return /\d{1,2}\s*:\s*\d{2}|\d\s*(?:am|pm)\b|\bnoon\b|\bmidnight\b|\b\d{4}\s*hrs?\b/i.test(trimmed)
     ? trimmed.slice(0, 120)
     : undefined;
 }
@@ -515,24 +643,11 @@ export function parseAdapterDateParts(
     : monthIndex(g["month"]!.slice(0, 3).replace(/^./, (c) => c.toUpperCase()));
   if (month === undefined) return undefined;
 
-  // Two alternatives in TIME, so the groups are coalesced here.
-  const rawHour = g["hour"] ?? g["hour12"];
-  const ampm = (g["ampm"] ?? g["ampm12"])?.toLowerCase();
+  // TIME has three alternatives and the ambiguity rule is shared with
+  // `announce.ts`, so both live in `clockGroups`.
+  const written = clockGroups(g);
+  const stated = written.hour !== undefined && !written.ambiguous;
 
-  // A bare `h:mm` with no meridiem is 24-hour notation only when it cannot mean
-  // anything else: an hour past noon, or a leading zero (nobody writes an
-  // evening deadline as "09:00"). "5:00" on a course page is genuinely
-  // ambiguous, and reading it as 05:00 would move a 5 PM deadline twelve hours
-  // earlier while looking like a stated time. Ambiguous is treated as unstated
-  // and recorded, per house rule 5.
-  const ambiguous =
-    rawHour !== undefined &&
-    ampm === undefined &&
-    g["minute"] !== undefined &&
-    Number(rawHour) < 13 &&
-    !/^0\d$/.test(rawHour);
-
-  const stated = rawHour !== undefined && !ambiguous;
   /*
    * The date cell wins: a time beside the date is this row's own answer, and a
    * sentence elsewhere in the row is consulted only when there is none.
@@ -543,10 +658,8 @@ export function parseAdapterDateParts(
    * what it rejected. Mutation house rule 2's third case: a second guard
    * duplicating a reachable one is not defence, it is another thing to read.
    */
-  let hour = stated ? Number(rawHour) : (statedElsewhere?.hour ?? 23);
-  const minute = stated ? (g["minute"] ? Number(g["minute"]) : 0) : (statedElsewhere?.minute ?? 59);
-  if (ampm === "pm" && hour < 12) hour += 12;
-  if (ampm === "am" && hour === 12) hour = 0;
+  const hour = stated ? written.hour! : (statedElsewhere?.hour ?? 23);
+  const minute = stated ? written.minute : (statedElsewhere?.minute ?? 59);
 
   const parts = { month, day: Number(g["day"]), hour, minute };
   // Checked before inferYear, which builds candidate instants itself and would
@@ -566,7 +679,7 @@ export function parseAdapterDateParts(
   // Anything after the match that still looks like a time is a value this
   // parser failed to read, not text it was right to ignore.
   const leftover = timeLikeTail(raw.trim().slice(match[0].length));
-  const unparsedTime = ambiguous ? String(rawHour) + (g["minute"] ? `:${g["minute"]}` : "") : leftover;
+  const unparsedTime = written.ambiguous ? written.written : leftover;
 
   try {
     return {

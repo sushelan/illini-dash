@@ -10,6 +10,7 @@ import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
   clockFromText,
+  clockGroups,
   matchDueLabel,
   parseAdapterDate,
   parseAdapterDateParts,
@@ -17,6 +18,7 @@ import {
   runAdapter,
   statedTimeInText,
   supportedDateFormats,
+  timeLikeTail,
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
@@ -702,6 +704,169 @@ describe("adapter date grammar against real fa26 course pages (§4.5)", () => {
   it("keeps a 12-hour time with a meridiem working", () => {
     expect(local(parse("Sep 11, 11:59 pm", "MMM d, h:mm a")!.iso)).toBe("Sep 11, 23:59");
     expect(local(parse("September 11 at 5pm", "MMM d, h:mm a")!.iso)).toBe("Sep 11, 17:00");
+  });
+
+  /**
+   * The weekday a page writes *after* the date.
+   *
+   * Harmless as leftover text right up until the leftover also holds the clock:
+   * the formats are start-anchored and stop at the first thing they cannot
+   * read, so a trailing weekday hid every time printed behind it.
+   */
+  describe("a trailing weekday", () => {
+    it("reads a date that ends in one, with nothing left over", () => {
+      for (const raw of ["09/03 Thu.", "09/24, Thursday", "08/27 Thu¹", "9/13 (Sun)"]) {
+        const at = parse(raw, "M/d")!;
+        expect(at, raw).toBeDefined();
+        expect(at.unparsedTime, raw).toBeUndefined();
+        expect(at.timeAssumed, raw).toBe(true);
+      }
+      expect(local(parse("09/03 Thu.", "M/d")!.iso)).toBe("Sep 03, 23:59");
+      expect(local(parse("08/27 Thu¹", "M/d")!.iso)).toBe("Aug 27, 23:59");
+    });
+
+    it("reads the clock that used to be hidden behind it", () => {
+      // The whole reason this is not cosmetic. Without the trailing weekday the
+      // match stopped at "09/24", the "11.59 PM" became leftover, and the row
+      // landed on an *invented* 23:59 — the same instant here, and six hours
+      // early the moment a course writes "Thursday 5 PM" (worker rule 3).
+      const at = parse("09/24, Thursday 11.59 PM", "M/d")!;
+      expect(at.timeAssumed).toBe(false);
+      expect(local(at.iso)).toBe("Sep 24, 23:59");
+    });
+
+    it("works after a month name and after an ISO date too", () => {
+      expect(local(parse("Sep 24 Thursday 5 pm", "MMM d, h:mm a")!.iso)).toBe("Sep 24, 17:00");
+      expect(local(parse("2026-09-24 Thursday 17:00", "yyyy-MM-dd")!.iso)).toBe("Sep 24, 17:00");
+    });
+
+    it("does not swallow a word that merely starts like one", () => {
+      /*
+       * Deliberately unrealistic, because a realistic page cannot tell the
+       * exact table from `WEEKDAY_NAME`'s `[a-z]*` tail (parser rule 10).
+       * "Monthly" starts with "mon"; the loose pattern eats it and then reads
+       * the 5pm behind it as this deadline's cutoff, which is a six-hour error
+       * wearing a stated time's clothes. `announce.ts` learned this about
+       * "monthly" and "satisfied" and answered it the same way.
+       */
+      const at = parse("9/1 Monthly report 5 pm", "M/d")!;
+      expect(at.timeAssumed).toBe(true);
+      expect(at.unparsedTime).toBe("Monthly report 5 pm");
+    });
+  });
+
+  /** The two clock shapes fa26 pages write that this grammar could not read. */
+  describe("11.59 PM and 0930 hrs", () => {
+    it("reads a dot as the minute separator, which CS 425 uses on every row", () => {
+      // All eight CS 425 deadlines are "11.59 PM Central Time". With only `:`
+      // the format stopped at the date and invented 23:59 — the same instant,
+      // so invisible, but carrying `timeAssumed`, so it would lose to any
+      // Canvas row for this course (§5.3).
+      const at = parse("9/20 at 11.59 PM Central Time", "M/d")!;
+      expect(at.timeAssumed).toBe(false);
+      expect(at.unparsedTime).toBeUndefined();
+      expect(local(at.iso)).toBe("Sep 20, 23:59");
+    });
+
+    it("reads a four-digit clock the page labels hrs, and takes the start of a range", () => {
+      const at = parse("Tue 9/8 0930 - 1045 hrs.", "M/d")!;
+      expect(at.timeAssumed).toBe(false);
+      expect(local(at.iso)).toBe("Sep 08, 09:30");
+      expect(parse("9/8 1045 hrs", "M/d")!.timeAssumed).toBe(false);
+      expect(local(parse("9/8 1045 hrs", "M/d")!.iso)).toBe("Sep 08, 10:45");
+    });
+
+    it("leaves four bare digits alone, because they are usually not a clock", () => {
+      // A room, a section, half a year. Only the page saying "hrs" makes four
+      // digits with no separator a time.
+      const at = parse("Sep 11 1045", "MMM d, h:mm a")!;
+      expect(at.timeAssumed).toBe(true);
+      expect(at.unparsedTime).toBeUndefined();
+      expect(local(at.iso)).toBe("Sep 11, 23:59");
+    });
+
+    it("still refuses a bare hour, with or without a weekday in front", () => {
+      // Reading "5" as 05:00 moves a 5 PM deadline eighteen hours earlier than
+      // the 23:59 this admits to inventing.
+      const at = parse("Thu 9/3 5", "M/d")!;
+      expect(at.timeAssumed).toBe(true);
+      expect(local(at.iso)).toBe("Sep 03, 23:59");
+      expect(local(at.iso)).not.toContain("05:00");
+    });
+
+    it("refuses 2500 hrs rather than pretending it read one", () => {
+      // `[01]\d|2[0-3]` is the hour, positively: `\d{2}` would accept 25 and
+      // then `isRealWallClock` would throw the whole date away.
+      const at = parse("9/8 2500 hrs", "M/d")!;
+      expect(at.timeAssumed).toBe(true);
+      expect(at.unparsedTime).toBe("2500 hrs");
+    });
+  });
+
+  describe("timeLikeTail", () => {
+    it("flags a leftover that still looks like a clock", () => {
+      expect(timeLikeTail(" — due by 11:59 pm sharp")).toContain("11:59");
+      expect(timeLikeTail(" at 5pm")).toContain("5pm");
+      expect(timeLikeTail(" at noon")).toContain("noon");
+      // The new one: "0930 hrs" is a clock this grammar can read, so a leftover
+      // holding it means the parser stopped short of something it understands.
+      expect(timeLikeTail(" session 0930 hrs")).toContain("0930");
+    });
+
+    it("says nothing about a leftover that is not a time", () => {
+      expect(timeLikeTail("")).toBeUndefined();
+      expect(timeLikeTail(" (no late work accepted)")).toBeUndefined();
+      expect(timeLikeTail(" US Central time")).toBeUndefined();
+      expect(timeLikeTail(" 1045")).toBeUndefined();
+      // A decimal that is not a clock. `\d{1,2}\.\d{2}` here would put an
+      // unparsedTime on every row of a page that prints point values.
+      expect(timeLikeTail(" worth 12.50 points")).toBeUndefined();
+    });
+  });
+
+  /**
+   * `clockGroups` is the one copy of `TIME`'s coalescing and its ambiguity
+   * rule; `announce.ts` reads prose with it too (mutation house rule 3 — two
+   * copies means a mutation to one is masked by the other staying strict).
+   */
+  describe("clockGroups", () => {
+    const groupsOf = (raw: string, format: string) => {
+      const at = parse(raw, format);
+      return at;
+    };
+
+    it("coalesces all three of TIME's alternatives", () => {
+      expect(clockGroups({ hour: "11", minute: "59", ampm: "pm" })).toMatchObject({
+        hour: 23,
+        minute: 59,
+        ambiguous: false,
+      });
+      expect(clockGroups({ hour12: "5", ampm12: "pm" })).toMatchObject({ hour: 17, minute: 0 });
+      expect(clockGroups({ hour24: "09", minute24: "30" })).toMatchObject({ hour: 9, minute: 30 });
+    });
+
+    it("calls a bare h:mm under 13 ambiguous, and an hrs clock never", () => {
+      expect(clockGroups({ hour: "5", minute: "00" })).toMatchObject({
+        ambiguous: true,
+        written: "5:00",
+      });
+      expect(clockGroups({ hour: "05", minute: "00" }).ambiguous).toBe(false);
+      expect(clockGroups({ hour: "17", minute: "00" }).ambiguous).toBe(false);
+      // "0930 hrs" is 24-hour by the page's own say-so.
+      expect(clockGroups({ hour24: "09", minute24: "30" }).ambiguous).toBe(false);
+    });
+
+    it("says nothing at all when the text wrote no clock", () => {
+      expect(clockGroups({}).hour).toBeUndefined();
+      expect(clockGroups({ word: "noon" }).hour).toBeUndefined();
+    });
+
+    it("is what the date formats actually use", () => {
+      // The shared function reached through the real parser, so a change to it
+      // that this file's direct calls miss still fails here.
+      expect(groupsOf("Sep 11 at 5:00", "MMM d, h:mm a")!.unparsedTime).toBe("5:00");
+      expect(groupsOf("Sep 11 at 05:00", "MMM d, h:mm a")!.timeAssumed).toBe(false);
+    });
   });
 });
 
