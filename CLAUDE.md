@@ -477,10 +477,11 @@ in the preview document (Hide and a Merge candidate both reach their handlers an
 
 ### Also open
 
-- **Course sites split across pages.** An adapter is one fixed URL, and a course keeps
-  assignments on one page and exams on another (ECE 391: `schedule.html` and `exams.html`).
-  Half of such a course can never be read. Needs a decision — several adapters per course,
-  or an adapter with several URLs — not a patch.
+- **Course sites split across pages — answered on 2026-09-18, not open.** An adapter is
+  one fixed URL, so a course whose assignments and exams live on two pages ships as two
+  registry entries under one `courseCode` — `ece411-fa26-mp` / `ece411-fa26-exams`, and
+  `cs374a-fa26-hw` / `cs374a-fa26-gps` — which costs a registry edit, no schema change and
+  no build (docs/adapters.md, "One course, two adapters").
 - **Coursera**, for the online CS courses. Blocked on one observation only Sushi can make:
   whether a Coursera deadline URL carries an account or enrolment id. Per-student means a
   source (a day's work, fixtures, a manifest change, a new review); a fixed per-course URL

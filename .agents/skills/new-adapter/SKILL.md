@@ -1,6 +1,6 @@
 ---
 name: new-adapter
-description: Add a course-site adapter to illini-dash — from a captured page to a registry entry in adapters/registry.json. Use when someone wants a new course, department schedule or course website tracked, when a captured course page arrives, when an existing adapter's selectors break, or when deciding adapter vs. new source. Covers the schema, the three page shapes, the date grammar, the fixture test, and the delivery loop.
+description: Add a course-site adapter to illini-dash — from a captured page to a registry entry in adapters/registry.json. Use when someone wants a new course, department schedule or course website tracked, when a captured course page arrives, when an existing adapter's selectors break, or when deciding adapter vs. new source. Covers the schema, where the date comes from and how it is read out of the text, the date grammar, the fixture test, the version gate, and the delivery loop.
 ---
 
 # Adding a course-site adapter (§4.5)
@@ -17,15 +17,22 @@ adapter has one fixed `url`, so anything addressed by an enrolment or account id
 cannot be served by one. Check the URL shape before writing selectors."* A per-student URL
 means a day's work, fixtures, a manifest change and a review — not a registry entry.
 
-Also open, needing a decision rather than a patch: **a course split across two pages**
-(ECE 391's `schedule.html` and `exams.html`). One adapter is one URL, so half of such a
-course cannot be read.
+**A course split across two pages is not open.** One adapter is one URL, so the course
+ships as two entries under one `courseCode`: `ece411-fa26-mp` and `ece411-fa26-exams`,
+`cs374a-fa26-hw` and `cs374a-fa26-gps`. Only `id` has to be unique, and `courseCode` is
+what merges them back into one course in the popup (docs/adapters.md, *"One course, two
+adapters"*). It costs a registry edit and no build; the student sees two rows, which is
+honest — they are two pages and either can break on its own.
 
 ## 1. The capture
 
-Use the capture-ask skill: the options-page **Fixture capture** tool accepts any
-`*.illinois.edu` URL, scrubs per Appendix A, and hands back a file for
-`fixtures/sites/`. Two things to check on it first (docs/adapters.md):
+Use the capture-ask skill: the options-page **Fixture capture** tool accepts **any https
+URL**, scrubs per Appendix A, and hands back a file for `fixtures/sites/`. The
+`*.illinois.edu` rule it used to carry went on 2026-09-18 — it was the third copy of a
+restriction `validateAdapter` had dropped six days earlier, and being the last one left
+it was the one that bit: a student could add a cs225.org adapter and then not capture the
+page it points at. Which host a capture is on is decided by the permission prompt, not by
+a hostname list. Two things to check on it first (docs/adapters.md):
 
 1. **Is the schedule in the HTML at all?** *"Some course sites build their table in
    JavaScript, and `fetch` returns an empty shell. The runner cannot run JS."*
@@ -53,24 +60,54 @@ Use the capture-ask skill: the options-page **Fixture capture** tool accepts any
 - `title` / `due` / `link` are relative to a row; a `@attr` suffix reads an attribute
   (`time@datetime`, `a@href`). They stay required, as the fallback for non-tables.
 - `term` expires the adapter, so a stale one disappears instead of fetching last year.
+- Six optional fields arrived in 1.1.0: `duePrev`, `duePhrase`, `dueSlot`, `titleSlot`,
+  `titleBefore`, `defaultTime`. See §3.
 
-`src/core/registry.ts` is a trust boundary and refuses: a `url` that is not **https on
-`*.illinois.edu`**; a `hostPattern` that is not **exactly** `https://<the url's host>/*`
-(a wildcard would prompt once per illinois.edu site, and *"only the adapter **id** is
-stored, so a later daily refresh could repoint that adapter's `url` anywhere under the
-wildcard"*); an unsupported `dateFormat`; an invalid `filter` regex; a duplicate `id`; a
-missing field; >512 KB; >200 adapters. One bad entry is dropped and reported; a file that
-is not a registry at all is rejected whole and **the stored copy is kept**.
+`src/core/registry.ts` is a trust boundary and refuses: a `url` that is not **https** (the
+`*.illinois.edu` rule went on 2026-09-12 — cs124.org, cs128.org and cs225.org are the
+CS department's own domains and its highest-enrolment courses); a `hostPattern` that is
+not **exactly** `https://<the url's host>/*` (a wildcard would prompt once for every host
+it covers, and *"only the adapter **id** is stored, so a later daily refresh could
+repoint that adapter's `url` anywhere under the wildcard"*); an unsupported `dateFormat`;
+an invalid `filter` regex; a duplicate `id`; a missing field; an `unknown field`; two
+locators for one date (`columns.due and duePrev each locate the date cell; declare one`)
+or `dueLabel and duePhrase` together; >512 KB; >200 adapters. One bad entry is dropped and
+reported; a file that is not a registry at all is rejected whole and **the stored copy is
+kept**.
 
-## 3. The three page shapes
+## 3. Where the date comes from
 
-| Shape | Field | Note |
+Two questions, answered separately and once each: **which text on the page is this row's
+date**, and **how the date is read out of that text**. `dueLocatorOf` and `dueReaderOf`
+in `src/sources/site.ts` are the single copy of each, and `core/detect.ts`'s search calls
+them rather than re-deriving them.
+
+One locator per entry — `validateAdapter` refuses two:
+
+| Field | Written for | The trap it guards |
 |---|---|---|
-| Table with a header row | `columns: { title, due, link }` | Header names, matched **exactly** after whitespace/case normalising, alternatives with `\|`. House rule 3 in declarative form: *"`td:nth-child(2)` is wrong the moment a course adds a column, and it fails silently."* A named column not on the page throws, naming the column. |
-| `rowspan` grid, no header | `title`/`due` selectors + `splitTitle` | CS 424: cell counts vary 7/6/5/4/1, so `nth-child` is *"wrong about half the time"*; the spacer cells share a class, hence `td:not(.auto-style6)`. One cell holds `HW5 Due; HW6 Out`, so `"splitTitle": ";"` splits, then `filter` rejects each part. `splitTitle` is a **literal** separator, never a regex — remote data applied to every row would be a ReDoS. |
-| `label: value` prose list | `dueLabel` / `titleFrom` / `time` | ECE 411's Sphinx page: each MP is a `<section>` with an `<h3>` and a `<ul>` of `Release: 8/25`, `Due: 9/7`, `CP1 Due: TBD`. See the three rows below. |
+| `columns: { title, due, link }` | ECE 310's homework table | Header names, matched **exactly** after whitespace/case normalising, alternatives with `\|`, resolved through the grid so a `<th colspan="2">` cannot shift them. House rule 3 in declarative form: *"`td:nth-child(2)` is wrong the moment a course adds a column, and it fails silently."* A named column not on the page throws, naming the column. |
+| `dueSlot` / `titleSlot` | CS 424's schedule | A zero-based **grid column** (`core/table-grid.ts`, the WHATWG "forming a table" algorithm) for a table with no header row to name: CS 424's rows carry 7/6/5/4/1 children, so `nth-child` is *"wrong about half the time"*. The only positional addressing in the project, and paid for by a loud hit-rate guard — ≥2 dated rows and ≥50% of the rows with text there, or it throws naming the column and both counts. |
+| `duePrev` | ECE 374 A's `<dl>` homework list | The nearest preceding **sibling** that matches, never leaving the row's parent. The date is the `<dt>` and the row is the `<dd>`, so nothing inside the row or above it reaches the date; the parent stop is what keeps a `<dd>` with no `<dt>` of its own from taking one out of the list above and dating one assignment from another. `@attr` honoured; the plain form reads the whole element, because the page bolds a moved date as `<dt><em><strong>`. |
+| `due` / `title` selectors | everything else | Relative to the row, `@attr` for an attribute. Always required, as the fallback. CS 424 still ships on these: its spacer cells share a class, hence `td:not(.auto-style6)`, and a working entry is not rewritten. |
 
-The list shape's three fields, all optional, all in `src/sources/site.ts`:
+Two more fields ride along with these rather than answering either question. `splitTitle`
+splits one cell holding two events — CS 424's `HW5 Due; HW6 Out` — and then `filter`
+rejects each part; `titleBefore` takes the title off the head of a sentence
+(`[HW1 Document]: Released 8/27. Due @ 9/20…` → `HW1 Document`, brackets dropped) and is
+applied before `splitTitle` and before `filter`. Both are **literal** separators, never
+regexes — remote data applied to every row would be a ReDoS.
+
+### How the date is read out of the located text
+
+| Reader | Reads | Written for |
+|---|---|---|
+| none | The whole located text | A cell holding a date and nothing else. |
+| `dueLabel` | `<label>: <rest>`, label matched **exactly** | ECE 411's `Due: 9/7` bullets |
+| `duePhrase` | The text after a whole-word keyword, when something date-shaped follows within one connector | CS 425's `Due @ 9/13 11.59 PM Central Time (Sun).` |
+
+`dueLabel` and `duePhrase` are refused together. The fields, all optional, all in
+`src/sources/site.ts`:
 
 - **`dueLabel`** — `|`-separated labels; the due text is read as `<label>:<rest>` and
   `rest` goes to the date parser. `matchDueLabel`: *"The date formats are `^`-anchored
@@ -84,6 +121,18 @@ The list shape's three fields, all optional, all in `src/sources/site.ts`:
   is decided by the registry and cannot be reworded by the page"* — and it is appended to
   the title minus a trailing `Due`, which is what makes `mp_pipeline CP1`/`CP2`/`CP3`
   three items instead of one (§3.1 hashes the title).
+- **`duePhrase`** — `|`-separated keywords that introduce a deadline *inside a sentence*,
+  for a page with no cell and no label to hang the date on. CS 425's row is
+  `[MP1 …]: Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).`
+  — three dates, one deadline. Matched as a **whole word**, case-insensitively (house
+  rule 6: the page writes "Overdue" and "the due-date"), and it counts *"only when
+  something date-shaped follows within one connector"* — `:` / `@` / `on` / `by` / `at`,
+  with an optional "date"/"deadline" noun. That second condition is what keeps
+  `MPs are always due on a SUNDAY at 11.59 PM` from becoming an undated row. Every
+  occurrence is tried in document order and the first that parses wins; a keyword followed
+  by TBD/TBA/N/A *"still counts as a hook"*, so the row is kept undated rather than dated
+  from a release date in the same sentence. A page where no row carries a keyword throws,
+  naming it.
 - **`titleFrom`** — a name for a row that has none. `"section >> h3"` climbs to
   `row.closest("section")` and reads the `h3` inside; without the `>>` the spec is a
   heading selector and the nearest match *preceding* the row in document order wins.
@@ -95,6 +144,13 @@ The list shape's three fields, all optional, all in `src/sources/site.ts`:
   `timeAssumed` (worker rule 3). A range gives its **start**. The search is anchored on the
   word `Time` — a room number is a number too, and an unanchored search finds `ECEB 1002`
   first.
+- **`defaultTime`** — `HH:mm`: *"the hour this **page** states its work is due at, once,
+  in prose"*. ECE 374 A prints "Written homeworks are due every Tuesday at 9pm" above a
+  list of bare dates, so every row landed on the invented 23:59 — three hours late, with
+  the two-hour reminder arriving an hour after the deadline. Precedence: the date cell,
+  then a clock the row states elsewhere, then this, then 23:59. It leaves
+  `extra.timeAssumed` **set**, because it is the adapter's inference from a sentence
+  rather than a clock the row states, and §5.3 ranks `site` above `canvas`.
 
 Add `"kind": "exam"` when the page lists exams rather than assignments: it is per
 adapter, and the popup's Exams tab filters on it.
@@ -108,9 +164,25 @@ deadline."*
 `dateFormat` is **chosen from a closed set, not supplied** — `supportedDateFormats()` in
 `src/sources/site.ts`: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d`. Each is a start-anchored
 regex with optional weekday, separator and time, so `Tue, Sep 8`, `09/04 @ 11:59pm` and
-`Fri, 2026-09-11 at 18:00` all parse. A bare `5` with no meridiem is **not** read as a
-time: *"guessing would put a 5 PM deadline at 05:00 — worse than admitting the time is
-unknown, because it looks stated."*
+`Fri, 2026-09-11 at 18:00` all parse.
+
+Three tolerances real fa26 pages forced, all additive:
+
+- **A weekday *after* the date**, and a footnote mark after that: `09/24, Thursday 11.59
+  PM`, `08/27 Thu¹`. The formats stop at the first thing they cannot read, so an unread
+  trailing weekday hides whatever follows it — `09/24, Thursday 5 PM` would land six
+  hours late while looking stated. Matched against an exact weekday table with a `\b`
+  after it, so "9/1 Monthly report at 5pm" does not lose "Monthly" to it.
+- **`11.59 PM`** — a dot as the minute separator, which CS 425 uses on all eight of its
+  deadlines. With only `:` the format stopped at the date and invented 23:59, the same
+  instant and therefore invisible, but carrying `timeAssumed` and so losing to any Canvas
+  row (§5.3 + worker rule 3).
+- **`0930 - 1045 hrs.`** — four digits with no separator, and only where the page itself
+  writes `hrs`: "Sep 11 1045" is far more likely to be a room or a section. A range gives
+  its **start**, and `hrs` is never ambiguous because the page has said it is 24-hour.
+
+A bare `5` with no meridiem is still **not** read as a time: *"guessing would put a 5 PM
+deadline at 05:00 — worse than admitting the time is unknown, because it looks stated."*
 
 When no time is stated the runner fills in **23:59 and marks `timeAssumed`** (worker rule
 3), `statedTimeInText` first mines the row's prose for `… due at 18:00`, and
@@ -136,6 +208,14 @@ on its next daily refresh — no new build, no reinstall, no store review."* Kee
 `adapters/registry.json` and `dist/adapters/registry.json` in step — `tests/site.test.ts`
 guards the copy step, because *"a registry that never reaches `dist/` cannot be fetched
 from `chrome.runtime.getURL` at runtime."*
+
+**An entry using a field introduced in version X carries `minExtensionVersion: "X"`;
+older installs drop it with a logged reason, so a new field means a manifest bump.**
+`requiredVersionFor` derives it from the fields the entry uses — `1.1.0` for `duePrev`,
+`duePhrase`, `dueSlot`, `titleSlot`, `titleBefore` or `defaultTime`, `0.1.0` otherwise —
+so nobody has to remember which build learned which field. The worker prints
+`[registry] 8 adapters accepted by 1.1.0, 0 rejected`, and an update clears the
+registry's daily rest so the first sync after it refetches what the old build refused.
 
 Students can add their own: Settings → Course websites → **Add a course site** →
 **Read this page** shows the rows before anything is saved (`src/core/detect.ts`

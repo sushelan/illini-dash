@@ -42,8 +42,11 @@ will, scrubs it per Appendix A, and hands it back as a download."*
 
 1. Fill **NetID** and **Name** first — they are used only to scrub and are stored in that
    page only. Without them the scrubber cannot recognise the identifying strings.
-2. Paste the URL, press **Fetch**. `isAllowedCaptureUrl` accepts https on the five source
-   hosts or any `*.illinois.edu`; anything else is refused by name.
+2. Paste the URL, press **Fetch**. `isAllowedCaptureUrl` accepts **any https URL** — the
+   `*.illinois.edu` rule went on 2026-09-18, because course sites live on cs124.org,
+   cs128.org and cs225.org too. Which host it is on is decided by the permission, not
+   here: the five source hosts are granted up front and anything else prompts by name,
+   with `No permission for <origin>/*` if it has not been granted from a click.
 3. Read the result box back to me: the final URL, the status, whether it redirected, the
    byte count, the login verdict, and the **Scrub report (Appendix A)** — every `MUST FIX`
    line matters.
