@@ -4,7 +4,7 @@
  * Adding a course currently means capturing the page, sending it to Sushi,
  * having someone read the markup, and waiting for a push. That makes one person
  * the bottleneck for every course at the university, and it is the reason the
- * registry has two adapters in it.
+ * registry has eight adapters in it.
  *
  * **This does not decide anything.** It proposes, and the student confirms by
  * reading the rows it extracted off their own course page — a page they know
@@ -13,104 +13,158 @@
  * and the person looking at it is the one person who can tell.
  *
  * Nothing here is a language model, and the reason is the oracle. Finding the
- * date column is a search over a handful of candidates with a hard test for
- * each one — does every row in it parse as a date the runner already supports?
- * A search with a checkable answer does not need a model, and this way it is
- * deterministic, mutation-testable, needs no download, and works on every
- * machine rather than on the ones with 22GB free and the right GPU.
+ * date is a search over a handful of candidates with a hard test for each one —
+ * does the *real runner* read this page when told to look there? A search with
+ * a checkable answer does not need a model, and this way it is deterministic,
+ * mutation-testable, needs no download, and works on every machine rather than
+ * on the ones with 22GB free and the right GPU.
  *
- * What it deliberately cannot do is the hard half. CS 424's schedule has no
- * header row, uses `rowspan` so cells shift between rows, and packs two events
- * into one cell. No amount of guessing gets there, and the honest answer for
- * pages like it is to say so rather than to propose something plausible.
+ * What it used to be was a search over two hard-coded page *shapes* — a header
+ * table, and a list of `Due: 9/7` lines — and three public UIUC course pages
+ * students are actually in fell outside both. Each needed a different answer to
+ * one question: **where is this row's date**. ECE 374 A puts it in the `<dt>`
+ * before each `<dd>`; CS 425 writes it mid-sentence after the word "due"; CS
+ * 424's schedule has no header row at all. So the question is a value now (a
+ * *locator*, `site.ts`), the page's own groups are crossed with all six of
+ * them (`locatorEvidence`, `skeleton.ts`), and this file is the part that
+ * turns a measured hook into an adapter, runs it, and ranks what survived.
+ *
+ * Adding a seventh page shape is no longer a change here. Adding a seventh
+ * *locator* is a field in `Adapter`, a branch in `locateDue`, and a probe.
  */
 
 import {
   headerIndex,
-  matchDueLabel,
+  MIN_DATED_ROWS,
+  MIN_DATED_SHARE,
+  PLACEHOLDER_WORDS,
   runAdapter,
+  statedTimeInText,
   supportedDateFormats,
-  parseAdapterDate,
 } from "../sources/site.js";
-import { validateAdapter } from "./registry.js";
+import { requiredVersionFor, validateAdapter } from "./registry.js";
+import { cellAt, gridFor, width, type GridCache } from "./table-grid.js";
 import { ParseError, type Adapter, type Kind, type PageCtx } from "../sources/types.js";
 // Type-only, and it has to stay that way: `core/skeleton.ts` imports the
 // selector spellings below, so a *value* import back would be a runtime cycle.
-// The inventory is passed in by the caller instead — `detectCandidates` and
-// `proposeCandidates` take the structures rather than computing them.
-import type { RepeatedStructure } from "./skeleton.js";
-
-/** How many rows must yield a date before a table is worth proposing. */
-const MIN_DATED_ROWS = 2;
+// The inventory is passed in by the caller instead — `searchCandidates` and
+// `proposeCandidates` take the structures rather than computing them. Every
+// value the search needs off a locator is carried on the evidence for the same
+// reason: `spec` is the string the probe measured *and* the string the trial
+// adapter declares, so the two cannot drift.
+import type { LocatorEvidence, LocatorKind, RepeatedStructure } from "./skeleton.js";
 
 /**
  * "No date yet", as both shipped entries spell it.
  *
- * One string, three readers (mutation rule 3): the `filter.exclude` a proposed
- * list adapter carries, the regex `skeleton.ts` counts a group's *pending* rows
- * with, and the sentence a findings doc quotes. A `Due: TBD` line is not a row
- * whose date could not be read — it is a deadline the course has not set, and
- * the difference decides whether a group of sixteen bullets with four dates is
- * a bad guess (4 of 16) or a term that has barely started (4 of 4 stated).
+ * One vocabulary, three readers (mutation rule 3): the `filter.exclude` a
+ * proposed adapter carries, the regex `skeleton.ts` counts a group's *pending*
+ * rows with, and `site.ts`'s test for a due keyword with a placeholder behind
+ * it. A `Due: TBD` line is not a row whose date could not be read — it is a
+ * deadline the course has not set, and the difference decides whether a group
+ * of sixteen bullets with four dates is a bad guess (4 of 16) or a term that
+ * has barely started (4 of 4 stated). The words live in `site.ts`, because the
+ * runner is the thing that has to agree with itself.
  */
-export const PLACEHOLDER_EXCLUDE = "\\bTB[DA]\\b|\\bN/?A\\b";
+export const PLACEHOLDER_EXCLUDE = `\\b(?:${PLACEHOLDER_WORDS})\\b`;
 export const PLACEHOLDER = new RegExp(PLACEHOLDER_EXCLUDE, "i");
 
 /**
- * The share of rows that must parse.
+ * The same words where the runner would have found a date, and did not.
  *
- * A course schedule has header rows, section breaks and the odd "no class"
- * line, so demanding every row is wrong. Demanding only one is worse: any
- * column containing a stray "9/11" would win.
+ * `filter.exclude` asks whether the *title* mentions a placeholder, which is
+ * the right question for a labelled list — `CP1 Due: TBD` is the whole line and
+ * the whole title. It is the wrong one the moment `titleBefore` is proposed as
+ * well: CS 425's `[HW6 Document]: Due Date: TBD. Released 12/1.` is titled
+ * "HW6 Document", the filter sees no placeholder, and the row is kept undated
+ * with `TBD. Released 12/1.` in `extra.unparsedDate`. Read as an unreadable
+ * value that refuses the whole page — which it did, on a fixture written to
+ * check something else entirely — rather than as the deadline the course has
+ * not set yet.
  */
-const MIN_DATED_SHARE = 0.5;
+const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
+
+/**
+ * The share of the rows a hook *reached* that must date, for every locator that
+ * is not a named column.
+ *
+ * Much stricter than the half a table's column needs (`MIN_DATED_SHARE`), and
+ * for a reason: a column is named by the page's own header, so "most of it
+ * parses" confirms a choice the page made. A label, a keyword, a preceding
+ * sibling or a `<time>` tag has no such corroboration — the only evidence that
+ * these rows are deadlines is that they read as dates — so a group where one
+ * hooked line in three does is not a schedule this read poorly, it is prose
+ * with a date in it. Pending rows are in neither half: `filter.exclude` drops
+ * them, and a deadline the course has not set is not a misread.
+ */
+const MIN_HOOKED_SHARE = 0.8;
 
 export interface DetectedRow {
   title: string;
+  /**
+   * The instant, for every kind of candidate.
+   *
+   * It used to be the cell's text for a table and the instant for a list, so
+   * the one preview that existed to catch "reads plausibly, lands on the wrong
+   * day" showed the plausible text on exactly the shape most likely to do it.
+   * The text is `read` below, beside it, which is the comparison that makes
+   * either number worth showing.
+   */
   due: string;
+  /** The text the instant was read out of (`extra.dueText`), when there is one. */
+  read?: string;
 }
 
 /**
- * One proposal, in whichever of the three page shapes it was read from.
+ * One proposal: a `rows` selector, one locator, one format, and what it read.
  *
- * `detectCandidates` below only ever produces the header-table shape, and that
- * has not changed. The optional fields exist because `core/author.ts` produces
- * candidates too, and a model may read a page the search cannot — a list of
- * `Due: 9/7` bullets under an `<h3>`, or a row selector with two selectors
- * hanging off it. Those shapes were supported by `runAdapter` and by a
- * hand-written registry entry from the day ECE 411 landed, and by nothing that
- * could *propose* one; a proposal that validated against the real runner then
- * lost its `dueLabel` on the way to the preview, so what was saved was not what
- * was checked.
- *
- * Everything here is carried straight through `buildAdapter` into the registry
- * entry, so the rule is: a field that changes what `runAdapter` reads must be
- * on this interface, or it must not be proposable.
+ * Everything here is carried straight through `adapterFromCandidate` into the
+ * registry entry, and the rule is that a field which changes what `runAdapter`
+ * reads must be on this interface or it must not be proposable. That was a
+ * comment for a while and a comment is not a check — a list-shaped proposal
+ * validated with a `dueLabel` was once saved without one, so the entry
+ * installed read every line of the list rather than the deadline lines, and
+ * nothing in the preview could show it because the preview came from the other
+ * object. `READ_FIELDS` below is the same sentence written so the compiler
+ * reads it.
  */
 export interface Candidate {
-  /** A CSS selector for this table's data rows, as the adapter would carry. */
+  /** A CSS selector for this page's rows, as the adapter would carry. */
   rows: string;
   /**
    * Header names, which survive a course adding a column (house rule 3).
    *
-   * Absent for the two shapes that are not a header table, where `title` and
-   * `due` below are row-relative selectors instead.
+   * Absent for every shape that is not a header table, where `title` and `due`
+   * below are row-relative selectors or one of the slot/sibling/keyword fields
+   * locates the date instead.
    */
   columns?: { title: string; due: string; link?: string };
   /** Row-relative selectors, for a page whose rows are not table cells. */
   title?: string;
   due?: string;
+  link?: string;
   /** §4.5's `label: value` list fields. See `Adapter` for what each means. */
   dueLabel?: string;
   titleFrom?: string;
   time?: string;
   splitTitle?: string;
+  /** The date is a clause in the row's own sentence, after this keyword. */
+  duePhrase?: string;
+  /** The date is in the nearest preceding sibling matching this selector. */
+  duePrev?: string;
+  /** Grid columns, for a table with no header row to name (`core/table-grid.ts`). */
+  dueSlot?: number;
+  titleSlot?: number;
+  /** The title is the text before this literal separator. */
+  titleBefore?: string;
+  /** `HH:mm`: the hour the page states its work is due at, once, in prose. */
+  defaultTime?: string;
   /** What the rows on this page are. Omitted means `assignment`. */
   kind?: Kind;
   /** `exclude` drops the TBD/TBA/N/A lines a course leaves in place. */
   filter?: { include?: string; exclude?: string };
   dateFormat: string;
-  /** Rows the selector matched. */
+  /** Rows the adapter kept. */
   total: number;
   /** Rows whose date the runner could read. */
   dated: number;
@@ -123,19 +177,55 @@ export interface Candidate {
   sample: DetectedRow[];
 }
 
+/** What an adapter *is*, as opposed to what it reads. */
+type AdapterIdentity =
+  | "id"
+  | "label"
+  | "courseCode"
+  | "term"
+  | "url"
+  | "hostPattern"
+  | "timezone"
+  | "minExtensionVersion";
+
+/** Every `Adapter` field that changes what `runAdapter` reads. */
+type ReadFields = Exclude<keyof Adapter, AdapterIdentity>;
+
 /**
- * What the search below produces, which is only ever the header-table shape.
+ * Each of those fields, mirrored onto the `Candidate` field that carries it.
  *
- * Stated as a type rather than left to a comment: the search finds a table by
- * crossing its columns with the date formats, so `columns` is always there, and
- * every caller that reads `candidate.columns.due` off a *detected* candidate is
- * right to. A candidate from `core/author.ts` may be one of the other two
- * shapes, and there the compiler asks.
+ * `satisfies Record<ReadFields, keyof Candidate>` is the check: a seventh
+ * locator added to `Adapter` and forgotten here is a typecheck error, not a
+ * proposal that validates one way and saves another. `adapterFromCandidate`
+ * walks this table rather than listing the fields a second time, so the mirror
+ * is load-bearing rather than documentation.
  */
-export type TableCandidate = Candidate & { columns: NonNullable<Candidate["columns"]> };
+const READ_FIELDS = {
+  rows: "rows",
+  title: "title",
+  due: "due",
+  link: "link",
+  splitTitle: "splitTitle",
+  columns: "columns",
+  dueLabel: "dueLabel",
+  duePhrase: "duePhrase",
+  duePrev: "duePrev",
+  dueSlot: "dueSlot",
+  titleSlot: "titleSlot",
+  titleBefore: "titleBefore",
+  defaultTime: "defaultTime",
+  titleFrom: "titleFrom",
+  time: "time",
+  kind: "kind",
+  dateFormat: "dateFormat",
+  filter: "filter",
+} satisfies Record<ReadFields, keyof Candidate>;
 
 /** Rows shown before the preview stops listing them. */
 const SAMPLE_ROWS = 6;
+
+/** Proposals the options page draws before it offers a "Show N more" button. */
+export const MAX_SHOWN = 5;
 
 function textOf(node: Element | null | undefined): string {
   return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -174,9 +264,9 @@ export function selectorForTable(table: Element, doc: Document): string {
  * deadline. A bare `… tr` matches the `<thead>` row too, and `columns.title` of
  * "Exercises" then reads `<th>Exercises</th>` — an undated item literally titled
  * *Exercises*, with the words "Due Date" where its date should be, that no
- * course ever set. `dataRows` below already excludes it from the preview, which
- * is why nothing on screen said the proposal was wrong: the defect only appeared
- * once the selector reached `runAdapter` for real.
+ * course ever set. A table with no `<tbody>` has no better spelling to offer,
+ * and there the runner does read the header row: that is why the count under a
+ * proposal is the *runner's*, so "2 of 5" says so on screen.
  *
  * The same rule `core/skeleton.ts` prints for the on-device model, and what the
  * hand-written `ece310-fa26` entry uses (`#homework table.timetable tbody tr`).
@@ -255,285 +345,350 @@ export function rowSelectorForList(list: Element, doc: Document): string {
   return `${selectorForList(list, doc)} > li`;
 }
 
-/** The rows of a table that are not its header. */
-function dataRows(table: Element): Element[] {
-  return [...table.querySelectorAll("tr")].filter(
-    (row) => row.querySelector("td") !== null,
-  );
-}
-
-/**
- * Candidate adapters for a page, best first.
- *
- * "Best" is how many rows produced a readable date, because that is the only
- * thing here that can be checked without a human. Ties go to the table with
- * more rows: a schedule beats a two-line summary box.
- */
-export function detectCandidates(doc: Document, reference: string, timezone: string): TableCandidate[] {
-  const found: TableCandidate[] = [];
-
-  for (const table of doc.querySelectorAll("table")) {
-    const headers = headerIndex(table);
-    const rows = dataRows(table);
-    if (rows.length === 0) continue;
-
-    const names = [...headers.keys()];
-    const rowSelector = rowSelectorForTable(table, doc);
-
-    for (const dueName of names) {
-      const dueIndex = headers.get(dueName)!;
-      for (const format of supportedDateFormats()) {
-        const dated = rows.filter((row) => {
-          const cells = [...row.querySelectorAll("td, th")];
-          // No empty-string guard: the formats are anchored, so `""` already
-          // fails to parse. A second check for it was unreachable.
-          const text = textOf(cells[dueIndex]);
-          return parseAdapterDate(text, format, timezone, reference) !== undefined;
-        });
-        if (dated.length < MIN_DATED_ROWS) continue;
-        if (dated.length / rows.length < MIN_DATED_SHARE) continue;
-
-        const titleName = pickTitleColumn(names, dueName, headers, dated);
-        if (titleName === undefined) continue;
-        const titleIndex = headers.get(titleName)!;
-
-        found.push({
-          rows: rowSelector,
-          columns: {
-            title: titleName,
-            due: dueName,
-            ...(hasLink(dated, titleIndex) ? { link: titleName } : {}),
-          },
-          dateFormat: format,
-          total: rows.length,
-          dated: dated.length,
-          sample: dated.slice(0, SAMPLE_ROWS).map((row) => {
-            const cells = [...row.querySelectorAll("td, th")];
-            return { title: textOf(cells[titleIndex]), due: textOf(cells[dueIndex]) };
-          }),
-        });
-      }
-    }
-  }
-
-  // One proposal per *column*, not per table.
-  //
-  // The same column matched by two date formats is the same choice twice, and a
-  // list of near-identical options is how people stop reading options. But a
-  // schedule with both a "Released" and a "Due" column is two genuinely
-  // different answers, and collapsing by table offered only whichever parsed
-  // more rows — which on a page where every assignment has a release date and
-  // some have no deadline yet is the wrong one, with no way to reach the right
-  // one. Found by mutation: collapsing by table survived every test.
-  const best = new Map<string, TableCandidate>();
-  for (const candidate of found) {
-    const key = `${candidate.rows}\u0000${candidate.columns.due}`;
-    const seen = best.get(key);
-    if (!seen || candidate.dated > seen.dated) best.set(key, candidate);
-  }
-  return [...best.values()].sort((a, b) => b.dated - a.dated || b.total - a.total);
-}
-
 /* -------------------------------------------------------------------------- */
-/* The second shape the search can read: a labelled list                       */
+/* The search: every group the page repeats, crossed with every hook           */
 /* -------------------------------------------------------------------------- */
 
-/** A group this small is a summary box, not a schedule. */
-const MIN_LIST_ROWS = 3;
+/** Everything a trial adapter needs, which is a candidate minus its results. */
+type Trial = Omit<Candidate, "total" | "dated" | "sample">;
 
-/**
- * The share of a list's *stated* lines that must read as dates.
- *
- * Much stricter than the half a table's column needs, and for a reason: a
- * table's column is named by its header, so "most of it parses" is confirmation
- * of a choice the page itself made. A list has no header — the only evidence
- * that these lines are deadlines is that they read as dates — so a group where
- * one line in three does is not a schedule this read poorly, it is prose with a
- * date in it. `pending` lines (`Due: TBD`) are not counted against it: they are
- * deadlines the course has not set, and `filter.exclude` drops them.
- */
-const MIN_LIST_DATED_SHARE = 0.8;
+/** One candidate that ran, with what it produced. */
+interface Ran {
+  candidate: Candidate;
+  /** `title\0dueAt` for every dated item, sorted: this candidate's identity. */
+  pairs: string[];
+  /**
+   * How many elements this candidate's `rows` selector matched.
+   *
+   * Not `total`, which is what the adapter *kept*: two spellings of one set of
+   * deadlines — `li` and `#mp-information ul.simple > li` — keep the same rows
+   * and differ only in how much else they sweep in, and the narrower one is the
+   * one that goes on meaning the same thing when the page grows a section.
+   */
+  count: number;
+  /** Every dated item landed on an hour this code invented, not one stated. */
+  assumed: boolean;
+}
 
-/**
- * Candidates for the list shape — `Due: 9/7` bullets under a heading.
- *
- * This is the half of §4.5 that had no proposer. The shape has been readable
- * since ECE 411 landed and writable only by hand, so the one page in the
- * project that is *not* a table went to the on-device model every time — and on
- * 2026-09-18, three builds running, the model answered with a small wrong group
- * because nothing it was shown said which group carried dates. It is a search
- * with a checkable answer, exactly like the table search above, and it belongs
- * here for the same reasons: deterministic, mutation-testable, no download, and
- * it works on the machines that will never have a model.
- *
- * Nothing is guessed. The group, its dated share and its `dueLabel` convention
- * are measured by `repeatedStructures`; the heading spec comes from the same
- * function that prints one for the model; and every candidate is then run
- * through the **real runner** over the real page, so what the student confirms
- * is what will be recorded.
- */
-export function detectListCandidates(
-  doc: Document,
-  structures: readonly RepeatedStructure[],
-  reference: string,
-  timezone: string,
-): Candidate[] {
-  const found: Candidate[] = [];
-  for (const structure of structures) {
-    const { dated } = structure;
-    const stated = dated.of - dated.pending;
-    /*
-     * `titleFrom` is also what keeps this off a table, and deliberately so.
-     *
-     * A row in a list has no name of its own, so a group with no heading over
-     * it is one whose every row would be titled "Due" — and `repeatedStructures`
-     * gives a group of table rows or cells no `titleFrom` at all, because a
-     * heading over a table is not a row's name. An explicit "not a table" guard
-     * here was measured redundant with that one (mutation rule 2) and deleted:
-     * two spellings of one decision, with only one of them reachable, is the
-     * shape rule 3 warns about.
-     */
-    if (structure.count < MIN_LIST_ROWS) continue;
-    if (dated.rows === 0 || dated.label === undefined || structure.titleFrom === undefined) continue;
-    if (stated <= 0 || dated.rows / stated < MIN_LIST_DATED_SHARE) continue;
+/** A (group, hook) pair the search looked at and would not propose. */
+export interface Nearest {
+  selector: string;
+  kind: LocatorKind;
+  dated: number;
+  of: number;
+  /** Why, as a clause that finishes "…, where ". */
+  reason: string;
+}
 
-    let rows: Element[];
-    try {
-      rows = [...doc.querySelectorAll(structure.selector)];
-    } catch {
-      continue;
-    }
-    if (rows.length === 0) continue;
-    // A page that states the label but never with a date behind it is a page
-    // this cannot read — the runner would return nothing, and §11 ranks a
-    // silently dropped deadline above every other failure.
-    if (!rows.some((row) => matchDueLabel(textOf(row), dated.label!) !== undefined)) continue;
-
-    const candidate = runListCandidate(
-      {
-        rows: structure.selector,
-        title: ".",
-        due: ".",
-        dueLabel: dated.label,
-        titleFrom: structure.titleFrom,
-        filter: { exclude: PLACEHOLDER_EXCLUDE },
-        dateFormat: dated.format,
-      },
-      doc,
-      reference,
-      timezone,
-    );
-    if (candidate) found.push(candidate);
-  }
-  return found.sort((a, b) => b.dated - a.dated || b.total - a.total);
+export interface SearchResult {
+  candidates: Candidate[];
+  /**
+   * The refusal worth telling the student about, when there are no candidates.
+   *
+   * "Nothing on that page looked like a schedule" is the least useful thing
+   * this could say about a page whose one list of deadlines missed the bar by
+   * one row. The refused hook with the most dated rows is the one a person
+   * would look at first, so it is the one named.
+   */
+  nearest?: Nearest;
 }
 
 /**
- * One list proposal, put through the runner the sync loop will use.
- *
- * `undefined` rather than a reason: unlike the model's proposals there is no
- * one to tell. A search that produced an unreadable candidate drops it and the
- * page falls through to `noCandidateReason`, which says what the page *does*
- * have.
- *
- * The acceptance test is `validateProposal`'s, minus the half-of-rows clause:
- * every row this adapter keeps must carry a date the runner read whole. A list
- * has no header to corroborate a partial read, so "some of them parsed" is not
- * evidence here — see `MIN_LIST_DATED_SHARE`.
- */
-function runListCandidate(
-  proposed: Omit<Candidate, "total" | "dated" | "sample">,
-  doc: Document,
-  reference: string,
-  timezone: string,
-): Candidate | undefined {
-  /*
-   * A stand-in URL, because this path has not got the real one.
-   *
-   * The offscreen `detect-adapter` message carries the HTML, the reference and
-   * the timezone — not the address (`messages.ts`), and the worker that sends
-   * it is not this worker's to change. Nothing in a candidate depends on it: a
-   * list adapter declares no `link`, so every row's `url` is the adapter's own,
-   * and `adapterFromCandidate` writes the page's real address when the student
-   * saves. `validateAdapter` wants a URL and a matching `hostPattern`, and an
-   * invalid host is the honest way to say "not decided here" — a plausible one
-   * would read like a claim about where this page lives.
-   */
-  const { adapter } = validateAdapter({
-    id: "proposed",
-    label: "proposed",
-    courseCode: "PROPOSED",
-    term: "proposed",
-    url: "https://example.invalid/page",
-    hostPattern: "https://example.invalid/*",
-    ...proposed,
-    timezone,
-    minExtensionVersion: "0.1.0",
-  });
-  if (!adapter) return undefined;
-
-  const page: PageCtx = { url: adapter.url, fetchedAt: reference };
-  let items;
-  try {
-    items = runAdapter(adapter as Adapter, doc, page);
-  } catch (err) {
-    // A ParseError is the ordinary "this was not it" answer: no row matched, no
-    // row carried the label, no row reached a heading.
-    if (err instanceof ParseError) return undefined;
-    throw err;
-  }
-  if (items.length === 0) return undefined;
-  if (items.some((item) => item.title.trim() === "")) return undefined;
-  /*
-   * A value the runner could not read whole costs the whole candidate.
-   *
-   * This is also what makes every kept row dated, so there is no second count
-   * to check: a list candidate always carries a `dueLabel`, so every row it
-   * keeps handed the reader a non-empty value, and `runAdapter` records an
-   * `unparsedDate` for every one of those it could not read (`site.ts`). A
-   * `dated.length !== items.length` guard beside this one was measured
-   * unreachable by mutation and deleted rather than left as a second thing to
-   * read (mutation rule 2).
-   */
-  if (items.some((item) => item.extra?.["unparsedDate"] ?? item.extra?.["unparsedTime"])) {
-    return undefined;
-  }
-  const dated = items.filter((item) => item.dueAt !== undefined);
-
-  return {
-    ...proposed,
-    total: items.length,
-    dated: dated.length,
-    sample: dated.slice(0, SAMPLE_ROWS).map((item) => ({
-      title: item.title,
-      // The instant, not the text: a line that reads plausibly and lands on the
-      // wrong day is what this preview exists to catch.
-      due: item.dueAt ?? "",
-    })),
-  };
-}
-
-/**
- * Every candidate this page yields, both shapes, best first.
- *
- * Tables first, and not because they are more common: a header table is the
- * shape whose evidence is independent of the search — the page itself named the
- * column "Due Date" — while a list is proposed because its lines happen to read
- * as dates. Where a page offers both, the one the page labelled goes first.
+ * Every proposal this page yields, best first, and why the best refusal failed.
  *
  * `structures` comes from `core/skeleton.ts`, which imports this file, so it is
  * passed in rather than computed here (see the type-only import above).
  */
+export function searchCandidates(
+  doc: Document,
+  reference: string,
+  timezone: string,
+  structures: readonly RepeatedStructure[] = [],
+): SearchResult {
+  const ran: Ran[] = [];
+  const refused: Nearest[] = [];
+  const grids: GridCache = new Map();
+
+  for (const structure of structures) {
+    let rows: Element[];
+    try {
+      rows = [...doc.querySelectorAll(structure.selector)];
+    } catch {
+      // A selector the inventory built that this DOM will not parse is a bug
+      // there, not a proposal.
+      continue;
+    }
+    // The inventory measured a different document, or the page moved under it.
+    if (rows.length !== structure.count) continue;
+
+    for (const evidence of structure.locators) {
+      const refuse = (reason: string): void => {
+        refused.push({
+          selector: structure.selector,
+          kind: evidence.kind,
+          dated: evidence.dated,
+          of: evidence.of,
+          reason,
+        });
+      };
+
+      if (evidence.dated < MIN_DATED_ROWS) {
+        refuse(`only ${evidence.dated} row carries a date this can read`);
+        continue;
+      }
+      const floor = evidence.kind === "header" ? MIN_DATED_SHARE : MIN_HOOKED_SHARE;
+      const of =
+        evidence.kind === "header"
+          ? evidence.of
+          : Math.max(1, evidence.hooked - evidence.pending);
+      if (evidence.dated / of < floor) {
+        refuse(
+          `only ${evidence.dated} of ${of} rows carry a date this can read, ` +
+            `which is under the ${Math.round(floor * 100)}% this needs`,
+        );
+        continue;
+      }
+
+      const trial = trialFor(structure, evidence, rows, grids);
+      if (!trial) {
+        refuse("there is nothing on these rows this could use as a name");
+        continue;
+      }
+      const outcome = runCandidate(trial, doc, reference, timezone);
+      if (!outcome.ok) {
+        refuse(outcome.reason);
+        continue;
+      }
+      ran.push(outcome);
+    }
+  }
+
+  withDefaultTime(ran, doc, reference, timezone);
+  const candidates = dedupe(ran.sort(byRank));
+  const nearest =
+    candidates.length > 0
+      ? undefined
+      : refused.sort((a, b) => b.dated - a.dated || b.of - a.of)[0];
+  return { candidates, ...(nearest ? { nearest } : {}) };
+}
+
+/** Every candidate this page yields, best first. */
 export function proposeCandidates(
   doc: Document,
   reference: string,
   timezone: string,
   structures: readonly RepeatedStructure[] = [],
 ): Candidate[] {
-  return [
-    ...detectCandidates(doc, reference, timezone),
-    ...detectListCandidates(doc, structures, reference, timezone),
-  ];
+  return searchCandidates(doc, reference, timezone, structures).candidates;
+}
+
+/**
+ * How two proposals for one page are ordered.
+ *
+ * `dated` first, because it is the only thing here that can be checked without
+ * a human. Then the share of what it keeps, so a reading that drops nothing
+ * beats one that drops a third. Then **specificity**: where two hooks read the
+ * same rows, the one the page corroborates most goes first — a named column is
+ * the page's own word for what that cell is, a declared label nearly so, and a
+ * grid slot is a guess about layout with nothing behind it but the fact that it
+ * worked today. Ordering is a suggestion and not a decision: the student picks
+ * by reading the rows, which is the only check that can tell these apart.
+ */
+const SPECIFICITY: Record<LocatorKind | "free", number> = {
+  header: 6,
+  label: 5,
+  prev: 4,
+  phrase: 3,
+  attr: 2,
+  slot: 1,
+  free: 0,
+};
+
+function byRank(a: Ran, b: Ran): number {
+  return (
+    b.candidate.dated - a.candidate.dated ||
+    b.candidate.dated / Math.max(1, b.candidate.total) -
+      a.candidate.dated / Math.max(1, a.candidate.total) ||
+    SPECIFICITY[locatorKindOf(b.candidate)] - SPECIFICITY[locatorKindOf(a.candidate)] ||
+    a.count - b.count ||
+    a.candidate.rows.length - b.candidate.rows.length
+  );
+}
+
+/**
+ * One proposal per set of rows, not one per way of spelling them.
+ *
+ * A page repeats the same bullets under half a dozen selectors — `li`,
+ * `ul > li`, `#assignments ul.simple > li` — and every one of them reads the
+ * same deadlines. Offered as six proposals that is a list nobody finishes
+ * reading, and the one they pick is whichever they got to first rather than the
+ * narrowest. Keyed on what the candidate *produced*, because that is what two
+ * spellings of one answer have in common and what a wider group that also
+ * catches the late-policy bullet does not.
+ *
+ * A proper subset goes too, but only within one kind: a reading that finds four
+ * of another reading's five deadlines is the same answer with a row missing.
+ * Across kinds it is a genuinely different reading of the page — the exams read
+ * by their labels are a subset of every dated line on the syllabus — and the
+ * student is the one who can say which they meant.
+ */
+function dedupe(ranked: readonly Ran[]): Candidate[] {
+  const kept: Ran[] = [];
+  for (const candidate of ranked) {
+    const key = candidate.pairs.join("\n");
+    const covered = kept.some((other) => {
+      if (other.pairs.join("\n") === key) return true;
+      if (locatorKindOf(other.candidate) !== locatorKindOf(candidate.candidate)) return false;
+      const theirs = new Set(other.pairs);
+      return candidate.pairs.every((pair) => theirs.has(pair));
+    });
+    if (!covered) kept.push(candidate);
+  }
+  return kept.map((outcome) => outcome.candidate);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Turning one measured hook into an adapter                                   */
+/* -------------------------------------------------------------------------- */
+
+/** A cell of the grid this row belongs to, the way the runner reads one. */
+function cellOf(row: Element, slot: number, grids: GridCache): Element | undefined {
+  const grid = gridFor(row, grids);
+  return grid ? cellAt(grid, row, slot) : undefined;
+}
+
+/** A word that makes a cell an assignment rather than a lecture (CS 424). */
+const DUE_WORD = "\\bdue\\b";
+const DUE_WORD_RE = new RegExp(DUE_WORD, "i");
+
+/** The `titleBefore` this search proposes, and how far into a row it looks. */
+const TITLE_SEPARATOR = ":";
+const TITLE_SEPARATOR_WITHIN = 60;
+
+/**
+ * The adapter one (group, hook) pair would be, or nothing.
+ *
+ * Every field here comes from something measured: the rows from the inventory,
+ * the locator and the format from the evidence, the title column from the dated
+ * rows themselves. Nothing is a default that happened to work on one page.
+ */
+function trialFor(
+  structure: RepeatedStructure,
+  evidence: LocatorEvidence,
+  rows: readonly Element[],
+  grids: GridCache,
+): Trial | undefined {
+  const dated = evidence.datedAt.map((at) => rows[at]!);
+  const base = { rows: structure.selector, dateFormat: evidence.format };
+
+  if (evidence.kind === "header") {
+    const table = dated[0]!.closest("table");
+    if (!table) return undefined;
+    const headers = headerIndex(table, grids);
+    const dueSlot = headers.get(evidence.spec);
+    if (dueSlot === undefined) return undefined;
+    const title = pickTitleColumn(
+      [...headers].map(([name, slot]) => ({ key: name, slot })),
+      dueSlot,
+      dated,
+      grids,
+    );
+    if (!title) return undefined;
+    const linked = dated.some((row) => cellOf(row, title.slot, grids)?.querySelector("a[href]"));
+    return {
+      ...base,
+      columns: {
+        title: title.key,
+        due: evidence.spec,
+        ...(linked ? { link: title.key } : {}),
+      },
+      // The positional fallback a header table has always been saved with, for
+      // a header that has gone missing at parse time — declared here rather
+      // than added at save time so what runs is what is written down.
+      title: "td:nth-child(1)",
+      due: "td:nth-child(2)",
+    };
+  }
+
+  if (evidence.kind === "slot") {
+    const dueSlot = Number(evidence.spec);
+    const titleSlot = pickDueWordColumn(dueSlot, dated, grids);
+    /*
+     * No column saying "due" means no candidate, and that is the whole reason
+     * a slot is proposable at all.
+     *
+     * A grid column is position, which house rule 3 forbids because one added
+     * column silently re-dates a page. It is allowed here only where the page
+     * leaves nothing else to name — and the price is that the *page* has to
+     * corroborate the choice. On CS 424 the assignment column says "HW5 Due;
+     * HW6 Out" on every row that carries a deadline; with no such column the
+     * search would happily offer the lecture-topic column beside the date and
+     * file every lecture as an assignment.
+     */
+    if (titleSlot === undefined) return undefined;
+    const cells = dated.map((row) => textOf(cellOf(row, titleSlot, grids)));
+    const split = cells.filter((text) => text.includes(";")).length >= MIN_DATED_ROWS;
+    return {
+      ...base,
+      dueSlot,
+      titleSlot,
+      // `validateAdapter` wants both, and a grid adapter reads neither: the
+      // slots are the locators. Deliberately inert rather than plausible — a
+      // real-looking `td:nth-child(2)` here would stand in silently the day
+      // someone deleted a slot.
+      title: "td",
+      due: "td",
+      ...(split ? { splitTitle: ";" } : {}),
+      filter: { include: DUE_WORD },
+    };
+  }
+
+  // The four hooks that live outside a table. Their rows have no cells, so the
+  // name is the row's own text (cut at `titleBefore`) or the heading above it.
+  const whole: Trial = {
+    ...base,
+    title: ".",
+    due: evidence.kind === "attr" ? evidence.spec : ".",
+    filter: { exclude: PLACEHOLDER_EXCLUDE },
+  };
+
+  if (evidence.kind === "label") {
+    /*
+     * A row in a list has no name of its own, so a group with no heading over
+     * it is one whose every row would be titled "Due" — and §3.1 hashes the
+     * title, so three such rows collide on one `sourceId` and `KeyGuard` keeps
+     * one of the three. `repeatedStructures` gives a group of table rows or
+     * cells no `titleFrom` at all, which is what keeps this off a table.
+     */
+    if (structure.titleFrom === undefined) return undefined;
+    return { ...whole, dueLabel: evidence.spec, titleFrom: structure.titleFrom };
+  }
+
+  const linked = dated.filter((row) => row.querySelector("a[href]")).length * 2 >= dated.length;
+  const named =
+    dated.every((row) => {
+      const at = textOf(row).indexOf(TITLE_SEPARATOR);
+      return at >= 0 && at < TITLE_SEPARATOR_WITHIN;
+    }) && dated.length > 0;
+  return {
+    ...whole,
+    ...(evidence.kind === "prev" ? { duePrev: evidence.spec } : {}),
+    ...(evidence.kind === "phrase" ? { duePhrase: evidence.spec } : {}),
+    // `a@href` only where most rows have one: a `link` that resolves on two
+    // rows in eleven puts the course page on the other nine, which is what the
+    // fallback already does, and makes the entry look like it read more than it
+    // did.
+    ...(linked && evidence.kind !== "phrase" ? { link: "a@href" } : {}),
+    // The row is a whole sentence and the name is the head of it. Only when
+    // *every* dated row is shaped that way: a separator that is present on half
+    // of them cuts the other half's titles at a colon that means something else.
+    ...(named ? { titleBefore: TITLE_SEPARATOR } : {}),
+  };
+}
+
+interface Column {
+  key: string;
+  slot: number;
 }
 
 /**
@@ -543,22 +698,25 @@ export function proposeCandidates(
  * Preferred in order — a column whose cells link somewhere (a course site links
  * the assignment), then the leftmost column with substantial text. A column
  * whose cells are mostly empty or numeric is never it.
+ *
+ * Addressed by **grid slot** and reached through `cellAt`, so it answers the
+ * same cell the runner will: counting a row's children puts every column after
+ * a `rowspan` or a `<th colspan="2">` one place left of where it is drawn.
  */
 function pickTitleColumn(
-  names: string[],
-  dueName: string,
-  headers: Map<string, number>,
-  rows: Element[],
-): string | undefined {
-  let best: { name: string; score: number } | undefined;
+  columns: readonly Column[],
+  dueSlot: number,
+  rows: readonly Element[],
+  grids: GridCache,
+): Column | undefined {
+  let best: { column: Column; score: number } | undefined;
 
-  for (const name of names) {
-    if (name === dueName) continue;
-    const index = headers.get(name)!;
+  for (const column of columns) {
+    if (column.slot === dueSlot) continue;
     let filled = 0;
     let linked = 0;
     for (const row of rows) {
-      const cell = [...row.querySelectorAll("td, th")][index];
+      const cell = cellOf(row, column.slot, grids);
       const text = textOf(cell);
       // A bare number is a week or a unit, never an assignment name.
       if (text.length < 2 || /^\d+$/.test(text)) continue;
@@ -567,81 +725,404 @@ function pickTitleColumn(
     }
     if (filled === 0) continue;
     // A link is worth more than position, and position breaks the tie.
-    const score = filled + linked * 2 - index * 0.01;
-    if (!best || score > best.score) best = { name, score };
+    const score = filled + linked * 2 - column.slot * 0.01;
+    if (!best || score > best.score) best = { column, score };
   }
 
-  return best?.name;
+  return best?.column;
 }
 
-function hasLink(rows: Element[], titleIndex: number): boolean {
-  return rows.some((row) => {
-    const cell = [...row.querySelectorAll("td, th")][titleIndex];
-    return cell?.querySelector("a[href]") !== null && cell?.querySelector("a[href]") !== undefined;
+/**
+ * The slot whose cells say "due" on the dated rows — a grid's title column.
+ *
+ * Most wins, and `pickTitleColumn`'s score breaks the tie, so a page with two
+ * such columns still prefers the one that is filled and linked.
+ */
+function pickDueWordColumn(
+  dueSlot: number,
+  rows: readonly Element[],
+  grids: GridCache,
+): number | undefined {
+  const grid = gridFor(rows[0]!, grids);
+  if (!grid) return undefined;
+  const counted: { slot: number; n: number }[] = [];
+  for (let slot = 0; slot < width(grid); slot += 1) {
+    if (slot === dueSlot) continue;
+    const n = rows.filter((row) => DUE_WORD_RE.test(textOf(cellOf(row, slot, grids)))).length;
+    if (n >= MIN_DATED_ROWS) counted.push({ slot, n });
+  }
+  if (counted.length === 0) return undefined;
+  const most = Math.max(...counted.map((column) => column.n));
+  const tied = counted.filter((column) => column.n === most);
+  if (tied.length === 1) return tied[0]!.slot;
+  return pickTitleColumn(
+    tied.map((column) => ({ key: String(column.slot), slot: column.slot })),
+    dueSlot,
+    rows,
+    grids,
+  )?.slot;
+}
+
+/**
+ * One proposal, put through the runner the sync loop will use.
+ *
+ * The oracle, and the reason none of this needs a model. What the student
+ * confirms is produced by the same `runAdapter` that will read the page every
+ * morning — not by a second reading of the same rules, which is how a proposal
+ * used to validate against one reading and be saved under another.
+ */
+function runCandidate(
+  trial: Trial,
+  doc: Document,
+  reference: string,
+  timezone: string,
+): ({ ok: true } & Ran) | { ok: false; reason: string } {
+  /*
+   * A stand-in URL, because this path has not got the real one.
+   *
+   * The offscreen `detect-adapter` message carries the HTML, the reference and
+   * the timezone — not the address (`messages.ts`). Nothing in a candidate
+   * depends on it, and `adapterFromCandidate` writes the page's real address
+   * when the student saves. `validateAdapter` wants a URL and a matching
+   * `hostPattern`, and an invalid host is the honest way to say "not decided
+   * here" — a plausible one would read like a claim about where this page lives.
+   */
+  const proposed = {
+    id: "proposed",
+    label: "proposed",
+    courseCode: "PROPOSED",
+    term: "proposed",
+    url: "https://example.invalid/page",
+    hostPattern: "https://example.invalid/*",
+    ...trial,
+    timezone,
+    minExtensionVersion: requiredVersionFor(trial),
+  };
+  const { adapter, reason } = validateAdapter(proposed);
+  if (!adapter) return { ok: false, reason: reason ?? "the entry this would save is not valid" };
+
+  const page: PageCtx = { url: adapter.url, fetchedAt: reference };
+  let items;
+  try {
+    items = runAdapter(adapter as Adapter, doc, page);
+  } catch (err) {
+    // A ParseError is the ordinary "this was not it" answer: no row matched, no
+    // row carried the label, the column moved.
+    if (err instanceof ParseError) return { ok: false, reason: err.message };
+    throw err;
+  }
+  if (items.length === 0) return { ok: false, reason: "it keeps no rows at all" };
+  if (items.some((item) => item.title.trim() === "")) {
+    return { ok: false, reason: "one of the rows it keeps has no name" };
+  }
+  /*
+   * A value the runner could not read whole costs the whole candidate — except
+   * on a named column, where it does not.
+   *
+   * A list, a sentence or a sibling has no header to corroborate a partial
+   * read: the only evidence those rows are deadlines is that they read as
+   * dates, so a kept row with `unparsedDate` on it usually means the group or
+   * the format is wrong rather than that one line is odd. A column the page
+   * itself labelled "Due Date" is different — a schedule has section breaks,
+   * "no class" weeks and the odd note, and refusing the whole table over one of
+   * them would refuse most real schedules.
+   */
+  const unparsed = items.find((item) => {
+    const value = item.extra?.["unparsedDate"] ?? item.extra?.["unparsedTime"];
+    // A placeholder is a deadline the course has not set, not a value this
+    // failed to read, and §11 treats the two differently — see
+    // `PENDING_AT_START`.
+    return value !== undefined && !PENDING_AT_START.test(value);
   });
+  if (unparsed && locatorKindOf(trial) !== "header") {
+    return {
+      ok: false,
+      reason:
+        `row ${JSON.stringify(unparsed.title)} has a date this could not read whole ` +
+        `(${unparsed.extra?.["unparsedDate"] ?? unparsed.extra?.["unparsedTime"]})`,
+    };
+  }
+  const dated = items.filter((item) => item.dueAt !== undefined);
+  if (dated.length === 0) return { ok: false, reason: "none of the rows it keeps carries a date" };
+
+  return {
+    ok: true,
+    candidate: {
+      ...trial,
+      total: items.length,
+      dated: dated.length,
+      sample: dated.slice(0, SAMPLE_ROWS).map((item) => ({
+        title: item.title,
+        // The instant, not the text: a line that reads plausibly and lands on
+        // the wrong day is what this preview exists to catch.
+        due: item.dueAt ?? "",
+        ...(item.extra?.["dueText"] ? { read: item.extra["dueText"] } : {}),
+      })),
+    },
+    pairs: dated
+      .map((item) => `${item.title.toLowerCase().replace(/\s+/g, " ").trim()} ${item.dueAt}`)
+      .sort(),
+    count: doc.querySelectorAll(adapter.rows).length,
+    assumed: dated.every((item) => item.extra?.["timeAssumed"] === "true"),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The hour a page states once, in prose, and never again                      */
+/* -------------------------------------------------------------------------- */
+
+/** Elements whose text is prose. A `<script>` is not one of them. */
+const PROSE =
+  "p, li, dt, dd, h1, h2, h3, h4, h5, h6, td, th, div, span, strong, em, b, i, blockquote, caption";
+
+/**
+ * `defaultTime`, when the page states one cutoff outside its own rows.
+ *
+ * ECE 374 A prints "Written homeworks are due every **Tuesday at 9pm**" in a
+ * paragraph above the list and then writes bare dates, so every row lands on
+ * §4.5's invented 23:59 — three hours late, with a two-hour reminder arriving
+ * an hour after the deadline passed. The sentence is right there on the page
+ * and the student would have to find it, read it, and type `21:00` into a field
+ * they have no reason to understand. This is that sentence, proposed.
+ *
+ * Three conditions, and each one is load-bearing. **Outside every candidate's
+ * rows**, because a cutoff inside a row is that row's own and `runAdapter`
+ * already reads it — a page-wide default built from one row's sentence would
+ * put that row's hour on all the others. **Exactly one** clock, because two
+ * sentences stating different hours mean the page has no single default and
+ * picking one of them is an invention. And **every dated item assumed**,
+ * because a candidate whose rows already state their own times has nothing for
+ * a default to do.
+ *
+ * `extra.timeAssumed` stays set on the rows either way (`site.ts`): 21:00 is
+ * this extension's inference from a sentence about homework in general, and
+ * §5.3 must go on ranking a real Canvas instant above it (worker rule 3).
+ */
+function statedDefaultTime(doc: Document, rows: readonly Element[]): string | undefined {
+  const excluded = new Set<Element>();
+  for (const row of rows) {
+    excluded.add(row);
+    // Descendants are *inside* a row; ancestors *contain* one, and their text
+    // is the rows' text plus a wrapper.
+    for (const inside of row.querySelectorAll("*")) excluded.add(inside);
+    for (let node = row.parentElement; node; node = node.parentElement) excluded.add(node);
+  }
+
+  const clocks = new Set<string>();
+  for (const element of doc.querySelectorAll(PROSE)) {
+    if (excluded.has(element)) continue;
+    const stated = statedTimeInText(textOf(element));
+    if (!stated) continue;
+    // The innermost element that states it, so one sentence in a `<p>` inside a
+    // `<div>` is one statement rather than two.
+    if ([...element.querySelectorAll(PROSE)].some((child) => statedTimeInText(textOf(child)))) {
+      continue;
+    }
+    clocks.add(
+      `${String(stated.hour).padStart(2, "0")}:${String(stated.minute).padStart(2, "0")}`,
+    );
+  }
+  return clocks.size === 1 ? [...clocks][0] : undefined;
+}
+
+/** A candidate read back as the adapter it came from — its results dropped. */
+function trialOf(candidate: Candidate): Trial {
+  const trial: Record<string, unknown> = {};
+  for (const source of Object.values(READ_FIELDS) as (keyof Candidate)[]) {
+    const value = candidate[source];
+    if (value !== undefined) trial[source] = value;
+  }
+  return trial as unknown as Trial;
+}
+
+/** Re-runs every candidate the page's stated hour would change. */
+function withDefaultTime(
+  ran: Ran[],
+  doc: Document,
+  reference: string,
+  timezone: string,
+): void {
+  if (!ran.some((outcome) => outcome.assumed)) return;
+  const rows: Element[] = [];
+  for (const outcome of ran) {
+    try {
+      rows.push(...doc.querySelectorAll(outcome.candidate.rows));
+    } catch {
+      continue;
+    }
+  }
+  const defaultTime = statedDefaultTime(doc, rows);
+  if (!defaultTime) return;
+
+  for (const [index, outcome] of ran.entries()) {
+    if (!outcome.assumed) continue;
+    const again = runCandidate(
+      { ...trialOf(outcome.candidate), defaultTime },
+      doc,
+      reference,
+      timezone,
+    );
+    // A refusal here leaves the candidate as it was: the hour is an improvement
+    // on an invented 23:59, never a reason to lose a reading that worked.
+    if (again.ok) ran[index] = again;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* What the student is told                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Which hook a candidate carries, derived from the fields rather than stored.
+ *
+ * `core/author.ts` produces candidates too, and a model may answer with a plain
+ * row-relative `due` that is none of the six — `"free"` is that, and it is the
+ * shape every hand-written entry had before locators existed.
+ */
+export function locatorKindOf(candidate: Trial): LocatorKind | "free" {
+  if (candidate.columns) return "header";
+  if (candidate.dueSlot !== undefined) return "slot";
+  if (candidate.duePrev) return "prev";
+  if (candidate.dueLabel) return "label";
+  if (candidate.duePhrase) return "phrase";
+  if (candidate.due?.includes("@")) return "attr";
+  return "free";
+}
+
+/** The tag an `attr` or `free` candidate reads, out of its `due` selector. */
+function dueTag(candidate: Trial): string {
+  return (candidate.due ?? "").split("@")[0] || ".";
+}
+
+/**
+ * One line saying where this proposal reads each row's date and name.
+ *
+ * In core rather than at the click handler for worker rule 1's reason, and
+ * written out per hook rather than printed as a selector because the heading is
+ * the one thing a student reads before deciding whether the rows below it are
+ * right. `#mp-information ul.simple > li · Due|CP1 Due|CP2 Due` is a true
+ * sentence about the adapter and tells nobody anything about the page.
+ */
+export function locatorDescription(candidate: Candidate): string {
+  const kind = locatorKindOf(candidate);
+  if (kind === "header" && candidate.columns) {
+    return (
+      `date in the ${quote(candidate.columns.due)} column, ` +
+      `name in the ${quote(candidate.columns.title)} column`
+    );
+  }
+  if (kind === "slot") {
+    return (
+      `date in column ${(candidate.dueSlot ?? 0) + 1} of a table with no header row` +
+      (candidate.titleSlot === undefined ? "" : `, name in column ${candidate.titleSlot + 1}`)
+    );
+  }
+  if (kind === "label") {
+    const labels = (candidate.dueLabel ?? "").split("|");
+    const more = labels.length > 1 ? ` and ${labels.length - 1} more labels` : "";
+    return (
+      `date after ${quote(`${labels[0]}:`)} on each line, ` +
+      `name from the heading above${more}`
+    );
+  }
+  if (kind === "prev") return `date in the <${candidate.duePrev}> before each entry`;
+  if (kind === "phrase") {
+    return `date after the word ${quote(candidate.duePhrase ?? "due")} in each line`;
+  }
+  if (kind === "attr") return "date from each row's <time> tag";
+  return `date from ${quote(dueTag(candidate))} in each row`;
+}
+
+/** Curly quotes, because this is prose a student reads, not a code listing. */
+function quote(text: string): string {
+  return `“${text}”`;
+}
+
+/**
+ * The short lines under a proposal's heading: what it matched and what it does.
+ *
+ * Every one of them is something a student cannot see by reading the rows. The
+ * count is the first, because "13 of 13" and "6 of 20" are different answers
+ * and the second means the page is not fully covered; the rest each name a
+ * decision this search took on their behalf, which is the only chance they get
+ * to disagree with it.
+ */
+export function candidateNotes(candidate: Candidate): string[] {
+  const notes = [
+    candidate.rows,
+    `${candidate.dated} of ${candidate.total} rows have a date this can read.`,
+  ];
+  if (candidate.dueSlot !== undefined) {
+    notes.push(
+      "Read by position — the page has no header to name, so a column added later " +
+        "breaks this and the extension will say so.",
+    );
+  }
+  if (candidate.splitTitle) {
+    notes.push(
+      `Cells with ${quote(candidate.splitTitle)} are split into one deadline each; ` +
+        "parts without the word “due” are dropped.",
+    );
+  }
+  if (candidate.defaultTime) {
+    notes.push(
+      `Every deadline with no stated time is set to ${candidate.defaultTime}, ` +
+        "because the page says so once.",
+    );
+  }
+  return notes;
 }
 
 /**
  * Why a page produced nothing, in words a student can act on.
  *
- * "No candidates" is the least useful thing this could say. The three real
- * causes need three different next steps, and only one of them is "give up".
+ * "No candidates" is the least useful thing this could say. The four real
+ * causes need four different next steps, and only one of them is "give up".
+ * There is no list of *shapes* here any more, and that is the point: the search
+ * no longer has two of them to be outside of, so a sentence naming them would
+ * describe a version of this file that stopped existing.
  */
 export function noCandidateReason(
   doc: Document,
-  /** The page's own inventory, which is what the last sentence is read off. */
+  /** The page's own inventory, which the last sentence is read off. */
   structures: readonly RepeatedStructure[] = [],
+  /** The refusal the search got closest with, when it looked at anything. */
+  nearest?: Nearest,
 ): string {
-  const tables = [...doc.querySelectorAll("table")];
-  const found = bestGroupSentence(structures);
-  if (tables.length === 0) {
+  const formats = `The date formats this understands are ${supportedDateFormats().join(", ")}.`;
+  if (nearest) {
+    return (
+      `The nearest thing to a schedule is ${nearest.selector}, where ${nearest.reason}. ` +
+      `${formats}`
+    );
+  }
+  const best = structures[0];
+  if (!best) {
     /*
-     * This sentence used to say the search "only looks at tables", and offered
-     * the model and a hand-written entry as the two ways to read a list. It is
-     * false as of `detectListCandidates`: a list of “Due: 9/7” lines under a
-     * heading is the second shape this search reads. Rewritten rather than
-     * annotated — a student reading a correction under a wrong sentence reads
-     * the wrong sentence first — and it now says what the search *did* find, so
-     * an unreadable page teaches something about itself.
+     * This sentence used to name the two shapes the search could read and offer
+     * the model for everything else. Both halves were false by the time anyone
+     * read them twice — first because `dueLabel` shipped, then because the list
+     * proposer did — so it is written against what the *page* has instead,
+     * which cannot go stale: nothing on it repeats, and a schedule is a
+     * repetition or it is not a schedule.
      */
     return (
-      "This page has neither of the two shapes this can read: a table with a header row " +
-      "naming its columns, and a list of “Due: 9/7” lines under a heading. " +
-      `${found}Either the schedule is built by JavaScript after the page loads, which this ` +
-      "cannot read, or it is shaped like neither — Chrome's built-in model can still " +
-      "propose an entry for it on a computer that has the model, and a hand-written entry " +
-      "can always be written for it."
+      "Nothing on this page repeats: no table with rows, no list with items, no run of " +
+      "blocks. Either the schedule is built by JavaScript after the page loads, which this " +
+      "cannot read, or the page has one deadline on it — Chrome's built-in model can still " +
+      "propose an entry on a computer that has the model, and a hand-written entry can " +
+      "always be written for it."
     );
   }
-  if (!tables.some((table) => headerIndex(table).size >= 2)) {
-    return (
-      "Found a table, but no header row naming its columns, and no list of “Due: 9/7” " +
-      `lines under a heading either. ${found}A schedule without headers needs a ` +
-      "hand-written entry, because there is nothing stable to point at."
-    );
-  }
-  return (
-    "Found a table with headers, but no column whose dates could be read, and no list of " +
-    `“Due: 9/7” lines under a heading either. ${found}The supported formats are ` +
-    `${supportedDateFormats().join(", ")}.`
-  );
-}
-
-/**
- * "The nearest thing to a schedule is …" — the page's own best group, measured.
- *
- * Ends with a space so it drops out of the sentences above when the inventory
- * was not supplied or the page repeats nothing; `""` is the whole of that case,
- * because a sentence about the best of nothing would be an invention.
- */
-function bestGroupSentence(structures: readonly RepeatedStructure[]): string {
-  const best = structures[0];
-  if (!best) return "";
   const lines = `${best.count} line${best.count === 1 ? "" : "s"}`;
-  return best.dated.rows === 0
-    ? `The largest repeated group, ${best.selector} (${lines}), carries no date this can read. `
-    : `The nearest thing to a schedule is ${best.selector}: ${lines}, ` +
-        `${best.dated.rows} with a date this can read. `;
+  if (best.dated.rows === 0 && best.locators.length === 0) {
+    return `The largest repeated group, ${best.selector} (${lines}), carries no date this can read. ${formats}`;
+  }
+  const dated = Math.max(best.dated.rows, ...best.locators.map((locator) => locator.dated));
+  return (
+    `The nearest thing to a schedule is ${best.selector}: ${lines}, ` +
+    `${dated} with a date this can read. ${formats}`
+  );
 }
 
 /**
@@ -655,13 +1136,20 @@ function bestGroupSentence(structures: readonly RepeatedStructure[]): string {
  */
 export function candidatesFoundLine(candidates: readonly Candidate[]): string {
   if (candidates.length === 0) return "Nothing on that page looked like a schedule.";
+  // A grid candidate is a table too — it is a table with nothing to name, which
+  // is why it has no `columns` — and calling it a list would be the same wrong
+  // word this sentence was rewritten to stop saying.
+  const isTable = (candidate: Candidate): boolean => {
+    const kind = locatorKindOf(candidate);
+    return kind === "header" || kind === "slot";
+  };
   if (candidates.length === 1) {
     const only = candidates[0]!;
-    if (only.columns) return "Found one table that looks like a schedule.";
+    if (isTable(only)) return "Found one table that looks like a schedule.";
     const lines = `${only.dated} dated line${only.dated === 1 ? "" : "s"}`;
     return `Found a list of ${lines} that looks like a schedule.`;
   }
-  const tables = candidates.filter((candidate) => candidate.columns).length;
+  const tables = candidates.filter(isTable).length;
   const lists = candidates.length - tables;
   const what =
     tables === 0
@@ -687,6 +1175,10 @@ export const SITE_TIMEZONE = "America/Chicago";
  * the list rather than the deadline lines. Nothing in the preview could show
  * that, because the preview came from the other object.
  *
+ * Every read-affecting field is copied by walking `READ_FIELDS`, so the next
+ * locator is carried here the day it is added to `Adapter` or the typecheck
+ * fails. Listing them by hand is what let `dueLabel` go missing.
+ *
  * `hostPattern` is derived from the URL rather than asked for, because
  * `validateAdapter` requires it to be exactly the URL's own host — a wildcard
  * would be one prompt covering every illinois.edu site, and a later edit could
@@ -700,34 +1192,41 @@ export function adapterFromCandidate(
   kind = "assignment",
 ): Record<string, unknown> & { id: string } {
   const host = new URL(url).origin;
-  return {
+  const entry: Record<string, unknown> = {
     id: `${courseCode.toLowerCase()}-${term}-local`,
     label: `${courseCode} course site`,
     courseCode,
     term,
     url,
     hostPattern: `${host}/*`,
-    rows: candidate.rows,
-    // The table shape is unchanged: `columns`, plus the positional fallback for
-    // a header that has gone missing at parse time. The other two shapes carry
-    // their own row-relative `title` / `due`, and a list carries `dueLabel`,
-    // `titleFrom`, `time` and `filter` with them.
-    ...(candidate.columns
-      ? { columns: candidate.columns, title: "td:nth-child(1)", due: "td:nth-child(2)" }
-      : { title: candidate.title ?? "", due: candidate.due ?? "" }),
-    ...(candidate.dueLabel ? { dueLabel: candidate.dueLabel } : {}),
-    ...(candidate.titleFrom ? { titleFrom: candidate.titleFrom } : {}),
-    ...(candidate.time ? { time: candidate.time } : {}),
-    ...(candidate.splitTitle ? { splitTitle: candidate.splitTitle } : {}),
-    ...(candidate.filter ? { filter: candidate.filter } : {}),
-    // Omitted when it is the default, which is what every entry written before
-    // `kind` existed means — a saved entry should read like a hand-written one
-    // rather than carry a field it did not need.
-    ...(kind && kind !== "assignment" ? { kind } : {}),
-    dateFormat: candidate.dateFormat,
-    timezone: SITE_TIMEZONE,
-    minExtensionVersion: "0.1.0",
   };
+  for (const [field, source] of Object.entries(READ_FIELDS) as [string, keyof Candidate][]) {
+    const value = candidate[source];
+    if (value !== undefined) entry[field] = value;
+  }
+  // The table shape is unchanged: `columns`, plus the positional fallback for a
+  // header that has gone missing at parse time. Every other shape carries its
+  // own row-relative `title` / `due`, and `validateAdapter` wants both present
+  // whichever locator actually reads the row.
+  if (candidate.columns) {
+    entry["title"] = candidate.title ?? "td:nth-child(1)";
+    entry["due"] = candidate.due ?? "td:nth-child(2)";
+  } else {
+    entry["title"] = candidate.title ?? "";
+    entry["due"] = candidate.due ?? "";
+  }
+  // The page decides what these rows are, not the proposal: a syllabus added
+  // without `kind` files two midterms as homework and leaves the Exams tab
+  // empty. Omitted when it is the default, so a saved entry reads like a
+  // hand-written one rather than carrying a field it did not need.
+  if (kind && kind !== "assignment") entry["kind"] = kind;
+  else delete entry["kind"];
+  entry["timezone"] = SITE_TIMEZONE;
+  // The floor is read off the fields that were just written, so an entry using
+  // a locator added in 1.1.0 says so without anyone remembering which build
+  // learned it.
+  entry["minExtensionVersion"] = requiredVersionFor(entry);
+  return entry as Record<string, unknown> & { id: string };
 }
 
 /**

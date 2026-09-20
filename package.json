@@ -11,6 +11,7 @@
     "pretest": "node build.mjs",
     "test": "vitest run",
     "scrub": "node scripts/scrub-file.mjs",
+    "propose": "node scripts/propose.mjs",
     "package": "node build.mjs && node scripts/package.mjs",
     "preview": "node build.mjs && node scripts/preview.mjs",
     "shots": "node build.mjs && node scripts/preview.mjs && node scripts/shots.mjs",

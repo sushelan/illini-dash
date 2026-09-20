@@ -9,7 +9,10 @@ import { BUILD_ID } from "../build-info.js";
 import { applyStoredTheme, renderThemePanel } from "./theme-panel.js";
 import {
   adapterFromCandidate,
+  candidateNotes,
   candidatesFoundLine,
+  locatorDescription,
+  MAX_SHOWN,
   SITE_TIMEZONE,
   type Candidate,
 } from "../core/detect.js";
@@ -2393,25 +2396,28 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
   codeRow.append(kindLabel, kind);
   addSiteResult.append(codeRow);
 
-  for (const candidate of candidates) {
+  /**
+   * One proposal, drawn.
+   *
+   * The heading says where the date and the name come from *in the page's own
+   * terms* — `locatorDescription`, in core where a test can read it. It used to
+   * be the selector and the label spec, which is a true sentence about the
+   * adapter and tells a student nothing about their course page; with six
+   * locators it would also have printed `[object Object]` for a grid.
+   */
+  const candidateBox = (candidate: Candidate): HTMLElement => {
     const box = el("div", undefined, "result");
-    const heading = el(
-      "h3",
-      candidate.columns
-        ? `${candidate.columns.title} · ${candidate.columns.due}`
-        : `${candidate.rows} · ${candidate.dueLabel ?? candidate.due ?? ""}`,
-    );
-    box.append(heading);
+    box.append(el("h3", locatorDescription(candidate)));
 
-    // The count, before the rows. "13 of 13" and "6 of 20" are different
-    // answers and the second one means this page is not fully covered.
+    // The notes, before the rows: the count ("13 of 13" and "6 of 20" are
+    // different answers, and the second means this page is not fully covered),
+    // then every decision the search took that the rows below cannot show.
+    const [selector, count, ...rest] = candidateNotes(candidate);
+    box.append(el("p", selector, "muted"));
     box.append(
-      el(
-        "p",
-        `${candidate.dated} of ${candidate.total} rows have a date this can read.`,
-        candidate.dated === candidate.total ? "muted" : "verdict-needs_login",
-      ),
+      el("p", count, candidate.dated === candidate.total ? "muted" : "verdict-needs_login"),
     );
+    for (const note of rest) box.append(el("p", note, "muted"));
 
     const table = document.createElement("table");
     table.className = "preview";
@@ -2421,7 +2427,13 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
       name.textContent = row.title;
       const due = document.createElement("td");
       due.textContent = row.due;
-      tr.append(name, due);
+      // What the page printed, beside what it was read as. The instant alone
+      // cannot show "reads plausibly, lands on the wrong day", which is the one
+      // failure this preview exists to catch.
+      const read = document.createElement("td");
+      read.className = "muted";
+      read.textContent = row.read ?? "";
+      tr.append(name, due, read);
       table.append(tr);
     }
     box.append(table);
@@ -2466,7 +2478,30 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     const actions = el("p");
     actions.append(use, share, status);
     box.append(actions);
-    addSiteResult.append(box);
+    return box;
+  };
+
+  /*
+   * Five, and a button for the rest.
+   *
+   * The search crosses every repeated group with every hook, so a busy page can
+   * yield a dozen readings that all work — and a list nobody finishes reading
+   * is one where the choice is made by whichever came first. Five is what fits
+   * above the fold of the options page; the rest are one click away rather than
+   * discarded, because the sixth is sometimes the right one and this file is
+   * not the thing that can tell.
+   */
+  for (const candidate of candidates.slice(0, MAX_SHOWN)) {
+    addSiteResult.append(candidateBox(candidate));
+  }
+  const hidden = candidates.slice(MAX_SHOWN);
+  if (hidden.length > 0) {
+    const more = el("button", `Show ${hidden.length} more`);
+    more.addEventListener("click", () => {
+      more.remove();
+      for (const candidate of hidden) addSiteResult.append(candidateBox(candidate));
+    });
+    addSiteResult.append(more);
   }
 }
 

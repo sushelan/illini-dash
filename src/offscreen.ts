@@ -10,7 +10,7 @@ import { currentTermCourses } from "./sources/gradescope.js";
 import { parseCourseList as parseSmartPhysicsCourseList } from "./sources/smartphysics.js";
 import { getParser } from "./sources/registry.js";
 import { runAdapter } from "./sources/site.js";
-import { noCandidateReason, proposeCandidates } from "./core/detect.js";
+import { noCandidateReason, searchCandidates } from "./core/detect.js";
 import { repeatedStructures } from "./core/skeleton.js";
 import type { ParseRequest, ParseResponse } from "./messages.js";
 
@@ -38,11 +38,14 @@ chrome.runtime.onMessage.addListener(
         // §4.5 self-serve: propose selectors for a page nobody has an adapter
         // for. Here rather than in the worker for the same reason as every
         // other op — there is no DOMParser in a service worker.
-        // The inventory is computed here and used twice: the list proposer is
-        // a search over it, and the "nothing found" sentence is read off it.
-        // Computing it twice would let the two disagree about the same page.
+        // The inventory is computed here and used twice: the search is a search
+        // over it, and the "nothing found" sentence is read off it. Computing
+        // it twice would let the two disagree about the same page.
         const structures = repeatedStructures(doc, message.timezone, message.reference);
-        const candidates = proposeCandidates(
+        // One call, not `proposeCandidates` and then a second search for the
+        // sentence: the refusal the search got closest with is the sentence's
+        // whole content, and a second pass could refuse something else.
+        const { candidates, nearest } = searchCandidates(
           doc,
           message.reference,
           message.timezone,
@@ -51,7 +54,8 @@ chrome.runtime.onMessage.addListener(
         sendResponse({
           ok: true,
           candidates,
-          reason: candidates.length === 0 ? noCandidateReason(doc, structures) : undefined,
+          reason:
+            candidates.length === 0 ? noCandidateReason(doc, structures, nearest) : undefined,
         });
       } else {
         throw new Error("unknown offscreen message");
