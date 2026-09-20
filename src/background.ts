@@ -7,7 +7,7 @@
  * in Node.
  */
 
-import { BUILD_ID } from "./build-info.js";
+import { BUILD_ID, EXTENSION_VERSION } from "./build-info.js";
 import { capture } from "./capture.js";
 import { runParseSelftest } from "./core/parse-selftest.js";
 import {
@@ -21,6 +21,7 @@ import {
   REGISTRY_URL,
   currentTermCode,
   isCurrentTerm,
+  registryDueForRefresh,
   shouldSeedFromBundle,
   validateRegistry,
   validateAdapter,
@@ -270,7 +271,9 @@ async function seedRegistryFromBundle(): Promise<void> {
       // would suppress the first real fetch for 24 hours.
       store.registry = { ...store.registry, adapters };
       await saveStore(store);
-      console.log(`[registry] seeded ${adapters.length} bundled adapter(s)`);
+      console.log(
+        `[registry] seeded ${adapters.length} bundled adapter(s), accepted by ${EXTENSION_VERSION}`,
+      );
     }, "registry: seed");
   } catch (err) {
     console.warn("[registry] could not read the bundled registry:", err);
@@ -307,7 +310,12 @@ async function maybeRefreshRegistry(): Promise<void> {
       fresh.registry = { fetchedAt: new Date().toISOString(), adapters };
       await saveStore(fresh);
     }, "registry: refreshed");
-    console.log(`[registry] ${adapters.length} adapters, ${rejected.length} rejected`);
+    // The version is in the line because it is now what decides the counts:
+    // "3 rejected" against an unknown build is a mystery, and against 1.0.0 it
+    // is "update and they come back" (§4.5's `minExtensionVersion`).
+    console.log(
+      `[registry] ${adapters.length} adapters accepted by ${EXTENSION_VERSION}, ${rejected.length} rejected`,
+    );
   } catch (err) {
     // The previous copy stays. §4.5 is explicit that this must not be fatal.
     await withStore(async () => {
@@ -957,6 +965,28 @@ async function retryAfterUpdate(previousVersion: string | undefined): Promise<vo
   const version = chrome.runtime.getManifest().version;
   await withStore(async () => {
     const store = await loadStore();
+    /*
+     * The registry's own rest is cleared too, and before the backoff branch
+     * returns.
+     *
+     * §4.5 rests the registry a day after any attempt. An entry this build had
+     * been refusing with `needs extension 1.1.0` is exactly what the *new*
+     * build should pick up, and leaving the window in place means the student
+     * updates and still sees nothing for up to 24 hours — with nothing on
+     * screen or in the console saying why (`registryDueForRefresh`).
+     */
+    if (registryDueForRefresh(store.registry)) {
+      store.registry = { adapters: store.registry.adapters };
+      await saveStore(store);
+      console.log(
+        `[registry] ${previousVersion ?? "?"} → ${version}: refresh window cleared, the next sync refetches`,
+      );
+    } else {
+      // Both branches out loud, as worker rule 5 demands: "nothing to clear"
+      // and "the clear never ran" were the same silence on the registry seed
+      // and cost two rounds of browser time.
+      console.log(`[registry] ${previousVersion ?? "?"} → ${version}: no refresh window to clear`);
+    }
     const stale = sourcesToRetryAfterUpdate(store);
     if (stale.length === 0) {
       // Both branches, out loud: "nothing was resting" and "the clear never

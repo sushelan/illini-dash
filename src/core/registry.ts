@@ -11,6 +11,7 @@
  * be half-applied.
  */
 
+import { EXTENSION_VERSION } from "../build-info.js";
 import { CANVAS_ORIGIN } from "../sources/canvas.js";
 import { GRADESCOPE_ORIGIN } from "../sources/gradescope.js";
 import { PRAIRIELEARN_ORIGIN } from "../sources/prairielearn.js";
@@ -67,6 +68,123 @@ function isPlainString(value: unknown, max = 500): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= max;
 }
 
+/* -------------------------------------------------------------------------- */
+/* §4.5's version gate                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every top-level key an adapter may carry.
+ *
+ * A `satisfies Record<keyof Adapter | "$comment", true>` rather than a list, so
+ * the compiler — not a reviewer — notices when `Adapter` gains a field: a
+ * missing key is a typecheck error here, and an extra one is too.
+ *
+ * Refusing unknown keys is what makes `minExtensionVersion` mean something. The
+ * registry is one file read by every installed build, so a new field reaches
+ * old builds the moment it is published; an old build that silently *ignored*
+ * `duePhrase` would run the entry with its `due` selector and quietly emit the
+ * wrong dates, which is worse than not running it at all. Refused-because-
+ * unknown is the belt to the version gate's braces: whichever fires, the entry
+ * is dropped with a reason a console can print.
+ *
+ * `$comment` is allowed because the shipped registry already uses it to say why
+ * an entry is spelled the way it is, and a comment changes nothing at runtime.
+ */
+const KNOWN_FIELDS = {
+  $comment: true,
+  id: true,
+  label: true,
+  courseCode: true,
+  term: true,
+  url: true,
+  hostPattern: true,
+  rows: true,
+  title: true,
+  splitTitle: true,
+  due: true,
+  link: true,
+  columns: true,
+  dueLabel: true,
+  titleFrom: true,
+  time: true,
+  kind: true,
+  dateFormat: true,
+  timezone: true,
+  filter: true,
+  minExtensionVersion: true,
+} satisfies Record<keyof Adapter | "$comment", true>;
+
+/**
+ * A dotted version, validated positively.
+ *
+ * House rule 5: `typeof x === "string"` passes `""`, and `Number("")` is 0 — so
+ * a `minExtensionVersion` of `""` or `"latest"` compared numerically would come
+ * out as 0.0.0 and be accepted by every build there has ever been, which is the
+ * exact opposite of what the field is for.
+ */
+const VERSION = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
+
+/**
+ * `a` against `b`, numerically per component: −1, 0 or +1.
+ *
+ * Numeric and not string comparison, because `"1.10.0" < "1.9.0"` is true as
+ * strings — so the tenth minor release of this extension would refuse every
+ * entry written for the ninth.
+ */
+export function compareVersions(a: string, b: string): number {
+  const left = a.split(".").map(Number);
+  const right = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0);
+    if (diff !== 0) return diff < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * Fields that did not exist before 1.1.0, and the version an entry using one
+ * has to demand.
+ *
+ * Written as a list of *fields* rather than a hand-set number on each entry,
+ * because the author of a new entry is the person least able to remember which
+ * build learned `duePrev`. `adapterFromCandidate` calls this, so a proposal the
+ * search makes carries the right floor without anyone deciding it.
+ */
+const FIELDS_ADDED_IN_1_1 = [
+  "duePrev",
+  "duePhrase",
+  "dueSlot",
+  "titleSlot",
+  "titleBefore",
+  "defaultTime",
+] as const;
+
+/** The lowest extension version that can run this entry. */
+export function requiredVersionFor(entry: object): string {
+  const record = entry as Record<string, unknown>;
+  return FIELDS_ADDED_IN_1_1.some((field) => record[field] !== undefined) ? "1.1.0" : "0.1.0";
+}
+
+/**
+ * Whether an update has a registry refresh window to clear.
+ *
+ * §4.5 rests the registry for a day after a fetch *or* a failed attempt, which
+ * is right while the build is unchanged and wrong the moment it is not: the
+ * entries this build refused as `needs extension 1.1.0` are exactly the ones a
+ * 1.1.0 install should pick up, and making it wait up to 24 hours for them
+ * means a student updates and still sees nothing. Cleared on update so the
+ * first sync refetches.
+ *
+ * A `boolean` in core rather than the clearing itself in the worker, so both
+ * branches can be pinned by a test and both can be logged (worker rule 5).
+ */
+export function registryDueForRefresh(registry: {
+  fetchedAt?: string;
+  attemptedAt?: string;
+}): boolean {
+  return registry.fetchedAt !== undefined || registry.attemptedAt !== undefined;
+}
+
 /**
  * A single adapter, or a reason it was refused.
  *
@@ -75,13 +193,23 @@ function isPlainString(value: unknown, max = 500): value is string {
  * URL is not covered by its own pattern would prompt for one origin and then
  * fetch another.
  */
-export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: string } {
+export function validateAdapter(
+  value: unknown,
+  buildVersion: string = EXTENSION_VERSION,
+): { adapter?: Adapter; reason?: string } {
   if (!value || typeof value !== "object") return { reason: "not an object" };
   const a = value as Record<string, unknown>;
   const id = a["id"];
   if (!isPlainString(id, 80)) return { reason: "missing id" };
 
   const fail = (reason: string) => ({ reason: `${id}: ${reason}` });
+
+  // Before anything else: a key this build has never heard of means the entry
+  // was written for a later one, and running it on the fields we *do* recognise
+  // would read the wrong cell rather than nothing. See `KNOWN_FIELDS`.
+  for (const key of Object.keys(a)) {
+    if (!Object.hasOwn(KNOWN_FIELDS, key)) return fail(`unknown field ${key}`);
+  }
 
   for (const field of ["label", "courseCode", "term", "rows", "title", "due", "timezone"]) {
     if (!isPlainString(a[field])) return fail(`missing ${field}`);
@@ -217,7 +345,22 @@ export function validateAdapter(value: unknown): { adapter?: Adapter; reason?: s
     }
   }
 
-  if (!isPlainString(a["minExtensionVersion"], 20)) return fail("missing minExtensionVersion");
+  /*
+   * §4.5's version gate, which until 1.1.0 was a string nothing ever read.
+   *
+   * The registry is one published file and every installed build reads it, so
+   * an entry using a field added after a given build *will* reach that build.
+   * Dropping it with a reason is the only honest answer: running it would mean
+   * reading the date out of whichever hook the old code does understand, which
+   * is a wrong deadline rather than a missing one (§11 ranks both badly, but a
+   * confidently wrong date is the one a student acts on).
+   */
+  const min = a["minExtensionVersion"];
+  if (!isPlainString(min, 20)) return fail("missing minExtensionVersion");
+  if (!VERSION.test(min)) return fail("bad minExtensionVersion (a dotted version like 1.2.0)");
+  if (compareVersions(min, buildVersion) > 0) {
+    return fail(`needs extension ${min}, this is ${buildVersion}`);
+  }
 
   return { adapter: value as unknown as Adapter };
 }
@@ -241,7 +384,10 @@ export function matchesHostPattern(pattern: string, url: URL): boolean {
  * file: one broken adapter should not stop a fix for a different course from
  * reaching anyone. A file that is not a registry at all throws.
  */
-export function validateRegistry(text: string): ValidationResult {
+export function validateRegistry(
+  text: string,
+  buildVersion: string = EXTENSION_VERSION,
+): ValidationResult {
   if (text.length > MAX_REGISTRY_BYTES) {
     throw new Error(`registry is ${text.length} bytes, over the ${MAX_REGISTRY_BYTES} limit`);
   }
@@ -260,7 +406,7 @@ export function validateRegistry(text: string): ValidationResult {
   const seen = new Set<string>();
 
   for (const entry of list) {
-    const { adapter, reason } = validateAdapter(entry);
+    const { adapter, reason } = validateAdapter(entry, buildVersion);
     if (!adapter) {
       rejected.push(reason ?? "invalid");
       continue;

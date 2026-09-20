@@ -8,6 +8,13 @@ const outdir = "dist";
 // worker built from older source (Chrome caches the worker until you hit Reload).
 const buildId = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
 
+// Read from the manifest rather than typed here, because §4.5's
+// `minExtensionVersion` gate compares a registry entry against *this* number: a
+// second copy would drift the first time only one of them was bumped, and the
+// symptom would be entries silently dropped (or silently run) with no way to
+// tell which. `vitest.config.ts` defines it the same way from the same file.
+const version = JSON.parse(await readFile("public/manifest.json", "utf8")).version;
+
 const options = {
   entryPoints: {
     background: "src/background.ts",
@@ -20,7 +27,10 @@ const options = {
   target: "chrome116",
   outdir,
   sourcemap: watch ? "inline" : false,
-  define: { __BUILD_ID__: JSON.stringify(buildId) },
+  define: {
+    __BUILD_ID__: JSON.stringify(buildId),
+    __EXTENSION_VERSION__: JSON.stringify(version),
+  },
   logLevel: "info",
 };
 

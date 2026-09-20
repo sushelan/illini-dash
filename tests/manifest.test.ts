@@ -20,6 +20,7 @@ import { PRAIRIELEARN_ORIGIN } from "../src/sources/prairielearn.js";
 import { PRAIRIETEST_ORIGIN } from "../src/sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../src/sources/smartphysics.js";
 import { REGISTRY_URL } from "../src/core/registry.js";
+import { EXTENSION_VERSION } from "../src/build-info.js";
 import { SOURCE_NAME } from "../src/core/names.js";
 import { CAMPUSWIRE_ORIGIN } from "../src/core/campuswire.js";
 import {
@@ -518,5 +519,25 @@ describe("what the store asks for", () => {
     // a deadline tracker needs to say.
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.version.startsWith("0.")).toBe(false);
+  });
+
+  it("is the version the bundle is compiled with", () => {
+    /*
+     * §4.5's `minExtensionVersion` gate compares a registry entry against
+     * `EXTENSION_VERSION`, and a registry is one published file read by every
+     * installed build. If the define and the manifest ever disagreed, an entry
+     * would be accepted or dropped against a version Chrome never shows — and
+     * the symptom would be a course that silently does not appear, on one
+     * person's machine, with the console reporting a number nothing else knows.
+     */
+    expect(EXTENSION_VERSION).toBe(manifest.version);
+  });
+
+  it("injects that version from the manifest rather than a second copy", () => {
+    // `build.mjs` reads `public/manifest.json`; the assertion above passes
+    // under vitest, whose own define reads the same file, so this is what
+    // pins the *bundle*. Two copies would drift the first time one was bumped.
+    expect(build).toContain("__EXTENSION_VERSION__");
+    expect(build).toContain('readFile("public/manifest.json"');
   });
 });

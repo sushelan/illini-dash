@@ -20,13 +20,17 @@ import {
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
+  compareVersions,
   currentTermCode,
   isCurrentTerm,
   matchesHostPattern,
+  registryDueForRefresh,
+  requiredVersionFor,
   shouldSeedFromBundle,
   validateAdapter,
   validateRegistry,
 } from "../src/core/registry.js";
+import { EXTENSION_VERSION } from "../src/build-info.js";
 import { normalizeTitle } from "../src/core/normalize.js";
 import { dedupe } from "../src/core/dedupe.js";
 import { examBoard } from "../src/core/calendar.js";
@@ -258,6 +262,138 @@ describe("registry validation (§4.5) — a trust boundary", () => {
   });
 });
 
+/**
+ * §4.5's `minExtensionVersion`, which until 1.1.0 was a string nothing read.
+ *
+ * The registry is one published file that every installed build fetches, so an
+ * entry written for a field added later *will* reach an older build. Dropping
+ * it with a reason is the only honest answer: running it means reading the date
+ * out of whichever hook the old code does understand, which is a wrong deadline
+ * rather than a missing one.
+ */
+describe("the minExtensionVersion gate", () => {
+  it("runs an entry the build is new enough for", () => {
+    expect(validateAdapter({ ...ADAPTER, minExtensionVersion: "1.1.0" }, "1.1.0").adapter).toBeDefined();
+    expect(validateAdapter({ ...ADAPTER, minExtensionVersion: "0.1.0" }, "1.1.0").adapter).toBeDefined();
+  });
+
+  it("drops one that needs a newer build, and says which", () => {
+    const { adapter, reason } = validateAdapter(
+      { ...ADAPTER, minExtensionVersion: "1.1.0" },
+      "1.0.0",
+    );
+    expect(adapter).toBeUndefined();
+    expect(reason).toBe("cs999-fa26: needs extension 1.1.0, this is 1.0.0");
+  });
+
+  it("compares components as numbers, not as strings", () => {
+    // `"1.10.0" < "1.9.0"` as strings, so a string compare would make the tenth
+    // minor release refuse every entry written for the ninth — silently, and
+    // only after a release nobody would connect to it.
+    expect(compareVersions("1.10.0", "1.9.0")).toBe(1);
+    expect(compareVersions("1.9.0", "1.10.0")).toBe(-1);
+    expect(validateAdapter({ ...ADAPTER, minExtensionVersion: "1.9.0" }, "1.10.0").adapter)
+      .toBeDefined();
+  });
+
+  it("treats a missing component as zero", () => {
+    expect(compareVersions("1.1", "1.1.0")).toBe(0);
+    expect(compareVersions("1.1", "1.1.1")).toBe(-1);
+    expect(validateAdapter({ ...ADAPTER, minExtensionVersion: "1.1" }, "1.1.0").adapter).toBeDefined();
+  });
+
+  it("refuses a version that is not a dotted number", () => {
+    // House rule 5: `typeof x === "string"` passes "latest", which would then
+    // compare as 0.0.0 — accepted by every build there has ever been, which is
+    // the exact opposite of what the field is for.
+    for (const bad of ["latest", "1.x", "v1.1.0", "1.1.0-beta", "1..0", "-1"]) {
+      expect(validateAdapter({ ...ADAPTER, minExtensionVersion: bad }, "1.1.0").reason, bad).toMatch(
+        /bad minExtensionVersion/,
+      );
+    }
+  });
+
+  it("refuses an empty version rather than reading it as 0.0.0", () => {
+    expect(validateAdapter({ ...ADAPTER, minExtensionVersion: "" }, "1.1.0").reason).toMatch(
+      /missing minExtensionVersion/,
+    );
+  });
+
+  it("carries the build version through the whole file", () => {
+    const text = JSON.stringify({
+      adapters: [
+        { ...ADAPTER, id: "old-fa26", minExtensionVersion: "0.1.0" },
+        { ...ADAPTER, id: "new-fa26", minExtensionVersion: "2.0.0" },
+      ],
+    });
+    const result = validateRegistry(text, "1.1.0");
+    expect(result.adapters.map((a) => a.id)).toEqual(["old-fa26"]);
+    expect(result.rejected).toEqual(["new-fa26: needs extension 2.0.0, this is 1.1.0"]);
+  });
+
+  it("derives the floor from the fields an entry uses", () => {
+    // The author of a new entry is the person least able to remember which
+    // build learned `duePrev`, so the number is derived rather than typed.
+    expect(requiredVersionFor({ rows: "tr", due: "." })).toBe("0.1.0");
+    for (const field of [
+      "duePrev",
+      "duePhrase",
+      "dueSlot",
+      "titleSlot",
+      "titleBefore",
+      "defaultTime",
+    ]) {
+      expect(requiredVersionFor({ rows: "tr", [field]: "x" }), field).toBe("1.1.0");
+    }
+  });
+
+  it("does not count a field that is merely present and undefined", () => {
+    // `{ ...candidate, duePrev: undefined }` is what a spread of an optional
+    // field produces, and demanding 1.1.0 for it would put every proposal out
+    // of reach of a 1.0.x install for no reason.
+    expect(requiredVersionFor({ rows: "tr", duePrev: undefined })).toBe("0.1.0");
+  });
+});
+
+/**
+ * A key this build has never heard of means the entry was written for a later
+ * one, and running it on the fields we *do* recognise reads the wrong cell.
+ */
+describe("unknown top-level fields", () => {
+  it("refuses one, naming it", () => {
+    expect(validateAdapter({ ...ADAPTER, dueSideways: "x" }).reason).toBe(
+      "cs999-fa26: unknown field dueSideways",
+    );
+  });
+
+  it("allows $comment, which the shipped registry already uses", () => {
+    expect(validateAdapter({ ...ADAPTER, $comment: "why this is spelled so" }).adapter).toBeDefined();
+  });
+
+  it("is not fooled by a name on Object.prototype", () => {
+    // `"constructor" in KNOWN_FIELDS` is true for every object literal, so an
+    // `in` check would wave through a field called `constructor` and then hand
+    // it to a spread. Deliberately unrealistic — a realistic key cannot tell a
+    // prototype-walking check from a correct one (parser rule 10).
+    expect(validateAdapter({ ...ADAPTER, constructor: "x" }).reason).toMatch(/unknown field/);
+    expect(validateAdapter({ ...ADAPTER, toString: "x" }).reason).toMatch(/unknown field/);
+  });
+});
+
+/** Worker rule 5: both branches of a decision the student will have to debug. */
+describe("registryDueForRefresh", () => {
+  it("is true when the registry has rested on either timestamp", () => {
+    expect(registryDueForRefresh({ fetchedAt: "2026-09-19T00:00:00.000Z" })).toBe(true);
+    expect(registryDueForRefresh({ attemptedAt: "2026-09-19T00:00:00.000Z" })).toBe(true);
+  });
+
+  it("is false on a store that has never fetched it", () => {
+    // Seeding from the bundle deliberately leaves both unset, and clearing what
+    // is already clear must not be announced as if it had done something.
+    expect(registryDueForRefresh({})).toBe(false);
+  });
+});
+
 describe("host patterns and terms", () => {
   it("matches an exact host and a wildcard subdomain", () => {
     const url = new URL("https://courses.grainger.illinois.edu/cs999/x");
@@ -380,6 +516,24 @@ describe("the bundled registry", () => {
     // untrusted remote data, so unlike a fetched file it must be clean.
     expect(rejected).toEqual([]);
     expect(adapters.length).toBeGreaterThan(0);
+  });
+
+  it("is runnable by the version the manifest actually ships", () => {
+    /*
+     * Read out of `public/manifest.json` rather than typed here: the bundled
+     * registry is the baseline every fresh install starts from, so an entry
+     * demanding a version above the manifest's would ship as a course that can
+     * never be enabled — and a retyped number in this test would agree with
+     * itself while disagreeing with Chrome.
+     */
+    const version = (
+      JSON.parse(readFileSync(new URL("../public/manifest.json", import.meta.url), "utf8")) as {
+        version: string;
+      }
+    ).version;
+    expect(validateRegistry(text, version).rejected).toEqual([]);
+    // And the define the bundle carries is that same number.
+    expect(EXTENSION_VERSION).toBe(version);
   });
 
   it("seeds an empty store and leaves a refreshed one alone", () => {
