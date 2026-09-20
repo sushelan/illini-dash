@@ -2,10 +2,104 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2285 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2455 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## One search over rows and date locators, and three pages that were not readable — 2026-09-20
+
+Three public course pages, none of them a header table or a `Due:` list: CS 425 writes
+`Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon)` inside one
+`<li>`; ECE 374 A puts the date in the `<dt>` before each `<dd>` and says once, in prose,
+that everything is due by 9pm; CS 424 has no header row to name. The proposer in
+`detect.ts` hard-coded two page shapes, so each of these was "needs a hand-written entry".
+It is now one search: every repeated structure on the page × every way a row's date can
+be located × every supported format, each candidate run through the real `runAdapter`,
+ranked, and deduped by the `(title, dueAt)` pairs it produced. A page shape is no longer a
+code path; "where is the date" is a value in the adapter. Branch `general-search`, ten
+commits, on top of 0f74bc2.
+
+- **Runner (`site.ts`).** One `locateDue(row, adapter, grids)` that both the runner and the
+  search call. Locators: `columns.due` (header cell, now resolved through the grid),
+  `dueSlot` (grid column after WHATWG rowspan/colspan normalisation, `core/table-grid.ts`),
+  `duePrev` (nearest preceding sibling), `due` (selector, the fallback). Readers of the
+  located text: whole, `dueLabel`, `duePhrase` (first date after a whole-word keyword and
+  at most one connector; a row is hooked only when a date-shaped token or a placeholder
+  follows, so the policy bullet "always due on a SUNDAY" is not a row). `titleBefore`
+  (title is the text before a literal), `defaultTime` (an adapter-level clock; the row
+  stays `timeAssumed`, so §5.3 still ranks it last). A loud hit-rate guard on `dueSlot`,
+  and one page-level throw per new hook. Every dated item carries `extra.dueText`.
+- **Grammar.** A trailing weekday token (`09/03 Thu.`, `09/24, Thursday`, `08/27 Thu¹`),
+  `11.59 PM`, and `0930 - 1045 hrs.` (four digits are a clock only when the page says
+  `hrs`). `Thu 9/3 5` still refuses to read 5 as a clock. `clockGroups` is the one copy of
+  the hour/minute/meridiem rule, shared with `announce.ts`.
+- **`minExtensionVersion` is enforced.** Manifest and package 1.0.0 → 1.1.0;
+  `EXTENSION_VERSION` is a build-time define (build.mjs and vitest.config.ts) so core can
+  compare without `chrome.*`; an entry newer than the build is dropped with
+  `[registry] rejected <id>: needs extension 1.1.0, this is 1.0.0`, unknown top-level keys
+  are refused by name, `requiredVersionFor` derives the floor an entry needs from the
+  fields it uses, and an extension update clears the registry's refresh window so the
+  first sync fetches what the old build refused. Until this build, unknown fields were
+  silently ignored, so the gate protects from 1.1.0 onward.
+- **Search (`detect.ts`, `skeleton.ts`).** `RepeatedStructure.locators` measures, per
+  group, which hook dates its rows; the inventory sorts on the best of those, so a `<dd>`
+  group dated through its `<dt>`s enters the twelve. `searchCandidates` builds a trial
+  adapter per (group, hook), runs the real runner, refuses under 2 dated rows, under 50%
+  for a named column and under 80% of hooked rows for everything else, ranks by dated
+  rows then share then hook specificity, dedupes by produced pairs. `noCandidateReason`
+  names what the page has and no longer lists shapes. The options page draws one heading
+  per hook (`date in the <dt> before each entry`), a `Read from` column, and shows five
+  with "Show N more". `npm run propose <file>` prints what the search would offer.
+  The model branch is untouched and does not yet propose the new locators.
+- **Registry: eight entries.** `cs425-fa26` (`CS425/ECE428`, `table[align=center] li`,
+  `duePhrase "due"`, `titleBefore ":"`; 8 rows, every clock stated), `cs374a-fa26-hw`
+  and `cs374a-fa26-gps` (`dl.calendar > dd`, `duePrev "dt"`, `defaultTime "21:00"`; 11
+  rows each, every url on the GPS page falling back to the page because PrairieLearn is
+  another origin). `cs424-fa26` keeps `td:not(.auto-style6)`: a migrated entry would
+  vanish from every 1.0.0 install, and the grid spelling (`dueSlot 1, titleSlot 4`) is
+  pinned against it by row identity. The ECE 374 A calendar page is a fixture only: it
+  mixes lectures, labs and exams, and its `Midterm 1: 7:00pm- 9:00pm` clock sits in the
+  `<dd>` text where no field reads it yet.
+- **Fixtures.** Four unmodified `curl` captures (CS 425 assignments; ECE 374 A homeworks,
+  GPS, calendar), two derived adversarial files, and `fixtures/sites/README.md` (parser
+  rule 10) naming every unrealistic row. Not scrubbed: the scrubber would rewrite a public
+  MediaSpace channel id and nothing else.
+- **A defect found on the way.** `sameOriginHttpsUrl` resolved a relative `href` against
+  the bare origin; `homeworks/hw1.pdf` was the first same-origin relative link any
+  adapter met and it 404ed. It resolves against the page now.
+- **Numbers.** Tests 2285 → 2455, typecheck clean, `npm test` green with the build. The
+  inventory on the 12,000-element page: main 640ms, branch 960ms, bound 2,000ms (every
+  considered group is probed before the twelve are chosen).
+- **Mutation-checked**, every mutation count-asserted. Runner: 45 mutations; 40 died on
+  the first run, one was unreachable by construction (`x += colspan` after the `while`
+  re-establishes the cursor; kept, commented), four were untested and each got its test
+  (nested rows through `<tbody>`; `columns` read by child index; the share-only and
+  no-cell branches of the slot guard; `titleSlot` masked by a working fallback selector).
+  Search: 9 mutations; 7 died, two were masked by a parallel mechanism (the slot's
+  due-word rule by `filter.include`; `bestShare` by the twelve-cap never biting on a real
+  capture) and each got the input that separates them.
+- **What the search now says about the pages it already read.** ECE 310: one candidate,
+  as before. ECE 411 assignments: the label candidate first, and a second, coarser
+  phrase reading of `#mp-information > section` (2 of 5) ranked below it, because a
+  placeholder date no longer refuses a candidate. ECE 411 syllabus: still nothing;
+  `docs/ece411-findings.md` stands. Calendar: 90 rows of 93 (two `(time TBA)` rows are
+  filtered, two `Fall Break` rows are character-identical and share a key).
+- **Still open.** The calendar's `(11:59pm)` and `7:00pm- 9:00pm` clocks inside `<dd>`
+  text; a trailing weekday is consumed but not cross-checked against the date; ECE 391's
+  exams page has no entry (a registry edit, not a decision).
+- **Waiting on Sushi**, one action: reload the unpacked build, Settings → Add a course
+  site, paste `https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html`, press
+  Read this page, and look for the literal line `8 of 8 rows have a date this can read.`
+  Then the ECE 374 A homeworks and GPS pages (`11 of 11` each). Then enable the three
+  registry rows and read `[registry] 8 adapters accepted by 1.1.0, 0 rejected` in the
+  **worker** console.
+
+**Amendments recorded this day:** §4.5 — an entry is `rows` plus exactly one date locator
+and one reader, not `title`/`due` selectors; four new fields (`duePrev`, `duePhrase`,
+`dueSlot`/`titleSlot`, `titleBefore`, `defaultTime`); `minExtensionVersion` is enforced,
+which §4.5 lists and never defined (`docs/adapters.md`, `docs/cs425-findings.md`,
+`docs/cs374a-findings.md`).
 
 ## Settings, with a quarter of the words — 2026-09-20
 
@@ -3385,6 +3479,13 @@ rows for held-back courses, and Options → Courses → **Older courses** lists 
 back with a "Put back" button for anyone legitimately enrolled across two terms.
 
 ## Spec amendments forced by real data
+- **§4.5** — the schema is `rows` plus exactly one date *locator* (`columns.due`,
+  `dueSlot`, `duePrev`, or the `due` selector) and one *reader* (whole, `dueLabel`,
+  `duePhrase`), not a pair of selectors: CS 425 prints its deadlines mid-sentence, ECE 374 A's
+  date is the `<dt>` before the row, CS 424 has no header to name. `defaultTime` is a
+  page-level clock the row still reports as assumed. And `minExtensionVersion` gates an
+  entry: an install older than the field an entry uses drops it with a logged reason.
+  (2026-09-20, from three public captures.)
 - **§4.1 / §5.3** — Canvas `course_code` is an opaque slug (`cs_357_120268_263847`), not
   `"CS 225"`. §5.1 runs against `name` instead, and `courseLabel` must not use it.
 - **§4.1** — no `while(1);` prefix on this deployment. Keep the detection, don't require it.
