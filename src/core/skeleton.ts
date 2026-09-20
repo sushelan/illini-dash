@@ -22,8 +22,17 @@
  * truncates away the schedule table asks the model to invent one.
  */
 
-import { ParseError } from "../sources/types.js";
-import { parseAdapterDateParts, supportedDateFormats } from "../sources/site.js";
+import { ParseError, type Adapter } from "../sources/types.js";
+import {
+  headerIndex,
+  locateDue,
+  MIN_DATED_ROWS,
+  parseAdapterDateParts,
+  PLACEHOLDER_WORDS,
+  supportedDateFormats,
+  type GridCache,
+} from "../sources/site.js";
+import { gridFor, width } from "./table-grid.js";
 import {
   isHeaderRowOutsideTbody,
   PLACEHOLDER,
@@ -657,6 +666,24 @@ export interface RepeatedStructure {
    */
   dated: DatedRows;
   /**
+   * Every way the runner could reach this group's dates, tried and counted.
+   *
+   * `dated` above asks "does a row state a date *in itself*", which is the only
+   * question a summary for a model needs. It is the wrong question for the
+   * search: ECE 374 A's homework rows are `<dd>`s whose date is the `<dt>`
+   * before them, so every one of them answers "no", and a page whose every row
+   * is dated scored zero and fell out of the twelve before the search ever saw
+   * it. CS 425's rows answer "no" as well — their date is mid-sentence, and the
+   * formats are start-anchored.
+   *
+   * So the hooks are measured rather than inferred, with `locateDue` — the
+   * runner's own locator, one decision one copy — and a trial adapter fragment
+   * per probe. Only hooks that dated at least one row are kept: a probe that
+   * found nothing is not evidence about anything, and every structure carrying
+   * six empty ones is a list nobody can read.
+   */
+  locators: LocatorEvidence[];
+  /**
    * The `titleFrom` spec a list-shaped entry over this group would carry.
    *
    * A row in a list has no name of its own; the name is the heading above it.
@@ -788,16 +815,30 @@ function rowFields(row: Element): { value: string; label?: string }[] {
   return fields;
 }
 
-/** The format that reads this value cleanly, or nothing. */
-function formatFor(value: string, timezone: string, reference: string): string | undefined {
-  if (!value || PLACEHOLDER.test(value)) return undefined;
-  return supportedDateFormats().find((format) => {
+/**
+ * Every format that reads this value cleanly, in the order they are declared.
+ *
+ * Plural because the locator search below has to choose *one* format for a
+ * whole group and then say how many rows it dates — and a page that writes half
+ * its schedule as `9/11` and half as `Sep 25` has two formats each reading half
+ * of it. Asking "which format reads this row" one row at a time and counting
+ * the answers is how the group ends up proposed with a format that reads two of
+ * its four rows while the count claims four.
+ */
+function formatsFor(value: string, timezone: string, reference: string): string[] {
+  if (!value || PLACEHOLDER.test(value)) return [];
+  return supportedDateFormats().filter((format) => {
     const parts = parseAdapterDateParts(value, format, timezone, reference);
     // A tail the reader could not consume — `09/04 @ 11:59pm` read as `09/04` —
     // is the rejection `validateProposal` gives a proposal, so counting the row
     // as dated here would rank a group the runner will refuse.
     return parts !== undefined && parts.unparsedTime === undefined;
   });
+}
+
+/** The format that reads this value cleanly, or nothing. */
+function formatFor(value: string, timezone: string, reference: string): string | undefined {
+  return formatsFor(value, timezone, reference)[0];
 }
 
 /**
@@ -905,6 +946,314 @@ export function datedShare(structure: RepeatedStructure): number {
   return stated > 0 ? structure.dated.rows / stated : 0;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Where a group's dates are: every hook the runner has, tried and counted      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The six ways `runAdapter` can reach a row's date, named.
+ *
+ * Not a list of page *shapes*. The proposer used to hold two of those — header
+ * table, labelled list — and a course site that was neither got "this needs a
+ * hand-written entry", which meant waiting for one person to read the markup.
+ * A shape is a bundle of decisions; a locator is one decision, and crossing the
+ * page's groups with all six is a search rather than a taxonomy.
+ */
+export type LocatorKind = "header" | "slot" | "label" | "prev" | "phrase" | "attr";
+
+/** One hook, measured against one group of rows. */
+export interface LocatorEvidence {
+  kind: LocatorKind;
+  /**
+   * What the adapter would declare, carried rather than re-derived.
+   *
+   * The header name, the grid column as a number, the `dueLabel` spec, the
+   * `duePrev` selector, one `duePhrase` keyword, or the `due` selector for
+   * `attr`. `core/detect.ts` builds its trial adapter straight out of this, so
+   * the string that was measured is the string that gets run (mutation house
+   * rule 3 — the proposer and the runner disagreeing about a spelling is how a
+   * proposal could validate against one reading and be saved under another).
+   */
+  spec: string;
+  /** Rows this probe was offered at all — a table's data rows, or the group. */
+  of: number;
+  /** Rows where the reader hooked: a cell with text, a declared label, a keyword. */
+  hooked: number;
+  /** Hooked rows reading TBD/TBA/N/A: a deadline not set, not one misread. */
+  pending: number;
+  /** Hooked rows the chosen format read cleanly. */
+  dated: number;
+  /** The format most of the dated rows matched. Never "" — `dated` is ≥ 1. */
+  format: string;
+  /** Indices **into the group's rows** of the dated ones. */
+  datedAt: number[];
+  /** The date text one dated row handed the parser. */
+  sample: string;
+}
+
+/** The keywords a `duePhrase` probe tries. Two words, not a vocabulary. */
+const PHRASE_KEYWORDS = ["due", "deadline"] as const;
+
+/** The `due` spec an `attr` candidate carries, and what the probe measures. */
+const ATTR_DUE = "time@datetime";
+
+/** "No date yet" at the start of a located value — `site.ts`'s own test. */
+const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
+
+/**
+ * The old `dataRows` rule, one copy: a table row that is not the header.
+ *
+ * A `<tr>` with no `<td>` is the header row, and reading a header through a
+ * column name yields an item *titled* "Exercises" with the words "Due Date"
+ * where its date should be.
+ */
+function isDataRow(row: Element): boolean {
+  return row.tagName === "TR" && row.querySelector("td") !== null;
+}
+
+/**
+ * A row the four non-table locators may be tried on.
+ *
+ * By the row's **own tag**, not by `closest("table")`, and that distinction is
+ * load-bearing: CS 425's deadlines are `<li>`s *inside* a layout `<table>` —
+ * the whole page is one, as 2001 pages are — and a rows-are-in-a-table test
+ * refuses the one page `duePhrase` exists for. What a column or a slot can
+ * address is a `<tr>`; what they cannot is anything else, wherever it sits.
+ *
+ * `<td>`/`<th>` are excluded from both halves deliberately. A group of cells
+ * has no cells of its own, so it reads as a run of `Label: value` lines like
+ * any list — and a table whose every cell says `Due: 9/7` would then yield
+ * deadlines off a cell nothing anchors, which is house rule 3 by the back door.
+ */
+function isFreeRow(row: Element): boolean {
+  return row.tagName !== "TR" && row.tagName !== "TD" && row.tagName !== "TH";
+}
+
+/** A fragment `locateDue` can read, for one probe. Never run as an adapter. */
+function probeFragment(kind: LocatorKind, spec: string): Adapter {
+  const fragment: Record<string, unknown> = { due: "." };
+  if (kind === "header") fragment["columns"] = { title: "", due: spec };
+  else if (kind === "slot") fragment["dueSlot"] = Number(spec);
+  else if (kind === "prev") fragment["duePrev"] = spec;
+  else if (kind === "label") fragment["dueLabel"] = spec;
+  else if (kind === "phrase") fragment["duePhrase"] = spec;
+  else fragment["due"] = spec;
+  return fragment as unknown as Adapter;
+}
+
+interface Probed {
+  evidence?: LocatorEvidence;
+  /** Which of the offered rows this reader hooked, dated or not. */
+  hookedAt: Set<number>;
+}
+
+/**
+ * One hook, run over one group with the runner's own locator.
+ *
+ * The format is chosen **once for the group**, by majority, and never crossed
+ * with the rows as a second search dimension. Crossing them was the old table
+ * search's shape and it offered the same column twice — one choice printed
+ * twice is how people stop reading options — while counting each row under
+ * whichever format happened to read it overstates what a single declared format
+ * will do on the page.
+ */
+function probe(
+  kind: LocatorKind,
+  spec: string,
+  rows: readonly Element[],
+  offered: readonly number[],
+  timezone: string,
+  reference: string,
+  grids: GridCache,
+): Probed {
+  const fragment = probeFragment(kind, spec);
+  const hookedAt = new Set<number>();
+  const read: { at: number; texts: string[]; formats: string[] }[] = [];
+  let pending = 0;
+
+  for (const at of offered) {
+    const due = locateDue(rows[at]!, fragment, grids);
+    if (!due.readerSeen || due.texts.length === 0) continue;
+    hookedAt.add(at);
+    // A hook with nothing behind it yet is not a row this read wrongly, so it
+    // is kept out of both halves of the share rather than counted against the
+    // locator — the same distinction `DatedRows.pending` draws.
+    if (due.pending || due.texts.every((text) => PENDING_AT_START.test(text))) {
+      pending += 1;
+      continue;
+    }
+    const formats = new Set<string>();
+    for (const text of due.texts) {
+      for (const format of formatsFor(text, timezone, reference)) formats.add(format);
+    }
+    read.push({ at, texts: due.texts, formats: [...formats] });
+  }
+
+  let format = "";
+  let best = 0;
+  // In declaration order, so a tie between two formats that read half the group
+  // each resolves the same way on every run.
+  for (const name of supportedDateFormats()) {
+    const n = read.filter((row) => row.formats.includes(name)).length;
+    if (n > best) {
+      best = n;
+      format = name;
+    }
+  }
+  if (best === 0) return { hookedAt };
+
+  const datedRowsAt = read.filter((row) => row.formats.includes(format));
+  const sampleRow = datedRowsAt[0]!;
+  const sample = sampleRow.texts.find(
+    (text) => formatsFor(text, timezone, reference).includes(format),
+  );
+  return {
+    hookedAt,
+    evidence: {
+      kind,
+      spec,
+      of: offered.length,
+      hooked: hookedAt.size,
+      pending,
+      dated: datedRowsAt.length,
+      format,
+      datedAt: datedRowsAt.map((row) => row.at),
+      sample: clip(sample ?? "", MAX_STRUCTURE_SAMPLE),
+    },
+  };
+}
+
+/**
+ * The tag of the sibling that precedes half this group, when there is one.
+ *
+ * `duePrev`'s applicability test. A definition list alternates `<dt>` and
+ * `<dd>`, so every `<dd>` has a `<dt>` before it; a run of `div.assignment`
+ * blocks has another block of the *same* group before it, which is not a hook
+ * at all and would make the probe read one assignment's date off another.
+ */
+function precedingTag(rows: readonly Element[], offered: readonly number[]): string | undefined {
+  const members = new Set(rows);
+  const counts = new Map<string, number>();
+  for (const at of offered) {
+    const row = rows[at]!;
+    const previous = row.previousElementSibling;
+    if (!previous || members.has(previous)) continue;
+    if (previous.tagName === row.tagName || DROPPED.has(previous.tagName)) continue;
+    const tag = previous.tagName.toLowerCase();
+    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  let best: { tag: string; n: number } | undefined;
+  for (const [tag, n] of counts) if (!best || n > best.n) best = { tag, n };
+  return best && best.n * 2 >= offered.length ? best.tag : undefined;
+}
+
+/**
+ * Every hook that reaches this group's dates, measured.
+ *
+ * Applicability is not a preference — each probe is tried only where it could
+ * mean something, because a probe that *can* hook anywhere hooks somewhere
+ * wrong. A column name is only addressable on a table that names its columns; a
+ * grid slot only where there is no header to name instead (position is house
+ * rule 3's forbidden move, taken only where the page leaves nothing else); and
+ * a phrase only on rows a declared label did not already hook, or every ECE 411
+ * `Due: 9/7` line would be proposed twice, once with its heading for a title
+ * and once with the whole line.
+ */
+export function locatorEvidence(
+  rows: readonly Element[],
+  timezone: string,
+  reference: string,
+  grids: GridCache,
+): LocatorEvidence[] {
+  const found: LocatorEvidence[] = [];
+  const at = rows.map((_, index) => index);
+  const keep = (probed: Probed): Probed => {
+    if (probed.evidence) found.push(probed.evidence);
+    return probed;
+  };
+
+  const data = at.filter((index) => isDataRow(rows[index]!));
+  const first = data[0];
+  if (first !== undefined) {
+    const table = rows[first]!.closest("table");
+    const headers = table ? headerIndex(table, grids) : new Map<string, number>();
+    if (headers.size >= 2) {
+      for (const name of headers.keys()) {
+        keep(probe("header", name, rows, data, timezone, reference, grids));
+      }
+    } else if (headers.size === 0) {
+      // No header row to name, so the position is all there is (CS 424). One
+      // header is neither: a table that names one column and not the rest is
+      // not a schedule this can address either way.
+      const grid = gridFor(rows[first]!, grids);
+      for (let slot = 0; slot < (grid ? width(grid) : 0); slot += 1) {
+        keep(probe("slot", String(slot), rows, data, timezone, reference, grids));
+      }
+    }
+  }
+
+  const free = at.filter((index) => isFreeRow(rows[index]!));
+  if (free.length === 0) return found;
+
+  // One label decision for the group, `datedRows`' own — the rule that a label
+  // must *say* due, so `Release: 8/25` is not a deadline, lives there.
+  const label = datedRows(
+    free.map((index) => rows[index]!),
+    timezone,
+    reference,
+  ).label;
+  const labelled = label === undefined
+    ? new Set<number>()
+    : keep(probe("label", label, rows, free, timezone, reference, grids)).hookedAt;
+
+  const previous = precedingTag(rows, free);
+  if (previous) keep(probe("prev", previous, rows, free, timezone, reference, grids));
+
+  const unlabelled = free.filter((index) => !labelled.has(index));
+  if (unlabelled.length > 0) {
+    for (const keyword of PHRASE_KEYWORDS) {
+      keep(probe("phrase", keyword, rows, unlabelled, timezone, reference, grids));
+    }
+  }
+
+  if (free.filter((index) => rows[index]!.querySelector("time[datetime]")).length >= MIN_DATED_ROWS) {
+    keep(probe("attr", ATTR_DUE, rows, free, timezone, reference, grids));
+  }
+
+  return found;
+}
+
+/**
+ * The best share any reading of this group achieves, and how many rows it dated.
+ *
+ * The inventory is ranked on these two rather than on `datedShare` alone,
+ * because `datedShare` only knows about dates a row states *in itself* — so the
+ * eleven `<dd>`s of ECE 374 A's homework page, every one of them dated through
+ * the `<dt>` beside it, scored zero and were cut from the twelve before the
+ * search could look at them.
+ *
+ * The denominator is the **group**, not the rows the hook reached: a keyword
+ * that hooks two lines of a four-hundred-bullet page reads at 100% of what it
+ * hooked and says nothing about the group. `core/detect.ts` asks the other
+ * question — of the rows this hook reached, how many dated — because that is
+ * the one that decides whether a *candidate* is honest. Two questions, two
+ * formulas, and neither is a copy of the other.
+ */
+export function bestShare(structure: RepeatedStructure): number {
+  let best = datedShare(structure);
+  for (const locator of structure.locators) {
+    best = Math.max(best, locator.dated / Math.max(1, structure.count - locator.pending));
+  }
+  return best;
+}
+
+/** The most rows any reading of this group dated. See `bestShare`. */
+export function bestDated(structure: RepeatedStructure): number {
+  let best = structure.dated.rows;
+  for (const locator of structure.locators) best = Math.max(best, locator.dated);
+  return best;
+}
+
 /** Shown to the model, and enumerated in the schema. Both want a short list. */
 const MAX_STRUCTURES = 12;
 /** One element is not a repeated structure. */
@@ -955,7 +1304,7 @@ export function repeatedStructures(
   const order = new Map<Element, number>();
   for (const [i, element] of [...doc.querySelectorAll("*")].entries()) order.set(element, i);
 
-  const best = new Map<string, Omit<RepeatedStructure, "dated" | "titleFrom">>();
+  const best = new Map<string, Omit<RepeatedStructure, "dated" | "locators" | "titleFrom">>();
   /*
    * The rows behind each surviving group, kept for the dating pass below.
    *
@@ -1072,6 +1421,10 @@ export function repeatedStructures(
    * right one, which is a worse failure than the invented selector this list
    * was written to prevent. A schedule has more rows than a summary box.
    */
+  // One grid per table for the whole pass, exactly as `runAdapter` keeps one
+  // per run: `formTableGrid` walks every cell, and the locator probes below ask
+  // a table for a cell once per row per column.
+  const grids: GridCache = new Map();
   const structures: RepeatedStructure[] = [...best.entries()].map(([key, structure]) => {
     const rows = rowsOf.get(key)!;
     // A table row's name is in its own cells, so a heading over the table is
@@ -1081,6 +1434,7 @@ export function repeatedStructures(
     return {
       ...structure,
       dated: datedRows(rows, timezone, reference),
+      locators: locatorEvidence(rows, timezone, reference, grids),
       ...(heading ? { titleFrom: heading.spec } : {}),
     };
   });
@@ -1099,12 +1453,17 @@ export function repeatedStructures(
    *
    * The count still breaks the tie between two groups that are all dates, which
    * is what keeps one MP's two bullets below the sixteen covering the course.
+   *
+   * Both keys are now the *best* reading of the group rather than the reading
+   * off its own text (`bestShare`): a group whose rows are dated through a
+   * sibling, a keyword or an attribute scored zero on both and was cut here,
+   * twelve entries before the search that could have read it.
    */
   return structures
     .sort(
       (a, b) =>
-        datedShare(b) - datedShare(a) ||
-        b.dated.rows - a.dated.rows ||
+        bestShare(b) - bestShare(a) ||
+        bestDated(b) - bestDated(a) ||
         Number(b.rowLike) - Number(a.rowLike) ||
         b.count - a.count ||
         a.selector.length - b.selector.length,

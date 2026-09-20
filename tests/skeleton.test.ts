@@ -11,8 +11,12 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
+  bestDated,
+  bestShare,
   datedPhrase,
   datedRows,
+  datedShare,
+  locatorEvidence,
   MAX_DATED_NOTE_CHARS,
   MAX_SKETCH_CHARS,
   renderDatedGroups,
@@ -789,5 +793,164 @@ describe("the dated groups a retry is pointed at", () => {
     // read "groups that do carry dates:" and be told none of them do.
     const doc = docFrom("<ul><li>Office hours: Tuesdays</li><li>Office hours: Fridays</li></ul>");
     expect(renderDatedGroups(inventory(doc))).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Where a group's dates are — every hook the runner has, tried                */
+/* -------------------------------------------------------------------------- */
+
+const locators = (doc: Document, selector: string) =>
+  locatorEvidence([...doc.querySelectorAll(selector)], ZONE, REFERENCE, new Map());
+
+describe("the locator evidence", () => {
+  it("finds a date that is not in the row at all", () => {
+    /*
+     * ECE 374 A's homework page is a definition list: the date is the `<dt>`
+     * and the assignment is the `<dd>` after it. Every one of those eleven rows
+     * is dated and **not one of them states a date in itself**, so the group
+     * scored zero on the only measurement the inventory had and was cut from
+     * the twelve before the search could look at it.
+     */
+    const doc = fixture("cs374a-fa2026-homeworks.html");
+    const dd = inventory(doc).find((s) => s.selector === "dd")!;
+    expect(dd.dated.rows).toBe(0);
+    expect(datedShare(dd)).toBe(0);
+
+    const prev = dd.locators.find((l) => l.kind === "prev")!;
+    expect(prev.spec).toBe("dt");
+    expect(prev).toMatchObject({ of: 11, hooked: 11, pending: 0, dated: 11 });
+    expect(prev.format).toBe("MMM d, h:mm a");
+    expect(prev.sample).toBe("Tue Sep 01");
+  });
+
+  it("is what puts that group in the twelve", () => {
+    const doc = fixture("cs374a-fa2026-homeworks.html");
+    const dd = inventory(doc).find((s) => s.selector === "dd")!;
+    expect(bestShare(dd)).toBe(1);
+    expect(bestDated(dd)).toBe(11);
+  });
+
+  it("reads the date with the runner's own locator, not a second copy of it", () => {
+    // `locateDue` is what `runAdapter` calls, so a hook this says reaches a
+    // date is one the adapter will read the same way. The wrapped `<dt><em>
+    // <strong>Wed Sep 09</strong></em></dt>` — how the page marks a week whose
+    // deadline moved — is the row that separates "read the element" from "read
+    // its first text node".
+    const doc = docFrom(
+      "<dl><dt><em><strong>Wed Sep 09</strong></em></dt><dd>HW2</dd>" +
+        "<dt>Tue Sep 15</dt><dd>HW3</dd></dl>",
+    );
+    const prev = locators(doc, "dd").find((l) => l.kind === "prev")!;
+    expect(prev.dated).toBe(2);
+    expect(prev.sample).toBe("Wed Sep 09");
+  });
+
+  it("does not probe a keyword on rows a declared label already hooked", () => {
+    // Every deadline line on ECE 411 reads `Due: 9/7`, so a `duePhrase` of
+    // "due" hooks all of them — and the page would be proposed twice, once
+    // with its heading for a name and once with the line's own text.
+    const doc = fixture("ece411-fa2026-assignments.html");
+    const mps = inventory(doc).find((s) => s.selector === "#mp-information ul.simple > li")!;
+    expect(mps.locators.map((l) => l.kind)).toEqual(["label"]);
+  });
+
+  it("leaves a table's cells alone, which is house rule 3 by the back door", () => {
+    /*
+     * A `<td>` has no cells of its own, so a group of them reads as a run of
+     * `Label: value` lines like any list — and a table whose every cell says
+     * `Due: 9/7` would then yield deadlines off a cell nothing anchors. Written
+     * rather than captured, because no real page does this (mutation rule 2).
+     */
+    const doc = docFrom(
+      "<section id='mp'><h3>MP1</h3><table><tbody><tr>" +
+        "<td>Due: 9/7</td><td>Due: 9/14</td><td>Due: 9/21</td>" +
+        "</tr></tbody></table></section>",
+    );
+    const cells = inventory(doc).find((s) => s.selector.endsWith("td"))!;
+    // The cells do carry dates and a due label…
+    expect(cells.dated).toMatchObject({ rows: 3, label: "Due" });
+    // …and no hook reaches them, which is what keeps them out of the search.
+    expect(cells.locators).toEqual([]);
+  });
+
+  it("names a column where the table names one, and counts slots where it does not", () => {
+    const named = docFrom(
+      "<table id='t'><tr><th>Assignment</th><th>Due</th></tr>" +
+        "<tr><td>HW1</td><td>9/11</td></tr><tr><td>HW2</td><td>9/18</td></tr></table>",
+    );
+    expect(locators(named, "#t tr").map((l) => `${l.kind}:${l.spec}`)).toEqual(["header:due"]);
+
+    // The same table with its header row typed as data, which is CS 424: there
+    // is nothing to name, so the position is all there is.
+    const unnamed = docFrom(
+      "<table id='t'><tr><td>HW1</td><td>9/11</td></tr>" +
+        "<tr><td>HW2</td><td>9/18</td></tr></table>",
+    );
+    expect(locators(unnamed, "#t tr").map((l) => `${l.kind}:${l.spec}`)).toEqual(["slot:1"]);
+  });
+
+  it("chooses one format for the group rather than counting each row under its own", () => {
+    /*
+     * Half the schedule typed as 9/11 and half as Sep 25. An adapter declares
+     * *one* `dateFormat`, so a count of "four rows dated" — two under each —
+     * is a claim no entry can keep, and the group would clear a threshold the
+     * proposal then misses.
+     */
+    const doc = docFrom(
+      "<table id='t'><tr><th>Assignment</th><th>Due</th></tr>" +
+        "<tr><td>HW1</td><td>9/11</td></tr><tr><td>HW2</td><td>9/18</td></tr>" +
+        "<tr><td>HW3</td><td>Sep 25</td></tr><tr><td>HW4</td><td>Oct 2</td></tr></table>",
+    );
+    const due = locators(doc, "#t tr").find((l) => l.kind === "header")!;
+    expect(due.of).toBe(4);
+    expect(due.hooked).toBe(4);
+    expect(due.dated).toBe(2);
+    expect(due.datedAt).toHaveLength(2);
+  });
+
+  it("counts a placeholder as neither dated nor misread", () => {
+    // `Due: TBD` is a deadline the course has not set. Counted against the
+    // hook it would sink a group that has barely started; counted for it, a
+    // page of TBDs would look like a schedule.
+    const doc = docFrom(
+      "<section><h3>MP1</h3><ul><li>Due: 9/7</li><li>Due: 9/14</li>" +
+        "<li>Due: TBD</li><li>Due: TBA</li></ul></section>",
+    );
+    const label = locators(doc, "li").find((l) => l.kind === "label")!;
+    expect(label).toMatchObject({ of: 4, hooked: 4, pending: 2, dated: 2 });
+  });
+
+  it("keeps a hook that found nothing off the list entirely", () => {
+    // Six empty probes on every group is a list nobody can read, and a probe
+    // that dated nothing is not evidence about anything. `bestShare` and the
+    // search both ask only about hooks that reached a date.
+    const doc = docFrom("<section><h3>Notes</h3><ul><li>Due: soon</li><li>Due: later</li></ul></section>");
+    expect(locators(doc, "li")).toEqual([]);
+  });
+
+  it("tries a <time> tag only where more than one row has one", () => {
+    const one = docFrom(
+      '<ul><li>Lab 1 <time datetime="2026-10-04">Oct 4</time></li><li>Lab 2</li></ul>',
+    );
+    expect(locators(one, "li").some((l) => l.kind === "attr")).toBe(false);
+    const both = docFrom(
+      '<ul><li>Lab 1 <time datetime="2026-10-04">x</time></li>' +
+        '<li>Lab 2 <time datetime="2026-10-11">y</time></li></ul>',
+    );
+    const attr = locators(both, "li").find((l) => l.kind === "attr")!;
+    expect(attr.spec).toBe("time@datetime");
+    expect(attr.dated).toBe(2);
+    expect(attr.format).toBe("yyyy-MM-dd");
+  });
+
+  it("does not read one row's date off another row of the same group", () => {
+    // A run of sibling blocks has another block of the *same* group before it,
+    // and a `prev` hook there would date every assignment from the one above.
+    const doc = docFrom(
+      "<div id='s'><div class='a'>HW1 9/11</div><div class='a'>HW2 9/18</div>" +
+        "<div class='a'>HW3 9/25</div></div>",
+    );
+    expect(locators(doc, "#s > div.a").some((l) => l.kind === "prev")).toBe(false);
   });
 });
