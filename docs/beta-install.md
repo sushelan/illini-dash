@@ -55,14 +55,14 @@ deletes every hide, merge and tick you have made.
 
 Click the Illini Dash icon.
 
-- The header shows one small dot per source. **Grey means "not checked yet"** and should
-  turn green within a few seconds.
-- **Yellow means that source needs you to sign in.** Click the dot and it opens the
-  login page. Come back and the dot clears itself.
-- **Red means something broke.** Hover it for the reason, and see "If something looks
-  wrong" below.
-- Under the dots you should see a line like
-  `Checked 3:21 PM · 4 of 4 sources OK · build 20260912T193354`.
+- Under the title there is one line about the sources: a dot, then something like
+  **`4 sources · synced just now`**, with **Sync Now** on its right.
+- **Press that line.** It opens **Sources**: every site on its own row, what each one
+  last did, and the one thing to press when something is wrong. Green means "it was
+  fetched and it was fine"; grey means "not checked yet"; yellow means that source
+  needs you to **Sign in**, and the button is on the row.
+- A source that needs you also puts a yellow banner at the top of the popup with the
+  same **Sign in** button, so you do not have to go looking.
 
 Sign in to Canvas, Gradescope, PrairieLearn and PrairieTest in this browser if you have
 not already. The extension can only read what you can read.
@@ -74,6 +74,27 @@ Settings with the gear icon and switch that source off. It stops being counted.
 off by default because most people are not in those courses, and it would otherwise sit
 there asking them to sign into a site they have never used. Its deadlines are at 8:00 AM
 rather than 11:59 PM, which is exactly the kind the usual habit misses.
+
+### Optional, and each one is one click plus a Chrome permission box
+
+None of these is needed to use the extension, and nothing is on until you turn it on.
+
+- **A course website** (a schedule page with deadlines on it). Settings → Course
+  websites. Chrome asks whether Illini Dash may read that site; that dialog is Chrome's,
+  not ours, and saying no leaves everything else working.
+- **Piazza** and **Campuswire**. Deadlines instructors state in a post, offered as
+  suggestions you accept or ignore — nothing they find goes on your calendar by itself.
+  Piazza reads your own session; Campuswire only reads a class feed while you have it
+  open in a tab.
+- **Google Calendar export.** Sends deadlines to a calendar in your own Google account.
+  Sign-in happens on the Settings page, because a popup closes the moment Google's
+  consent window takes focus.
+
+### Where the build id is
+
+Not in the popup any more — it was a line no student could use, 800px below the thing it
+described. It is in **Settings**, at the top: `This page: build …. Service worker: build
+….` If those two disagree, press Reload on the extension card (see **Updating**).
 
 ## What to expect in the first week
 
@@ -93,12 +114,12 @@ When you get a new zip:
 
 1. Unzip it over the old folder, or into a new one.
 2. Go to `chrome://extensions` and click the **reload icon** on the Illini Dash card.
-3. Open the popup and check the build id at the end of the status line matches the new
-   zip's filename.
+3. Open Settings and check the build id at the top matches the new zip's filename.
 
 Step 2 is the one people forget, and it matters: without it the pages update but the
-background stays on the old build. The popup notices and says **STALE SERVICE WORKER**
-with both build ids when that happens.
+background stays on the old build. Settings shows both build ids at the top and says to
+reload when they disagree, and any button that talks to the background — Hide, Mark
+done, Merge — answers with the same sentence rather than doing nothing.
 
 If you loaded the new zip into a *different* folder, remove the old entry from
 `chrome://extensions` so you are not running two copies.
@@ -130,8 +151,10 @@ from the file. They are not stored or sent anywhere.
 **A deadline is in the list that should not be, or one row is really two:**
 
 Use the `⋯` menu on the row. **Split** pulls a wrongly-merged row apart, **Hide** removes
-one you do not want, and **Mark done** is for work you finished that the source cannot
-tell is finished — anything on a course website, or handed in on paper.
+one you do not want, **Mark done** is for work you finished that the source cannot tell
+is finished — anything on a course website, or handed in on paper — and **Give it a
+date** appears on a row whose source listed no date, or printed one nothing could read.
+Those rows are gathered on the **Alerts** tab.
 
 Tell us when you use Split, though. Merging two sources' copies of one assignment into
 one row is the hardest thing this extension does, and every correction you make is a
