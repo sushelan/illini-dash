@@ -11,6 +11,11 @@
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
 import { KeyGuard, escapeRegex, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
+import { cellAt, columnOf, gridFor, rowIndex, type GridCache } from "../core/table-grid.js";
+
+// Re-exported so a caller that wants to run the locators can pass a cache
+// without also knowing where the grid lives. `runAdapter` owns one per run.
+export type { GridCache } from "../core/table-grid.js";
 import { ParseError, type Adapter, type PageCtx, type RawItem } from "./types.js";
 
 /**
@@ -41,7 +46,7 @@ function select(row: Element, spec: string): string | undefined {
  * substring match on "due" picks the first and dates every row from an
  * assignment name.
  */
-export function headerIndex(table: Element): Map<string, number> {
+export function headerIndex(table: Element, grids: GridCache = new Map()): Map<string, number> {
   const headerRow =
     table.querySelector("thead tr") ??
     // Some pages skip <thead>; the first row that is all <th> is the header.
@@ -50,13 +55,26 @@ export function headerIndex(table: Element): Map<string, number> {
     );
   const map = new Map<string, number>();
   if (!headerRow) return map;
-  const cells = [...headerRow.querySelectorAll("th, td")];
-  cells.forEach((cell, index) => {
+  /*
+   * The **grid slot**, not the header cell's position among its siblings.
+   *
+   * A `<th colspan="2">` occupies two columns, so every header after it sits
+   * one further right than counting children says — and `cellByHeader` would
+   * then read the column before the one the adapter named, silently, on every
+   * row. The grid is the one place that arithmetic lives.
+   */
+  const grid = gridFor(headerRow, grids);
+  // A header row the grid does not know is one inside a *nested* table, which
+  // is not this table's header row at all.
+  if (!grid || rowIndex(grid, headerRow) === undefined) return map;
+  for (const cell of [...headerRow.children]) {
+    const slot = columnOf(grid, cell);
+    if (slot === undefined) continue;
     const label = textOf(cell).replace(/\s+/g, " ").trim().toLowerCase();
     // First wins: a table with two identically-named columns is ambiguous, and
     // silently taking the last would be a coin flip.
-    if (label && !map.has(label)) map.set(label, index);
-  });
+    if (label && !map.has(label)) map.set(label, slot);
+  }
   return map;
 }
 
@@ -82,15 +100,23 @@ function resolveColumn(headers: Map<string, number>, name: string): number | und
  * column is called different things across courses and an adapter should not
  * need editing when only the wording differs.
  */
-function cellByHeader(row: Element, wanted: string, attribute?: string): string | undefined {
+function cellByHeader(
+  row: Element,
+  wanted: string,
+  attribute?: string,
+  grids: GridCache = new Map(),
+): string | undefined {
   const table = row.closest("table");
   if (!table) return undefined;
-  const headers = headerIndex(table);
-  const cells = [...row.querySelectorAll("th, td")];
+  const headers = headerIndex(table, grids);
+  const grid = gridFor(row, grids);
+  if (!grid) return undefined;
   for (const name of wanted.split("|")) {
     const index = resolveColumn(headers, name);
     if (index === undefined) continue;
-    const cell = cells[index];
+    // Through the grid, so a rowspan in an earlier row — or a colspan in the
+    // header — moves the column rather than shifting this row's cells under it.
+    const cell = cellAt(grid, row, index);
     if (!cell) continue;
     if (attribute) {
       const node = cell.querySelector(`[${attribute}]`);
@@ -111,11 +137,31 @@ function cellByHeader(row: Element, wanted: string, attribute?: string): string 
  * header row or a week with no homework — from "the column is gone", which is
  * a redesign and must be loud (§0 rule 3).
  */
-function headerExists(row: Element, wanted: string): boolean {
+function headerExists(row: Element, wanted: string, grids: GridCache = new Map()): boolean {
   const table = row.closest("table");
   if (!table) return false;
-  const headers = headerIndex(table);
+  const headers = headerIndex(table, grids);
   return wanted.split("|").some((name) => resolveColumn(headers, name) !== undefined);
+}
+
+/**
+ * The text of the cell covering one grid slot, and whether a cell is there at
+ * all.
+ *
+ * Two answers because the page-level guards need to tell them apart: no cell is
+ * "the row is narrower than this column", which for a whole page means the
+ * column is gone; an empty cell is an ordinary week with no homework.
+ */
+function cellBySlot(
+  row: Element,
+  slot: number,
+  grids: GridCache,
+): { cell?: Element; text?: string } {
+  const grid = gridFor(row, grids);
+  const cell = grid ? cellAt(grid, row, slot) : undefined;
+  if (!cell) return {};
+  const text = textOf(cell).trim();
+  return { cell, ...(text ? { text } : {}) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -515,9 +561,10 @@ const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
  * costs one attempt at parsing and being strict costs a row. `skeleton.ts` has
  * a `DATE_SHAPED` of the same vocabulary for the same reason; it cannot be
  * imported, because `skeleton.ts` imports this file and a value import back
- * would be a runtime cycle.
+ * would be a runtime cycle. Exported so the search reads it from here instead
+ * of keeping a third copy.
  */
-const DATE_SHAPED = new RegExp(
+export const DATE_SHAPED = new RegExp(
   `^(?:${WEEKDAY})?(?:\\d{1,2}/\\d{1,2}|\\d{4}-\\d{1,2}-\\d{1,2}` +
     `|(?:${MONTHS})[a-z]*\\.?\\s+\\d{1,2})\\b`,
   "i",
@@ -880,9 +927,27 @@ export function parseAdapterDateParts(
  * copy. `core/detect.ts` calls these rather than guessing.
  */
 
+/**
+ * How many rows a positional column must date before it is believed, and what
+ * share of the rows that have text there.
+ *
+ * A course schedule has section breaks, "no class" rows and the odd note, so
+ * demanding every row is wrong. Demanding one is worse: any column with a stray
+ * "9/11" in it would pass. The same two numbers decide whether the search
+ * proposes a column at all, which is the point — a slot that clears the bar at
+ * proposal time and stops clearing it later is a column that has moved, and
+ * that is exactly what the runner has to be loud about.
+ *
+ * Also the home of `core/detect.ts`'s copies of these, which the search reads
+ * from here (mutation house rule 3).
+ */
+export const MIN_DATED_ROWS = 2;
+export const MIN_DATED_SHARE = 0.5;
+
 /** Where a row's date text comes from. Ordered: the first one declared wins. */
 export type DueLocator =
   | { kind: "column"; header: string }
+  | { kind: "slot"; index: number }
   | { kind: "prev"; selector: string }
   | { kind: "selector"; spec: string };
 
@@ -932,6 +997,7 @@ export type DueReader =
  */
 export function dueLocatorOf(adapter: Adapter): DueLocator {
   if (adapter.columns) return { kind: "column", header: adapter.columns.due };
+  if (adapter.dueSlot !== undefined) return { kind: "slot", index: adapter.dueSlot };
   if (adapter.duePrev) return { kind: "prev", selector: adapter.duePrev };
   return { kind: "selector", spec: adapter.due };
 }
@@ -969,16 +1035,23 @@ export interface DueLocation {
  * there and this row simply is not a deadline" — house rule 2's distinction,
  * and the only thing standing between a reworded page and a silent empty list.
  */
-export function locateDue(row: Element, adapter: Adapter): DueLocation {
+export function locateDue(row: Element, adapter: Adapter, grids: GridCache): DueLocation {
   const locator = dueLocatorOf(adapter);
+  const slot = locator.kind === "slot" ? cellBySlot(row, locator.index, grids) : undefined;
   const located =
     locator.kind === "column"
-      ? cellByHeader(row, locator.header)
-      : locator.kind === "prev"
-        ? previousSiblingMatching(row, locator.selector)
-        : select(row, locator.spec);
+      ? cellByHeader(row, locator.header, undefined, grids)
+      : locator.kind === "slot"
+        ? slot!.text
+        : locator.kind === "prev"
+          ? previousSiblingMatching(row, locator.selector)
+          : select(row, locator.spec);
   const hookSeen =
-    locator.kind === "column" ? headerExists(row, locator.header) : located !== undefined;
+    locator.kind === "column"
+      ? headerExists(row, locator.header, grids)
+      : locator.kind === "slot"
+        ? slot!.cell !== undefined
+        : located !== undefined;
 
   if (located === undefined) return { hookSeen, readerSeen: false, texts: [] };
 
@@ -1000,18 +1073,22 @@ export function locateDue(row: Element, adapter: Adapter): DueLocation {
 }
 
 /** Where a row's title comes from. */
-export type TitleLocator = { kind: "column"; header: string } | { kind: "selector"; spec: string };
+export type TitleLocator =
+  | { kind: "column"; header: string }
+  | { kind: "slot"; index: number }
+  | { kind: "selector"; spec: string };
 
 export function titleLocatorOf(adapter: Adapter): TitleLocator {
   if (adapter.columns) return { kind: "column", header: adapter.columns.title };
+  if (adapter.titleSlot !== undefined) return { kind: "slot", index: adapter.titleSlot };
   return { kind: "selector", spec: adapter.title };
 }
 
 /** What the title guard says when no row reached one. */
 function describeTitleLocator(locator: TitleLocator): string {
-  return locator.kind === "column"
-    ? `column ${JSON.stringify(locator.header)}`
-    : JSON.stringify(locator.spec);
+  if (locator.kind === "column") return `column ${JSON.stringify(locator.header)}`;
+  if (locator.kind === "slot") return `column ${locator.index}`;
+  return JSON.stringify(locator.spec);
 }
 
 export interface TitleLocation {
@@ -1021,10 +1098,14 @@ export interface TitleLocation {
   text?: string;
 }
 
-export function locateTitle(row: Element, adapter: Adapter): TitleLocation {
+export function locateTitle(row: Element, adapter: Adapter, grids: GridCache): TitleLocation {
   const locator = titleLocatorOf(adapter);
   const raw =
-    locator.kind === "column" ? cellByHeader(row, locator.header) : select(row, locator.spec);
+    locator.kind === "column"
+      ? cellByHeader(row, locator.header, undefined, grids)
+      : locator.kind === "slot"
+        ? cellBySlot(row, locator.index, grids).text
+        : select(row, locator.spec);
   if (raw === undefined) return { hookSeen: false };
   // Before `splitTitle` and before `filter`: both of those are written against
   // the name, and a filter matching a sentence the title cut off would keep
@@ -1050,6 +1131,56 @@ function matchesFilter(title: string, filter: Adapter["filter"]): boolean {
 }
 
 /**
+ * The loud check that pays for `dueSlot` being positional at all.
+ *
+ * House rule 3 forbids indexing cells by position because one added column
+ * turns a page of dates into a page of undated, mis-statused items *with no
+ * error*. `dueSlot` exists anyway, because CS 424's schedule has no header row
+ * to anchor on and no class on its date cells either — there is nothing else to
+ * name. So the guarantee has to come from the output instead of the input: a
+ * date column reads as a date, and if it stops doing so on this page, the
+ * column has moved and that is a redesign, not an empty term.
+ *
+ * Counted over **every matched row**, before the loop, deliberately. A count
+ * taken inside the loop would only see rows that already have a title, and on
+ * a shifted grid those are a different, self-selected set — the check would be
+ * asking the question of exactly the rows least able to answer it.
+ *
+ * The error names the column and both counts, because the fix is one registry
+ * edit and the person making it needs to know whether the column moved by one
+ * or vanished.
+ */
+function guardSlotHitRate(
+  adapter: Adapter,
+  rows: Element[],
+  slot: number,
+  page: PageCtx,
+  grids: GridCache,
+): void {
+  let withText = 0;
+  let dated = 0;
+  for (const row of rows) {
+    const { text } = cellBySlot(row, slot, grids);
+    if (!text) continue;
+    withText += 1;
+    if (parseAdapterDateParts(text, adapter.dateFormat, adapter.timezone, page.fetchedAt)) {
+      dated += 1;
+    }
+  }
+  if (withText === 0) {
+    throw new ParseError(
+      `adapter ${adapter.id}: ${rows.length} rows, none had a cell in column ${slot}`,
+    );
+  }
+  if (dated < MIN_DATED_ROWS || dated / withText < MIN_DATED_SHARE) {
+    throw new ParseError(
+      `adapter ${adapter.id}: column ${slot} read as a date on ${dated} of ${withText} rows, ` +
+        `below the floor of ${MIN_DATED_ROWS} rows and ${MIN_DATED_SHARE * 100}%; a column has moved`,
+    );
+  }
+}
+
+/**
  * Runs one adapter over one fetched page.
  *
  * §4.5: zero rows matched on a fetched page is a `ParseError` for that adapter
@@ -1065,6 +1196,10 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   const items: RawItem[] = [];
   const keys = new KeyGuard();
   const codes = extractCourseCodes(adapter.courseCode);
+  // One grid per table for the whole run. `formTableGrid` walks every cell, and
+  // CS 424's schedule is 32 rows of 7 — rebuilding it per row per lookup is
+  // four passes over the table for every row on the page.
+  const grids: GridCache = new Map();
 
   // A `columns` adapter whose named header is nowhere on the page is a redesign,
   // not an empty week: without this the loop would find no titled row and
@@ -1075,7 +1210,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       ["title", adapter.columns.title],
       ["due", adapter.columns.due],
     ] as const) {
-      if (!headerExists(first, spec)) {
+      if (!headerExists(first, spec, grids)) {
         throw new ParseError(
           `adapter ${adapter.id}: no ${field} column headed ${JSON.stringify(spec)} in this table`,
         );
@@ -1085,6 +1220,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
 
   const reader = dueReaderOf(adapter);
   const locator = dueLocatorOf(adapter);
+  if (locator.kind === "slot") guardSlotHitRate(adapter, rows, locator.index, page, grids);
   // Read once for the page, not once per row: it is a constant of the adapter.
   const defaultClock = adapter.defaultTime ? clockOf(adapter.defaultTime) : undefined;
   let sawTitledRow = false;
@@ -1092,7 +1228,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   let sawDueHook = false;
   let sawTitleFrom = false;
   for (const row of rows) {
-    const located = locateTitle(row, adapter);
+    const located = locateTitle(row, adapter, grids);
     // The `continue` stays: a header row legitimately has no title cell.
     if (!located.text) continue;
     const cell = located.text;
@@ -1113,7 +1249,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      * one (every checkpoint still TBD) is a normal week, not a redesign. That
      * is the same reason `sawTitledRow` is keyed on titles, not items.
      */
-    const due = locateDue(row, adapter);
+    const due = locateDue(row, adapter, grids);
     if (due.readerSeen) sawDueReader = true;
     if (due.hookSeen) sawDueHook = true;
     /*
@@ -1191,7 +1327,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     const rawDate = due.texts[0];
     const dueAt = parsed?.iso;
     const linkHref = adapter.columns?.link
-      ? cellByHeader(row, adapter.columns.link, "href")
+      ? cellByHeader(row, adapter.columns.link, "href", grids)
       : adapter.link
         ? select(row, adapter.link)
         : undefined;

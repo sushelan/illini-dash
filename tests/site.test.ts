@@ -493,6 +493,160 @@ describe("the CS 424 seed adapter, against its real captured page", () => {
     // "Homework 3" if CS 424 ever posted one there.
     expect([...normalizeTitle(items[2]!.title)]).toEqual(["hw3"]);
   });
+
+  /**
+   * The grid spelling of the same adapter, pinned against it by row identity.
+   *
+   * CS 424's schedule has **no header row** — its first row is seven `<td>`s —
+   * so `columns` has nothing to resolve, and its date cells carry no class.
+   * `dueSlot`/`titleSlot` are the only thing left to name, which is house rule
+   * 3 knowingly broken. The shipped entry stays as it is; this proves the slots
+   * are the same columns, and the two tests after it prove the loud guard that
+   * pays for the positional reading.
+   *
+   * The grid: slot 0 is the rowspan spacer, 1 Date, 2 Lecture, 3 Slides,
+   * 4 HW/MP, 5 Discussions, 6 Comments.
+   */
+  describe("the same page read by grid slot", () => {
+    /*
+     * `title` and `due` are deliberately dead selectors here.
+     *
+     * They have to be *something* — `validateAdapter` requires both — and
+     * leaving the shipped ones in place made the whole describe block prove
+     * nothing: removing the `titleSlot` branch from `titleLocatorOf` fell
+     * through to `title: "td:nth-last-child(3)"`, which produces the same nine
+     * rows, so the mutation survived (mutation house rule 4 — the adversarial
+     * input never reached the line). With these, the slots are doing all of the
+     * work and nothing else can stand in for them.
+     */
+    const bySlot = {
+      ...cs424,
+      title: ".no-such-title-column",
+      due: ".no-such-due-column",
+      dueSlot: 1,
+      titleSlot: 4,
+    } as unknown as Adapter;
+
+    it("yields exactly the nine rows the shipped selectors do", () => {
+      const slotItems = runAdapter(bySlot, schedule, ctx);
+      expect(slotItems.map((i) => [i.title, i.dueAt])).toEqual(
+        items.map((i) => [i.title, i.dueAt]),
+      );
+    });
+
+    it("throws, naming the column and both counts, when the slot is not a date column", () => {
+      /*
+       * The whole payment for indexing by position. Slot 2 is the lecture topic
+       * — plenty of text, no dates — and without this the adapter would report
+       * nine rows with the lecture title where the date should be, or none at
+       * all, with nothing failing.
+       */
+      expect(() => runAdapter({ ...bySlot, dueSlot: 2 } as Adapter, schedule, ctx)).toThrow(
+        "adapter cs424-fa26: column 2 read as a date on 0 of 32 rows, " +
+          "below the floor of 2 rows and 50%; a column has moved",
+      );
+      // 32 is every matched row, not the nine that end up with a title: a count
+      // taken inside the loop would ask the question of a self-selected set —
+      // on a shifted grid, exactly the rows least able to answer it.
+      expect(schedule.querySelectorAll(cs424.rows)).toHaveLength(32);
+    });
+
+    it("throws rather than reading the next column when one is inserted", () => {
+      // House rule 3's actual failure mode, and the pattern the ECE 310 test
+      // uses: a course adding a column shifts every index by one. `columns`
+      // survives it by re-reading the header; a slot cannot, so it has to be
+      // loud instead of quietly reading the spacer.
+      const shifted = doc(
+        readFileSync(new URL("../fixtures/sites/cs424-fa2026-schedule.html", import.meta.url), "utf8"),
+      );
+      for (const row of shifted.querySelectorAll("table tr")) {
+        const cell = shifted.createElement("td");
+        cell.textContent = "10";
+        row.insertBefore(cell, row.firstChild);
+      }
+      expect(() => runAdapter(bySlot, shifted, ctx)).toThrow(ParseError);
+      // Slot 1 is now the rowspan spacer, which has text on 28 of the 32 rows
+      // (the unit headings carry down) and a date on none of them.
+      expect(() => runAdapter(bySlot, shifted, ctx)).toThrow(
+        /column 1 read as a date on 0 of 28 rows/,
+      );
+    });
+
+    it("reads the date column through the rowspan, not through nth-child", () => {
+      // Rows carry 7, 6, 5, 4 or 1 children depending on whether they open a
+      // unit block. The grid is what makes one index right on all of them.
+      const slotItems = runAdapter(bySlot, schedule, ctx);
+      expect(slotItems.find((i) => i.title === "HW1 Due")!.dueAt).toBe("2026-09-16T23:59:00-05:00");
+      expect(slotItems.find((i) => i.title === "MP3 Due")!.dueAt).toBe("2026-12-09T23:59:00-06:00");
+    });
+
+    it("throws when the column mostly holds words, even with two real dates in it", () => {
+      /*
+       * The share half of the floor, which the CS 424 page cannot exercise:
+       * every wrong slot on it dates *zero* rows, so the row-count half fires
+       * first and the share test was never reached (mutation house rule 2 —
+       * untested, not unreachable).
+       *
+       * Constructed for that reason. Two dates out of six rows with text is
+       * exactly the shape a column that has shifted by one produces on a real
+       * schedule: a stray date or two among the lecture topics, which passes a
+       * "at least two dated rows" bar and is nowhere near a date column.
+       */
+      const mostly = doc(`<table>
+        <tr><td>Intro</td><td>Week 1</td></tr>
+        <tr><td>9/16</td><td>HW1 Due</td></tr>
+        <tr><td>9/23</td><td>HW2 Due</td></tr>
+        <tr><td>Reading week</td><td>HW3 Due</td></tr>
+        <tr><td>Project week</td><td>HW4 Due</td></tr>
+        <tr><td>Revision</td><td>HW5 Due</td></tr>
+      </table>`);
+      const adapter = { ...bySlot, rows: "tr", dueSlot: 0, titleSlot: 1 } as unknown as Adapter;
+      expect(() => runAdapter(adapter, mostly, ctx)).toThrow(
+        "adapter cs424-fa26: column 0 read as a date on 2 of 6 rows, " +
+          "below the floor of 2 rows and 50%; a column has moved",
+      );
+    });
+
+    it("throws when one dated row is the whole sample", () => {
+      /*
+       * The other half of the floor, and the reason it is two numbers rather
+       * than one: 1 of 1 is a 100% hit rate and still a single sample, so any
+       * column holding one stray date would pass a share-only test. Constructed
+       * because CS 424's every wrong slot dates zero rows, so the share half
+       * always fires there first.
+       */
+      const thin = doc(`<table>
+        <tr><td>9/16</td><td>HW1 Due</td></tr>
+        <tr><td></td><td>HW2 Due</td></tr>
+      </table>`);
+      const adapter = { ...bySlot, rows: "tr", dueSlot: 0, titleSlot: 1 } as unknown as Adapter;
+      expect(() => runAdapter(adapter, thin, ctx)).toThrow(
+        "adapter cs424-fa26: column 0 read as a date on 1 of 1 rows, " +
+          "below the floor of 2 rows and 50%; a column has moved",
+      );
+    });
+
+    it("says the column is not there at all, rather than that it has moved", () => {
+      /*
+       * A different diagnosis for a different cause, and worth its own branch:
+       * "column 9 read as a date on 0 of 0 rows" sends someone to look at what
+       * the column holds, and the answer is that the table is seven columns
+       * wide. The share test would reject this too — 0 dated is below the row
+       * floor — which is exactly why the message has to come first.
+       */
+      expect(() => runAdapter({ ...bySlot, dueSlot: 9 } as Adapter, schedule, ctx)).toThrow(
+        "adapter cs424-fa26: 32 rows, none had a cell in column 9",
+      );
+    });
+
+    it("is refused by the registry if it also names columns", () => {
+      // Two answers to one question is an entry that has not decided what the
+      // page looks like, and whichever won would be invisible in the preview.
+      expect(
+        validateAdapter({ ...bySlot, columns: { title: "Exercises", due: "Due Date" } }).reason,
+      ).toMatch(/each locate the date cell; declare one/);
+    });
+  });
 });
 
 /**
@@ -983,6 +1137,74 @@ describe("header-anchored columns, against the real ECE 310 page", () => {
     // §0 rule 3: the header vanishing is a redesign, and the error has to name
     // the column so the fix is one registry edit.
     expect(() => runAdapter(renamed, doc(), page)).toThrow(/Deadline/);
+  });
+
+  it("survives a colspan header, which counting children does not", () => {
+    /*
+     * DELIBERATELY UNREALISTIC (parser rule 10). No captured page puts a
+     * `colspan` on a header, and with a realistic table "the header's position
+     * among its siblings" and "the header's grid column" are the same number —
+     * so a right implementation and a wrong one read every fixture identically.
+     *
+     * A `<th colspan="2">` occupies two columns, so every header after it sits
+     * one further right than counting children says. Reading `Due Date` at the
+     * child index would give each row the cell *before* its date — which on
+     * this page is the assignment name, so the page would come back with 13
+     * undated items and nothing would look wrong.
+     */
+    const widened = doc();
+    for (const row of widened.querySelectorAll("#homework table.timetable tr")) {
+      const header = row.querySelector("th");
+      const cell = widened.createElement(header ? "th" : "td");
+      if (header) {
+        cell.setAttribute("colspan", "2");
+        cell.textContent = "Week";
+        row.insertBefore(cell, row.firstChild);
+      } else {
+        // Two `<td>`s under the one two-wide header, so the data rows stay the
+        // same width as the header row.
+        cell.textContent = "1";
+        const second = widened.createElement("td");
+        second.textContent = "Mon";
+        row.insertBefore(second, row.firstChild);
+        row.insertBefore(cell, row.firstChild);
+      }
+    }
+    const items = runAdapter(ADAPTER, widened, page);
+    expect(items).toHaveLength(13);
+    expect(items[0]!.title).toBe("Homework 1");
+    expect(local(items[0]!.dueAt!)).toBe("09/04, 23:59");
+  });
+
+  it("follows a named column through a rowspan in the body", () => {
+    /*
+     * The other half of resolving `columns` through the grid, and the half a
+     * child index gets wrong on the *data* rows rather than the header one.
+     *
+     * Deliberately constructed (parser rule 10): ECE 310's homework table has
+     * no rowspan, so on it "the cell's position among its siblings" and "the
+     * cell's grid column" are the same number on every row — a right
+     * implementation and a wrong one are indistinguishable.
+     *
+     * Here the name spans two due dates, which is how a course writes one
+     * assignment with a checkpoint. The second row has ONE child and TWO
+     * columns, so reading `children[1]` finds nothing for the date and
+     * `children[0]` names the row after its own deadline: an item literally
+     * titled "09/11 @ 11:59pm", undated, sitting in the student's list.
+     */
+    const spanned = parseHTML(`<table>
+      <thead><tr><th>Exercises</th><th>Due Date</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2">Homework 1</td><td>09/04 @ 11:59pm</td></tr>
+        <tr><td>09/11 @ 11:59pm</td></tr>
+      </tbody>
+    </table>`).document as unknown as Document;
+    const simple = { ...ADAPTER, rows: "tbody tr" } as unknown as Adapter;
+    const items = runAdapter(simple, spanned, page);
+    expect(items.map((i) => [i.title, local(i.dueAt!)])).toEqual([
+      ["Homework 1", "09/04, 23:59"],
+      ["Homework 1", "09/11, 23:59"],
+    ]);
   });
 
   it("takes the first of two identically named columns, not the last", () => {
@@ -1884,6 +2106,50 @@ describe("clockOf and defaultTime validation", () => {
     expect(validateAdapter({ ...ADAPTER, duePrev: "x".repeat(201) }).reason).toMatch(
       /bad duePrev/,
     );
+  });
+});
+
+describe("registry validation of the slot fields", () => {
+  it("accepts a pair of column indices", () => {
+    expect(validateAdapter({ ...ADAPTER, dueSlot: 1, titleSlot: 4 }).adapter).toBeDefined();
+    expect(validateAdapter({ ...ADAPTER, dueSlot: 0 }).adapter).toBeDefined();
+  });
+
+  it("refuses anything that is not a whole index in range", () => {
+    /*
+     * `typeof x === "number"` passes NaN, 1.5 and -1, and each of those indexes
+     * the grid to `undefined` on every row — which reads as "this course has no
+     * deadlines" rather than as a bad entry. House rule 5, one type over.
+     */
+    for (const bad of [NaN, 1.5, -1, 100, "1", null, Infinity]) {
+      for (const field of ["dueSlot", "titleSlot"]) {
+        expect(
+          validateAdapter({ ...ADAPTER, [field]: bad }).reason,
+          `${field}=${String(bad)}`,
+        ).toBe(`cs999-fa26: bad ${field} (a column index from 0 to 99)`);
+      }
+    }
+  });
+
+  it("refuses an entry that locates the title twice", () => {
+    expect(
+      validateAdapter({
+        ...ADAPTER,
+        columns: { title: "Exercises", due: "Due Date" },
+        titleSlot: 4,
+      }).reason,
+    ).toBe("cs999-fa26: columns.title and titleSlot both locate the title cell; declare one");
+  });
+
+  it("names both locators when an entry declares two of them", () => {
+    expect(validateAdapter({ ...ADAPTER, dueSlot: 1, duePrev: "dt" }).reason).toBe(
+      "cs999-fa26: dueSlot and duePrev each locate the date cell; declare one",
+    );
+  });
+
+  it("demands 1.1.0 for either of them", () => {
+    expect(requiredVersionFor({ rows: "tr", dueSlot: 1 })).toBe("1.1.0");
+    expect(requiredVersionFor({ rows: "tr", titleSlot: 0 })).toBe("1.1.0");
   });
 });
 

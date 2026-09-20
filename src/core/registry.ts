@@ -107,6 +107,8 @@ const KNOWN_FIELDS = {
   dueLabel: true,
   duePhrase: true,
   duePrev: true,
+  dueSlot: true,
+  titleSlot: true,
   defaultTime: true,
   titleBefore: true,
   titleFrom: true,
@@ -353,6 +355,20 @@ export function validateAdapter(
   }
   if (a["duePrev"] !== undefined && !isPlainString(a["duePrev"], 200)) return fail("bad duePrev");
   /*
+   * A grid column index. `Number.isInteger`, not `typeof x === "number"`:
+   * `NaN`, `1.5` and `-1` are all numbers, and each would index the grid to
+   * `undefined` on every row — which reads as "this course has no deadlines"
+   * rather than as a bad entry. Bounded at 99 because a table with a hundred
+   * columns is not a course schedule.
+   */
+  for (const field of ["dueSlot", "titleSlot"] as const) {
+    const slot = a[field];
+    if (slot === undefined) continue;
+    if (typeof slot !== "number" || !Number.isInteger(slot) || slot < 0 || slot > 99) {
+      return fail(`bad ${field} (a column index from 0 to 99)`);
+    }
+  }
+  /*
    * `HH:mm`, checked with an anchored regex rather than split-and-Number.
    * House rule 5: `Number("")` is 0, so a malformed `defaultTime` would put
    * every deadline on the page at midnight — a whole day early, and looking
@@ -371,8 +387,15 @@ export function validateAdapter(
    * ranked, because the ranking would be invisible in the preview — what the
    * student approves would not be what the runner goes on reading.
    */
-  if (a["columns"] !== undefined && a["duePrev"] !== undefined) {
-    return fail("columns.due and duePrev each locate the date cell; declare one");
+  const locators = (["columns", "dueSlot", "duePrev"] as const).filter(
+    (field) => a[field] !== undefined,
+  );
+  if (locators.length > 1) {
+    const named = locators.map((field) => (field === "columns" ? "columns.due" : field));
+    return fail(`${named.join(" and ")} each locate the date cell; declare one`);
+  }
+  if (a["columns"] !== undefined && a["titleSlot"] !== undefined) {
+    return fail("columns.title and titleSlot both locate the title cell; declare one");
   }
   if (dueLabel !== undefined && duePhrase !== undefined) {
     return fail("dueLabel and duePhrase both read the date out of the located text; declare one");

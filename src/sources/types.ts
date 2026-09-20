@@ -479,6 +479,31 @@ export interface Adapter {
    */
   duePrev?: string;
   /**
+   * A zero-based **grid column**, for a table with no header row to name.
+   *
+   * CS 424's schedule is a table whose first row is seven `<td>`s rather than
+   * `<th>`s, so `columns` has nothing to resolve against, and whose date cells
+   * carry no class. Its left-hand column is a `rowspan` spacer drawing unit
+   * headings, so rows carry 7, 6, 5, 4 or 1 children and `nth-child` is wrong
+   * on most of them. There is nothing to anchor on but the position.
+   *
+   * A grid column, not a child index: `core/table-grid.ts` lays the table out
+   * the way a browser does, so a `rowspan` above and a `colspan` beside both
+   * move the column rather than shifting this row's cells under it.
+   *
+   * This is the one place house rule 3 is knowingly broken, so it is paired
+   * with a loud run-time check: the column must read as a date on at least
+   * `MIN_DATED_ROWS` rows and `MIN_DATED_SHARE` of the rows that have text
+   * there, or the adapter throws naming the column and both counts. A column
+   * that has moved is a redesign, and the whole cost of indexing by position is
+   * that it otherwise fails in silence.
+   *
+   * Mutually exclusive with `columns.due` and `duePrev`.
+   */
+  dueSlot?: number;
+  /** The title's grid column, for the same table. See `dueSlot`. */
+  titleSlot?: number;
+  /**
    * `HH:mm`: the hour this *page* states its work is due at, once, in prose.
    *
    * ECE 374 A prints "Written homeworks are due every **Tuesday at 9pm**" in a
