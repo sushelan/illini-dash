@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2459 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2467 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -96,8 +96,19 @@ commits, on top of 0f74bc2.
   section suffix), and under the right CS 425 box sat a second one, `span`, 7 of 7,
   every name a sentence long — a reading of the same dates from *inside* each row.
   `dedupe` folds a candidate whose dated rows all sit inside a kept candidate's dated
-  rows and date nothing new. Still to do: enable the three registry rows and read
-  `[registry] 8 adapters accepted by 1.1.0, 0 rejected` in the **worker** console.
+  rows and date nothing new.
+- **The second live run** (Sushi enabled a self-added CS 374 A page) found three more
+  things, fixed with tests and five count-asserted mutations, all killed. The ask to look
+  for `[registry] 8 adapters accepted` was mine and wrong: the worker reads the registry
+  from GitHub `main`, the bundle only seeds an empty store, and the branch is not merged;
+  the line arrives with the merge. `site: ok (19 items, 2 requests)` could not say which
+  adapter read what, so `[site] adapter <id>: N item(s)` is logged per adapter now. The
+  self-added id was `<course>-<term>-local`, so a second page of one course replaced the
+  first; it carries the page now (`cs374-fa26-homeworks-local`). And a published entry
+  for a page a local adapter already reads is set aside by `mergeAdapters` (core, by id
+  and by url) with one console line per sync, because two adapters on one page are two
+  rows per deadline. Sushi's `cs374-fa26-local` will shadow `cs374a-fa26-hw` after the
+  merge; the count is the same either way.
 
 **Amendments recorded this day:** §4.5 — an entry is `rows` plus exactly one date locator
 and one reader, not `title`/`due` selectors; four new fields (`duePrev`, `duePhrase`,

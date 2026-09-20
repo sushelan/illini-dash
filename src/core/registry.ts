@@ -524,3 +524,52 @@ export function currentTermCode(now: Date): string {
   if (month <= 6) return `su${year}`;
   return `fa${year}`;
 }
+
+/** A published entry that a local one stands in for, and why. */
+export interface ShadowedAdapter {
+  id: string;
+  by: string;
+  why: "id" | "url";
+}
+
+/**
+ * Published and self-added adapters as one list.
+ *
+ * A locally added entry wins a duplicate id: the student chose theirs, and a
+ * published entry arriving later must not silently replace what they are
+ * already using without them noticing. It also wins a duplicate **url**. A
+ * student who added CS 374 A's homework page on 2026-09-20 had
+ * `cs374-fa26-homeworks-local`; the registry brought `cs374a-fa26-hw` for the
+ * same page the next morning, and two adapters reading one page are two rows
+ * per deadline — §3.1 keys a site row on the adapter's id, and §5.3 merges
+ * across sources, never within one. The published entry is set aside, and the
+ * worker says so, rather than either copy being deleted for the student.
+ */
+export function mergeAdapters(
+  local: readonly Adapter[],
+  published: readonly Adapter[],
+): { adapters: Adapter[]; shadowed: ShadowedAdapter[] } {
+  const byId = new Map(local.map((adapter) => [adapter.id, adapter] as const));
+  const byUrl = new Map(local.map((adapter) => [pageKey(adapter.url), adapter] as const));
+  const adapters: Adapter[] = [...local];
+  const shadowed: ShadowedAdapter[] = [];
+  for (const adapter of published) {
+    const sameId = byId.get(adapter.id);
+    const sameUrl = byUrl.get(pageKey(adapter.url));
+    if (sameId) shadowed.push({ id: adapter.id, by: sameId.id, why: "id" });
+    else if (sameUrl) shadowed.push({ id: adapter.id, by: sameUrl.id, why: "url" });
+    else adapters.push(adapter);
+  }
+  return { adapters, shadowed };
+}
+
+/** One page, however its address was spelled: no fragment, no trailing slash. */
+function pageKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.href.replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}

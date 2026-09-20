@@ -396,9 +396,12 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
       // instead of telling the student to log in (§0 rule 2).
       if (looksLoggedOut(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
       if (page.status >= 400) throw new HttpStatusError(page.status, adapter.url);
-      items.push(
-        ...(await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt })),
-      );
+      const rows = await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt });
+      items.push(...rows);
+      // The success branch, logged (worker rule 5): "site: ok (19 items, 2
+      // requests)" cannot say which adapter read how many, and on 2026-09-20 it
+      // cost a question that this line answers.
+      console.log(`[site] adapter ${adapter.id}: ${rows.length} item(s)`);
     } catch (err) {
       if (err instanceof NeedsLogin) throw err;
       const kind = adapterFailureKind(err);

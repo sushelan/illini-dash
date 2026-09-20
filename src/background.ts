@@ -17,6 +17,7 @@ import {
   runAdapterInOffscreen,
 } from "./core/offscreen-client.js";
 import {
+  mergeAdapters,
   REGISTRY_REFRESH_MS,
   REGISTRY_URL,
   currentTermCode,
@@ -177,24 +178,19 @@ async function fetchPage(url: string): Promise<FetchedPage> {
  * is actually held. The permission can be revoked from Chrome's own UI at any
  * time, so it is checked per sync rather than trusted from when it was granted.
  */
-/**
- * Published and self-added adapters as one list.
- *
- * A locally added entry wins a duplicate id: the student chose theirs, and a
- * published entry arriving later must not silently replace what they are
- * already using without them noticing.
- */
+/** Published and self-added adapters as one list; the rule is `mergeAdapters`. */
 function allAdapters(store: Awaited<ReturnType<typeof loadStore>>): Adapter[] {
-  const local = new Set(store.localAdapters.map((adapter) => adapter.id));
-  return [
-    ...store.localAdapters,
-    ...store.registry.adapters.filter((adapter) => !local.has(adapter.id)),
-  ];
+  return mergeAdapters(store.localAdapters, store.registry.adapters).adapters;
 }
 
 async function enabledAdapters(): Promise<Adapter[]> {
   const store = await loadStore();
   const on = new Set(store.enabledAdapters);
+  // Once per sync, not once per lookup: a published entry standing behind a
+  // local one is a fact about this install worth one line, not one per click.
+  for (const { id, by, why } of mergeAdapters(store.localAdapters, store.registry.adapters).shadowed) {
+    console.log(`[registry] ${id} is set aside: the local adapter ${by} reads the same ${why === "url" ? "page" : "id"}`);
+  }
   const term = currentTermCode(new Date());
   const usable: Adapter[] = [];
 

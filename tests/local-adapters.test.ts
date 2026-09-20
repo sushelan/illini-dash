@@ -9,7 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 import { emptyStore, migrate, withLocalAdapter, withoutLocalAdapter } from "../src/core/store.js";
-import { guessCourseCode } from "../src/core/detect.js";
+import { guessCourseCode, localAdapterId } from "../src/core/detect.js";
+import { mergeAdapters } from "../src/core/registry.js";
 import type { Adapter } from "../src/sources/types.js";
 
 const VALID = {
@@ -189,5 +190,59 @@ describe("guessCourseCode", () => {
 
   it("uppercases the department, because a course code is not free text", () => {
     expect(guessCourseCode("https://x.illinois.edu/psyc100/")).toBe("PSYC100");
+  });
+});
+
+describe("localAdapterId", () => {
+  it("tells two pages of one course apart by the page", () => {
+    // Live, 2026-09-20: the GPS page would have replaced the homeworks page,
+    // because both were `cs374-fa26-local` and `withLocalAdapter` keys on the id.
+    const hw = localAdapterId("CS374", "fa26", "https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html");
+    const gps = localAdapterId("CS374", "fa26", "https://courses.grainger.illinois.edu/cs374al1/fa2026/gps.html");
+    expect(hw).toBe("cs374-fa26-homeworks-local");
+    expect(gps).toBe("cs374-fa26-gps-local");
+  });
+
+  it("keeps the short id for a site's index page", () => {
+    expect(localAdapterId("ECE310", "fa26", "https://courses.grainger.illinois.edu/ece310/fa2026/")).toBe("ece310-fa26-local");
+    expect(localAdapterId("CS225", "fa26", "https://cs225.org/fa2026/index.html")).toBe("cs225-fa26-local");
+  });
+
+  it("hashes a segment it would not put in an id", () => {
+    expect(localAdapterId("CS225", "fa26", "https://cs225.org/fa2026/sched%20ule.html")).toMatch(
+      /^cs225-fa26-[0-9a-f]+-local$/,
+    );
+  });
+});
+
+describe("mergeAdapters: what the student added stands in front of what was published", () => {
+  const local = { ...VALID, id: "cs374-fa26-homeworks-local", url: "https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html" } as unknown as Adapter;
+  const publishedSamePage = { ...VALID, id: "cs374a-fa26-hw", url: "https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html" } as unknown as Adapter;
+  const publishedOther = { ...VALID, id: "cs374a-fa26-gps", url: "https://courses.grainger.illinois.edu/cs374al1/fa2026/gps.html" } as unknown as Adapter;
+
+  it("sets a published entry aside when a local one reads the same page under another id", () => {
+    // Two adapters on one page are two rows per deadline: §3.1 keys a site row
+    // on the adapter id and §5.3 merges across sources, never within one.
+    const { adapters, shadowed } = mergeAdapters([local], [publishedSamePage, publishedOther]);
+    expect(adapters.map((a) => a.id)).toEqual(["cs374-fa26-homeworks-local", "cs374a-fa26-gps"]);
+    expect(shadowed).toEqual([{ id: "cs374a-fa26-hw", by: "cs374-fa26-homeworks-local", why: "url" }]);
+  });
+
+  it("sets a published entry aside when a local one has its id", () => {
+    const sameId = { ...publishedOther, id: local.id } as Adapter;
+    const { adapters, shadowed } = mergeAdapters([local], [sameId]);
+    expect(adapters.map((a) => a.id)).toEqual([local.id]);
+    expect(shadowed[0]?.why).toBe("id");
+  });
+
+  it("reads a page's address without a fragment or a trailing slash", () => {
+    const spelled = { ...publishedSamePage, url: `${publishedSamePage.url}/#top` } as Adapter;
+    expect(mergeAdapters([local], [spelled]).shadowed).toHaveLength(1);
+  });
+
+  it("keeps every published entry when nothing local overlaps", () => {
+    const { adapters, shadowed } = mergeAdapters([], [publishedSamePage, publishedOther]);
+    expect(adapters).toHaveLength(2);
+    expect(shadowed).toEqual([]);
   });
 });

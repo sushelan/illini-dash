@@ -33,6 +33,7 @@
  * *locator* is a field in `Adapter`, a branch in `locateDue`, and a probe.
  */
 
+import { shortHash } from "./dates.js";
 import {
   headerIndex,
   MIN_DATED_ROWS,
@@ -1269,7 +1270,7 @@ export function adapterFromCandidate(
 ): Record<string, unknown> & { id: string } {
   const host = new URL(url).origin;
   const entry: Record<string, unknown> = {
-    id: `${courseCode.toLowerCase()}-${term}-local`,
+    id: localAdapterId(courseCode, term, url),
     label: `${courseCode} course site`,
     courseCode,
     term,
@@ -1303,6 +1304,27 @@ export function adapterFromCandidate(
   // learned it.
   entry["minExtensionVersion"] = requiredVersionFor(entry);
   return entry as Record<string, unknown> & { id: string };
+}
+
+/**
+ * The id a self-added entry gets: course, term, the page, `local`.
+ *
+ * It was `${course}-${term}-local`, and a course keeps its deadlines on more
+ * than one page — ECE 411's MPs and exams, CS 374 A's homeworks and guided
+ * problem sets. The second page a student added replaced the first, silently,
+ * because `withLocalAdapter` keys on the id (2026-09-20, live). The page's last
+ * path segment tells them apart (`cs374-fa26-homeworks-local`,
+ * `cs374-fa26-gps-local`); a site's index page, whose last segment is the term
+ * or nothing, keeps the short id it always had. A segment that is not a plain
+ * token is hashed rather than trusted into an id.
+ */
+export function localAdapterId(courseCode: string, term: string, url: string): string {
+  const base = `${courseCode.toLowerCase()}-${term}`;
+  const segment = new URL(url).pathname.split("/").filter(Boolean).pop() ?? "";
+  const page = segment.replace(/\.[a-z0-9]{1,5}$/i, "").toLowerCase();
+  if (page === "" || page === "index" || /^(?:fa|sp|su|wi)\d{2,4}$/.test(page)) return `${base}-local`;
+  if (/^[a-z][a-z0-9_-]{0,30}$/.test(page)) return `${base}-${page}-local`;
+  return `${base}-${shortHash(segment)}-local`;
 }
 
 /**

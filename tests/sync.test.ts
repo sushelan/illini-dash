@@ -620,6 +620,22 @@ describe("course-site adapters in the loop (§4.5)", () => {
       expect(adapterFailureKind(new ParseError('no rows matched "table tr"'))).toBe("parse");
     });
 
+    it("says what each adapter produced, not only what failed", async () => {
+      // 2026-09-20: "site: ok (19 items, 2 requests)" could not say which of
+      // two adapters read 8 and which read 11, and the question went to Sushi.
+      const lines: string[] = [];
+      const original = console.log;
+      console.log = (...args: unknown[]) => {
+        lines.push(args.map(String).join(" "));
+      };
+      try {
+        await runSync(enableSite(emptyStore()), "manual", withAdapters([ADAPTER]));
+      } finally {
+        console.log = original;
+      }
+      expect(lines.some((line) => /^\[site\] adapter cs999-fa26: \d+ item\(s\)$/.test(line))).toBe(true);
+    });
+
     it("reports network_error when the only adapter could not be fetched", async () => {
       const failing = deps({
         async enabledAdapters() {
