@@ -12,6 +12,7 @@ import {
   clockFromText,
   clockGroups,
   matchDueLabel,
+  matchDuePhrase,
   parseAdapterDate,
   parseAdapterDateParts,
   resolveTitleFrom,
@@ -19,6 +20,7 @@ import {
   statedTimeInText,
   supportedDateFormats,
   timeLikeTail,
+  titleBefore,
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
@@ -518,6 +520,27 @@ describe("the bundled registry", () => {
     // untrusted remote data, so unlike a fetched file it must be clean.
     expect(rejected).toEqual([]);
     expect(adapters.length).toBeGreaterThan(0);
+  });
+
+  it("holds back the entries a 1.0.0 build could not run", () => {
+    /*
+     * The gate against the build that is actually in the store. These entries
+     * use `duePhrase`, `duePrev` or `defaultTime`, none of which a 1.0.0
+     * runner has, and running one there would read the date out of
+     * whichever hook it *does* understand — a wrong deadline, not a missing
+     * one. Every other entry must still come through, because a registry that
+     * refuses wholesale on one new field would break the shipped courses.
+     */
+    const { adapters, rejected } = validateRegistry(text, "1.0.0");
+    expect(rejected.map((line) => line.split(":")[0])).toEqual(["cs425-fa26"]);
+    for (const line of rejected) expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
+    expect(adapters.map((a) => a.id)).toEqual([
+      "cs424-fa26",
+      "ece310-fa26",
+      "ece391-fa26",
+      "ece411-fa26-mp",
+      "ece411-fa26-exams",
+    ]);
   });
 
   it("is runnable by the version the manifest actually ships", () => {
@@ -1381,6 +1404,337 @@ describe("ECE 411: a list-shaped page, and a course on two pages", () => {
       void kind;
       expect(validateAdapter(without).adapter).toBeDefined();
     });
+  });
+});
+
+/**
+ * CS 425 / ECE 428 — §4.5's fourth page shape: the deadline is a clause.
+ *
+ * There is no table, no `label: value` line and no element around the date.
+ * Each item is one `<li>` holding a whole sentence with two or three dates in
+ * it, and the only thing that says which one is the deadline is the word "Due":
+ *
+ *     [MP1 Specification Document]: Released 8/25. Due @ 9/13 11.59 PM
+ *     Central Time (Sun). Demos on 9/14 (Mon).
+ *
+ * Unmodified `curl` capture of the public page, taken 2026-09-18 (no login).
+ */
+describe("CS 425: a deadline in the middle of a sentence", () => {
+  const registryText = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+  const cs425 = validateRegistry(registryText).adapters.find((a) => a.id === "cs425-fa26")!;
+  const load = (name: string) =>
+    doc(readFileSync(new URL(`../fixtures/sites/${name}`, import.meta.url), "utf8"));
+  // Mid-term, so §3.2's year inference resolves 8/27 behind it and 12/6 ahead.
+  const ctx: PageCtx = { url: cs425.url, fetchedAt: "2026-09-18T12:00:00.000Z" };
+  const run = (file: string) => runAdapter(cs425, load(file), ctx);
+
+  describe("the real page", () => {
+    const items = run("cs425-fa2026-assignments.html");
+
+    it("ships a valid adapter", () => {
+      expect(validateAdapter(cs425).adapter).toBeDefined();
+    });
+
+    it("finds all eight deadlines and nothing else", () => {
+      // 42 `<li>`s match the rows selector. Eight of them carry the keyword
+      // followed by a date; the rest are instructions, regrade policy, exam
+      // prose and solution links.
+      expect(items.map((i) => [i.title, i.dueAt])).toEqual([
+        ["MP1 Specification Document", "2026-09-13T23:59:00-05:00"],
+        ["MP2 Specification Document", "2026-09-27T23:59:00-05:00"],
+        ["MP3 Specification Document", "2026-11-08T23:59:00-06:00"],
+        ["MP4 Specification Document", "2026-12-06T23:59:00-06:00"],
+        ["HW1 Document", "2026-09-20T23:59:00-05:00"],
+        ["HW2 Document", "2026-10-04T23:59:00-05:00"],
+        ["HW3 Document", "2026-11-01T23:59:00-06:00"],
+        ["HW4 Document", "2026-12-03T23:59:00-06:00"],
+      ]);
+    });
+
+    it("reads the 11.59 PM the page states, on every one of them", () => {
+      // Not one invented time on this page. Before the grammar learned a dotted
+      // clock every row here carried `timeAssumed`, and §5.3 would then have
+      // let any Canvas row overwrite a deadline CS 425 had stated plainly.
+      for (const item of items) expect(item.extra?.["timeAssumed"], item.title).toBeUndefined();
+    });
+
+    it("takes the deadline and not the release date beside it", () => {
+      // Every row prints its release first: "Released 8/25. Due @ 9/13". A
+      // reader that took the first date on the line would be 19 days early on
+      // MP1 and would look completely normal doing it.
+      expect(items.some((i) => i.dueAt?.startsWith("2026-08-25"))).toBe(false);
+      expect(items.some((i) => i.dueAt?.startsWith("2026-08-27"))).toBe(false);
+      expect(items.some((i) => i.dueAt?.startsWith("2026-09-15"))).toBe(false);
+    });
+
+    it("takes the deadline and not the demo date after it", () => {
+      // "Demos on 9/14 (Mon)" is in the same sentence, one clause later.
+      expect(items.some((i) => i.dueAt?.startsWith("2026-09-14"))).toBe(false);
+      expect(items.some((i) => i.dueAt?.startsWith("2026-12-07"))).toBe(false);
+    });
+
+    it("emits nothing for the policy bullet that says 'due' with no date", () => {
+      /*
+       * "MPs are always due on a SUNDAY at 11.59 PM Central Time, and DEMOS are
+       * on the subsequent MONDAY." is a real `<li>` on this page and matches the
+       * rows selector. It carries the keyword and no date, so it is not this
+       * adapter's row — emitting it undated would put a deadline called "MPs are
+       * always due on a SUNDAY" in the student's list.
+       */
+      expect(items.some((i) => i.title.startsWith("MPs are always due"))).toBe(false);
+      expect(items.some((i) => i.dueAt === undefined)).toBe(false);
+    });
+
+    it("is not fooled by 'the due-date' or by 'deadlines'", () => {
+      // Two more real bullets: "Homeworks are due at 11.59 PM Central Time on
+      // the due-date" and "We try to stagger HW deadlines". Neither is followed
+      // by a date, and neither may become a row.
+      expect(items).toHaveLength(8);
+    });
+
+    it("titles each row from the head of its sentence, without the brackets", () => {
+      // §3.1 hashes the title. Without `titleBefore` every sourceId would carry
+      // the whole sentence, and a one-word edit to the page would orphan every
+      // override on the row.
+      expect(items[0]!.title).toBe("MP1 Specification Document");
+      expect(items.every((i) => !i.title.includes("Released"))).toBe(true);
+      expect(items.every((i) => !i.title.startsWith("["))).toBe(true);
+    });
+
+    it("records the text each date was read out of", () => {
+      // The one field that lets a student check a course-site date without
+      // opening the page, and what the proposal preview's "Read from" shows.
+      expect(items[0]!.extra?.["dueText"]).toContain("9/13 11.59 PM");
+      for (const item of items) expect(item.extra?.["dueText"]!.length).toBeLessThanOrEqual(120);
+    });
+
+    it("carries the cross-listing, with ECE 428 as an alternate code", () => {
+      // §5.1: the course is CS 425 *and* ECE 428, and a Gradescope or Canvas
+      // row for either has to be able to find it.
+      expect(items[0]!.courseCode).toBe("CS425");
+      expect(items[0]!.extra?.["altCodes"]).toBe("CS425 ECE428");
+    });
+
+    it("gives every row a url on the source origin", () => {
+      /*
+       * Three of the eight rows link a PDF, and the entry deliberately does not
+       * follow it: that file is the assignment *text*, and this page says in as
+       * many words that everything is submitted on Gradescope. §5.3 defines
+       * `url` as where you actually submit, so the course page — which links
+       * Gradescope and the entry code — is the better answer than a PDF.
+       */
+      for (const item of items) expect(item.url).toBe(cs425.url);
+    });
+
+    it("gives eight rows eight sourceIds", () => {
+      // House rule 4. §3's `raw` is keyed by memberKey, so a collision merges
+      // two deadlines into one with nothing failing.
+      expect(new Set(items.map((i) => i.sourceId)).size).toBe(8);
+    });
+
+    it("throws, naming the keyword, if the page reworded every 'due'", () => {
+      // House rule 2. Every `<li>` would still match and still have a title, so
+      // without this the course simply stops producing deadlines and the dot
+      // stays green.
+      const reworded = { ...cs425, duePhrase: "deadline" } as unknown as Adapter;
+      expect(() => runAdapter(reworded, load("cs425-fa2026-assignments.html"), ctx)).toThrow(
+        /none carried a due phrase "deadline"/,
+      );
+    });
+  });
+
+  /**
+   * The live page reads identically under a right implementation and several
+   * wrong ones, so the difference is built on purpose (parser rule 10). The
+   * fixture's own banner says exactly which rows are invented and why.
+   */
+  describe("the adversarial fixture", () => {
+    const items = run("cs425-fa2026-assignments-adversarial.html");
+    const by = (name: string) => items.find((i) => i.title === name)!;
+
+    it("keeps the eight real rows untouched", () => {
+      expect(by("MP1 Specification Document").dueAt).toBe("2026-09-13T23:59:00-05:00");
+      expect(items).toHaveLength(11);
+    });
+
+    it("skips a 'due' that introduces no date, and takes the one that does", () => {
+      // HW5: "To be Released 12/1, due to the printer's schedule. Due @ 12/10".
+      // Hooking on the keyword alone dates it 12/1 — nine days early.
+      expect(by("HW5 Document").dueAt).toBe("2026-12-10T23:59:00-06:00");
+    });
+
+    it("keeps a TBD row undated rather than dating it from the release", () => {
+      /*
+       * HW6: "Due Date: TBD. Released 12/1." The keyword is this row's deadline
+       * keyword — the course has simply not set a date — so the row is kept and
+       * reported undated. It must never take 12/1, and it must not be silently
+       * skipped either: "no deadline set yet" and "not a deadline at all" are
+       * different facts.
+       */
+      const hw6 = by("HW6 Document");
+      expect(hw6.dueAt).toBeUndefined();
+      expect(hw6.extra?.["unparsedDate"]).toBe("TBD. Released 12/1.");
+      expect(items.some((i) => i.dueAt?.startsWith("2026-12-01"))).toBe(false);
+    });
+
+    it("does not read 'Overdue' or 'Undue' as the keyword", () => {
+      // House rule 6, and the reason this fixture exists. A substring match
+      // takes 12/15 and every date on the page would look plausible.
+      expect(by("HW7 Document").dueAt).toBe("2026-12-13T23:59:00-06:00");
+      expect(items.some((i) => i.dueAt?.startsWith("2026-12-15"))).toBe(false);
+      expect(items.some((i) => i.dueAt?.startsWith("2026-12-16"))).toBe(false);
+    });
+
+    it("takes the first hooked occurrence, not the last", () => {
+      // HW7 carries two real ones: "Due @ 12/13" and "Resubmissions due @
+      // 12/20". The deadline is the first; the resubmission window is not this
+      // row's cutoff and a two-hour reminder aimed at it would fire a week late.
+      expect(by("HW7 Document").dueAt).not.toContain("12-20");
+    });
+
+    it("says the placeholder exclude does not reach this row", () => {
+      /*
+       * `filter.exclude` is matched against the **title**, and HW6's title is
+       * "HW6 Document" — the "TBD" is in the due text, which no filter sees. So
+       * unlike ECE 411 (where the whole `<li>` is "Due: TBD" and the filter does
+       * drop it), a placeholder on a prose page survives as an undated row.
+       * Deliberate: the row names a real assignment, and §11 ranks a silently
+       * dropped deadline above every other failure.
+       */
+      const filtered = {
+        ...cs425,
+        filter: { exclude: "\\bTB[DA]\\b|\\bN/?A\\b" },
+      } as unknown as Adapter;
+      const withFilter = runAdapter(filtered, load("cs425-fa2026-assignments-adversarial.html"), ctx);
+      expect(withFilter.some((i) => i.title === "HW6 Document")).toBe(true);
+    });
+  });
+});
+
+describe("matchDuePhrase and titleBefore, in isolation", () => {
+  describe("matchDuePhrase", () => {
+    it("hooks a keyword followed by a date, through one connector", () => {
+      for (const text of ["Due @ 9/13 x", "Due 9/13 x", "Due: 9/13 x", "due on 9/13 x", "Due Date: 9/13 x"]) {
+        expect(matchDuePhrase(text, "due"), text).toEqual([{ rest: "9/13 x", pending: false }]);
+      }
+    });
+
+    it("does not hook a keyword with no date behind it", () => {
+      // The real bullet this exists for.
+      expect(
+        matchDuePhrase("MPs are always due on a SUNDAY at 11.59 PM Central Time.", "due"),
+      ).toEqual([]);
+      expect(matchDuePhrase("Homeworks are due at 11.59 PM on the due-date, no excuses.", "due"))
+        .toEqual([]);
+    });
+
+    it("refuses to skip more than one connector", () => {
+      // Unbounded skipping would make any sentence mentioning a deadline and a
+      // date anywhere into a row.
+      expect(matchDuePhrase("Due for the students on 9/13", "due")).toEqual([]);
+    });
+
+    it("matches whole words only", () => {
+      expect(matchDuePhrase("Overdue 12/15.", "due")).toEqual([]);
+      expect(matchDuePhrase("Undue 12/16.", "due")).toEqual([]);
+      // And still matches when the punctuation is what ends the word.
+      expect(matchDuePhrase("(due 12/16)", "due")).toHaveLength(1);
+    });
+
+    it("returns every occurrence in document order", () => {
+      const hits = matchDuePhrase("Due @ 12/13. Resubmissions due @ 12/20.", "due");
+      expect(hits.map((h) => h.rest)).toEqual(["12/13. Resubmissions due @ 12/20.", "12/20."]);
+    });
+
+    it("hooks a placeholder and marks it pending", () => {
+      for (const word of ["TBD", "TBA", "N/A", "NA"]) {
+        expect(matchDuePhrase(`Due Date: ${word}. Released 12/1.`, "due"), word).toEqual([
+          { rest: `${word}. Released 12/1.`, pending: true },
+        ]);
+      }
+    });
+
+    it("takes several keywords, longest first", () => {
+      expect(matchDuePhrase("Turn in by 9/13", "due|turn in")).toEqual([
+        { rest: "9/13", pending: false },
+      ]);
+    });
+
+    it("escapes a keyword rather than compiling it", () => {
+      // The keyword is remote data. An unescaped `(` is a SyntaxError that takes
+      // the adapter down; an unescaped `.` matches a character it should not.
+      expect(() => matchDuePhrase("x", "due (final)")).not.toThrow();
+      expect(matchDuePhrase("dues 9/13", "due.")).toEqual([]);
+    });
+
+    it("has nothing to say about an empty spec", () => {
+      // `validateAdapter` refuses one, so this is the second line of defence:
+      // an empty keyword compiles to a pattern that matches everywhere.
+      expect(matchDuePhrase("Due 9/13", "")).toEqual([]);
+      expect(matchDuePhrase("Due 9/13", " | ")).toEqual([]);
+    });
+  });
+
+  describe("titleBefore", () => {
+    it("takes the head of the sentence", () => {
+      expect(titleBefore("[HW1 Document]: Released 8/27. Due @ 9/20.", ":")).toBe("HW1 Document");
+      expect(titleBefore("Homework 1: Strings and induction", ":")).toBe("Homework 1");
+    });
+
+    it("keeps the whole text when the separator is not there", () => {
+      expect(titleBefore("Homework 1", ":")).toBe("Homework 1");
+    });
+
+    it("drops brackets only when they wrap the whole head", () => {
+      expect(titleBefore("[MP1 Specification Document]: x", ":")).toBe("MP1 Specification Document");
+      expect(titleBefore("Read [chapter 3] and [4]: x", ":")).toBe("Read [chapter 3] and [4]");
+    });
+
+    it("never produces an empty title", () => {
+      // A blank row is less recoverable than a visibly wrong one, which is the
+      // same rule `titleWithLabel` follows.
+      expect(titleBefore(": nothing before it", ":")).toBe(": nothing before it");
+    });
+
+    it("collapses whitespace, because a title crosses into a hash", () => {
+      expect(titleBefore("  HW1\n  Document : x", ":")).toBe("HW1 Document");
+    });
+  });
+});
+
+describe("registry validation of the prose-shaped fields", () => {
+  it("accepts both", () => {
+    expect(
+      validateAdapter({ ...ADAPTER, duePhrase: "due|turn in", titleBefore: ":" }).adapter,
+    ).toBeDefined();
+  });
+
+  it("refuses an empty keyword inside duePhrase", () => {
+    // `"due|"` splits to an empty string, and an empty keyword matches at every
+    // position in every sentence on the page.
+    expect(validateAdapter({ ...ADAPTER, duePhrase: "due|" }).reason).toMatch(/empty keyword/);
+    expect(validateAdapter({ ...ADAPTER, duePhrase: " | due" }).reason).toMatch(/empty keyword/);
+  });
+
+  it("refuses an empty or oversized field", () => {
+    expect(validateAdapter({ ...ADAPTER, duePhrase: "" }).reason).toMatch(/bad duePhrase/);
+    expect(validateAdapter({ ...ADAPTER, duePhrase: "x".repeat(201) }).reason).toMatch(
+      /bad duePhrase/,
+    );
+    expect(validateAdapter({ ...ADAPTER, titleBefore: "" }).reason).toMatch(/bad titleBefore/);
+    // Short like `splitTitle`: a literal applied to every row of remote data.
+    expect(validateAdapter({ ...ADAPTER, titleBefore: "x".repeat(9) }).reason).toMatch(
+      /bad titleBefore/,
+    );
+    expect(validateAdapter({ ...ADAPTER, duePhrase: ["due"] }).reason).toMatch(/bad duePhrase/);
+  });
+
+  it("refuses an entry that declares both readers", () => {
+    // Two readers of one text is not a precedence question, it is an entry that
+    // has not decided what the page looks like — and whichever won would be
+    // invisible in the preview.
+    const both = { ...ADAPTER, dueLabel: "Due", duePhrase: "due" };
+    expect(validateAdapter(both).reason).toMatch(/declare one/);
   });
 });
 

@@ -11,6 +11,8 @@
  * as in a test.
  */
 
+import { escapeRegex } from "./parsing.js";
+
 export interface ScrubOptions {
   /** The student's NetID, if known. Replaced everywhere, case-insensitively. */
   netid?: string;
@@ -101,11 +103,6 @@ const BASE_RULES: Rule[] = [
   },
 ];
 
-/** Escapes a user-supplied string for literal use in a RegExp. */
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /** Things worth a human's eye that this function will not touch on its own. */
 const WARNING_PROBES: { label: string; pattern: RegExp }[] = [
   { label: "an Authorization or Bearer token", pattern: /\bBearer\s+[A-Za-z0-9._-]{16,}/ },
@@ -139,7 +136,7 @@ export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult
     for (const needle of needles) {
       rules.push({
         label: needle === full ? "student name" : `student name part "${needle}"`,
-        pattern: new RegExp(`\\b${escapeRegExp(needle)}\\b`, "gi"),
+        pattern: new RegExp(`\\b${escapeRegex(needle)}\\b`, "gi"),
         replacement: "STUDENT",
       });
     }
@@ -147,7 +144,7 @@ export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult
   if (options.netid?.trim()) {
     rules.push({
       label: "netid",
-      pattern: new RegExp(`\\b${escapeRegExp(options.netid.trim())}\\b`, "gi"),
+      pattern: new RegExp(`\\b${escapeRegex(options.netid.trim())}\\b`, "gi"),
       replacement: "netid",
     });
   }

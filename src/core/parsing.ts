@@ -21,6 +21,23 @@ export function nonEmpty(value: unknown): string | undefined {
 }
 
 /**
+ * Escapes a string for literal use inside a RegExp.
+ *
+ * Both callers build a pattern out of text nobody here wrote: `scrub.ts` out of
+ * the student's own name, `site.ts` out of a registry entry's `duePhrase`. An
+ * unescaped `(` in either is a SyntaxError that takes down the scrub or the
+ * adapter, and an unescaped `.` silently matches a character it should not —
+ * a `duePhrase` of `"due."` would hook "dues" as well.
+ *
+ * One copy, because there were two: mutation house rule 3 says a decision
+ * written out twice cannot be mutation-tested, since loosening one is masked by
+ * the other staying strict.
+ */
+export function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * `RawItem.url` is documented as "absolute https URL on the source host"
  * (§3 / types.ts) and §8.1 refuses to render anything else.
  *

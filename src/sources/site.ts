@@ -10,7 +10,7 @@
 
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
-import { KeyGuard, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
+import { KeyGuard, escapeRegex, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
 import { ParseError, type Adapter, type PageCtx, type RawItem } from "./types.js";
 
 /**
@@ -470,6 +470,147 @@ export function titleWithLabel(base: string, label: string): string {
   return joined || cleaned;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Prose-shaped pages: the deadline is a clause in the middle of a sentence    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * "No date yet", as course pages spell it — the vocabulary, not a whole rule.
+ *
+ * `core/detect.ts` builds `PLACEHOLDER_EXCLUDE` out of exactly these two
+ * alternatives and should read them from here (mutation house rule 3). The
+ * *questions* the two ask genuinely differ — detect asks whether a title
+ * mentions a placeholder anywhere, this file asks whether the text right after
+ * a due keyword *begins* with one — but the words are one decision.
+ */
+export const PLACEHOLDER_WORDS = "TB[DA]|N/?A";
+const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
+
+/**
+ * A date token, loosely, anchored at the start.
+ *
+ * Its whole job is to decide whether a `duePhrase` keyword is *this row's
+ * deadline keyword* or a word in a sentence. It has to be anchored: "Due for
+ * the students on 9/13" would otherwise hook, and the text handed to the
+ * start-anchored format begins "for the students", so the row would come out
+ * undated with the date sitting unread inside `unparsedDate`.
+ *
+ * Deliberately looser than `DATE_FORMATS` — it accepts all three shapes at once
+ * and does not care which the adapter declared — because being generous here
+ * costs one attempt at parsing and being strict costs a row. `skeleton.ts` has
+ * a `DATE_SHAPED` of the same vocabulary for the same reason; it cannot be
+ * imported, because `skeleton.ts` imports this file and a value import back
+ * would be a runtime cycle.
+ */
+const DATE_SHAPED = new RegExp(
+  `^(?:${WEEKDAY})?(?:\\d{1,2}/\\d{1,2}|\\d{4}-\\d{1,2}-\\d{1,2}` +
+    `|(?:${MONTHS})[a-z]*\\.?\\s+\\d{1,2})\\b`,
+  "i",
+);
+
+/**
+ * What a page may put between the due keyword and the date.
+ *
+ * At most one connector word, and the punctuation around it: CS 425 writes
+ * "Due @ 9/13", "HW2 due 10/4", "Due Date: TBD" and "Due @ 9/20 at 11.59 PM"
+ * on the same page. Bounded on purpose — an unbounded skip would let "due for
+ * the students on 9/13" hook, and then any sentence mentioning a deadline and a
+ * date anywhere would become a row.
+ *
+ * `date` and `deadline` are here rather than in the keyword list because a
+ * registry entry says `duePhrase: "due"` and should not have to enumerate every
+ * noun a course writes after it.
+ */
+const DUE_CONNECTOR = /^[\s.,;:@\-–—]*(?:date|deadline)?[\s.,;:@\-–—]*(?:on|by|at)?[\s.,;:@\-–—]*/i;
+
+/** One place in a row's text where the adapter's due keyword hooked. */
+export interface DuePhraseHit {
+  /** Everything after the keyword and its connector: what the parser is given. */
+  rest: string;
+  /**
+   * The keyword was followed by TBD/TBA/N/A rather than a date.
+   *
+   * Still a hook — the page *is* naming this row's deadline, it just has not
+   * set one — so the row is kept and reported undated rather than skipped as
+   * "not this adapter's row". The two are different facts and §11 treats them
+   * differently: a skipped row is silence, an undated one says "the course has
+   * not said yet".
+   */
+  pending: boolean;
+}
+
+/**
+ * Every place a `duePhrase` keyword introduces a date, in document order.
+ *
+ * The third page shape's answer to `matchDueLabel`. CS 425 has no table, no
+ * `label: value` lines and no element around the date — the deadline is a
+ * clause in the middle of a sentence:
+ *
+ *     [MP1 Specification Document]: Released 8/25. Due @ 9/13 11.59 PM
+ *     Central Time (Sun). Demos on 9/14 (Mon).
+ *
+ * Three dates in one row and only the middle one is the deadline. So the
+ * keyword is what selects it, matched as a **whole word** (house rule 6, and
+ * this page is its own counterexample: "Overdue" and "the due-date" both
+ * contain "due", and the row above would date from the release otherwise), and
+ * a keyword only counts when something date-shaped follows it within one
+ * connector. That last rule is what keeps `MPs are always due on a SUNDAY at
+ * 11.59 PM Central Time` — a real bullet on this page, with no date in it at
+ * all — from becoming an undated row claiming to be a deadline.
+ *
+ * Every occurrence is returned rather than the first, because the first may be
+ * unreadable and the second the real one; the runner takes the first that
+ * parses.
+ */
+export function matchDuePhrase(text: string, spec: string): DuePhraseHit[] {
+  const keywords = spec
+    .split("|")
+    .map((word) => word.trim())
+    .filter(Boolean)
+    // Longest first, so `"due|due date"` cannot have the short one shadow the
+    // long one at the same position.
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex);
+  if (keywords.length === 0) return [];
+
+  const hits: DuePhraseHit[] = [];
+  const pattern = new RegExp(`\\b(?:${keywords.join("|")})\\b`, "gi");
+  for (const match of text.matchAll(pattern)) {
+    const rest = text.slice(match.index + match[0].length).replace(DUE_CONNECTOR, "").trim();
+    if (DATE_SHAPED.test(rest)) hits.push({ rest, pending: false });
+    else if (PENDING_AT_START.test(rest)) hits.push({ rest, pending: true });
+  }
+  return hits;
+}
+
+/**
+ * The part of a title cell before a literal separator (`titleBefore`).
+ *
+ * CS 425's rows are one sentence: `[HW1 Document]: Released 8/27. Due @ 9/20…`.
+ * The name is everything before the colon; the rest is the sentence the date
+ * was read out of, and keeping it would put a paragraph in the popup's title
+ * column *and* — since §3.1 hashes the title — change the row's `sourceId`
+ * every time the course edited a word of it, losing any override on it.
+ *
+ * A literal, never a regex: this is remote data applied to every row, and a
+ * regex here would be a ReDoS run against the whole page.
+ *
+ * The brackets go because they are the page's own list punctuation rather than
+ * part of the name — "[MP1 Specification Document]" is the course writing a
+ * bullet, not naming an item "[MP1 …]". Only when they wrap the *whole* head,
+ * so a title that genuinely contains brackets keeps them.
+ */
+export function titleBefore(text: string, separator: string): string {
+  const whole = text.replace(/\s+/g, " ").trim();
+  const at = whole.indexOf(separator);
+  const head = (at < 0 ? whole : whole.slice(0, at)).trim();
+  const bracketed = /^\[(.+)\]$/.exec(head);
+  // Never empty: a row whose text begins with the separator would otherwise be
+  // titled "", and a blank row is less recoverable than a visibly wrong one —
+  // the same reason `titleWithLabel` has a fallback.
+  return (bracketed ? bracketed[1]!.trim() : head) || whole;
+}
+
 /**
  * A row's text for a spec that climbs out of the row.
  *
@@ -694,6 +835,133 @@ export function parseAdapterDateParts(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Where the date is, and how it is read out of there                          */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Two questions, answered separately and once each.
+ *
+ * "Where is this row's date" and "how is the date read out of that text" used
+ * to be one tangle of `adapter.columns ? … : …` inside the runner, which meant
+ * the *search* that proposes adapters had to re-derive both — and it derived
+ * them slightly differently, which is how a proposal could validate against one
+ * reading and be saved under another. Mutation house rule 3: one decision, one
+ * copy. `core/detect.ts` calls these rather than guessing.
+ */
+
+/** Where a row's date text comes from. Ordered: the first one declared wins. */
+export type DueLocator =
+  | { kind: "column"; header: string }
+  | { kind: "selector"; spec: string };
+
+/** How the date is read out of the located text. */
+export type DueReader =
+  | { kind: "whole" }
+  | { kind: "label"; labels: string }
+  | { kind: "phrase"; keywords: string };
+
+/** `columns.due` beats `due`; `due` is the fallback every entry carries. */
+export function dueLocatorOf(adapter: Adapter): DueLocator {
+  if (adapter.columns) return { kind: "column", header: adapter.columns.due };
+  return { kind: "selector", spec: adapter.due };
+}
+
+/**
+ * `dueLabel` beats `duePhrase` beats the whole text.
+ *
+ * They are mutually exclusive in the schema (`validateAdapter` refuses both),
+ * so the order here is belt to that braces rather than a real precedence.
+ */
+export function dueReaderOf(adapter: Adapter): DueReader {
+  if (adapter.dueLabel) return { kind: "label", labels: adapter.dueLabel };
+  if (adapter.duePhrase) return { kind: "phrase", keywords: adapter.duePhrase };
+  return { kind: "whole" };
+}
+
+export interface DueLocation {
+  /** The locator's hook is on the page: the column exists, the selector matched. */
+  hookSeen: boolean;
+  /** The reader hooked: a declared label matched, or a keyword introduced a date. */
+  readerSeen: boolean;
+  /** Candidate date texts in document order; the runner takes the first that parses. */
+  texts: string[];
+  /** For `label`: the registry's spelling, which the title is built from. */
+  label?: string;
+  /** For `phrase`: every hook was a TBD/TBA/N/A placeholder, so no date exists yet. */
+  pending?: boolean;
+}
+
+/**
+ * The date text(s) for one row, or why there are none.
+ *
+ * `hookSeen` and `readerSeen` are separate because the page-level guards below
+ * need to tell "the hook is gone, the page was redesigned" from "the hook is
+ * there and this row simply is not a deadline" — house rule 2's distinction,
+ * and the only thing standing between a reworded page and a silent empty list.
+ */
+export function locateDue(row: Element, adapter: Adapter): DueLocation {
+  const locator = dueLocatorOf(adapter);
+  const located =
+    locator.kind === "column"
+      ? cellByHeader(row, locator.header)
+      : select(row, locator.spec);
+  const hookSeen =
+    locator.kind === "column" ? headerExists(row, locator.header) : located !== undefined;
+
+  if (located === undefined) return { hookSeen, readerSeen: false, texts: [] };
+
+  const reader = dueReaderOf(adapter);
+  if (reader.kind === "whole") return { hookSeen, readerSeen: true, texts: [located] };
+  if (reader.kind === "label") {
+    const matched = matchDueLabel(located, reader.labels);
+    return matched
+      ? { hookSeen, readerSeen: true, texts: [matched.rest], label: matched.label }
+      : { hookSeen, readerSeen: false, texts: [] };
+  }
+  const hits = matchDuePhrase(located, reader.keywords);
+  return {
+    hookSeen,
+    readerSeen: hits.length > 0,
+    texts: hits.map((hit) => hit.rest),
+    ...(hits.length > 0 && hits.every((hit) => hit.pending) ? { pending: true } : {}),
+  };
+}
+
+/** Where a row's title comes from. */
+export type TitleLocator = { kind: "column"; header: string } | { kind: "selector"; spec: string };
+
+export function titleLocatorOf(adapter: Adapter): TitleLocator {
+  if (adapter.columns) return { kind: "column", header: adapter.columns.title };
+  return { kind: "selector", spec: adapter.title };
+}
+
+/** What the title guard says when no row reached one. */
+function describeTitleLocator(locator: TitleLocator): string {
+  return locator.kind === "column"
+    ? `column ${JSON.stringify(locator.header)}`
+    : JSON.stringify(locator.spec);
+}
+
+export interface TitleLocation {
+  /** The title cell is there at all. A header row legitimately has none. */
+  hookSeen: boolean;
+  /** The name, with `titleBefore` already applied. */
+  text?: string;
+}
+
+export function locateTitle(row: Element, adapter: Adapter): TitleLocation {
+  const locator = titleLocatorOf(adapter);
+  const raw =
+    locator.kind === "column" ? cellByHeader(row, locator.header) : select(row, locator.spec);
+  if (raw === undefined) return { hookSeen: false };
+  // Before `splitTitle` and before `filter`: both of those are written against
+  // the name, and a filter matching a sentence the title cut off would keep
+  // rows on the strength of words the student never sees.
+  const text = adapter.titleBefore ? titleBefore(raw, adapter.titleBefore) : raw;
+  return { hookSeen: true, ...(text ? { text } : {}) };
+}
+
+/* -------------------------------------------------------------------------- */
 /* The runner                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -743,43 +1011,35 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     }
   }
 
+  const reader = dueReaderOf(adapter);
   let sawTitledRow = false;
-  let sawDueLabel = false;
+  let sawDueReader = false;
   let sawTitleFrom = false;
   for (const row of rows) {
-    const cell = adapter.columns
-      ? cellByHeader(row, adapter.columns.title)
-      : select(row, adapter.title);
+    const located = locateTitle(row, adapter);
     // The `continue` stays: a header row legitimately has no title cell.
-    if (!cell) continue;
+    if (!located.text) continue;
+    const cell = located.text;
     sawTitledRow = true;
-
-    const dueCell = adapter.columns
-      ? cellByHeader(row, adapter.columns.due)
-      : select(row, adapter.due);
 
     /*
      * A labelled list is rows-per-*line*, not rows-per-deadline: `Release: 8/25`
      * and `Location: ECEB 1002` are the same `<li>` shape as `Due: 9/7` and
-     * there is no selector that tells them apart. A line whose label the adapter
-     * did not declare is not this adapter's row, so it is skipped rather than
-     * emitted undated — an undated "Release" would look like a deadline whose
-     * date this parser failed to read.
+     * there is no selector that tells them apart. A prose page is the same
+     * problem one step worse — CS 425's "MPs are always due on a SUNDAY" is the
+     * same `<li>` as the one that dates MP1. A row the reader does not hook is
+     * not this adapter's row, so it is skipped rather than emitted undated: an
+     * undated "Release" or an undated policy sentence would look like a
+     * deadline whose date this parser merely failed to read.
      *
      * Matched before the filter, deliberately: the page-level guard below asks
-     * whether the *page* still has labelled lines, and a filter that excludes
-     * every row (every checkpoint still TBD) is a normal week, not a redesign.
-     * That is the same reason `sawTitledRow` is keyed on titles, not items.
+     * whether the *page* still has such rows, and a filter that excludes every
+     * one (every checkpoint still TBD) is a normal week, not a redesign. That
+     * is the same reason `sawTitledRow` is keyed on titles, not items.
      */
-    let rawDate = dueCell;
-    let matched: DueLabelMatch | undefined;
-    if (adapter.dueLabel) {
-      if (!dueCell) continue;
-      matched = matchDueLabel(dueCell, adapter.dueLabel);
-      if (!matched) continue;
-      sawDueLabel = true;
-      rawDate = matched.rest;
-    }
+    const due = locateDue(row, adapter);
+    if (due.readerSeen) sawDueReader = true;
+    if (reader.kind !== "whole" && !due.readerSeen) continue;
 
     // A row in a list inherits its section's heading. Unresolved for one row is
     // a fallback, not a throw — the page-level guard below is where "the
@@ -813,15 +1073,32 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       // states this deadline's cutoff is in this row.
       statedTimeInText(row.textContent ?? "");
 
-    const parsed = rawDate
-      ? parseAdapterDateParts(
-          rawDate,
-          adapter.dateFormat,
-          adapter.timezone,
-          page.fetchedAt,
-          statedElsewhere,
-        )
-      : undefined;
+    /*
+     * Every text the reader hooked, tried in order; the first that parses wins.
+     *
+     * One text for a column, a selector or a label. Several for a phrase, where
+     * one row can carry the keyword more than once — "Due @ 9/20 at 11.59 PM
+     * Central Time. (HW1 is due on a SUNDAY!)" — and the one that is actually a
+     * date is not always the first the page wrote.
+     */
+    let parsed: AdapterDate | undefined;
+    let dueText: string | undefined;
+    for (const text of due.texts) {
+      parsed = parseAdapterDateParts(
+        text,
+        adapter.dateFormat,
+        adapter.timezone,
+        page.fetchedAt,
+        statedElsewhere,
+      );
+      if (parsed) {
+        dueText = text;
+        break;
+      }
+    }
+    // What the row *offered*, for the "nothing here parsed" record below. The
+    // first hook rather than the last: it is the one a reader would look at.
+    const rawDate = due.texts[0];
     const dueAt = parsed?.iso;
     const linkHref = adapter.columns?.link
       ? cellByHeader(row, adapter.columns.link, "href")
@@ -838,7 +1115,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       // The label is what tells three checkpoints of one MP apart, and §3.1
       // hashes the title — see `titleWithLabel`.
       const base = inherited ?? part;
-      const title = matched ? titleWithLabel(base, matched.label) : base;
+      const title = due.label ? titleWithLabel(base, due.label) : base;
       // §3.1: course sites have no ids, so the key is content-derived and a
       // rename loses any override on it. Documented and accepted there.
       const sourceId = `${adapter.id}:${hashTitleAndDate(title, dueAt)}`;
@@ -847,6 +1124,16 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
 
       const extra: Record<string, string> = { adapterId: adapter.id, term: adapter.term };
       if (rawDate && dueAt === undefined) extra["unparsedDate"] = rawDate.slice(0, 200);
+      /*
+       * The text the instant was read out of.
+       *
+       * A course site is the least trustworthy date in the project — no ids, no
+       * API, a heuristic about where on the page the date lives — and this is
+       * the one field that lets a student check it without opening the page.
+       * The proposal preview's "Read from" column is the same string, so what
+       * they approve is what the runner will go on reading.
+       */
+      if (dueText) extra["dueText"] = dueText.slice(0, 120);
       if (parsed?.timeAssumed) extra["timeAssumed"] = "true";
       // House rule 1: a time that was printed and could not be read costs its
       // own field and is recorded, rather than passing as "the page gave none".
@@ -878,7 +1165,8 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   // `filter` may legitimately exclude every row on a page that parses fine.
   if (!sawTitledRow) {
     throw new ParseError(
-      `adapter ${adapter.id}: ${rows.length} rows, none matched title ${JSON.stringify(adapter.title)}`,
+      `adapter ${adapter.id}: ${rows.length} rows, none matched title ` +
+        describeTitleLocator(titleLocatorOf(adapter)),
     );
   }
 
@@ -887,12 +1175,19 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
    * but whose labels have all been reworded — `Due` becoming `Deadline` — yields
    * nothing at all, and "nothing" is indistinguishable from a term that has not
    * started. It is the list-shaped page's version of the named column that is no
-   * longer on the table, and it fails the same way, naming the labels so the fix
-   * is one registry edit.
+   * longer on the table, and it fails the same way, naming what it looked for so
+   * the fix is one registry edit.
+   *
+   * A `duePhrase` page fails identically and more quietly: CS 425 could drop the
+   * word "Due" in favour of "Deadline" in one edit, every `<li>` would still
+   * match, every one would still have a title, and the course would simply stop
+   * producing deadlines.
    */
-  if (adapter.dueLabel && !sawDueLabel) {
+  if (reader.kind !== "whole" && !sawDueReader) {
+    const what = reader.kind === "label" ? "due label" : "due phrase";
+    const spec = reader.kind === "label" ? reader.labels : reader.keywords;
     throw new ParseError(
-      `adapter ${adapter.id}: ${rows.length} rows, none carried a due label ${JSON.stringify(adapter.dueLabel)}`,
+      `adapter ${adapter.id}: ${rows.length} rows, none carried a ${what} ${JSON.stringify(spec)}`,
     );
   }
   if (adapter.titleFrom && !sawTitleFrom) {

@@ -1,0 +1,296 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><title>Distributed Systems :: Fall :: CS 425 / ECE 428 :: Assignments</title></head><body>
+<!--
+  DELIBERATELY UNREALISTIC. Derived from the 2026-09-18 capture of
+  https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html by adding
+  three homework lines that are not on the real page. Parser rule 10: the live
+  page is realistic enough that a wrong implementation of `duePhrase` reads it
+  exactly as a right one does, so the difference has to be built on purpose.
+
+    * HW5 — "To be Released 12/1, due to the printer's schedule. Due @ 12/10
+      11.59 PM Central Time." Two occurrences of the whole word "due" and the
+      first one is not a deadline at all: nothing date-shaped follows it inside
+      one connector. An implementation that hooks on the keyword alone dates
+      HW5 from the release, 9 days early. Expected: 12/10.
+    * HW6 — "Due Date: TBD. Released 12/1." The keyword IS this row's deadline
+      keyword; the course has simply not set a date. A hook that required a
+      date (rather than a date *or* a placeholder) would skip the row entirely
+      and then fall through to "Released 12/1" if anything later relaxed, which
+      is a made-up deadline. Expected: kept, undated, `unparsedDate` "TBD.
+      Released 12/1.", and never 12/1.
+    * HW7 — "Overdue 12/15. Undue 12/16. Due @ 12/13 11.59 PM Central Time.
+      Resubmissions due @ 12/20 (Sun)." "Overdue" and "Undue" both contain
+      "due"; a substring match takes 12/15 (house rule 6). Two occurrences ARE
+      hooked — 12/13 and 12/20 — so an implementation that took the last rather
+      than the first would report 12/20. Expected: 12/13.
+
+  The real page has none of these: its four HW lines each carry exactly one
+  hooked "due", and the two release dates on them are never introduced by the
+  keyword. Nothing else in this file is changed.
+-->
+<table id="table14" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="index.html">Home</a></p></td>
+        <td style="color: rgb(0, 153, 0);" align="center" valign="center"><p align="right"> <font size="6"><span style="font-variant: small-caps; font-weight: 700; text-decoration: underline;">Distributed
+          Systems</span></font></p></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table15" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="lectures.html">Lectures</a></p></td>
+        <td align="center" valign="center"><p align="right">&nbsp; <img src="downarrow2.jpg" border="0" height="37" width="41"><img src="uparrow2.jpg" border="0" height="44" width="46"><img src="uparrow2.jpg" border="0" height="44" width="46"><img src="updownarrow3.jpg" border="0" height="40" width="44"><img src="updownarrow3.jpg" border="0" height="40" width="44"></p></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table16" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="assignments.html">Assignments</a></p></td>
+        <td align="center" valign="center"><big> </big>
+          <p style="color: rgb(0, 153, 0);" align="right"><big> <span style="text-decoration: overline;"><font size="4"><big><u>CS 425 : ECE
+            428</u></big></font></span></big></p>
+          <big> </big></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table17" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="resources.html">Resources</a></p></td>
+        <td align="center" valign="center"><p align="right">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="downarrow2.jpg" border="0" height="37" width="41"> <img src="updownarrow3.jpg" border="0" height="44" width="46"> <img src="updownarrow3.jpg" border="0" height="44" width="46"> </p></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table18" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+       <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="staff.html">Contact Course Staff</a></p></td>
+        <td style="color: rgb(255, 102, 0);" align="center" valign="center"><p align="right"> <font size="5"><span style="text-decoration: overline;"><strong>Fall 2026</strong></span></font></p></td>
+      </tr>
+     </tbody>
+  </table>
+
+<br>
+
+<p>&nbsp; </p>
+
+<table align="center" width="90%">
+
+  <tbody>
+    <tr>
+      <td><!-- start page content -->
+      <h2 style="margin-left: 40px; color: rgb(102, 51, 102);"> Machine
+Problems (MPs)<br>
+      </h2>
+      <a name="mp"></a>
+      
+      		  
+<ul>
+	<li>Important Instructions and Notes:</li>
+		  
+      <ul>
+        <li><span style="font-weight: bold;"><span style="color: red;"><span style="color: rgb(0, 153, 0);">MPs are ONLY for 4 credit on-campus students (not Coursera and not 3 cr on-campus).</span> </span></span>
+      </li>
+      </ul>
+
+      
+      
+      <ul>
+        <li>Around 3-4 (on-campus) MPs will be posted here. You should work on your MPs <span style="text-decoration: underline; font-style: italic;">in groups of 2.</span>
+You can discuss concepts and clarifications of the MPs with other
+students and the course staff, but all solutions, code, and ideas must
+remain within the group.</li>
+      </ul>
+      <ul>
+	<span style="color: red;">
+        <li>
+          <strong>If you are a 4 credit on-campus student: By <u>8/31</u>, you must let us know what group you are in. To do so, fill out <a href="https://forms.gle/1DNWKd55aQx9antT6">ONE FORM PER GROUP</a> (before you click, please ensure you are already logged in via <a href="https://help.uillinois.edu/TDClient/42/UIUC/Requests/ServiceDet?ID=135">Google Apps@Illinois</a>, not your regular gmail.com account), and </strong> do NOT email us your groups. Only one group member needs to submit the above form -- please coordinate so you submit ``exactly once'' per group!)</li>
+		    </span>
+      </ul>
+</ul>		  
+      <p> <font color="#ff6600"> </font></p>
+      <p> </p>
+      <ul>
+        
+        <li>Any corrections will appear in <span style="color: red;">red font</span> in MP document. Please refresh (and check Piazza) often!<br>
+<span style="font-weight: bold;"></span></li>
+        <li><span style="color: black;"><strong>MPs are always due on a SUNDAY at 11.59 PM Central Time, and DEMOS are on the subsequent MONDAY.</strong></span></li>
+        <li>[<a href="MP1.CS425.FA26.pdf">MP1 Specification Document</a>]: <span style="color: black;">Released 8/25</span>. <span style="color: black;"> Due @ 9/13 11.59 PM
+          Central Time (Sun). Demos on 9/14 (Mon)</span>.</li>
+        <ul>
+			<!-- <li>All clarifications will be posted on Piazza.</li> -->
+			<li> Recommended Solutions (from FA26 student submissions, released 9/17/2026): <a href="https://uofi.box.com/s/u6hwsl0mbzl7gz8aan3utuk66gw89i6i">Go, Java, Python, C++, Rust</a>.</li>
+
+			<!-- 
+<li> Notes: Clarifications after assignment release will appear on Piazza.</li>
+			<li>Start NOW (right after MP release)! You can finish most of the MP on your laptops (before you get VM access)! </li>
+			<li> Recommended Solutions (from FA24 Student Submissions, Released 9/19/24.) <a href="./MPDemos/mp1-go-fa24.tar.gz">Go</a>, <a href="./MPDemos/mp1-rust-fa24.tar.gz">Rust</a>, <a href="./MPDemos/mp1-java-fa24.tar.gz">Java</a>, <a href="./MPDemos/mp1-python-fa24.tar.gz">Python</a>, <a href="./MPDemos/mp1-cpp-fa24.tar.gz">C++</a>.
+			</li>
+			
+			<li>Notes: <span style="color: black;"> 8/26: Git instructions updated. Please refresh/redownload new MP1 doc at above link.</span></li>
+			--> 
+		  </ul>
+        <li>[<a href="MP2.CS425.FA26.pdf">MP2 Specification Document</a>]: <span style="color: red;">Released 9/15. Due @ 9/27 11.59 PM
+          Central Time (Sun). Demos on 9/28 (Mon)</span>.</li>
+        <ul>
+
+	  <li><strong>The time for this MP is short. Start NOW.</strong></li>
+	  <li>All clarifications will be posted on Piazza.</li>
+			<!-- 
+<li> Notes: Clarifications after assignment release will appear on Piazza.</li>
+			<li>Start NOW (right after MP release)! You can finish most of the MP on your laptops (before you get VM access)! </li>
+			<li> Recommended Solutions (from FA24 Student Submissions, Released 9/19/24.) <a href="./MPDemos/mp1-go-fa24.tar.gz">Go</a>, <a href="./MPDemos/mp1-rust-fa24.tar.gz">Rust</a>, <a href="./MPDemos/mp1-java-fa24.tar.gz">Java</a>, <a href="./MPDemos/mp1-python-fa24.tar.gz">Python</a>, <a href="./MPDemos/mp1-cpp-fa24.tar.gz">C++</a>.
+			</li>
+			
+			<li>Notes: <span style="color: black;"> 8/26: Git instructions updated. Please refresh/redownload new MP1 doc at above link.</span></li>
+			--> 
+
+	  <li>Use of recommended solutions for MP1: You may use all or some code from the recommended solutions for MP1. Our recommendation not a guarantee of a perfect score. Please understand that you are responsible for debugging any issues that arise therein.</li>
+	  <li> Recommended Solutions for MP2 will appear here after MP2 is graded.</li>
+	</ul>
+        <li>[MP3 Specification Document]:
+          <span style="color: black;"> To be Released 10/13. Due @ 11/8 11.59 PM
+		  Central Time (Sun). Demos on 11/9 (Mon)</span>.</li>
+		<ul>
+		 <!--  <li> Notes: This is a <span style="color: black;">difficult MP. Start NOW (right after MP release)!</span> Other Clarifications after assignment release will appear on Piazza.</li>
+		  			<li>Note on using Recommended Solutions: You may use the "Recommended Solutions" code (or your own code from MP2) for your MP3 (and onwards). The choice of these groups' MPs is not an endorsement or guarantee of a perfect score. If you choose to use any of the Recommended Solutions, please understand that you are responsible for debugging any issues that arise therein.</li>
+			
+		  <li> Recommended Solutions will appear here after MP3 is graded.  </li>
+			 <li> Recommended Solutions (from FA24 Student Submissions): Will appear here after MP is graded, so that MP groups can use any of them for their subsequent MP.</li> -->
+	<!--		  <li>Recommended Solutions (from FA22 Student Submissions), released 11/12/22. <a href="./MPDemos/mp3-go-fa22.gz">Go</a>, <a href="./MPDemos/mp3-rust-fa22.gz">Rust</a>, <a href="./MPDemos/mp3-java-fa22.gz">Java</a>, <a href="./MPDemos/mp3-python-fa22.gz">Python</a>, <a href="./MPDemos/mp3-cpp-fa22.gz">C++</a>.  </li>
+			<li>Notes: None.</li>
+			<li>Recommended Solutions (from Student Submissions), released within a week after deadline.  </li>
+			-->
+        
+
+		  </ul>
+        <li>[MP4 Specification Document]:
+         To be Released 11/10. Due @ 12/6 11.59 PM
+		  Central Time (Sun). Demos on 12/7 (Mon).</li>
+		<ul>
+			<!-- 
+					<li> Notes: This is a <span style="color: red;"><strong>hard MP. Start NOW (right after MP release)!</strong></span>  Other Clarifications after assignment release will appear on Piazza.</li>
+			<li> No Recommended Solutions will be released for MP4.</li>-->
+		  </ul>
+
+      </ul>
+      <p style="margin-left: 40px; color: rgb(102, 51, 102);"> </p>
+      <h2 style="margin-left: 40px; color: rgb(102, 51, 102);">Homework
+Assignments (HWs)<br>
+</h2>
+      <p> <a name="hw"></a></p>
+		  
+<ul>
+	<li>Important Instructions and Notes:</li>
+	  
+      <ul>
+        <li><span style="color: rgb(0, 153, 0); font-weight: bold;">HWs are for ALL students (on-campus, online, Coursera, MCS-DS, all credit levels).</span><br>
+</li>
+        <li>4-5 Homework assignments (HWs) will be posted here. We try to stagger HW deadlines so that they are not the same as 
+MP deadlines.</li>
+
+      </ul>
+      <ul>
+        <li>
+          For HWs, you <strong>must </strong>submit solutions that are <strong>typed. </strong>Figures may be drawn by hand. Handwritten solutions
+            will be returned without being graded. For each homework, <strong>please
+            make sure each new problem solution starts on a fresh page</strong>.
+	  <strong>Homeworks
+              are due at 11.59 PM Central Time on the due-date, for both MCS (online) and on-campus students (no excuses)</strong>.
+        </li>
+        <li style="color: red;">All students (on-campus and MCS Online via Coursera and MCS Chicago) must submit their HWs on Gradescope.com. </li>
+        <li style="color: red;"><strong>Please use the following Entry Code to self-sign up on <a href="https://www.gradescope.com/courses/1353501">Gradescope</a>: ZJ7WWB</strong></li>
+        <li style="color: red;">We will not accept emailed solutions or printed-out solutions.
+        </li>
+        <li>
+          You must work on all homeworks <span style="text-decoration: underline; font-style: italic;">individually.</span>
+        </li>
+        <li>
+          You can discuss concepts and clarifications of questions
+with other students and the course staff.
+        </li>
+        <li>
+          Unless otherwise specified, the only resources you can avail of in your
+HWs are the provided course materials (slides, textbooks, etc.), and
+communication with instructor/TA via the forum, e-mail, and office hours.<br>
+</p>
+        </li>
+		  
+</ul>	
+        
+        <li>Any major corrections will appear in <span style="color: red;">red font</span> in HW document, or be noted in Piazza links below. Please refresh!<br>
+          <span style="font-weight: bold;"></span></li>
+        <li>[<a href="hw1.fa26.pdf">HW1 Document</a>]: <span style="color: red;"> Released 8/27.  Due @ 9/20 at 11.59 PM Central Time. (<strong>HW1 is due on a SUNDAY!</strong>)</span></li>
+        <ul>
+				<li>HW1 Solutions will be released after HW1 is graded.</li>
+				<li>Notes: See clarifications on pinned Piazza post (and other posts). <span style="color: black;">Please check that pinned Piazza post often! Before posting your question on Piazza, please search on Piazza first with your keywords (your question may already have been asked and answered!) </span> </li>
+				
+	</ul>
+        <li>[HW2 Document]: <span style="color: black;"> To be Released 9/21. HW2 due 10/4 at 11.59 PM Central Time</span> <strong><span style="color: black;">(HW2 is due on a SUNDAY!)</span></strong> </li>
+        	
+        <li>[HW3 Document]: <span style="color: black;"> To be Released 10/12. Due @ 11/1 at 11.59 PM Central Time.<strong> <span style="color: black;">(HW3 is due on a SUNDAY!)</span></strong></span></li>
+        
+        <li>[HW4 Document]: <span style="color: black;"> To be Released 11/3. Due @ 12/3 11.59 PM Central Time. <strong>(HW4 is due on a THURSDAY!)</strong></span></li>
+        <li>[HW5 Document]: <span style="color: black;"> To be Released 12/1, due to the printer's schedule. Due @ 12/10 11.59 PM Central Time.</span></li>
+        <li>[HW6 Document]: <span style="color: black;"> Due Date: TBD. Released 12/1.</span></li>
+        <li>[HW7 Document]: <span style="color: black;"> Overdue 12/15. Undue 12/16. Due @ 12/13 11.59 PM Central Time. Resubmissions due @ 12/20 (Sun).</span></li>
+        	
+        <h2 style="color: rgb(102, 51, 102);"> Exams</h2>
+        <ul>
+          <li><span style="color: rgb(0, 153, 0); font-weight: bold;">ALL Students (on-campus, online, MCS Coursera) must take both
+            Midterm and Final Exams. MCS Coursera students (only) will take exams online.</span><br>
+          </li>
+          <li> Midterm Exam on 10/8. See Course schedule (Lectures) for the date. It
+            will be
+            closed-book, closed notes. <span style="text-decoration: underline;">Calculators
+              ok</span>. NO cheatsheets or cellphones or other devices allowed.</li>
+          
+          <li>
+            Final Exam is at the end of the semester. The on-campus schedule is decided by
+            campus, so please don't ask course staff for dates. When campus posts
+            it, we will post it on the course website. Coursera exam windows are already available. Please do not contact us to find out or change final exam date.</li>
+          <li><strong>Makeup/Conflict exams</strong>: If you need a makeup exam, please contact the instructors <u><strong>at least 2 weeks before</strong></u> the posted exam date (midterm/final). Conflict exams are <strong>not</strong> given for routine reasons (includes interviews, trips, conflicts with other classes, etc.). Conflict request is approved only upon a positive ack from the instructors. Instructors' decision is final on each case. </li>
+          <li><big style="font-weight: bold;"><big>[Practice Midterm]</big></big><span style="color: red;">Release date TBD. </span> <span style="color: black;">We will not release solutions (but feel free to use Piazza to discuss solutions for the practice midterm (only)).</span></li>
+			<li> Midterm solutions will be released after Midterm is graded.</li>
+
+		
+        </ul>
+        <p> <strong><font style="color: rgb(102, 51, 102);" color="#ff6600" size="5">Regrading Policy (Important!)</font><br>
+        </strong></p>
+        <ul>
+          <li><span style="color: rgb(0, 153, 0); font-weight: bold;">This section on regrading policy is for ALL students.</span><br>
+          </li>
+          <li> All regrade requests must be submitted <u><strong><font>within 1 week</font></strong></u> of the graded HW/MP being returned. Regrade requests must be submitting in the same system as the original HW was submitted in (Gradescope or Coursera). Be sure to clearly indicate the reason for the regrade request. <br>
+          </li>
+          <li> Regrade requests submitted after one week of the HW/MP
+            being returned will be denied.</li>
+          
+          <li> <b>All regrading decisions by the TA will be final  (i.e., no regrade requests on regrades). Please do not indulge in back-and-forth discussion with the TA(s). </b></li>
+          
+        </ul>
+      </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>&nbsp; </td>
+    </tr>
+    <tr>
+      <td>&nbsp; </td>
+    </tr>
+  </tbody>
+</table>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-43422418-1', 'illinois.edu');
+  ga('send', 'pageview');
+
+</script>
+</body></html>

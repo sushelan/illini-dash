@@ -105,6 +105,8 @@ const KNOWN_FIELDS = {
   link: true,
   columns: true,
   dueLabel: true,
+  duePhrase: true,
+  titleBefore: true,
   titleFrom: true,
   time: true,
   kind: true,
@@ -328,6 +330,31 @@ export function validateAdapter(
     if (!isPlainString(dueLabel, 200)) return fail("bad dueLabel");
     const labels = dueLabel.split("|");
     if (labels.some((label) => label.trim() === "")) return fail("dueLabel has an empty label");
+  }
+
+  /*
+   * The prose-shaped page's two fields, checked the same way and for the same
+   * reason: an empty keyword in `"due|"` would match at every position in every
+   * sentence on the page, which is house rule 5's `""`-passes-a-typeof one
+   * field over.
+   */
+  const duePhrase = a["duePhrase"];
+  if (duePhrase !== undefined) {
+    if (!isPlainString(duePhrase, 200)) return fail("bad duePhrase");
+    if (duePhrase.split("|").some((word) => word.trim() === "")) {
+      return fail("duePhrase has an empty keyword");
+    }
+  }
+  // Short, like `splitTitle`: a literal applied to every row of remote data.
+  if (a["titleBefore"] !== undefined && !isPlainString(a["titleBefore"], 8)) {
+    return fail("bad titleBefore");
+  }
+
+  // Two readers of one text is not a precedence question, it is an entry that
+  // has not decided what the page looks like. Refused rather than silently
+  // ranked, because the ranking would be invisible in the preview.
+  if (dueLabel !== undefined && duePhrase !== undefined) {
+    return fail("dueLabel and duePhrase both read the date out of the located text; declare one");
   }
 
   const filter = a["filter"];

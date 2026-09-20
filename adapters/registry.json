@@ -95,6 +95,23 @@
         "exclude": "\\bTB[DA]\\b|\\bN/?A\\b"
       },
       "minExtensionVersion": "1.0.0"
+    },
+    {
+      "$comment": "CS 425 writes each deadline mid-sentence \u2014 \"Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).\" \u2014 so the word \"due\" is what selects it, not an element. The HW and MP lists carry no id and no class, so the rows hook is the page's one content table (table[align=center], width 90%); every other table on the page is a nav strip. See docs/cs425-findings.md.",
+      "id": "cs425-fa26",
+      "label": "CS 425 course site",
+      "courseCode": "CS425/ECE428",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "table[align=center] li",
+      "title": ".",
+      "titleBefore": ":",
+      "due": ".",
+      "duePhrase": "due",
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.1.0"
     }
   ]
 }

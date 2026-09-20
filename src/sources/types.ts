@@ -436,6 +436,49 @@ export interface Adapter {
    */
   dueLabel?: string;
   /**
+   * `|`-separated keywords that introduce a deadline *inside a sentence*, for a
+   * page that writes its dates as prose rather than as cells or labelled lines.
+   *
+   * CS 425's assignments page is one `<li>` per item and the row reads
+   * `[MP1 Specification Document]: Released 8/25. Due @ 9/13 11.59 PM Central
+   * Time (Sun). Demos on 9/14 (Mon).` — three dates, and only the middle one is
+   * the deadline. There is no element around it and no label in front of it, so
+   * the word "Due" is the only thing that selects it.
+   *
+   * Matched as a **whole word**, case-insensitively (house rule 6: this page
+   * writes "Overdue" and "the due-date" too), and it counts only when something
+   * date-shaped follows within one connector — `:`/`@`/`on`/`by`/`at`, with an
+   * optional "date"/"deadline" noun. That second condition is what keeps the
+   * page's own `MPs are always due on a SUNDAY at 11.59 PM Central Time` bullet
+   * from becoming an undated row claiming to be a deadline.
+   *
+   * Every occurrence is tried in document order and the first that parses wins.
+   * A keyword followed by TBD/TBA/N/A still counts as a hook — the page *is*
+   * naming this row's deadline — so the row is kept and reported undated rather
+   * than dated from a release date elsewhere in the same sentence.
+   *
+   * Mutually exclusive with `dueLabel`: both read the date out of the located
+   * text, and `validateAdapter` refuses an entry that declares both.
+   */
+  duePhrase?: string;
+  /**
+   * A literal separator; the title is everything before its first occurrence.
+   *
+   * The prose shape's rows are a whole sentence, and the name is the head of it:
+   * `[HW1 Document]: Released 8/27. Due @ 9/20…` is called "HW1 Document". §3.1
+   * hashes the title, so without this the `sourceId` changes whenever the course
+   * edits a word of the sentence — losing every override on the row — and the
+   * popup's title column holds a paragraph.
+   *
+   * A title wholly wrapped in `[ ]` loses the brackets, because those are the
+   * page's own list punctuation rather than part of the name. Applied before
+   * `splitTitle` and before `filter`.
+   *
+   * A literal, never a regex, for the reason `splitTitle` is one: this is remote
+   * data applied to every row.
+   */
+  titleBefore?: string;
+  /**
    * Where a row that has no name of its own gets one.
    *
    * `"section >> h3"` climbs to `row.closest("section")` and reads `h3` inside
