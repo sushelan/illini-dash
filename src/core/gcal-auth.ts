@@ -204,10 +204,12 @@ export function describeGcal(
   if (!facts?.enabled || facts.state === "never") {
     return {
       chip: "Off",
+      // Two facts, not four sentences (2026-09-20, "make the settings less text
+      // heavy"): what it creates, and what it cannot touch. Where the deadlines
+      // live is the section's own lede and the page's whole pitch.
       sentence:
-        "Your deadlines stay in this browser. Turn this on and Illini Dash will " +
-        "create a calendar called “Illini Dash” in your own Google account and " +
-        "keep it up to date. It cannot see or change any of your other calendars.",
+        "Creates a calendar called “Illini Dash” in your own Google account. " +
+        "It cannot see or change your other calendars.",
       action: "connect",
       tone: "pending",
     };

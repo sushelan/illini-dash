@@ -2,10 +2,37 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2282 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2285 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Settings, with a quarter of the words — 2026-09-20
+
+"Can u make the settings less text heavy." It carried **1,035 words** down a 6,033px
+column, most of it two- and three-sentence explanations under every control — which
+makes the one sentence that matters, the one beside the switch you are reaching for,
+indistinguishable from the four around it. Measured in the real page, it is **739 words
+now** (−29%), 4,430 characters (−27%), 342px shorter.
+
+The rule, and it is a rule rather than a pass: **a caption says what a control does; the
+reasoning goes behind a `<details class="why">`**, which is the disclosure the page
+already used for "Why does it need these?" and "Why not let me pick the colours?".
+Nothing was deleted — the 92-word privacy statement is the same text, inside a
+disclosure; the on-device model's three sentences became "What if it cannot read the
+page?" and say more there than they did in the lede.
+
+- Trimmed: Older courses (3 sentences → 1), Add a course site, Ticked off, Data &
+  privacy, the .ics / Reset / diagnostics / report captions, the Campuswire and Piazza
+  captions (the longer sentence is still the row's `title`), three Reminders captions,
+  the Google Calendar lede and its "Off" sentence (`describeGcal`, in core), and the
+  site-health caption. Two ledes that only restated their heading went entirely.
+- `tests/options-copy.test.ts` is the budget: 20 words for any `.lede` or
+  `.srow2--hint` **outside** a disclosure, and a count of the disclosures so the page
+  cannot pass by deleting the explanations instead of moving them. Prose grows back one
+  well-meant sentence at a time and nothing could see it happen before.
+- Mutation-checked by putting the Older-courses paragraph back: the budget test fails.
+  Measured in the real options document in dark.
 
 ## Three duplicate controls removed — 2026-09-19
 

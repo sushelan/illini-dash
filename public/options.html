@@ -73,11 +73,7 @@
           <div id="courses" class="rows"></div>
 
           <h3>Older courses</h3>
-          <p class="lede">
-            Canvas still lists these as active, but they belong to an earlier term — usually
-            a compliance course that never closes. Their deadlines are left out. If one of
-            them is a course you are really taking, put it back.
-          </p>
+          <p class="lede">From an earlier term, so their deadlines are left out.</p>
           <div id="set-aside" class="rows"></div>
         </section>
 
@@ -102,12 +98,16 @@
           </p>
 
           <h3>Add a course site</h3>
-          <p class="lede">
-            Paste the page that lists your deadlines. It is read once, and you get to check
-            what it found before anything is saved. If it cannot work the page out on its
-            own, and your copy of Chrome has the built-in on-device model, it asks that
-            model for a suggestion — which you check the same way.
-          </p>
+          <p class="lede">Paste the page that lists your deadlines. Nothing is saved until you have seen what it found.</p>
+          <details class="why">
+            <summary>What if it cannot read the page?</summary>
+            <p>
+              It says which of the three dead ends it hit. If your copy of Chrome has the
+              built-in on-device model, it then asks that model for a suggestion — which is
+              run against the same page and shown to you the same way. Nothing a model says
+              is stored, and it is never asked for a date, only for where to look.
+            </p>
+          </details>
           <p class="row-actions">
             <input id="add-site-url" class="field field--grow" type="url"
                    placeholder="https://courses.grainger.illinois.edu/…" />
@@ -125,7 +125,6 @@
 
         <section id="sec-appearance" data-nav="Appearance">
           <h2>Appearance</h2>
-          <p class="lede">Presets rather than a colour picker.</p>
           <details class="why">
             <summary>Why not let me pick the colours?</summary>
             <p>
@@ -139,27 +138,29 @@
 
         <section id="sec-tidy" data-nav="Hidden &amp; done">
           <h2>Hidden &amp; done</h2>
-          <p class="lede">Rows you put away, and the way back.</p>
           <h3>Hidden</h3>
           <div id="hidden" class="rows"></div>
           <h3>Ticked off</h3>
           <p class="lede">
-            Work you marked done yourself. Course websites, and anything handed in on paper,
-            never report a submission — so this is the only way those rows can be finished.
-            If a source later says the work is missing, the row comes back on its own.
+            Work you marked done yourself. If a source later says it is missing, the row
+            comes back.
           </p>
           <div id="done" class="rows"></div>
         </section>
 
         <section id="sec-data" data-nav="Data &amp; privacy">
           <h2>Data &amp; privacy</h2>
-          <p class="lede" id="privacy"></p>
+          <p class="lede">Everything stays in this browser. Nothing reaches the developer.</p>
+          <details class="why">
+            <summary>What exactly is stored, and what is read</summary>
+            <p id="privacy"></p>
+          </details>
           <div class="rows">
             <div class="srow2">
               <span class="srow2--name">Calendar file</span>
               <span class="srow2--hint">
-                An <code>.ics</code> of everything listed. A one-time copy, not a
-                subscription — later changes to a deadline will not follow it.
+                A one-time <code>.ics</code> of everything listed — not a subscription, so
+                later changes will not follow it.
               </span>
               <button id="download-ics" class="btn btn-secondary">Download .ics</button>
             </div>
@@ -174,8 +175,7 @@
             <div class="srow2">
               <span class="srow2--name">Reset everything</span>
               <span class="srow2--hint">
-                Deletes every stored row and every correction you have made — your hides,
-                merges and ticks. It cannot be undone.
+                Deletes every row and every correction — hides, merges, ticks. Cannot be undone.
               </span>
               <button id="reset" class="btn btn-secondary">Reset</button>
             </div>
@@ -190,17 +190,16 @@
             <div class="srow2">
               <span class="srow2--name">Copy diagnostics</span>
               <span class="srow2--hint">
-                Which sources worked, how many rows each course produced, and what failed.
-                No assignment titles, no links, and nothing that identifies you — so it is
-                safe to paste into a bug report.
+                Which sources worked and what failed. No titles, no links, nothing that
+                identifies you.
               </span>
               <button id="copy-diagnostics" class="btn btn-secondary">Copy</button>
             </div>
             <div class="srow2">
               <span class="srow2--name">Report a page</span>
               <span class="srow2--hint">
-                Right-click the page that is wrong and choose “Report this page to Illini
-                Dash”, or paste its address below.
+                Right-click the page and choose “Report this page to Illini Dash”, or paste
+                its address below.
               </span>
             </div>
           </div>

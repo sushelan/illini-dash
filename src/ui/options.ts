@@ -642,9 +642,9 @@ const OBSERVERS: readonly ObserverSpec[] = [
     id: "campuswire",
     name: "Campuswire",
     match: CAMPUSWIRE_MATCH,
-    hint:
-      "Reads deadlines out of the class feeds you open, on this computer. " +
-      "Nothing is sent to Campuswire and no posts are stored.",
+    // The row says what it reads; `title` keeps the longer sentence for a hover
+    // (2026-09-20, "make the settings less text heavy").
+    hint: "Reads the class feeds you open. Nothing is sent, and no post is stored.",
     title: "Illini Dash reads a Campuswire class feed only while you have it open.",
   },
   {
@@ -652,9 +652,7 @@ const OBSERVERS: readonly ObserverSpec[] = [
     name: "Piazza",
     match: PIAZZA_MATCH,
     loginUrl: PIAZZA_LOGIN_URL,
-    hint:
-      "Reads the announcements in your Piazza classes on each sync, using the session " +
-      "already in this browser. Nothing is posted and no post is stored.",
+    hint: "Reads your classes' announcements on each sync. Nothing is posted or stored.",
     title: "Illini Dash reads your Piazza class feeds in the background, on each sync.",
   },
 ];
@@ -1341,10 +1339,7 @@ async function renderOptions(): Promise<void> {
     // A labelled row, not a floating chip. A state word with nothing beside it
     // reads as a state of *the section*, and this is the state of one source.
     const box = el("div", undefined, "rows");
-    const row = plainRow(
-      "Reading course websites",
-      "How the last attempt at every switched-on site went.",
-    );
+    const row = plainRow("Reading course websites", "The last attempt at all of them.");
     row.append(
       stateChip(shown, shown === "ok" ? facts?.lastRead : undefined, siteStatus.lastError),
     );
@@ -1557,7 +1552,7 @@ async function renderOptions(): Promise<void> {
   remindRows.append(
     switchRow({
       name: "Remind me about not-for-credit work",
-      hint: "Practice quizzes and surveys stay in the list either way — this is only about interrupting you.",
+      hint: "They stay in the list either way — this is only about interrupting you.",
       checked: state.settings.remindNotForCredit,
       onChange: (remindNotForCredit) => {
         void send({ type: "update-settings", settings: { remindNotForCredit } }).then(
@@ -1569,7 +1564,7 @@ async function renderOptions(): Promise<void> {
   remindRows.append(
     switchRow({
       name: "Hide submitted and graded work",
-      hint: "Finished work still shows on days that have already passed, so a week you worked through does not look empty.",
+      hint: "Days already past still show what you finished.",
       checked: state.settings.hideSubmitted,
       onChange: (hideSubmitted) => {
         void send({ type: "update-settings", settings: { hideSubmitted } }).then(refreshOptions);
@@ -1666,7 +1661,7 @@ async function renderOptions(): Promise<void> {
 
   const testRow = el("div", undefined, "srow2");
   testRow.append(el("span"), el("span", "Send a test reminder", "srow2--name"));
-  const testResult = el("span", "One notification, now, so you can see what they look like.", "srow2--hint");
+  const testResult = el("span", "One notification, now.", "srow2--hint");
   testRow.append(testResult);
   const testButton = el("button", "Send", "btn btn-secondary btn-sm");
   testButton.addEventListener("click", () => {
@@ -1746,12 +1741,7 @@ function gcalSection(): HTMLElement {
   // reaches the nav on the same pass.
   section.dataset["nav"] = "Google Calendar";
   const heading = el("h2", "Google Calendar");
-  const lede = el(
-    "p",
-    "Optional, and off until you turn it on. Illini Dash can keep a calendar of " +
-      "your deadlines in your own Google account.",
-    "lede",
-  );
+  const lede = el("p", "Off until you turn it on.", "lede");
   const rows = el("div", undefined, "rows");
   rows.id = "gcal-rows";
   section.append(heading, lede, rows);
