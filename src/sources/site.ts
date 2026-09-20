@@ -11,7 +11,7 @@
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
 import { KeyGuard, escapeRegex, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
-import { cellAt, columnOf, gridFor, rowIndex, type GridCache } from "../core/table-grid.js";
+import { cellAt, columnOf, formTableGrid, gridFor, rowIndex, type GridCache } from "../core/table-grid.js";
 
 // Re-exported so a caller that wants to run the locators can pass a cache
 // without also knowing where the grid lives. `runAdapter` owns one per run.
@@ -47,6 +47,14 @@ function select(row: Element, spec: string): string | undefined {
  * assignment name.
  */
 export function headerIndex(table: Element, grids: GridCache = new Map()): Map<string, number> {
+  // Once per table, not once per row: the map is a property of the table and
+  // the cache already holds one object per table to hang it on.
+  let grid = grids.get(table);
+  if (grid?.headers) return grid.headers;
+  if (!grid) {
+    grid = formTableGrid(table);
+    grids.set(table, grid);
+  }
   const headerRow =
     table.querySelector("thead tr") ??
     // Some pages skip <thead>; the first row that is all <th> is the header.
@@ -54,6 +62,7 @@ export function headerIndex(table: Element, grids: GridCache = new Map()): Map<s
       (row) => row.querySelector("th") && !row.querySelector("td"),
     );
   const map = new Map<string, number>();
+  grid.headers = map;
   if (!headerRow) return map;
   /*
    * The **grid slot**, not the header cell's position among its siblings.
@@ -63,10 +72,9 @@ export function headerIndex(table: Element, grids: GridCache = new Map()): Map<s
    * then read the column before the one the adapter named, silently, on every
    * row. The grid is the one place that arithmetic lives.
    */
-  const grid = gridFor(headerRow, grids);
-  // A header row the grid does not know is one inside a *nested* table, which
-  // is not this table's header row at all.
-  if (!grid || rowIndex(grid, headerRow) === undefined) return map;
+  // A header row this table's grid does not know is one inside a *nested*
+  // table, which is not this table's header row at all.
+  if (rowIndex(grid, headerRow) === undefined) return map;
   for (const cell of [...headerRow.children]) {
     const slot = columnOf(grid, cell);
     if (slot === undefined) continue;

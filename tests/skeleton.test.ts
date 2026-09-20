@@ -564,9 +564,12 @@ describe("repeatedStructures on a large page", () => {
     const started = Date.now();
     const structures = repeatedStructures(doc);
     const took = Date.now() - started;
-    // 10.1s before the memo on this machine, 337ms after, and it is the options
-    // page's main thread that pays it — every other control frozen behind
-    // "Asking the on-device model…", with no cancel.
+    // 10.1s before the memo, 337ms after; the locator evidence added on
+    // 2026-09-20 costs roughly half as much again (640ms → 960ms on the
+    // machine that measured it, linkedom), because every considered group is
+    // probed before the twelve are chosen. It is the options page's main
+    // thread that pays it — every other control frozen behind "Reading…",
+    // with no cancel — so the bound stays where it is.
     expect(took).toBeLessThan(2_000);
     expect(structures.length).toBeGreaterThan(0);
   });

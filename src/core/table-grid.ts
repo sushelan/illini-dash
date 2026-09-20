@@ -30,6 +30,13 @@ export interface TableGrid {
   index: Map<Element, number>;
   /** The leftmost slot a given cell occupies. */
   slotOf: Map<Element, number>;
+  /**
+   * The table's header map, filled by `headerIndex` the first time it is asked
+   * and read back on every row after. The inventory asks once per row per
+   * header name, so without this a 12,000-element page rebuilt the map a few
+   * thousand times over and the pinned bound went from 337ms to 1.2s.
+   */
+  headers?: Map<string, number>;
 }
 
 /** Grids are built once per table and reused across every row of it. */
