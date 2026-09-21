@@ -7,6 +7,56 @@ Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Settings has four headings, and five buttons that repeated themselves are gone — 2026-09-21
+
+"theres so many buttons and text can u make the settings page more intuitive. lot of the
+buttons are repetitive/unnecessary." The third pass at this page: the first two cut words
+and duplicate controls, and it was still 10 nav sections, 22 buttons and 10 expanders.
+The count was the symptom; the shape was the cause. Ten sections covered four jobs.
+
+- **Four headings.** Sources absorbs Course websites and Courses, which are both
+  answers to "where do deadlines come from". Reminders absorbs Google Calendar, which is
+  what happens to a deadline. Your data absorbs Hidden & done and Help. Developer leaves
+  the sidebar and lives at `options.html#dev`, revealed on load and on `hashchange`, with
+  a lede saying that address is why you are there. The popup deep-links to `sec-sites`,
+  `sec-courses` and `sec-help`, so those ids moved onto the headings that replaced their
+  sections rather than being deleted.
+- **Five controls deleted**, each one doing by hand what already happens: Check for
+  updates (the registry refreshes daily and on every reload; its status stays as text),
+  Push now (every sync pushes), Send a test reminder, Copy diagnostics (the broken-page
+  report carries the same facts and reaches a person), and three expanders — including
+  "Why not let me pick the colours?", which argued with the reader about a choice they
+  had not made.
+- **Classical is the only design.** `DESIGNS` offered four and Appearance surfaced two of
+  them; `resolveDesign` now reads every stored value, including the one that meant Plain,
+  as Classical, and `applyStoredTheme` sets the attribute on every load. Three stub
+  stylesheets that nothing could reach are deleted. Two branches in the popup
+  (`views/exams.ts`, `rows.ts`'s `cardDesign`) can no longer take their other path — left
+  alone here, worth a follow-up, because two row layouts are maintained where one ships.
+- **A row you typed in yourself can be trashed; one from a source cannot.** Hidden & done
+  is one line, "2 hidden, 1 ticked off", that expands. `trashable` in `core/manual.ts`
+  returns ids only when **every** member of the row is manual — not any, because an item
+  is the group that merged into it and one hand-typed row merged with a Gradescope one is
+  still a row Gradescope writes back. A missing `members`, which is what an older worker
+  sends, reads as no button rather than as nothing disagreeing (worker rule 8). A source
+  row keeps Unhide, and the line above says so: a "delete" that quietly means "unhide"
+  is house rule 2 wearing a different coat.
+- **Start over moved next to Reset.** The button that reopens the first-run screen had
+  been put in Developer, where a student never looks — and the record says what happens
+  then: Sushi pressed Reset to reach that screen and lost every hide, merge and tick. The
+  gentler answer now sits directly above the destructive one, saying nothing is deleted.
+- Four count-asserted mutations, no survivors: `trashable` accepting any member rather
+  than every; `resolveDesign` returning the stored value; `isDevHash` matching a
+  substring; `trashable` accepting an empty id. Verified in `preview-options.html` served
+  over http in dark mode, which is the mode Sushi's machine is in: four nav entries,
+  every target reachable, Trash on the manual row and absent from the Canvas-backed ones,
+  Developer hidden until the hash and hidden again after, no console errors.
+- `scripts/preview-data.ts` had one hidden row and it came from no source, so the harness
+  could not tell a correct page from one offering to delete a Gradescope row. It now
+  carries a Gradescope hidden row, a manual one, and a Canvas-backed ticked one.
+- Left dead on purpose, named so nobody hunts for callers: the `get-diagnostics` and
+  `test-notification` messages and their worker handlers now have none.
+
 ## One search over rows and date locators, and three pages that were not readable — 2026-09-20
 
 Three public course pages, none of them a header table or a `Due:` list: CS 425 writes
