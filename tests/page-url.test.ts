@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizePageUrl } from "../src/core/page-url.js";
+import { isDevHash, normalizePageUrl } from "../src/core/page-url.js";
 
 /** Narrowing helper: a rejection's sentence, or a failure naming what was accepted. */
 function reasonFor(raw: string): string {
@@ -161,3 +161,31 @@ describe(
     });
   },
 );
+
+describe("isDevHash (2026-09-21)", () => {
+  /*
+   * Settings' Developer section is off the sidebar and reachable only at
+   * `options.html#dev`. The test that matters is the *negative* one: a section
+   * revealed by anything else is a section still in everybody's way, and the
+   * page carries three other hashes — `#report=…` from the context menu, and
+   * the `#sec-sites` / `#sec-courses` the popup deep-links to.
+   */
+  it("is exactly #dev", () => {
+    expect(isDevHash("#dev")).toBe(true);
+  });
+
+  it("is nothing else the page is ever opened at", () => {
+    for (const hash of [
+      "",
+      "#",
+      "#DEV",
+      "#developer",
+      "#dev=1",
+      "#sec-sites",
+      "#sec-courses",
+      "#report=https%3A%2F%2Fwww.gradescope.com%2Fcourses%2F1",
+    ]) {
+      expect(isDevHash(hash), hash).toBe(false);
+    }
+  });
+});

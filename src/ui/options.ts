@@ -32,7 +32,7 @@ import {
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
 import { currentTermCode } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
-import { normalizePageUrl } from "../core/page-url.js";
+import { isDevHash, normalizePageUrl } from "../core/page-url.js";
 import {
   CAMPUSWIRE_MATCH,
   describeObserver,
@@ -1683,37 +1683,8 @@ async function renderOptions(): Promise<void> {
   remindRows.append(testRow);
   reminders.append(remindRows);
 
-  /* Hidden items (§8.1's Hide, undoable) */
-  const hidden = document.getElementById("hidden")!;
-  hidden.replaceChildren();
-  if (state.hiddenItems.length === 0) hidden.append(plainRow("Nothing hidden"));
-  for (const item of state.hiddenItems) {
-    const row = plainRow(item.title, item.courseLabel);
-    const unhide = el("button", "Unhide", "btn btn-secondary btn-sm");
-    unhide.addEventListener("click", () => {
-      void send({ type: "override", action: { kind: "unhide", itemId: item.id } }).then(
-        refreshOptions,
-      );
-    });
-    row.append(unhide);
-    hidden.append(row);
-  }
-
-  /* Ticked off by hand — the only way back for a row the popup no longer shows */
-  const done = document.getElementById("done")!;
-  done.replaceChildren();
-  if (state.doneItems.length === 0) done.append(plainRow("Nothing ticked off"));
-  for (const item of state.doneItems) {
-    const row = plainRow(item.title, item.courseLabel);
-    const undo = el("button", "Not done", "btn btn-secondary btn-sm");
-    undo.addEventListener("click", () => {
-      void send({ type: "override", action: { kind: "undone", itemId: item.id } }).then(
-        refreshOptions,
-      );
-    });
-    row.append(undo);
-    done.append(row);
-  }
+  /* Hidden, and ticked off (§8.1's Hide and tick, both undoable) */
+  renderTidy(state.hiddenItems, state.doneItems);
 
   /* Google Calendar (§8.3) — see `renderGcal`. */
   renderGcal((state as { gcal?: GcalFacts }).gcal);
@@ -1721,6 +1692,64 @@ async function renderOptions(): Promise<void> {
   renderPageNav();
 }
 
+
+/* ---- Hidden and ticked off ------------------------------------------------
+ *
+ * One line inside Your data, not a nav section of its own.
+ *
+ * It was a whole heading in the sidebar — "Hidden & done" — for two lists that
+ * are empty on most installs, and a student reading the ten entries had to read
+ * past it to reach Appearance. Sushi, 2026-09-21: "theres so many buttons and
+ * text can u make the settings page more intuitive."
+ *
+ * A `<details>` is built here rather than written in `options.html` because the
+ * empty case is not a disclosure at all: a `<details>` with nothing behind it
+ * still opens, onto nothing, which reads as "it broke" rather than "there is
+ * nothing here".
+ */
+type TidyItem = { id: string; title: string; courseLabel: string };
+
+function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
+  const host = document.getElementById("tidy");
+  if (!host) return;
+  host.replaceChildren();
+
+  if (hiddenItems.length === 0 && doneItems.length === 0) {
+    host.append(el("p", "Nothing hidden, nothing ticked off.", "opt-note"));
+    return;
+  }
+
+  const count = (n: number, word: string): string => `${n} ${word}`;
+  const details = el("details", undefined, "why");
+  const summary = el("summary", [count(hiddenItems.length, "hidden"), count(doneItems.length, "ticked off")].join(", "));
+  details.append(summary);
+
+  const list = (
+    items: TidyItem[],
+    heading: string,
+    empty: string,
+    button: string,
+    kind: "unhide" | "undone",
+  ): void => {
+    details.append(el("h4", heading));
+    const rows = el("div", undefined, "rows");
+    if (items.length === 0) rows.append(plainRow(empty));
+    for (const item of items) {
+      const row = plainRow(item.title, item.courseLabel);
+      const undo = el("button", button, "btn btn-secondary btn-sm");
+      undo.addEventListener("click", () => {
+        void send({ type: "override", action: { kind, itemId: item.id } }).then(refreshOptions);
+      });
+      row.append(undo);
+      rows.append(row);
+    }
+    details.append(rows);
+  };
+
+  list(hiddenItems, "Hidden", "Nothing hidden", "Unhide", "unhide");
+  list(doneItems, "Ticked off", "Nothing ticked off", "Not done", "undone");
+  host.append(details);
+}
 
 /* ---- Google Calendar (§8.3) --------------------------------------------
  *
@@ -1738,19 +1767,20 @@ async function renderOptions(): Promise<void> {
 function gcalSection(): HTMLElement {
   const existing = document.getElementById("sec-gcal");
   if (existing) return existing;
-  const section = el("section");
+  // A `<div>` inside Reminders, not a `<section data-nav>` of its own.
+  //
+  // It was the tenth entry in the sidebar, and it is one switch. A student
+  // looking for it is looking for the other things that tell them about a
+  // deadline before it is due, which is what Reminders is — so it is the second
+  // heading in that section rather than a heading beside it.
+  const section = el("div");
   section.id = "sec-gcal";
-  // `renderPageNav` reads this attribute; it is the one place a section's name
-  // is written, and it runs at the end of every render, so a section added here
-  // reaches the nav on the same pass.
-  section.dataset["nav"] = "Google Calendar";
-  const heading = el("h2", "Google Calendar");
+  const heading = el("h3", "Google Calendar");
   const lede = el("p", "Off until you turn it on.", "lede");
   const rows = el("div", undefined, "rows");
   rows.id = "gcal-rows";
   section.append(heading, lede, rows);
-  const before = document.getElementById("sec-appearance");
-  (before?.parentElement ?? document.body).insertBefore(section, before ?? null);
+  (document.getElementById("sec-reminders") ?? document.body).append(section);
   return section;
 }
 
@@ -2092,6 +2122,25 @@ void (() => {
       "Filled in from the page you right-clicked. Press Prepare report to fetch and scrub it.";
   }
 })();
+
+/* -------------------------------------------------------------------------- */
+/* The Developer section, at an address rather than in the sidebar             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Shown only at `options.html#dev` (`core/page-url.ts` owns which addresses).
+ *
+ * Re-run on `hashchange` as well as at load: a student who types the address
+ * into the bar of a Settings tab that is already open gets no navigation, and a
+ * section that appears only on reload is one whose address looks broken.
+ */
+function applyDevVisibility(): void {
+  const section = document.getElementById("sec-dev");
+  if (!section) return;
+  section.hidden = !isDevHash(location.hash);
+}
+applyDevVisibility();
+window.addEventListener("hashchange", applyDevVisibility);
 
 /* -------------------------------------------------------------------------- */
 /* Adding a course site yourself (§4.5, self-serve)                            */

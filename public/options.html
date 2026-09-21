@@ -62,23 +62,12 @@
             <button id="restart-setup" class="btn btn-quiet">Choose again</button>
             <span id="restart-setup-status" class="opt-note"></span>
           </p>
-        </section>
 
-        <section id="sec-courses" data-nav="Courses">
-          <h2>Courses</h2>
-          <p class="lede">
-            Every course seen across every source. Switching one off hides its deadlines
-            without forgetting them.
-          </p>
-          <div id="courses" class="rows"></div>
-
-          <h3>Older courses</h3>
-          <p class="lede">From an earlier term, so their deadlines are left out.</p>
-          <div id="set-aside" class="rows"></div>
-        </section>
-
-        <section id="sec-sites" data-nav="Course websites">
-          <h2>Course websites</h2>
+          <!-- `sec-sites`, `sec-courses` and `sec-help` moved from a <section>
+               onto the heading that replaced it, because three places in the
+               popup deep-link to them (`screens/setup.ts`, `screens/deadline.ts`)
+               and this change is not the popup's to edit. -->
+          <h3 id="sec-sites">Course websites</h3>
           <p class="lede">Some courses keep the real schedule on their own site.</p>
           <details class="why">
             <summary>Why are these separate?</summary>
@@ -97,7 +86,7 @@
             <span id="registry-status" class="opt-note"></span>
           </p>
 
-          <h3>Add a course site</h3>
+          <h4>Add a course site</h4>
           <p class="lede">Paste the page that lists your deadlines. Nothing is saved until you have seen what it found.</p>
           <details class="why">
             <summary>What if it cannot read the page?</summary>
@@ -115,12 +104,26 @@
           </p>
           <p id="add-site-status" class="opt-note"></p>
           <div id="add-site-result"></div>
+
+          <h3 id="sec-courses">Courses</h3>
+          <p class="lede">
+            Every course seen across every source. Switching one off hides its deadlines
+            without forgetting them.
+          </p>
+          <div id="courses" class="rows"></div>
+
+          <h4>Older courses</h4>
+          <p class="lede">From an earlier term, so their deadlines are left out.</p>
+          <div id="set-aside" class="rows"></div>
         </section>
 
         <section id="sec-reminders" data-nav="Reminders">
           <h2>Reminders</h2>
           <p class="lede">A Chrome notification before something is due.</p>
           <div id="reminders"></div>
+          <!-- Google Calendar mounts here, from `options.ts`: a section that
+               only exists when the build knows about it is the honest shape,
+               and an older worker sends `gcal: {}`. -->
         </section>
 
         <section id="sec-appearance" data-nav="Appearance">
@@ -136,21 +139,15 @@
           <div id="themes"></div>
         </section>
 
-        <section id="sec-tidy" data-nav="Hidden &amp; done">
-          <h2>Hidden &amp; done</h2>
-          <h3>Hidden</h3>
-          <div id="hidden" class="rows"></div>
-          <h3>Ticked off</h3>
-          <p class="lede">
-            Work you marked done yourself. If a source later says it is missing, the row
-            comes back.
-          </p>
-          <div id="done" class="rows"></div>
-        </section>
-
-        <section id="sec-data" data-nav="Data &amp; privacy">
-          <h2>Data &amp; privacy</h2>
+        <section id="sec-data" data-nav="Your data">
+          <h2>Your data</h2>
           <p class="lede">Everything stays in this browser. Nothing reaches the developer.</p>
+
+          <!-- One line rather than a nav section of its own: it is two lists
+               that are usually empty, and it was costing a heading in the
+               sidebar either way. `options.ts` fills it. -->
+          <div id="tidy"></div>
+
           <details class="why">
             <summary>What exactly is stored, and what is read</summary>
             <p id="privacy"></p>
@@ -181,11 +178,12 @@
             </div>
           </div>
           <p id="data-status" class="opt-note"></p>
-        </section>
 
-        <section id="sec-help" data-nav="Help">
-          <h2>Help</h2>
-          <p class="lede">If a deadline you can see on a site is missing here.</p>
+          <h3 id="sec-help">A deadline is missing</h3>
+          <p class="lede">
+            Right-click the page it is on and choose “Report this page to Illini Dash”, or
+            paste its address below.
+          </p>
           <div class="rows">
             <div class="srow2">
               <span class="srow2--name">Copy diagnostics</span>
@@ -194,13 +192,6 @@
                 identifies you.
               </span>
               <button id="copy-diagnostics" class="btn btn-secondary">Copy</button>
-            </div>
-            <div class="srow2">
-              <span class="srow2--name">Report a page</span>
-              <span class="srow2--hint">
-                Right-click the page and choose “Report this page to Illini Dash”, or paste
-                its address below.
-              </span>
             </div>
           </div>
 
@@ -237,10 +228,15 @@
           </details>
         </section>
 
-        <section id="sec-dev" data-nav="Developer">
+        <!-- No `data-nav`, so it is not in the sidebar, and `hidden` until
+             `options.ts` sees `#dev` in the address (core/page-url.ts). Four
+             harnesses nobody using the extension has a question for were four
+             of the ten headings a student had to read past. -->
+        <section id="sec-dev" hidden>
           <h2>Developer</h2>
           <p class="lede">
-            Nothing here runs on its own, and none of it is needed to use Illini Dash.
+            You are here because the address ends in <code>#dev</code>. Nothing here is
+            needed to use Illini Dash.
           </p>
 
           <details class="why">

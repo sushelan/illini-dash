@@ -120,3 +120,25 @@ export function normalizePageUrl(raw: string): PageUrlResult {
     return notAWebAddress(text);
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* The Developer section's address                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The address that reveals Settings' Developer section, and the only one.
+ *
+ * Four harnesses — Gate 0, the offscreen round trip, the fixture capture and
+ * the build ids — were four of the ten headings in the sidebar, and not one of
+ * them answers a question a student has. They stay, because they are how this
+ * project is debugged; they are addressed rather than listed.
+ *
+ * Here rather than in `ui/options.ts` because "which addresses show it" is a
+ * decision, and a decision in the page is one the suite cannot mutate (worker
+ * house rule 1). Matched exactly, never by substring: `#developer` and
+ * `#report=…` are not it, and `"#report=…".includes("#dev")` is false only by
+ * luck of spelling (parser house rule 6).
+ */
+export function isDevHash(hash: string): boolean {
+  return hash === "#dev";
+}
