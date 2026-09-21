@@ -748,7 +748,16 @@ body.page { padding: 0; }
  */
 .crow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /*
+   * A floor under the course's name, and a ceiling the pages can fall through.
+   *
+   * With `minmax(0, 1fr) auto` the pages track sized to its max-content and
+   * column 1 shrank to nothing: ECE 411's row drew its hostname one character
+   * per line, 28 lines tall. The switches wrap instead — which is what
+   * `flex-wrap` was there for and could never do while the track it was in
+   * refused to narrow.
+   */
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, auto);
   align-items: center; gap: 2px 16px;
   padding: 10px 12px; border-top: 1px solid var(--line);
 }
@@ -770,11 +779,16 @@ label.crow--name { cursor: pointer; }
  * wrapped line stays under the switches rather than under the course's name.
  */
 .crow--pages {
-  grid-column: 2; grid-row: 1 / span 2; justify-self: end;
+  grid-column: 2; grid-row: 1 / span 2; justify-self: end; min-width: 0;
   display: flex; flex-wrap: wrap; justify-content: flex-end;
   align-items: center; gap: 6px 18px;
 }
-.crow--page { display: inline-flex; align-items: center; gap: 6px; }
+/* Wrapping too, so a page carrying "Permission missing" and "Allow" gives way
+   before it pushes the course's name off its own row. */
+.crow--page {
+  display: inline-flex; flex-wrap: wrap; justify-content: flex-end;
+  align-items: center; gap: 6px;
+}
 .crow--page-name { font-size: 12px; font-weight: 500; cursor: pointer; }
 /* Only drawn when a course's pages are on different hosts — otherwise the row
    said it once, under the course's name. */

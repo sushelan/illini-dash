@@ -704,7 +704,23 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
       }
       if (req.type === "set-adapter-enabled") {
         const found = adapters.find((a) => a["id"] === req.adapterId);
-        if (found) found["enabled"] = req.enabled;
+        if (found) {
+          found["enabled"] = req.enabled;
+          /*
+           * And `granted` with it, which the stub used not to touch.
+           *
+           * The page asks Chrome for the host permission inside the click and
+           * only then tells the worker; the worker reads `permissions.contains`
+           * back into `granted`. Leaving it alone here meant a switch turned on
+           * in the preview redrew unchecked with "Permission missing" beside
+           * it, because a row is checked only when a page is both on *and*
+           * granted — so the one press this harness exists to verify could
+           * never appear to work, and "the toggle does nothing" was
+           * indistinguishable from a real defect. `?permission=denied` still
+           * refuses, which is the other half of the case.
+           */
+          if (req.enabled) found["granted"] = query.get("permission") !== "denied";
+        }
         return { type: "ok" };
       }
       if (req.type === "get-adapters") {
