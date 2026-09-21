@@ -2,13 +2,43 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2590 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2591 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## A page is named by its address, not by a restatement of its course — 2026-09-21
+
+"ew", over a row reading `course site · Remove · CS/ECE 374 A course site` beside a course
+called CS 374.
+
+The switch labels came from each adapter's own `label` with the course code stripped off
+the front, and the registry does not spell those consistently: `CS/ECE 374 A course site`
+under a `CS374` code, `CS 425 course site` under `CS425/ECE428`. Neither prefix matched
+either one, so the whole label came through — so every switch on the row restated the
+course, and none of them said which page it read. The name is the page's **address** now,
+`gps.html` beside `homeworks.html`: the one thing that differs between two switches and
+the one thing a student can check against the site. A URL ending at a directory has no
+page in it, so a term segment falls back to the label as before.
+
+Every page is labelled now, including a course with one. That rule ("label only when there
+is more than one") existed because the old name repeated the course; an address does not,
+and a lone unlabelled switch at the end of a row said nothing about what it read.
+
+Remove was a `btn-secondary` the size of the switches, wedged between two of them, so it
+read as a third control rather than as something done to the one on its left. It is a ×
+on that page's own cell, faint at rest and full on hover or focus. Quiet rather than
+hidden, and that distinction is the point: a mark nobody can see until they hover it is
+one a student never learns is there, and it is the only way to take back a page they
+added.
+
+Six tests pinned the old naming and were rewritten rather than annotated, each saying in
+place what changed. Verified in the real document at a real window width, dark: seven
+courses, every row 58px, every switch labelled by its address, the × at 0.45 opacity on
+the added pages and absent from the published ones, no console errors.
 
 ## A course is one row, its pages are switches along it, and the catalogue is gone — 2026-09-21
 
