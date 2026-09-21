@@ -368,6 +368,59 @@ const adapters: Record<string, unknown>[] = [
     url: "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
     hostPattern: "https://courses.grainger.illinois.edu/*",
     enabled: false, granted: false, currentTerm: true },
+  /*
+   * A course whose two pages differ in standing: one Sushi added (`local`) and
+   * one published and switched off. The partition used to run over adapters, so
+   * this course was drawn twice — once under his own courses and once inside
+   * the "more courses" disclosure. Without both pages here the harness cannot
+   * show that it no longer is.
+   */
+  { id: "cs374-fa2026-local", label: "CS 374 group problem sessions", courseCode: "CS374",
+    term: "fa2026",
+    url: "https://courses.grainger.illinois.edu/cs374/fa2026/gps.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "table tr", title: "td:nth-child(1)", due: "td:nth-child(2)",
+    dateFormat: "M/D/YYYY", timezone: "America/Chicago", minExtensionVersion: "1.0.0",
+    enabled: true, granted: true, local: true, currentTerm: true },
+  { id: "cs374-fa26-homeworks", label: "CS 374 homeworks", courseCode: "CS374",
+    url: "https://courses.grainger.illinois.edu/cs374/fa2026/homeworks.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
+  /*
+   * One course spelled two ways: the registry cross-lists it, the page Sushi
+   * added names one code. Grouped on the string these drew as "CS 425" and
+   * "CS425/ECE428", two headings, the second unformatted.
+   */
+  { id: "cs425-fa2026-local", label: "CS 425 lectures", courseCode: "CS425",
+    term: "fa2026",
+    url: "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "table tr", title: "td:nth-child(1)", due: "td:nth-child(2)",
+    dateFormat: "M/D/YYYY", timezone: "America/Chicago", minExtensionVersion: "1.0.0",
+    enabled: true, granted: true, local: true, currentTerm: true },
+  { id: "cs425-fa26-assignments", label: "CS425/ECE428 assignments", courseCode: "CS425/ECE428",
+    url: "https://courses.grainger.illinois.edu/cs425/fa2026/assignments.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
+  /*
+   * And three more courses in two further departments, so the disclosure's
+   * department grouping has something to group: with everything published under
+   * ECE, a page that ignored the department and drew one heading would look
+   * exactly like one that worked. CS 446 is two pages, so the catalogue also
+   * shows a multi-page course under a department heading.
+   */
+  { id: "math241-fa26", label: "MATH 241 course site", courseCode: "MATH241",
+    url: "https://math.illinois.edu/math241/fa2026/",
+    hostPattern: "https://math.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
+  { id: "cs446-fa26-assignments", label: "CS 446 assignments", courseCode: "CS446",
+    url: "https://courses.grainger.illinois.edu/cs446/fa2026/assignments.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
+  { id: "cs446-fa26-exams", label: "CS 446 exams", courseCode: "CS446",
+    url: "https://courses.grainger.illinois.edu/cs446/fa2026/exams.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
   // One the student added themselves, which is the only kind with a Remove
   // button. `local` is set by the worker and is not on the response type, so
   // without an entry carrying it here the button was unreachable in the harness.
