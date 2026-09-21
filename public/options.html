@@ -137,6 +137,16 @@
               <button id="export" class="btn btn-secondary">Export JSON</button>
             </div>
           </div>
+          <div class="srow2">
+            <span class="srow2--name">Start over</span>
+            <span class="srow2--hint">
+              Shows the first-run screen again, so you can pick your sources from scratch.
+              Nothing is deleted.
+            </span>
+            <button id="restart-setup" class="btn btn-secondary">Show it</button>
+          </div>
+          <p id="restart-setup-status" class="opt-note"></p>
+
           <div class="careful">
             <p class="careful--head">Careful</p>
             <div class="srow2">
@@ -196,11 +206,6 @@
           <p class="lede">
             You are here because the address ends in <code>#dev</code>. Nothing here is
             needed to use Illini Dash.
-          </p>
-
-          <p class="row-actions">
-            <button id="restart-setup" class="btn btn-quiet">Show the first-run screen</button>
-            <span id="restart-setup-status" class="opt-note"></span>
           </p>
 
           <details class="why">
