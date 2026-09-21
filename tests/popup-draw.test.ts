@@ -1462,3 +1462,120 @@ describe("a band does not make its rows repeat its heading", () => {
     });
   });
 });
+
+/**
+ * Sushi, 2026-09-21: *"i think if its late it should show up in late no matter
+ * what even if its 80%. i think 80% deadline shouldnt be yellow its confusing
+ * to see that. i think it should appear in the late tab and it should say when
+ * the 80% due date is."*
+ *
+ * `core/grouping.ts` and `core/calendar.ts` own every decision below; what is
+ * asserted here is the one thing they cannot see — which of the two deadlines
+ * the drawn row puts in its clock slot. Counted from the window it still has,
+ * a row under **Late** reads "11:59 PM · in 5h", which is the reduced-credit
+ * date wearing the clothes of the deadline beside the words saying it is gone.
+ */
+describe("a row past full credit with its 80% window still open", () => {
+  /** Full credit went 26 hours ago; 80% runs until 11:59 tonight. */
+  const withEightyPercent = async (body: (missedAt: Date) => Promise<void>): Promise<void> => {
+    const base = items.find((one) => one.members.length === 1)!;
+    const missedAt = new Date(now - 26 * 60 * 60 * 1000);
+    missedAt.setMinutes(0, 0, 0);
+    const until = new Date(now);
+    until.setHours(23, 59, 0, 0);
+    const member = {
+      ...base.members[0]!,
+      sourceId: "mp-80",
+      dueAt: missedAt.toISOString(),
+      lateDueAt: until.toISOString(),
+      status: "not_submitted" as const,
+      extra: {
+        creditSchedule: JSON.stringify([
+          { credit: 100, end: missedAt.toISOString() },
+          { credit: 80, start: missedAt.toISOString(), end: until.toISOString() },
+        ]),
+      },
+    };
+    const added: Item = {
+      ...base,
+      id: "mp-80",
+      title: "MP1 80% tail",
+      status: "not_submitted",
+      done: false,
+      dueAt: member.dueAt,
+      lateDueAt: member.lateDueAt,
+      members: [member],
+    };
+    items.push(added);
+    try {
+      await showDay();
+      await body(missedAt);
+    } finally {
+      items.splice(items.indexOf(added), 1);
+      await showDay();
+    }
+  };
+
+  it("draws it under Late, clocked to the deadline it missed", async () => {
+    await withEightyPercent(async (missedAt) => {
+      const band = view().querySelector<HTMLElement>(".tsection--late")!;
+      expect(band, "the day has a Late band").not.toBeNull();
+      const card = [...band.querySelectorAll<HTMLElement>(".row")].find(
+        (row) => row.querySelector(".row--title")?.textContent === "MP1 80% tail",
+      );
+      expect(card, "the 80% row is in the Late band").toBeDefined();
+
+      // The clock is the missed deadline's, not the window's 11:59 PM.
+      const clock = missedAt.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      // The window's own hour, which the slot must *not* be showing.
+      expect(clock).not.toBe("11:59 PM");
+      expect(card!.querySelector<HTMLElement>(".row--due")!.textContent).toBe(clock);
+      expect(card!.querySelector<HTMLElement>(".row--rel")!.textContent).toMatch(/late$/);
+
+      // And no amber: `row-late` is the warn edge Sushi called yellow.
+      expect(card!.classList.contains("row-late")).toBe(false);
+      expect(card!.classList.contains("row-overdue")).toBe(true);
+    });
+  });
+
+  it("says how late it is on the Alerts tab, which passes no status word", async () => {
+    /*
+     * The Today band hands the row `weekStatus`, so its right-hand column is
+     * decided in core. The Alerts tab's Late section hands it nothing and the
+     * row falls back to its own `countdown` — a second place the choice of
+     * instant is made, and from the still-open window it reads "in 5h" under a
+     * heading that says Late.
+     */
+    await withEightyPercent(async () => {
+      shell.selectTab("nodate");
+      await app.refresh();
+      await settle();
+      const card = [...view().querySelectorAll<HTMLElement>(".needsyou--item .row")].find(
+        (row) => row.querySelector(".row--title")?.textContent === "MP1 80% tail",
+      );
+      expect(card, "the 80% row is in the Alerts tab's Late section").toBeDefined();
+      expect(card!.querySelector<HTMLElement>(".row--rel")!.textContent).toMatch(/late$/);
+      expect(card!.textContent).toContain("80% until");
+    });
+    shell.selectTab("day");
+    await app.refresh();
+    await settle();
+  });
+
+  it("says when the 80% deadline is, and is counted in the heading", async () => {
+    await withEightyPercent(async () => {
+      const band = view().querySelector<HTMLElement>(".tsection--late")!;
+      const card = [...band.querySelectorAll<HTMLElement>(".row")].find(
+        (row) => row.querySelector(".row--title")?.textContent === "MP1 80% tail",
+      )!;
+      expect(card.textContent).toContain("80% until");
+      expect(card.textContent).not.toContain("late until");
+
+      const count = Number(band.querySelector(".section-head")!.lastElementChild!.textContent!.replace(/\D/g, ""));
+      expect(count).toBe(band.querySelectorAll(".row").length);
+    });
+  });
+});

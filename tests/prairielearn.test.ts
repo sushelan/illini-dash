@@ -789,7 +789,7 @@ describe("formatDue says how far a partial score got (roadmap I37)", () => {
       member("not_submitted", { scorePercent: "40", creditRemaining: "80" }),
       { dueAt: undefined, lateDueAt: new Date(2026, 8, 22, 12, 0).toISOString() },
     );
-    expect(formatDue(late, NOW, "Later").detail).toBe("80% credit until Tue 12:00 PM");
+    expect(formatDue(late, NOW, "Later").detail).toBe("80% until Tue 12:00 PM");
   });
 });
 

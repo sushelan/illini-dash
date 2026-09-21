@@ -391,6 +391,28 @@ describe("applyRetention (§5.4)", () => {
     expect(Object.keys(result.raw)).toContain("gradescope:recent");
   });
 
+  it("keeps a row whose full credit has gone and whose late window is open", () => {
+    /*
+     * The other half of Sushi's 2026-09-21 decision: such a row is *banded* as
+     * late (`missedDeadline`), and nothing about that reaches retention, which
+     * measures §5.4's 60 days from `dueAt` and is 53 days from purging this
+     * one. If it ever stopped, the row would be announced as late and then
+     * deleted while PrairieLearn was still paying 80% for it.
+     */
+    const ladder = {
+      "prairielearn:mp1": raw({
+        source: "prairielearn",
+        sourceId: "mp1",
+        title: "MP1",
+        dueAt: "2026-09-09T23:59:00Z",
+        lateDueAt: "2026-09-10T23:59:00Z",
+      }),
+    };
+    const result = applyRetention(ladder, new Set(), {}, NO_OVERRIDES, now);
+    expect(result.purged).toEqual([]);
+    expect(Object.keys(result.raw)).toEqual(["prairielearn:mp1"]);
+  });
+
   it("purges an undated item only after three consecutive misses", () => {
     let misses: Record<string, number> = {};
     let raws = stored;

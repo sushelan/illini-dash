@@ -26,7 +26,7 @@
  */
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
-import { countdown, liveDeadline } from "./grouping.js";
+import { countdown, liveDeadline, missedDeadline, withinOverdueWindow } from "./grouping.js";
 import { courseDepartment } from "./names.js";
 import { extractCourseCode } from "./normalize.js";
 import { unreadableDeadline } from "./quality.js";
@@ -911,6 +911,11 @@ const OVERDUE_WINDOW_DAYS = 7;
  * "Couldn't read" in particular is a deadline this extension is hiding, which
  * is not the same as one the student is late for.
  */
+/** The instant a group's rows are ordered by. See the sort in `attentionGroups`. */
+function bandInstant(item: Item, now: Date): number {
+  return missedDeadline(item)?.at ?? anchorOf(item, now)?.at ?? 0;
+}
+
 export function attentionGroups(rawItems: Item[], now: Date): AttentionGroup[] {
   const buckets = new Map<AttentionName, Item[]>(ATTENTION_ORDER.map((name) => [name, []]));
 
@@ -927,10 +932,22 @@ export function attentionGroups(rawItems: Item[], now: Date): AttentionGroup[] {
       if (item.kind !== "event") buckets.get("No date at all")!.push(item);
       continue;
     }
-    // No `!anchor.opening` here: `anchorOf` refuses an opening time that has
-    // already passed, so an opening anchor is always ahead of now and can
-    // never reach this branch.
-    if (anchor.at < now.getTime()) {
+    /*
+     * `missedDeadline`, not the anchor.
+     *
+     * The anchor is where a row is *drawn on a grid*, and `liveDeadline` puts
+     * that on the window a student can still use. Whether the row is **late**
+     * is the other question, and Sushi settled it on 2026-09-21: "if its late
+     * it should show up in late no matter what even if its 80%." His
+     * PrairieLearn MP — 100% gone, 80% until that night — sat under "By end of
+     * day" beside work that was not late at all.
+     *
+     * No `!anchor.opening` guard here either: `anchorOf` refuses an opening
+     * time that has already passed, and a row with only an opening time has no
+     * missed deadline, so neither can reach this branch.
+     */
+    const missed = missedDeadline(item);
+    if (missed !== undefined && missed.at < now.getTime()) {
       if (item.kind === "event") continue;
       // An exam that has been sat cannot be handed in late.
       //
@@ -945,14 +962,22 @@ export function attentionGroups(rawItems: Item[], now: Date): AttentionGroup[] {
       // asking for anything — and it only reaches here at all because past
       // work stopped being filtered out of the views.
       if (isItemDone(item) || isTickedDone(item)) continue;
-      if (now.getTime() - anchor.at <= OVERDUE_WINDOW_DAYS * 86_400_000) {
+      // A week from the deadline that was missed — or for as long as the
+      // reduced-credit window runs, whichever is longer. Dropping it on day
+      // seven while PrairieLearn is still paying 80% is the defect
+      // `liveDeadline`'s comment records.
+      if (withinOverdueWindow(item, missed.at, now)) {
         buckets.get("Overdue")!.push(item);
       }
     }
   }
 
   for (const group of buckets.values()) {
-    group.sort((a, b) => (anchorOf(b, now)?.at ?? 0) - (anchorOf(a, now)?.at ?? 0));
+    // Ordered by the instant the group is *about*, which for Overdue is the
+    // missed deadline rather than the window the row still has — or a row
+    // missed an hour ago would sort below one missed six days ago whose 80%
+    // tier happens to run further out.
+    group.sort((a, b) => bandInstant(b, now) - bandInstant(a, now));
   }
 
   return ATTENTION_ORDER.map((name) => ({ name, items: buckets.get(name)! })).filter(
@@ -1145,14 +1170,24 @@ export function itemTone(item: Item, now: Date): ItemTone {
   // overdue — it is over.
   if (item.kind === "event") return "event";
 
-  const live = liveDeadline(item, now);
-  if (live === undefined) return "open";
-  // Overdue red is for work that can no longer be handed in. A row whose full
-  // credit has gone but whose late window is still open is amber: it is late,
-  // not lost, and painting it red tells a student to give up on something
-  // Gradescope is still accepting.
-  if (live.at < now.getTime()) return "overdue";
-  return live.late ? "late" : "open";
+  /*
+   * `missedDeadline`, so the colour agrees with the band.
+   *
+   * Amber used to mean "full credit has gone, the window is still open", and
+   * it was the wrong answer twice: Sushi, 2026-09-21, *"i think 80% deadline
+   * shouldnt be yellow its confusing to see that"* — his MP sat amber among
+   * end-of-day work that was not late at all, and a row that is drawn under
+   * **Late** cannot also be painted "not late". Red now means the full-credit
+   * deadline went by; the row's own detail line says what it is still worth.
+   *
+   * `late` — and with it `row-late`'s amber edge — survives for the one shape
+   * that has no missed instant: §4.3's no-popover fallback, which states a
+   * reduced-credit deadline and no full-credit one. See `missedDeadline`.
+   */
+  const banded = missedDeadline(item);
+  if (banded === undefined) return "open";
+  if (banded.at < now.getTime()) return "overdue";
+  return banded.late ? "late" : "open";
 }
 
 /**
@@ -1194,7 +1229,11 @@ export function weekStatus(item: Item, now: Date): string {
   // caller-error case rather than a state — an empty string rather than a word
   // the student would have to interpret.
   if (anchor === undefined) return "";
-  if (tone === "overdue") return countdown(anchor.at, now);
+  // How late, measured from the deadline that was missed. The anchor is the
+  // window the row may still have — counting from that would print "in 1d"
+  // under a heading that says Late. `itemTone` only says `overdue` off a
+  // `missedDeadline` it found, so there is one to read.
+  if (tone === "overdue") return countdown(missedDeadline(item)!.at, now);
   if (anchor.assumed) return "EOD";
   return new Date(anchor.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }

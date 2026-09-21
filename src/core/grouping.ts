@@ -83,7 +83,15 @@ export interface LiveDeadline {
 }
 
 /**
- * The deadline the student can still act on.
+ * The deadline the student can still act on. **Sibling of `missedDeadline`,
+ * which answers the other half: the deadline they already missed.**
+ *
+ * This one is for what the extension *plans* — §7's reminders, the countdown to
+ * a window that is still open, "is there anything still to do". `missedDeadline`
+ * is for where a row is *drawn* and what it is called. Splitting them is Sushi's
+ * decision of 2026-09-21 ("if its late it should show up in late no matter what
+ * even if its 80%"); before it, one function answered both and a row could not
+ * be in the Late band and have a reminder planned for tonight at the same time.
  *
  * `dueAt ?? lateDueAt` was wrong for the shape both Gradescope and PrairieLearn
  * produce most often: full-credit deadline passed, late window still open. The
@@ -133,6 +141,67 @@ export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
 }
 
 /**
+ * The deadline the student **missed**: the one a row is banded and labelled by.
+ * **Sibling of `liveDeadline`, which answers the other half: the deadline they
+ * can still act on.** Nothing here decides what is *planned* — reminders,
+ * retention and "is this still actionable" all keep asking `liveDeadline`.
+ *
+ * Sushi, 2026-09-21, looking at a PrairieLearn MP whose 100% deadline had gone
+ * and whose 80% tier ran until that night: *"i think if its late it should show
+ * up in late no matter what even if its 80%."* It was drawn under **By end of
+ * day** in amber, beside work that was not late at all, because `liveDeadline`
+ * had promoted it to the window it still had. The promotion is right about what
+ * to *do* and wrong about what to *call* it.
+ *
+ * So: full credit if a source stated one, whatever the late window says. There
+ * is no clock in the signature because the answer does not depend on one, which
+ * is the cleanest statement of the difference from `liveDeadline`.
+ *
+ * **No special case for finished work, unlike `liveDeadline`.** That guard
+ * exists there to undo the promotion for work already handed in; there is no
+ * promotion here to undo, so a finished row's answer is the deadline it was
+ * finished against either way. Keeping "is it done" out of the band is the
+ * caller's — `attentionGroups` and `sectionFor` both refuse a finished row
+ * before they ask, and `itemTone` answers `done` above everything.
+ *
+ * **§4.3's no-popover fallback is the one shape this cannot band.** A
+ * PrairieLearn row rescued from the credit *cell* alone reads "80% until …" and
+ * states no full-credit instant at all, so `dueAt` is undefined: full credit has
+ * gone but nobody said when. There is no missed instant to measure a week from,
+ * so such a row is still banded by the window it does state — and it is the one
+ * state left wearing `row-late`'s amber.
+ */
+export function missedDeadline(item: Item): LiveDeadline | undefined {
+  const parse = (raw: string | undefined) => {
+    if (raw === undefined) return undefined;
+    const at = Date.parse(raw);
+    return Number.isNaN(at) ? undefined : at;
+  };
+  const due = parse(item.dueAt);
+  if (due !== undefined) return { at: due, late: false };
+  const late = parse(item.lateDueAt);
+  return late === undefined ? undefined : { at: late, late: true };
+}
+
+/**
+ * Has this row aged out of the "late" band?
+ *
+ * §8.1 gives overdue work a week, measured from the deadline it missed — but a
+ * row whose reduced-credit window is *still open* has not aged out however long
+ * ago full credit went. Dropping it is the defect `liveDeadline`'s comment
+ * records from the other direction: CS 357's L4a vanished on day seven while
+ * PrairieLearn went on paying 80% for another week.
+ *
+ * One function because both banders ask it, and two spellings of one week is
+ * the `resolveColumn` finding.
+ */
+export function withinOverdueWindow(item: Item, missedAt: number, now: Date): boolean {
+  const live = liveDeadline(item, now);
+  if (live !== undefined && live.at > now.getTime()) return true;
+  return now.getTime() - missedAt <= OVERDUE_WINDOW_DAYS * 86_400_000;
+}
+
+/**
  * §8.1's forward sections for one future instant.
  *
  * Extracted so a deadline and an opening time are placed by the same rule. Two
@@ -166,8 +235,12 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
     if (at === undefined || at.at < now.getTime()) return undefined;
   }
 
-  const live = liveDeadline(item, now);
-  if (live === undefined) {
+  // `missedDeadline`, not `liveDeadline`: a row past full credit with a
+  // reduced-credit window still open is *late*, and belongs under the heading
+  // that says so (Sushi, 2026-09-21). It is undefined in exactly the cases
+  // `liveDeadline` is, because both read the same two fields.
+  const banded = missedDeadline(item);
+  if (banded === undefined) {
     // No deadline stated. If a source said when it opens and that is still
     // ahead, this is upcoming work and belongs in the list — dropping it is
     // the silent loss §11 ranks worst. An opening time already past says
@@ -176,14 +249,13 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
     if (opens === undefined || opens <= now.getTime()) return undefined;
     return sectionByInstant(opens, now);
   }
-  const due = live.at;
+  const due = banded.at;
 
   if (due < now.getTime()) {
-    // Past due. Only unfinished work needs attention, and only for a week.
+    // Past due. Only unfinished work needs attention, and only for a week —
+    // or for as long as the late window runs, whichever is longer.
     if (isItemDone(item)) return undefined;
-    return now.getTime() - due <= OVERDUE_WINDOW_DAYS * 86_400_000
-      ? "Needs attention"
-      : undefined;
+    return withinOverdueWindow(item, due, now) ? "Needs attention" : undefined;
   }
 
   return sectionByInstant(due, now);
@@ -334,6 +406,67 @@ function precisionFor(section: SectionName | undefined): "relative" | "time" | "
 }
 
 /**
+ * The percentage a row is still worth, for the window ending at `until`.
+ *
+ * Two sources, because §4.3's parser has two paths and only one of them writes
+ * the figure down. With no credit popover it rescues the row from the cell text
+ * and records `creditRemaining: "80"`; *with* one it records the whole ladder as
+ * `creditSchedule` and no `creditRemaining` at all — which is the path Sushi's
+ * MP came down, and why his row read "late until Sun 11:59 PM" with the number
+ * he wanted sitting in the JSON beside it.
+ *
+ * The tier is matched on its End rather than on "which one is open now":
+ * `lateDueAt` *is* a tier's `end`, so the match is exact, and asking the clock
+ * instead would let a row name one tier and count down to another.
+ *
+ * Parsed defensively even though this extension wrote it: a stored row can come
+ * from an older build (worker rule 8), and `JSON.parse` on anything else throws
+ * inside a renderer.
+ */
+function creditPercentFor(item: Item, until: Date): string | undefined {
+  const stated = item.members
+    .map((member) => member.extra?.["creditRemaining"])
+    .find((value) => value !== undefined && /^\d{1,3}(?:\.\d+)?$/.test(value));
+  if (stated !== undefined) return stated;
+
+  for (const member of item.members) {
+    const raw = member.extra?.["creditSchedule"];
+    if (raw === undefined) continue;
+    let tiers: unknown;
+    try {
+      tiers = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(tiers)) continue;
+    for (const tier of tiers as { credit?: unknown; end?: unknown }[]) {
+      if (typeof tier?.end !== "string" || typeof tier.credit !== "number") continue;
+      if (!Number.isFinite(tier.credit)) continue;
+      if (Date.parse(tier.end) === until.getTime()) return String(tier.credit);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * "80% until Sun 11:59 PM" — what a row past full credit is still worth.
+ *
+ * Sushi, 2026-09-21: *"it should appear in the late tab and it should say when
+ * the 80% due date is."* The old wording was "late until Sun 11:59 PM", which
+ * says the window is open and nothing about what it pays, and "80% credit
+ * until" spent two of a 400px row's scarcest characters restating what a
+ * percent sign already means.
+ *
+ * Where no percentage is known — Gradescope states a late date and never a
+ * credit — the old wording stands rather than a number being invented for it
+ * (worker rule 3).
+ */
+export function creditWindowText(item: Item, until: Date): string {
+  const credit = creditPercentFor(item, until);
+  return `${credit === undefined ? "late" : `${credit}%`} until ${clockOf(until)}`;
+}
+
+/**
  * §4.3 as amended (roadmap I37): a PrairieLearn row scored below 100 with
  * credit still on offer stays unfinished, and `extra.scorePercent` says how far
  * it got. "40% so far" is the difference between a row that has never been
@@ -471,13 +604,12 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
   const live = liveDeadline(item, now);
   if (live?.late && live.at > now.getTime()) {
     const until = new Date(live.at);
-    const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
-      "creditRemaining"
-    ];
     const left = Math.ceil((live.at - now.getTime()) / 86_400_000);
     return {
       primary: `${dayOf(until)} · ${left <= 1 ? "today" : `${left}d left`}`,
-      detail: credit ? `${credit}% credit until ${clockOf(until)}` : `late until ${clockOf(until)}`,
+      // The same sentence the Late band draws, from the same function: this row
+      // is now in that band, and two spellings of one window would drift.
+      detail: creditWindowText(item, until),
     };
   }
 

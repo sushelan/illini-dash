@@ -1684,9 +1684,18 @@ describe("finished work with a late window still open", () => {
     expect(visibleItems([early], DEFAULT_SETTINGS, new Set(), NOW)).toHaveLength(1);
   });
 
-  it("leaves unfinished late work where the late window puts it", () => {
-    // Unchanged, and the case the promotion exists for: full credit has gone,
-    // Gradescope is still accepting it, and it is not overdue yet.
+  it("draws unfinished late work on its late date and still calls it late", () => {
+    /*
+     * Rewritten 2026-09-21. It used to assert `attentionGroups` was *empty* for
+     * this row — the banding and the planning were one decision, so "the window
+     * is still open" also meant "not late". Sushi, looking at exactly this row:
+     * "i think if its late it should show up in late no matter what even if
+     * its 80%."
+     *
+     * The half that has not changed is the grid: the row is still drawn on
+     * Sep 16, because that is the date a student can still act on, and
+     * `liveDeadline` still says so.
+     */
     const unfinished = item({
       title: "not handed in",
       dueAt: at(2026, 8, 9, 17),
@@ -1694,7 +1703,7 @@ describe("finished work with a late window still open", () => {
     });
     const sep16 = dayContents([unfinished], new Date(2026, 8, 16), NOW);
     expect(allTimed(sep16).map((p) => p.item.title)).toEqual(["not handed in"]);
-    expect(attentionGroups([unfinished], NOW)).toEqual([]);
+    expect(attentionGroups([unfinished], NOW).map((g) => g.name)).toEqual(["Overdue"]);
   });
 });
 
@@ -1888,11 +1897,28 @@ describe("weekStatus (brief D5, mock 1b)", () => {
     expect(weekStatus(item({ done: true, dueAt: at(2026, 8, 8, 21) }), NOW)).toBe("done");
   });
 
-  it("says 'late ok' while the late window is still open", () => {
-    // Mock 1b, Wednesday. Full credit has gone and Gradescope is still
-    // accepting: printing the original clock reads as "you have until then".
+  it("says how late a row with an open window is, not 'late ok'", () => {
+    /*
+     * Rewritten 2026-09-21. This used to read "late ok" for a row whose full
+     * credit had gone and whose window was still open — Sushi's decision moved
+     * that row into the Late band, and "late ok" beside the word Late is the
+     * word arguing with the heading over it.
+     *
+     * The count is from the deadline it *missed*, not the window it still has:
+     * counting from the window would print "in 6d" on a late row.
+     */
     const stillOpen = item({ dueAt: at(2026, 8, 9, 23, 59), lateDueAt: at(2026, 8, 16, 23, 59) });
-    expect(weekStatus(stillOpen, NOW)).toBe("late ok");
+    expect(weekStatus(stillOpen, NOW)).toBe(countdown(at(2026, 8, 9, 23, 59), NOW));
+    expect(weekStatus(stillOpen, NOW)).toBe("18h late");
+  });
+
+  it("keeps 'late ok' for the one shape with no missed deadline", () => {
+    // §4.3's no-popover fallback: PrairieLearn's credit *cell* says "80% until
+    // …" and states no full-credit instant, so there is nothing to be late
+    // from. This is the only row left that is amber rather than red.
+    const onlyReduced = item({ lateDueAt: at(2026, 8, 16, 23, 59) });
+    expect(itemTone(onlyReduced, NOW)).toBe("late");
+    expect(weekStatus(onlyReduced, NOW)).toBe("late ok");
   });
 
   it("says how late, in countdown's own words", () => {
@@ -1952,12 +1978,20 @@ describe("itemTone (one answer for the list and the month)", () => {
   });
 
   it("separates lost from merely late", () => {
-    // Amber is a window still open. Painting it red tells a student to give up
-    // on something Gradescope is still accepting.
+    /*
+     * Rewritten 2026-09-21. Amber used to mean "full credit has gone, the
+     * window is still open". Sushi: "i think 80% deadline shouldnt be yellow
+     * its confusing to see that" — such a row is drawn under **Late** now, and
+     * a red row under a red heading is one answer rather than two.
+     *
+     * What is left of amber is the shape with no full-credit instant to be
+     * late from, which is §4.3's no-popover fallback and nothing else.
+     */
     expect(itemTone(item({ dueAt: at(2026, 8, 1, 12) }), NOW)).toBe("overdue");
     expect(
       itemTone(item({ dueAt: at(2026, 8, 1, 12), lateDueAt: at(2026, 8, 20, 12) }), NOW),
-    ).toBe("late");
+    ).toBe("overdue");
+    expect(itemTone(item({ lateDueAt: at(2026, 8, 20, 12) }), NOW)).toBe("late");
     expect(itemTone(item({ dueAt: at(2026, 8, 20, 12) }), NOW)).toBe("open");
   });
 
@@ -2025,5 +2059,86 @@ describe("no view returns a hidden item, even given unfiltered input", () => {
   it("attentionGroups, where an overdue hidden row would otherwise shout", () => {
     const seen = attentionGroups(items, NOW_HIDE).flatMap((g) => titles(g.items));
     expect(seen.filter((t) => t.startsWith("Hidden"))).toEqual([]);
+  });
+});
+
+/**
+ * Sushi, 2026-09-21: *"i think if its late it should show up in late no matter
+ * what even if its 80%."*
+ *
+ * He was looking at a PrairieLearn MP whose 100% deadline had gone and whose
+ * 80% tier ran until that night. It was drawn under **By end of day**, in
+ * amber, among work that was not late at all — because `overdueItems` asked
+ * `anchorOf`, which asks `liveDeadline`, which promotes such a row to the
+ * window it still has. `missedDeadline` is the other half of that question.
+ */
+describe("the Late band and a reduced-credit window (Sushi, 2026-09-21)", () => {
+  // NOW is Thursday 2026-09-10, 6:00 PM. Full credit went yesterday; 80% runs
+  // until tonight at 11:59, so without the split this row is "end of day".
+  const mp = (partial: Partial<Item> = {}) =>
+    item({
+      title: "MP1",
+      dueAt: at(2026, 8, 9, 23, 59),
+      lateDueAt: at(2026, 8, 10, 23, 59),
+      ...partial,
+    });
+
+  it("moves the row out of By end of day and into Late", () => {
+    const schedule = todaySchedule([mp()], NOW);
+    expect(schedule.late.map((i) => i.title)).toEqual(["MP1"]);
+    expect(schedule.endOfDay).toEqual([]);
+    expect(schedule.timed).toEqual([]);
+  });
+
+  it("counts it once, so the band heading and the folio still add up", () => {
+    const schedule = todaySchedule([mp(), item({ title: "tonight", dueAt: at(2026, 8, 10, 23, 59) })], NOW);
+    expect(schedule.late.length + schedule.endOfDay.length + schedule.timed.length).toBe(2);
+    expect(schedule.endOfDay.map((i) => i.title)).toEqual(["tonight"]);
+  });
+
+  it("gives it the Late band's own colour rather than amber", () => {
+    // `row-late`'s warn edge is what Sushi called "yellow". The class is not
+    // deleted — §4.3's no-popover shape still opts into it — this state stops.
+    expect(itemTone(mp(), NOW)).toBe("overdue");
+  });
+
+  it("says how late it is, counted from the deadline it missed", () => {
+    // From the 80% window it would read "in 6h" under a heading saying Late.
+    expect(weekStatus(mp(), NOW)).toBe(countdown(at(2026, 8, 9, 23, 59), NOW));
+  });
+
+  it("keeps a finished row out of Late whichever deadline it is banded by", () => {
+    const submitted = mp({ status: "submitted", members: [member(undefined, "submitted")] });
+    expect(overdueItems([submitted], NOW)).toEqual([]);
+    expect(itemTone(submitted, NOW)).toBe("done");
+    // And the student's own tick, which no source can ever report for a course
+    // site's rows.
+    expect(overdueItems([mp({ done: true })], NOW)).toEqual([]);
+  });
+
+  it("holds it past §8.1's week while the window is open, and drops it after", () => {
+    // The defect `liveDeadline`'s comment records: CS 357's L4a fell out of the
+    // list on day seven while PrairieLearn was still paying 80% for a week.
+    const ladder = mp({ dueAt: at(2026, 8, 1, 11), lateDueAt: at(2026, 8, 22, 23) });
+    expect(overdueItems([ladder], NOW).map((i) => i.title)).toEqual(["MP1"]);
+    expect(overdueItems([ladder], new Date(2026, 8, 23, 12))).toEqual([]);
+  });
+
+  it("orders Late by when each row was missed, not by the window it still has", () => {
+    // Descending, most recently missed first. Ordered by the anchor instead,
+    // the 80% row's future window would put it above work missed an hour ago.
+    const rows = [
+      mp({ title: "missed 6 days ago, 80% until Sep 22", dueAt: at(2026, 8, 4, 12), lateDueAt: at(2026, 8, 22, 23) }),
+      mp({ title: "missed an hour ago", dueAt: at(2026, 8, 10, 17), lateDueAt: undefined }),
+    ];
+    expect(overdueItems(rows, NOW).map((i) => i.title)).toEqual([
+      "missed an hour ago",
+      "missed 6 days ago, 80% until Sep 22",
+    ]);
+  });
+
+  it("leaves a row with no late window exactly where it was", () => {
+    expect(todaySchedule([item({ title: "tonight", dueAt: at(2026, 8, 10, 23, 59) })], NOW).late).toEqual([]);
+    expect(overdueItems([item({ title: "yesterday", dueAt: at(2026, 8, 9, 12) })], NOW)).toHaveLength(1);
   });
 });

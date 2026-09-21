@@ -25,7 +25,14 @@
 
 import { movedByText } from "../../core/suggest.js";
 import { anchorOf, itemTone } from "../../core/calendar.js";
-import { countdown, examDetail, formatDue, movedText, type SectionName } from "../../core/grouping.js";
+import {
+  countdown,
+  examDetail,
+  formatDue,
+  missedDeadline,
+  movedText,
+  type SectionName,
+} from "../../core/grouping.js";
 import { courseLabel, SOURCE_CODE, SOURCE_NAME } from "../../core/names.js";
 import { assumedTimeNote } from "../../core/provenance.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../../core/quality.js";
@@ -254,6 +261,19 @@ export function renderRow(
   }[] = [];
 
   const anchor = anchorOf(item, now);
+  /*
+   * Which of the two deadlines this row's clock and countdown are about.
+   *
+   * `anchorOf` gives the one a student can still use, which is what a *grid*
+   * places a row by. A row drawn under **Late** is about the one it missed, or
+   * it reads "Sun 11:59 PM · 1d late" on a Sunday — the reduced-credit window
+   * stated as if it were the deadline, beside the words saying it is not.
+   *
+   * No third opinion about which state that is: `itemTone` says `overdue`
+   * exactly when `missedDeadline` found an instant that has gone and the work
+   * is not finished, which is the same decision the band is made of.
+   */
+  const shownAt = tone === "overdue" ? (missedDeadline(item)?.at ?? anchor?.at) : anchor?.at;
   /** The clock column holds a real stated hour, not "no date" or "end of day". */
   let statedClock = false;
   const unreadable = unreadableDeadline(item);
@@ -309,7 +329,7 @@ export function renderRow(
     // The rail prints this row's hour in its own clock column, 45px to the
     // left of the card, so the card printing it again is the same duplication
     // as "end of day" one band up.
-    if (!options.whenSaidAbove) due.textContent = clockOf(anchor.at);
+    if (!options.whenSaidAbove) due.textContent = clockOf(shownAt ?? anchor.at);
     statedClock = true;
   }
 
@@ -319,10 +339,10 @@ export function renderRow(
     // so a countdown beside it would be a second answer to one question.
     rel.textContent = options.status;
   } else if (anchor !== undefined && unreadable.length === 0 && dueText === undefined) {
-    rel.textContent = countdown(anchor.at, now, "coarse");
+    rel.textContent = countdown(shownAt ?? anchor.at, now, "coarse");
   }
   /** Inside a day of now — before it as well as after, which the colour wants. */
-  const soonest = anchor !== undefined && anchor.at - now.getTime() < 86_400_000;
+  const soonest = shownAt !== undefined && shownAt - now.getTime() < 86_400_000;
   /*
    * "in 16h" and "8:00 PM" are the same fact twice (Sushi, 2026-09-19: "there's
    * just too much information being shown"), so only one of them is drawn — and
@@ -339,7 +359,7 @@ export function renderRow(
    * where the relative is the half that says the row is *overdue* and the clock
    * says only when it went by. A late row keeps both.
    */
-  const ahead = anchor !== undefined && anchor.at >= now.getTime();
+  const ahead = shownAt !== undefined && shownAt >= now.getTime();
   if (statedClock && ahead && options.status === undefined && rel.textContent) {
     if (soonest) rel.textContent = "";
     else due.textContent = "";

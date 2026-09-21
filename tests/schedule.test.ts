@@ -630,3 +630,36 @@ describe("reminders for not-for-credit work (§4.3)", () => {
     expect(planNotifications([real], quiet, now).length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * The half of Sushi's 2026-09-21 decision that must NOT move.
+ *
+ * "if its late it should show up in late no matter what even if its 80%" is
+ * about where a row is drawn and what it is called. What is *planned* against
+ * it still follows `liveDeadline`: a reminder must fire for the 80% date, or
+ * the row is announced as late and then silently misses the money that is
+ * still on offer — which is the defect `liveDeadline`'s comment records.
+ */
+describe("a row banded Late still plans for its reduced-credit window", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null, leadTimes: ["24h" as const] };
+  const now = new Date(2026, 8, 10, 12);
+  // Full credit went yesterday at 5 PM; 80% runs to Sep 12 at 11:59 PM.
+  const mp = () =>
+    item({
+      dueAt: local(2026, 8, 9, 17),
+      lateDueAt: local(2026, 8, 12, 23, 59),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+
+  it("plans the 24h lead against the late date, not the one that passed", () => {
+    const planned = planNotifications([mp()], quiet, now);
+    expect(planned).toHaveLength(1);
+    expect(planned[0]!.fireAt).toBe(new Date(2026, 8, 11, 23, 59).toISOString());
+  });
+
+  it("plans nothing once the late window has gone too", () => {
+    // §7: past the deadline a reminder is noise. The banding does not change
+    // which deadline that sentence is about.
+    expect(planNotifications([mp()], quiet, new Date(2026, 8, 13, 12))).toEqual([]);
+  });
+});

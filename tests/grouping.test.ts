@@ -3,10 +3,12 @@
 import { describe, expect, it } from "vitest";
 import {
   countdown,
+  creditWindowText,
   examDetail,
   formatDue,
   groupItems,
   liveDeadline,
+  missedDeadline,
   sectionFor,
   type SectionName,
 } from "../src/core/grouping.js";
@@ -287,7 +289,10 @@ describe("regressions found by the dedupe/sync review", () => {
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
     expect(sectionFor(late, NOW)).toBe("Later");
-    expect(formatDue(late, NOW, "Later").detail).toBe("80% credit until Tue 12:00 PM");
+    // "80% credit until" lost the word "credit" on 2026-09-21: a percent sign
+    // already says what it is, and the row is 400px wide (Sushi: "it should
+    // say when the 80% due date is").
+    expect(formatDue(late, NOW, "Later").detail).toBe("80% until Tue 12:00 PM");
   });
 
   it("labels a late-due row without a credit figure as a still-open late window", () => {
@@ -341,9 +346,19 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
     expect(live?.at).toBe(Date.parse(at(2026, 8, 16, 17)));
   });
 
-  it("sections the row by the open window rather than parking it in Needs attention", () => {
-    // It used to read "Wed 5:00 PM · 1d ago" in overdue red.
-    expect(sectionFor(gradescopeLate, NOW)).toBe("Later");
+  it("bands the row by the deadline it missed, and says the window is open", () => {
+    /*
+     * Rewritten 2026-09-21. This asserted "Later" — banding by the window the
+     * row still had, which is what put Sushi's 80% MP under "By end of day"
+     * beside work that was not late at all: "i think if its late it should
+     * show up in late no matter what even if its 80%."
+     *
+     * The original defect it was written against is still pinned, one line
+     * down: the row must not fall out, and `liveDeadline` must still point at
+     * the open window so a reminder is planned for it.
+     */
+    expect(sectionFor(gradescopeLate, NOW)).toBe("Needs attention");
+    expect(liveDeadline(gradescopeLate, NOW)?.at).toBe(Date.parse(at(2026, 8, 16, 17)));
   });
 
   it("says the window is open and how long is left", () => {
@@ -363,8 +378,22 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
     const nineDaysLater = new Date(2026, 8, 17, 12);
-    expect(sectionFor(plLadder, nineDaysLater)).toBe("Later");
-    expect(formatDue(plLadder, nineDaysLater, "Later").detail).toContain("80% credit");
+    // "Needs attention" rather than "Later" since 2026-09-21 — the row is late,
+    // which is Sushi's decision. That it is still *somewhere* is the thing this
+    // test was written for and the thing that must not regress.
+    expect(sectionFor(plLadder, nineDaysLater)).toBe("Needs attention");
+    expect(formatDue(plLadder, nineDaysLater, "Later").detail).toBe("80% until Tue 11:00 PM");
+  });
+
+  it("drops the row once the reduced-credit window has gone too", () => {
+    // The other side of the clause above: the week is measured from the missed
+    // deadline, and nothing keeps a row whose money has actually run out.
+    const plLadder = item({
+      dueAt: at(2026, 8, 8, 11),
+      lateDueAt: at(2026, 8, 22, 23),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(sectionFor(plLadder, new Date(2026, 8, 23, 12))).toBeUndefined();
   });
 
   it("falls back to the full-credit instant once both have passed", () => {
@@ -382,7 +411,7 @@ describe("a late window that is still open (§4.2, §4.3)", () => {
       lateDueAt: at(2026, 8, 22, 23),
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
-    expect(formatDue(pl, NOW, "Later").detail).toContain("80% credit");
+    expect(formatDue(pl, NOW, "Later").detail).toBe("80% until Tue 11:00 PM");
   });
 });
 
@@ -537,7 +566,7 @@ describe("the row text fits beside a title (§8.1's one line)", () => {
     });
     const { primary, detail } = formatDue(late, NOW, "Later");
     expect(primary).toBe("Sep 22 · 13d left");
-    expect(detail).toBe("80% credit until Tue 11:00 PM");
+    expect(detail).toBe("80% until Tue 11:00 PM");
   });
 });
 
@@ -737,5 +766,134 @@ describe("countdown (brief D4, mock 1a)", () => {
   it("draws nothing rather than 'in NaNd' for an instant it cannot read", () => {
     expect(countdown("whenever", NOW)).toBe("");
     expect(countdown(Number.NaN, NOW)).toBe("");
+  });
+});
+
+/**
+ * Sushi, 2026-09-21, looking at his own popup: *"i think if its late it should
+ * show up in late no matter what even if its 80%. i think 80% deadline
+ * shouldnt be yellow its confusing to see that. i think it should appear in
+ * the late tab and it should say when the 80% due date is."*
+ *
+ * The row was a PrairieLearn MP whose 100% deadline had gone and whose 80%
+ * tier ran until that night, drawn under **By end of day** in amber reading
+ * "late until Sun 11:59 PM".
+ *
+ * Two questions that used to be one: where the row is drawn and what it says
+ * (`missedDeadline`), and what is planned against it (`liveDeadline`, which
+ * this changes nothing about — see `tests/schedule.test.ts`).
+ */
+describe("missedDeadline: banded by what you missed, planned by what is left", () => {
+  // Full credit went yesterday at 11:59 PM; 80% runs until tonight at 11:59.
+  const CREDIT_SCHEDULE = JSON.stringify([
+    { credit: 100, start: at(2026, 8, 1, 0), end: at(2026, 8, 9, 23, 59) },
+    { credit: 80, start: at(2026, 8, 9, 23, 59), end: at(2026, 8, 10, 23, 59) },
+  ]);
+  const mp = (extra: Record<string, string> = { creditSchedule: CREDIT_SCHEDULE }) =>
+    item({
+      title: "MP1",
+      dueAt: at(2026, 8, 9, 23, 59),
+      lateDueAt: at(2026, 8, 10, 23, 59),
+      members: [member("not_submitted", extra)],
+    });
+
+  it("answers the full-credit deadline, whatever the late window says", () => {
+    expect(missedDeadline(mp())).toEqual({ at: Date.parse(at(2026, 8, 9, 23, 59)), late: false });
+    // Its sibling, unchanged, on the same row: the window still to be met.
+    expect(liveDeadline(mp(), NOW)).toEqual({ at: Date.parse(at(2026, 8, 10, 23, 59)), late: true });
+  });
+
+  it("bands the row as late rather than by the window it still has", () => {
+    expect(sectionFor(mp(), NOW)).toBe("Needs attention");
+  });
+
+  it("says what the row is still worth, from the credit ladder", () => {
+    // The popover path records the whole ladder and no `creditRemaining` at
+    // all, which is why Sushi's row read "late until Sun 11:59 PM" with the
+    // number he wanted sitting in the JSON beside it.
+    expect(formatDue(mp(), NOW).detail).toBe("80% until Thu 11:59 PM");
+  });
+
+  it("prefers a stated creditRemaining to the ladder", () => {
+    // §4.3's other path — no popover, rescued from the credit cell text.
+    expect(creditWindowText(mp({ creditRemaining: "60" }), new Date(Date.parse(at(2026, 8, 10, 23, 59))))).toBe(
+      "60% until Thu 11:59 PM",
+    );
+  });
+
+  it("invents no number where no source states one", () => {
+    // Gradescope states a late date and never a credit. "late until" is what
+    // the row said before any of this and what it still says.
+    const gradescope = item({
+      dueAt: at(2026, 8, 9, 17),
+      lateDueAt: at(2026, 8, 16, 17),
+      members: [member("not_submitted")],
+    });
+    expect(formatDue(gradescope, NOW).detail).toBe("late until Wed 5:00 PM");
+  });
+
+  it("refuses a credit figure that is not a number", () => {
+    // Parser house rule 5: `typeof x === "string"` passes "" and "n/a", and
+    // either would draw "% until Thu 11:59 PM".
+    for (const junk of ["", "n/a", "80%", " 80"]) {
+      expect(formatDue(mp({ creditRemaining: junk, creditSchedule: "{" }), NOW).detail).toBe(
+        "late until Thu 11:59 PM",
+      );
+    }
+  });
+
+  it("matches the ladder tier on its end, not on the clock", () => {
+    // A tier whose End is some other instant must not lend its percentage to
+    // this window: `lateDueAt` *is* a tier end, so the match is exact.
+    const wrongEnd = JSON.stringify([{ credit: 55, end: at(2026, 8, 12, 23, 59) }]);
+    expect(formatDue(mp({ creditSchedule: wrongEnd }), NOW).detail).toBe(
+      "late until Thu 11:59 PM",
+    );
+  });
+
+  it("keeps the row while the reduced-credit window runs, past §8.1's week", () => {
+    // The defect `liveDeadline`'s comment records, from the other side: full
+    // credit went nine days ago and PrairieLearn is still paying 80%.
+    const ladder = item({
+      dueAt: at(2026, 8, 1, 11),
+      lateDueAt: at(2026, 8, 22, 23),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(sectionFor(ladder, NOW)).toBe("Needs attention");
+  });
+
+  it("leaves finished work out of the band, late window or not", () => {
+    // `liveDeadline` special-cases this at length; the band has to as well, or
+    // a semester of completed PrairieLearn work with a reduced-credit tail
+    // lands under **Late**.
+    const submitted = { ...mp(), status: "submitted" as const, members: [member("submitted")] };
+    expect(sectionFor(submitted, NOW)).toBeUndefined();
+    const ticked = { ...mp(), done: true };
+    expect(groupItems([ticked], NOW, DEFAULT_SETTINGS)).toEqual([]);
+  });
+
+  it("changes nothing for a row with no late window, which is most of them", () => {
+    expect(sectionFor(item({ dueAt: at(2026, 8, 12, 17) }), NOW)).toBe("This week");
+    expect(sectionFor(item({ dueAt: at(2026, 8, 9, 17) }), NOW)).toBe("Needs attention");
+    expect(missedDeadline(item({ dueAt: at(2026, 8, 12, 17) }))).toEqual({
+      at: Date.parse(at(2026, 8, 12, 17)),
+      late: false,
+    });
+    expect(missedDeadline(item({}))).toBeUndefined();
+  });
+
+  it("bands §4.3's no-popover row by the only deadline it states", () => {
+    // `dueAt` undefined and `lateDueAt` set: full credit has gone but nobody
+    // said when, so there is no missed instant to measure a week from. This is
+    // the one row still banded by its reduced-credit window.
+    const noPopover = item({
+      lateDueAt: at(2026, 8, 12, 23, 59),
+      members: [member("not_submitted", { creditRemaining: "80" })],
+    });
+    expect(missedDeadline(noPopover)).toEqual({
+      at: Date.parse(at(2026, 8, 12, 23, 59)),
+      late: true,
+    });
+    expect(sectionFor(noPopover, NOW)).toBe("This week");
   });
 });
