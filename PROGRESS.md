@@ -2,13 +2,63 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2572 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2590 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## A course is one row, its pages are switches along it, and the catalogue is gone — 2026-09-21
+
+"its in rows and its hard to really read through everything… when theres more adapters for
+students, they shouldnt be able to see courses that they havent selected… see how ece411
+has course site and exams in two rows instead of along the same row with a slider for
+each, its annoying."
+
+- **One row per course.** The course's name on the left, one switch per page along it, in
+  registry order. The page's name labels its switch only when the course has more than
+  one page — a single-page course's switch is labelled by the course, which is the same
+  rule the old heading followed. ECE 411 took a heading and two rows for two pages; three
+  pages now sit on one 58px line. Measured at a real window width: seven courses, every
+  row 58px, 391px for the list. The pages wrap to a second line in a narrow window, which
+  is the responsive behaviour and not the default.
+- **Only the student's courses.** The "N more courses" disclosure and `byDepartment` are
+  deleted, along with the department grouping added three hours earlier. What it costs is
+  written on `courseGroupsForYou` rather than left for the next reader to discover: a
+  course **no source of yours has seen** can no longer be found by browsing, only by
+  pasting its address into "Add a course site". A published site for a course you *are* in
+  still appears, because your sources put that course in the list.
+- **The list had no DOM test at all** — only the core function was covered, which is how
+  three renderings in a row shipped a fault nothing could catch. `tests/options-dom.test.ts`
+  renders the real list over linkedom and holds 15 assertions about it: one row per course,
+  the switch counts, page labels only on multi-page rows with each `for` pointing into its
+  own row, Remove on an added page and not a published one, the permission affordance, the
+  note landing on the acting row, the undo line on its course and on an emptied row. Every
+  class name comes from one exported constant (UI rule 7).
+- Fourteen count-asserted mutations on the rendering, all killed, plus six core tests for
+  the host layout. Driven with **real presses** through Chrome's input pipeline, not
+  synthetic clicks (UI rule 5): a page toggled on by pressing its label, a single-page
+  course toggled by pressing the course name, a local page removed and undone, and a
+  denied permission putting the switch back with its reason on that row.
+
+Three defects fell out of building it, none of them the thing being asked for:
+
+- **`grid-template-columns: minmax(0, 1fr) auto` let the pages track take its max-content
+  width and crush the name**, so at 374px ECE 411 drew its hostname one character per line,
+  28 lines tall, and the `flex-wrap` meant to save it could never fire. Found by measuring
+  the real document at a narrow width, which no test was asking about.
+- **A denied permission left the switch reading "on".** The request was made inside the
+  click, as it must be, but a refusal never put the control back.
+- **`new URL(adapter.url).hostname` was called unguarded while drawing a row.** A locally
+  added adapter's URL is text a student typed, so one unparseable address would have thrown
+  out of the entire Settings draw. `pageHostname` guards it and shows the raw text.
+
+And one in the harness, which is the recurring one: the preview's `set-adapter-enabled`
+stub set `enabled` without `granted`, so a switch turned on in the preview redrew as
+unchecked with "Permission missing" — the single press the harness exists to verify could
+never look like it worked.
 
 ## A course is one group, a one-page course is one line, and the catalogue is by major — 2026-09-21
 
