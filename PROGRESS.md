@@ -2,13 +2,40 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2556 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2562 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Your course sites come first, and the catalogue goes behind one line — 2026-09-21
+
+"look at all these course websites that show up theres sm". Nine rows over seven courses
+on Sushi's own machine, and he is in four: the registry is published for every student, so
+Course websites drew every entry for the current term. The section was doing two jobs in
+one breath, managing what is switched on and browsing what exists.
+
+`adaptersForYou` in `core/registry.ts` splits them, with a test, because the decision is
+not the page's (worker rule 1). A site is yours when you added it, when it is switched on,
+or when a source has seen that course on your account. The rest sit behind "N more courses
+have a site Illini Dash can read", closed — finding out your course has one is the reason
+they are published, so hiding them outright would be the wrong cure.
+
+The matching is on **codes**, on both sides. The registry writes `CS425/ECE428` while
+Gradescope calls the course `CS425`, so string equality filed Sushi's own CS 425 under
+other people's courses; and `CourseSummary.key` is "a code when there is one", which means
+a Gradescope-only course arrives as `CS425 ECE428 Fall 2026` and has to be split too. That
+second half is the mutation that survived: every key in the tests was already a single
+code, so nothing reached the line. It has its test now.
+
+Two smaller things fell out. The worker has always sent a `local` flag on each adapter
+that the response type did not declare, which is worker rule 8's shape with the halves the
+other way round; it is declared now. And `scripts/preview-data.ts` carried only adapters
+for courses the student was in, so the harness could not draw the disclosure at all and a
+page that listed every course as yours would have looked correct in it — the ZIP pass's
+rule 4 again, on a different control.
 
 ## Late means the deadline you missed, and a course page no longer votes on doneness — 2026-09-21
 
