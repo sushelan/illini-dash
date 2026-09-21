@@ -737,46 +737,64 @@ body.page { padding: 0; }
 /* A row with no hint collapses to one line rather than leaving a gap. */
 .srow2:not(:has(.srow2--hint)) > * { grid-row: auto; }
 
-/* ---- one course, several pages ----
+/* ---- one course, one row ----
  *
- * §4.5's adapter is one fixed URL, and a course that keeps assignments on one
- * page and exams on another therefore needs two of them. The course code is a
- * heading over its own bordered list rather than a word repeated in every row:
- * the rows under it differ only by which page they read, and that is what the
- * widest column should be spending itself on.
+ * §4.5's adapter is one fixed URL, so a course that keeps assignments on one
+ * page and exams on another needs two of them — and until 2026-09-21 that
+ * course drew a heading and one row per page. Sushi: "see how ece411 has course
+ * site and exams in two rows instead of along the same row with a slider for
+ * each, its annoying". So the course is one row, its name and host on the left,
+ * and its pages run **along** it on the right, one switch each.
  */
-.agroups { display: flex; flex-direction: column; gap: 14px; }
-.agroup--head {
-  display: flex; align-items: baseline; gap: 8px;
-  margin: 0 0 6px; font-size: 12px; font-weight: 700;
-  letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+.crow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 2px 16px;
+  padding: 10px 12px; border-top: 1px solid var(--line);
 }
-.agroup--count { font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.crow:first-child { border-top: 0; }
+.crow--name { grid-column: 1; grid-row: 1; font-size: 13px; font-weight: 600; }
+/* A label is only a pointer target when it is one: with one page the course's
+   own name is the switch's label, and pressing it should say so. */
+label.crow--name { cursor: pointer; }
+.crow--host {
+  grid-column: 1; grid-row: 2;
+  font-size: 11px; color: var(--muted); line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 /*
- * The catalogue's department headings, and only the catalogue's.
+ * The pages, along the row.
  *
- * Seven course headings down one column is what Sushi was looking at when he
- * asked whether this could be organised "by majors". The courses he is in stay
- * flat — there are four of them, and a second level of headings over four rows
- * is the thing being complained about — but the published list only grows, so
- * inside the disclosure the courses sit under their department. Darker and
- * ruled, because it has to read as the level *above* `.agroup--head`, which is
- * muted small caps. `13px` is the indent `.why > div` gives everything else in
- * there; an `h4` is not a `div` and would otherwise sit proud of its courses.
+ * `wrap`, because a three-page course in a narrow window is the one case where
+ * a second line beats a scrollbar — and `justify-content: flex-end` so a
+ * wrapped line stays under the switches rather than under the course's name.
  */
-.why > .agroup--dept {
-  margin: 16px 0 8px 13px; padding: 0 0 4px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--fg);
+.crow--pages {
+  grid-column: 2; grid-row: 1 / span 2; justify-self: end;
+  display: flex; flex-wrap: wrap; justify-content: flex-end;
+  align-items: center; gap: 6px 18px;
 }
-.why > .agroup--dept:first-of-type { margin-top: 10px; }
+.crow--page { display: inline-flex; align-items: center; gap: 6px; }
+.crow--page-name { font-size: 12px; font-weight: 500; cursor: pointer; }
+/* Only drawn when a course's pages are on different hosts — otherwise the row
+   said it once, under the course's name. */
+.crow--page-host { font-size: 11px; color: var(--muted); }
+/*
+ * What an action on this row had to say, on this row.
+ *
+ * `#registry-status` is under the whole list, and with a dozen courses in it
+ * that is a screenful away from the switch that was pressed — UI house rule 3,
+ * which cost a month of failures reported below the fold.
+ */
+.crow--note { grid-column: 1 / -1; grid-row: 3; margin: 4px 0 0; }
+.crow--note:empty { display: none; }
 /* Inline and unboxed: it reports something that already happened and is about
    to go away on its own, so a banner would outweigh what it says. */
 .agroup--undo {
+  grid-column: 1 / -1;
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin: 6px 0 0; font-size: 11px; color: var(--muted);
 }
-
 .row-actions {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   margin: 10px 0 0;

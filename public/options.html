@@ -56,9 +56,9 @@
           <h3 id="sec-sites">Course websites</h3>
           <p class="lede">Some courses keep the real schedule on their own site.</p>
           <div id="site-health" class="opt-note"></div>
-          <!-- Not `.rows` itself any more: one course can have several pages, so
-               this holds one bordered group per course rather than one flat list. -->
-          <div id="adapters" class="agroups"></div>
+          <!-- One `.crow` per course, with a switch along it per page: a course
+               with several pages is one line, not a heading and a row each. -->
+          <div id="adapters" class="rows"></div>
           <!-- No "Check for updates" button: the list refreshes daily and on
                every extension reload, so the only thing a press could add is a
                second way to learn what this line already says. -->

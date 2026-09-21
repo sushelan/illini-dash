@@ -30,14 +30,18 @@ import {
   type ModelOutcome,
 } from "../core/author.js";
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
+import { currentTermCode, emptyCourseGroup, groupHasCourse } from "../core/registry.js";
+import { el, stateChip } from "./options/dom.js";
 import {
-  byDepartment,
-  courseGroupsForYou,
-  currentTermCode,
-  emptyCourseGroup,
-  groupHasCourse,
-  type CourseGroup,
-} from "../core/registry.js";
+  adapterPageName,
+  courseIsDrawn,
+  courseRow,
+  isLocalAdapter,
+  renderCourseSites,
+  UNDO_CLASS,
+  type AdapterEntry,
+  type CourseSiteActions,
+} from "./options/course-sites.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { isDevHash, normalizePageUrl } from "../core/page-url.js";
 import {
@@ -531,17 +535,6 @@ const PRIVACY_TEXT =
   "course websites; that request contains no personal data. Uninstalling the extension " +
   "deletes all stored data.";
 
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text?: string,
-  className?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (text !== undefined) node.textContent = text;
-  if (className) node.className = className;
-  return node;
-}
-
 /**
  * One settings row: a switch, a name, a line saying what it is, and a state.
  *
@@ -583,38 +576,6 @@ function plainRow(name: string, hint?: string): HTMLElement {
   row.append(el("span", undefined, "srow2--lead"), label);
   if (hint) row.append(el("span", hint, "srow2--hint"));
   return row;
-}
-
-/**
- * The state, as a chip rather than a sentence.
- *
- * A student scanning six rows for the broken one is scanning for a colour, and
- * "needs you to sign in" set in muted grey beside five other muted greys is not
- * one. The exact stamp and the error stay in the tooltip.
- */
-function stateChip(
-  state: string,
-  detail?: string,
-  title?: string,
-): HTMLElement {
-  const tone =
-    state === "ok"
-      ? "is-ok"
-      // `needs_permission` is a warning and not a failure: nothing is broken,
-      // and the fix is the button beside it (see `observerRow`).
-      : state === "needs_login" || state === "needs_permission"
-        ? "is-warn"
-        : state === "disabled" || state === "pending"
-          ? ""
-          : "is-err";
-  const word = STATE_WORD[state] ?? state;
-  const chip = el(
-    "span",
-    detail ? `${word} · ${detail}` : word,
-    `chip-base chip-state ${tone}`.trim(),
-  );
-  if (title) chip.title = title;
-  return chip;
 }
 
 /* ---- Piazza and Campuswire ----------------------------------------------
@@ -889,67 +850,12 @@ async function observerRow(
   return row;
 }
 
-/* ---- Course-site adapters, grouped by course -----------------------------
+/* ---- Course-site adapters, one row per course ----------------------------
  *
- * One course can have several pages (§4.5's "an adapter is one fixed URL", and
- * a course that keeps assignments on one page and exams on another needs two).
- * These four helpers are what turns that list into a grouped one; the render
- * pass in `renderOptions` only decides the order.
+ * The row itself is `ui/options/course-sites.ts`, which draws it and owns the
+ * decisions in it. What stays here is everything that needs the worker: the
+ * undo window, and the three actions a control on a row calls.
  */
-
-/** One entry of the `get-adapters` answer, as this page sees it. */
-type AdapterEntry = Extract<Response, { type: "adapters" }>["adapters"][number];
-
-/**
- * Whether the student added this one themselves.
- *
- * `local` is not on the `adapters` response type — the worker sets it — so it
- * is read defensively rather than declared (worker rule 8: a message is data
- * from another build). An older worker omits it, and `undefined !== true`
- * leaves the Remove button off, which is the harmless direction: a published
- * adapter has nothing to remove.
- */
-function isLocalAdapter(adapter: AdapterEntry): boolean {
-  return (adapter as { local?: unknown }).local === true;
-}
-
-/**
- * The page an adapter reads, as the student would say it: `assignments.html`.
- *
- * Two rows for one course are otherwise identical — same course code, same
- * hostname, same "course site" label — so this is the field that tells them
- * apart. The last non-empty path segment, so a directory URL ending in `/`
- * gives its own name rather than an empty string.
- */
-function adapterPagePath(url: string): string {
-  let pathname: string;
-  try {
-    pathname = new URL(url).pathname;
-  } catch {
-    return url;
-  }
-  const segments = pathname.split("/").filter((segment) => segment !== "");
-  return segments.length > 0 ? segments[segments.length - 1]! : "/";
-}
-
-/**
- * The row's name: the adapter's label with the course code taken off the front.
- *
- * The code is the heading directly above, so repeating it in every row under it
- * spends the widest column on the one thing the row does not distinguish.
- * `ECE 411 assignments` becomes `assignments`. A label that is not prefixed
- * with its code — every published one today is `CS 424 course site` — is left
- * exactly as it is rather than guessed at, and a label that is *only* the code
- * keeps the whole label, because an empty row name is worse than a repeated one.
- */
-function adapterPageName(adapter: AdapterEntry): string {
-  for (const prefix of [displayCourseLabel(adapter.courseCode), adapter.courseCode]) {
-    if (!adapter.label.toLowerCase().startsWith(prefix.toLowerCase())) continue;
-    const rest = adapter.label.slice(prefix.length).trim();
-    if (rest !== "") return rest;
-  }
-  return adapter.label;
-}
 
 /**
  * How long "Removed ECE 411 · Undo" stays on screen.
@@ -1032,7 +938,7 @@ function pendingUndo(): Removal | undefined {
 
 /** `Removed ECE 411 assignments · Undo`, inline, for about ten seconds. */
 function undoLine(pending: Removal): HTMLElement {
-  const line = el("p", undefined, "agroup--undo");
+  const line = el("p", undefined, UNDO_CLASS);
   const said = el(
     "span",
     `Removed ${displayCourseLabel(pending.courseCode)} ${pending.pageName} · `,
@@ -1080,133 +986,86 @@ function undoLine(pending: Removal): HTMLElement {
 }
 
 /**
- * One course: its pages, and any undo it is still owed.
+ * What a control on a course row does.
  *
- * A course with one page is **one row**, named for the course. It used to be a
- * heading and, under it, a row called "course site" — two lines saying one
- * thing, seven times down a column, which is what Sushi was looking at when he
- * said "surely this isnt a good way to organize this". The heading and the
- * "N pages" count earn their line only when there is more than one page to tell
- * apart; `adapterPageName` is right for that case and is exactly the redundancy
- * in this one.
+ * Every one of these needs the worker, Chrome's permission API, or both, which
+ * is the line this module is split on: the row is a document, and everything
+ * that can only happen in an extension is here.
+ *
+ * Each is handed the row's own `note`, so what it has to say lands on the
+ * course it happened to rather than in a line under a list that can be a
+ * screenful below the switch that was pressed (UI rule 3).
  */
-function adapterGroup(group: CourseGroup<AdapterEntry>, statusEl: HTMLElement): HTMLElement {
-  const box = el("div", undefined, "agroup");
-  const single = group.adapters.length === 1 ? group.adapters[0] : undefined;
-  if (!single) {
-    const head = el("h4", group.label, "agroup--head");
-    // Only when there is more than one, because "1 page" beside every
-    // single-page course is a column of noise saying nothing.
-    if (group.adapters.length > 1) {
-      head.append(el("span", `${group.adapters.length} pages`, "agroup--count"));
-    }
-    box.append(head);
-  }
-  if (group.adapters.length > 0) {
-    const rows = el("div", undefined, "rows");
-    for (const adapter of group.adapters) {
-      rows.append(adapterRow(adapter, statusEl, single ? group.label : undefined));
-    }
-    box.append(rows);
-  }
-  const pending = pendingUndo();
-  if (pending && groupHasCourse(group, pending.courseCode)) box.append(undoLine(pending));
-  return box;
-}
-
-/** One page of one course: a switch, the page it reads, and what is wrong. */
-function adapterRow(
-  adapter: AdapterEntry,
-  statusEl: HTMLElement,
-  /** The whole course's name, when this row is the course's only page. */
-  courseName?: string,
-): HTMLElement {
-  const row = switchRow({
-    name: courseName ?? adapterPageName(adapter),
-    // The page path first: it is what distinguishes this row from the one above
-    // it. The hostname stays, because a course site on a host nobody recognises
-    // is the thing worth noticing before granting it.
-    hint: `${adapterPagePath(adapter.url)} · ${new URL(adapter.url).hostname}`,
-    checked: adapter.enabled && adapter.granted,
-    onChange: (enabled) => {
-      // Requested here, synchronously in the handler: a user gesture does
-      // not survive an await, so asking from the service worker — as this
-      // first did — meant Chrome refused the prompt and the checkbox
-      // silently reverted with no diagnostic.
-      const asked = enabled
-        ? chrome.permissions.request({ origins: [adapter.hostPattern] })
-        : Promise.resolve(true);
-      void asked.then((granted) => {
+const courseSiteActions: CourseSiteActions = {
+  toggle(adapter, enabled, note, control) {
+    // Requested here, synchronously in the handler: a user gesture does not
+    // survive an await, so asking from the service worker — as this first did
+    // — meant Chrome refused the prompt and the checkbox silently reverted
+    // with no diagnostic.
+    const asked = enabled
+      ? chrome.permissions.request({ origins: [adapter.hostPattern] })
+      : Promise.resolve(true);
+    void asked
+      .then((granted) => {
         if (!granted) {
-          // Returned, not followed by a refresh, or the refresh overwrites
-          // the only explanation the student gets.
-          statusEl.textContent = "Permission denied, so that site stays off.";
+          // A refusal is not a state change, so nothing is redrawn — and the
+          // control is put back by hand, or the switch shows an "on" that is
+          // not on and the sentence beside it reads as a transient.
+          control.checked = !enabled;
+          note("Permission denied, so that site stays off.");
           return;
         }
         return send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
           (response) => {
-            if (response.type === "error") statusEl.textContent = response.message;
-            else void refreshOptions();
+            if (response.type === "error") {
+              control.checked = !enabled;
+              note(response.message);
+            } else void refreshOptions();
           },
         );
+      })
+      .catch((err: unknown) => {
+        // Every `send` and every `chrome.*` promise from a page needs this
+        // (UI rule 2): a rejection with no catch is invisible in the UI *and*
+        // in the worker's console.
+        control.checked = !enabled;
+        note(err instanceof Error ? err.message : String(err));
       });
-    },
-  });
-
-  // Two controls can share this cell now — Allow and Remove — and the grid
-  // places one child per cell, so they go in together or they land on top of
-  // each other.
-  const actions = el("span", undefined, "srow2--actions");
-
-  if (adapter.enabled && !adapter.granted) {
-    // Switched on, but Chrome never granted the host — so it reads nothing
-    // and says nothing. A chip and a button rather than a note, because
-    // there is exactly one thing to do about it.
-    // Not "Sign in needed": nothing about this is a login. Chrome was
-    // asked for permission to read one host and did not grant it, and the
-    // button beside this asks again.
-    const chip = stateChip("needs_login", undefined, "Chrome has not granted access to this site");
-    chip.textContent = "Permission missing";
-    row.append(chip);
-    const allow = el("button", "Allow", "btn btn-secondary btn-sm");
-    allow.addEventListener("click", () => {
-      void chrome.permissions
-        .request({ origins: [adapter.hostPattern] })
-        .then((granted) => (granted ? refreshOptions() : undefined));
-    });
-    actions.append(allow);
-  }
-
-  if (isLocalAdapter(adapter)) {
-    const remove = el("button", "Remove", "btn btn-secondary btn-sm");
-    remove.title =
-      `Removes ${adapter.label} from this browser. You added it yourself, so nobody ` +
-      `else loses it — and you can put it back for a few seconds afterwards.`;
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      remove.textContent = "Removing…";
-      const restore = (text: string): void => {
-        remove.disabled = false;
-        remove.textContent = "Remove";
-        statusEl.textContent = text;
-      };
-      void send({ type: "remove-local-adapter", adapterId: adapter.id })
-        .then((response) => {
-          if (response.type === "error") {
-            restore(response.message);
-            return;
-          }
-          noteRemoval(adapter);
-          return refreshOptions();
-        })
-        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
-    });
-    actions.append(remove);
-  }
-
-  if (actions.childElementCount > 0) row.append(actions);
-  return row;
-}
+  },
+  allow(adapter, note) {
+    void chrome.permissions
+      .request({ origins: [adapter.hostPattern] })
+      .then((granted) => {
+        if (granted) return refreshOptions();
+        note("Permission denied, so that site stays off.");
+        return undefined;
+      })
+      .catch((err: unknown) => note(err instanceof Error ? err.message : String(err)));
+  },
+  remove(adapter, note, button) {
+    const restore = (text: string): void => {
+      button.disabled = false;
+      button.textContent = "Remove";
+      note(text);
+    };
+    void send({ type: "remove-local-adapter", adapterId: adapter.id })
+      .then((response) => {
+        if (response.type === "error") {
+          restore(response.message);
+          return undefined;
+        }
+        noteRemoval(adapter);
+        return refreshOptions();
+      })
+      .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+  },
+  undoLine(group) {
+    const pending = pendingUndo();
+    // `groupHasCourse` and not a string compare: the removal remembers
+    // `CS425` and the row now reads `CS 425 / ECE 428`.
+    return pending && groupHasCourse(group, pending.courseCode) ? undoLine(pending) : undefined;
+  },
+};
 
 /**
  * The section list down the left, built from the sections themselves.
@@ -1466,97 +1325,55 @@ async function renderOptions(): Promise<void> {
     // §4.5: adapters carry a term and expire; stale ones are hidden.
     const current = adapterState.adapters.filter((a) => a.currentTerm);
     if (current.length === 0) {
-      const box = el("div", undefined, "rows");
-      box.append(
+      adaptersEl.append(
         plainRow(
           "None for this term yet",
           "They are published separately, so this list can fill in without updating the extension.",
         ),
       );
-      adaptersEl.append(box);
     }
 
     /*
-     * Grouped by course, because a course is no longer one page.
+     * One row per course, and only the student's own courses.
      *
-     * ECE 411 keeps assignments on one page and exams on another, and a flat
-     * list showed those as two rows both called "ECE 411 course site" — the
-     * same name, the same hostname, and no way to tell which switch turned off
-     * the exams. The course code is the heading; each row is named for its page
-     * and carries that page's own switch, state and path.
+     * Sushi, 2026-09-21: "courses that have more than one source are filling up
+     * new rows instead of along the row" — ECE 411 was a heading and two rows,
+     * four lines for two pages — and "when theres more adapters for students,
+     * they shouldnt be able to see courses that they havent selected", which is
+     * the disclosure that used to hold the rest of the catalogue. Both are
+     * `renderCourseSites`, which forms the course *before* the split (so no
+     * course is drawn twice, whatever standing its pages have) and keeps
+     * registry order inside it.
      *
-     * Insertion order, not sorted: the registry lists a course's pages in the
-     * order they were written, and reordering them here would make "the second
-     * ECE 411 row" mean different things in two places.
+     * `others` is computed and dropped; what that costs is written on
+     * `courseGroupsForYou`, where the next reader will look for it.
      */
-    /*
-     * Yours first, everyone else's behind a disclosure — and grouped by course
-     * *before* the split, not after it.
-     *
-     * Splitting adapters and grouping the halves separately drew CS 374 on both
-     * sides (the page Sushi added, and the published one he has not switched
-     * on) and CS 425 as two courses (`CS425` against the registry's
-     * `CS425/ECE428`). `courseGroupsForYou` forms the course first, on
-     * intersecting code sets, so neither can happen here; the comment on it
-     * has the evidence.
-     */
-    const { yours, others } = courseGroupsForYou(
+    const { rows, yours } = renderCourseSites(
       current,
       state.courses.map((course) => course.key),
+      courseSiteActions,
     );
-    for (const group of yours) {
-      adaptersEl.append(adapterGroup(group, registryStatus));
-    }
+    adaptersEl.append(...rows);
     if (yours.length === 0 && current.length > 0) {
-      const box = el("div", undefined, "rows");
-      box.append(
+      adaptersEl.append(
         plainRow(
           "None of your courses yet",
-          "Sites for other courses are below, and you can add your own.",
+          "Add the page that lists your deadlines below, and it appears here.",
         ),
       );
-      adaptersEl.append(box);
-    }
-    if (others.length > 0) {
-      const more = el("details", undefined, "why");
-      const summary = el("summary");
-      // Courses, not departments: the number that matters is how many courses
-      // are in there, and the departments are how they are arranged inside.
-      summary.textContent =
-        others.length === 1
-          ? "One more course has a site Illini Dash can read"
-          : `${others.length} more courses have a site Illini Dash can read`;
-      more.append(summary);
-      /*
-       * By department, because the catalogue is the part that keeps growing.
-       *
-       * Sushi, at seven headings down one column: "maybe instead of long rows
-       * we can organize it by majors". Here and not on his own side — four
-       * courses under a second level of headings is the column he is
-       * complaining about, with a heading per row.
-       */
-      for (const dept of byDepartment(others)) {
-        more.append(el("h4", dept.department, "agroup--dept"));
-        for (const group of dept.courses) more.append(adapterGroup(group, registryStatus));
-      }
-      adaptersEl.append(more);
     }
 
     /*
-     * The undo line for a course that no longer has a group.
+     * The undo line for a course that no longer has a row.
      *
-     * Removing a course's only page removes its heading too, so the notice has
+     * Removing a course's only page removes its row too, so the notice has
      * nowhere to hang — and that is exactly the removal a student is most
-     * likely to want back. It gets a group of its own, with no rows.
-     *
-     * `groupHasCourse` and not a string compare, for the same reason the
-     * grouping is not one: the removal remembers `CS425` and the heading now
-     * reads `CS 425 / ECE 428`.
+     * likely to want back. It gets a row of its own, with no switches.
      */
     const pending = pendingUndo();
-    if (pending && !yours.some((group) => groupHasCourse(group, pending.courseCode))) {
+    if (pending && !courseIsDrawn(yours, pending.courseCode)) {
       adaptersEl.append(
-        adapterGroup(emptyCourseGroup<AdapterEntry>(pending.courseCode), registryStatus),
+        courseRow(emptyCourseGroup<AdapterEntry>(pending.courseCode), courseSiteActions),
       );
     }
   }

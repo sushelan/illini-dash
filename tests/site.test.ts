@@ -30,7 +30,6 @@ import {
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
-  byDepartment,
   courseGroupsForYou,
   groupHasCourse,
   compareVersions,
@@ -3088,30 +3087,3 @@ describe("groupHasCourse: the undo line lands under the right heading", () => {
   });
 });
 
-describe("byDepartment: the catalogue is by major, the yours list is not", () => {
-  const entry = (courseCode: string) => ({ courseCode, enabled: false, local: false });
-
-  it("groups the catalogue by department, first-appearance order", () => {
-    const { others } = courseGroupsForYou(
-      [entry("ECE310"), entry("CS233"), entry("ECE391"), entry("MATH241"), entry("CS374")],
-      [],
-    );
-    expect(
-      byDepartment(others).map((dept) => [dept.department, dept.courses.map((c) => c.label)]),
-    ).toEqual([
-      ["ECE", ["ECE 310", "ECE 391"]],
-      ["CS", ["CS 233", "CS 374"]],
-      ["MATH", ["MATH 241"]],
-    ]);
-  });
-
-  it("files a course whose codes span two departments once", () => {
-    const { others } = courseGroupsForYou([entry("ECE310"), entry("CS425/ECE428")], []);
-    const departments = byDepartment(others);
-    expect(departments.flatMap((dept) => dept.courses.map((c) => c.label))).toEqual([
-      "ECE 310",
-      "CS 425 / ECE 428",
-    ]);
-    expect(departments.map((dept) => dept.department)).toEqual(["ECE", "CS"]);
-  });
-});

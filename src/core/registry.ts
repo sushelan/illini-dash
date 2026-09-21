@@ -645,8 +645,20 @@ export function groupHasCourse(group: CourseGroup<unknown>, courseCode: string):
  * Gradescope course arrives as `CS425 ECE428 Fall 2026`.
  *
  * Registry order is kept for the groups and for the adapters inside them, for
- * the reason `adapterGroup` gives: reordering makes "the second ECE 411 row"
+ * the reason `courseRow` gives: reordering makes "the second ECE 411 switch"
  * mean two different things in two places.
+ *
+ * **`others` is computed and then discarded by the page (2026-09-21).** Sushi:
+ * "when theres more adapters for students, they shouldnt be able to see courses
+ * that they havent selected." That is a real loss and the next reader should
+ * not have to rediscover what it costs: a course **no source of yours has ever
+ * seen** can no longer be found by browsing, only by pasting its address into
+ * "Add a course site". It is acceptable because a published site for a course
+ * you *are* in still appears — your own sources put the course in this list,
+ * which is what makes the group yours — and a catalogue of other people's
+ * courses was never yours to read. The split stays here rather than becoming a
+ * filter, because "is this course mine?" is the decision, and the page
+ * discarding one half of the answer is the page's business.
  */
 export function courseGroupsForYou<T extends AdapterStanding>(
   adapters: readonly T[],
@@ -704,32 +716,59 @@ export function courseGroupsForYou<T extends AdapterStanding>(
   return { yours, others };
 }
 
-/** A department and the courses filed under it. */
-export interface DepartmentGroup<T> {
-  department: string;
-  courses: CourseGroup<T>[];
+/**
+ * The host a page is on, for the one place it is shown.
+ *
+ * Guarded, unlike the `new URL(adapter.url).hostname` it replaces: that ran
+ * unguarded while building a row, so one unparseable `url` in the registry —
+ * or in a locally added adapter, which the student types — threw out of the
+ * whole settings draw. The raw text is shown instead, which is both honest and
+ * the thing worth noticing before granting access to it.
+ */
+export function pageHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+/** How one course's pages are presented on its single row. */
+export interface CoursePagesLayout {
+  /** Whether each switch is labelled with its own page's name. */
+  labelPages: boolean;
+  /** Each page's host, in the group's order. */
+  hosts: string[];
+  /** The one host they all share, when they do share one. */
+  sharedHost?: string;
 }
 
 /**
- * The catalogue, by department — Sushi's "maybe organize it by majors".
+ * A course's pages, as its row has to draw them.
  *
- * Only the catalogue. His own side has four courses, and a second level of
- * headings over four rows is the thing he was complaining about; a hundred
- * other people's courses as a flat run of headings is the thing that gets
- * worse as the registry fills.
+ * Two decisions, and both of them are decisions rather than formatting, which
+ * is why they are here and not in `ui/` (worker rule 1):
  *
- * First-appearance order, matching the groups, and a cross-listed course is
- * filed once — under its first code's department, because a course listed
- * twice is the fault this whole change is about.
+ * - **Whether a switch carries its page's name.** One page means the course's
+ *   own name already says what the switch is for, and "CS 424 / course site"
+ *   is the redundancy 8812d32 took out of the heading. Two pages means the
+ *   names are the only thing telling the switches apart.
+ * - **Whether the host is said once or per page.** It is said once when every
+ *   page shares it — the usual case, one course site — and per page when they
+ *   differ, because the whole reason the host is visible at all is that
+ *   granting access to a host nobody recognises is worth noticing, and a single
+ *   `courses.grainger.illinois.edu` under a row whose second page is on some
+ *   other host would be a lie by omission.
  */
-export function byDepartment<T>(groups: readonly CourseGroup<T>[]): DepartmentGroup<T>[] {
-  const out: DepartmentGroup<T>[] = [];
-  for (const group of groups) {
-    const found = out.find((entry) => entry.department === group.department);
-    if (found) found.courses.push(group);
-    else out.push({ department: group.department, courses: [group] });
-  }
-  return out;
+export function coursePagesLayout(urls: readonly string[]): CoursePagesLayout {
+  const hosts = urls.map(pageHostname);
+  const first = hosts[0];
+  const shared = first !== undefined && hosts.every((host) => host === first) ? first : undefined;
+  return {
+    labelPages: urls.length > 1,
+    hosts,
+    ...(shared !== undefined ? { sharedHost: shared } : {}),
+  };
 }
 
 /** A published entry that a local one stands in for, and why. */
