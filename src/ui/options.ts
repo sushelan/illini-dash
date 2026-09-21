@@ -31,8 +31,12 @@ import {
 } from "../core/author.js";
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
 import {
-  adaptersForYou,
+  byDepartment,
+  courseGroupsForYou,
   currentTermCode,
+  emptyCourseGroup,
+  groupHasCourse,
+  type CourseGroup,
 } from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { isDevHash, normalizePageUrl } from "../core/page-url.js";
@@ -1075,32 +1079,50 @@ function undoLine(pending: Removal): HTMLElement {
   return line;
 }
 
-/** One course: its code, its pages, and any undo it is still owed. */
-function adapterGroup(
-  courseCode: string,
-  list: AdapterEntry[],
-  statusEl: HTMLElement,
-): HTMLElement {
-  const group = el("div", undefined, "agroup");
-  const head = el("h4", displayCourseLabel(courseCode), "agroup--head");
-  // Only when there is more than one, because "1 page" beside every single-page
-  // course is a column of noise saying nothing.
-  if (list.length > 1) head.append(el("span", `${list.length} pages`, "agroup--count"));
-  group.append(head);
-  if (list.length > 0) {
-    const box = el("div", undefined, "rows");
-    for (const adapter of list) box.append(adapterRow(adapter, statusEl));
-    group.append(box);
+/**
+ * One course: its pages, and any undo it is still owed.
+ *
+ * A course with one page is **one row**, named for the course. It used to be a
+ * heading and, under it, a row called "course site" — two lines saying one
+ * thing, seven times down a column, which is what Sushi was looking at when he
+ * said "surely this isnt a good way to organize this". The heading and the
+ * "N pages" count earn their line only when there is more than one page to tell
+ * apart; `adapterPageName` is right for that case and is exactly the redundancy
+ * in this one.
+ */
+function adapterGroup(group: CourseGroup<AdapterEntry>, statusEl: HTMLElement): HTMLElement {
+  const box = el("div", undefined, "agroup");
+  const single = group.adapters.length === 1 ? group.adapters[0] : undefined;
+  if (!single) {
+    const head = el("h4", group.label, "agroup--head");
+    // Only when there is more than one, because "1 page" beside every
+    // single-page course is a column of noise saying nothing.
+    if (group.adapters.length > 1) {
+      head.append(el("span", `${group.adapters.length} pages`, "agroup--count"));
+    }
+    box.append(head);
+  }
+  if (group.adapters.length > 0) {
+    const rows = el("div", undefined, "rows");
+    for (const adapter of group.adapters) {
+      rows.append(adapterRow(adapter, statusEl, single ? group.label : undefined));
+    }
+    box.append(rows);
   }
   const pending = pendingUndo();
-  if (pending && pending.courseCode === courseCode) group.append(undoLine(pending));
-  return group;
+  if (pending && groupHasCourse(group, pending.courseCode)) box.append(undoLine(pending));
+  return box;
 }
 
 /** One page of one course: a switch, the page it reads, and what is wrong. */
-function adapterRow(adapter: AdapterEntry, statusEl: HTMLElement): HTMLElement {
+function adapterRow(
+  adapter: AdapterEntry,
+  statusEl: HTMLElement,
+  /** The whole course's name, when this row is the course's only page. */
+  courseName?: string,
+): HTMLElement {
   const row = switchRow({
-    name: adapterPageName(adapter),
+    name: courseName ?? adapterPageName(adapter),
     // The page path first: it is what distinguishes this row from the one above
     // it. The hostname stays, because a course site on a host nobody recognises
     // is the thing worth noticing before granting it.
@@ -1467,32 +1489,23 @@ async function renderOptions(): Promise<void> {
      * order they were written, and reordering them here would make "the second
      * ECE 411 row" mean different things in two places.
      */
-    const byCourse = (list: typeof current) => {
-      const groups = new Map<string, typeof current>();
-      for (const adapter of list) {
-        const found = groups.get(adapter.courseCode);
-        if (found) found.push(adapter);
-        else groups.set(adapter.courseCode, [adapter]);
-      }
-      return groups;
-    };
-
     /*
-     * Yours first, everyone else's behind a disclosure.
+     * Yours first, everyone else's behind a disclosure — and grouped by course
+     * *before* the split, not after it.
      *
-     * The registry is published for every student, so this drew every entry for
-     * the term: nine rows over seven courses, four of them courses Sushi has
-     * never taken, with his own two somewhere in the middle. The catalogue is
-     * still reachable — finding out that your course has a site is the whole
-     * point of publishing one — but it is no longer what the section opens on.
+     * Splitting adapters and grouping the halves separately drew CS 374 on both
+     * sides (the page Sushi added, and the published one he has not switched
+     * on) and CS 425 as two courses (`CS425` against the registry's
+     * `CS425/ECE428`). `courseGroupsForYou` forms the course first, on
+     * intersecting code sets, so neither can happen here; the comment on it
+     * has the evidence.
      */
-    const { yours, others } = adaptersForYou(
+    const { yours, others } = courseGroupsForYou(
       current,
       state.courses.map((course) => course.key),
     );
-    const groups = byCourse(yours);
-    for (const [courseCode, list] of groups) {
-      adaptersEl.append(adapterGroup(courseCode, list, registryStatus));
+    for (const group of yours) {
+      adaptersEl.append(adapterGroup(group, registryStatus));
     }
     if (yours.length === 0 && current.length > 0) {
       const box = el("div", undefined, "rows");
@@ -1504,17 +1517,27 @@ async function renderOptions(): Promise<void> {
       );
       adaptersEl.append(box);
     }
-    const otherGroups = byCourse(others);
-    if (otherGroups.size > 0) {
+    if (others.length > 0) {
       const more = el("details", undefined, "why");
       const summary = el("summary");
+      // Courses, not departments: the number that matters is how many courses
+      // are in there, and the departments are how they are arranged inside.
       summary.textContent =
-        otherGroups.size === 1
+        others.length === 1
           ? "One more course has a site Illini Dash can read"
-          : `${otherGroups.size} more courses have a site Illini Dash can read`;
+          : `${others.length} more courses have a site Illini Dash can read`;
       more.append(summary);
-      for (const [courseCode, list] of otherGroups) {
-        more.append(adapterGroup(courseCode, list, registryStatus));
+      /*
+       * By department, because the catalogue is the part that keeps growing.
+       *
+       * Sushi, at seven headings down one column: "maybe instead of long rows
+       * we can organize it by majors". Here and not on his own side — four
+       * courses under a second level of headings is the column he is
+       * complaining about, with a heading per row.
+       */
+      for (const dept of byDepartment(others)) {
+        more.append(el("h4", dept.department, "agroup--dept"));
+        for (const group of dept.courses) more.append(adapterGroup(group, registryStatus));
       }
       adaptersEl.append(more);
     }
@@ -1525,10 +1548,16 @@ async function renderOptions(): Promise<void> {
      * Removing a course's only page removes its heading too, so the notice has
      * nowhere to hang — and that is exactly the removal a student is most
      * likely to want back. It gets a group of its own, with no rows.
+     *
+     * `groupHasCourse` and not a string compare, for the same reason the
+     * grouping is not one: the removal remembers `CS425` and the heading now
+     * reads `CS 425 / ECE 428`.
      */
     const pending = pendingUndo();
-    if (pending && !groups.has(pending.courseCode)) {
-      adaptersEl.append(adapterGroup(pending.courseCode, [], registryStatus));
+    if (pending && !yours.some((group) => groupHasCourse(group, pending.courseCode))) {
+      adaptersEl.append(
+        adapterGroup(emptyCourseGroup<AdapterEntry>(pending.courseCode), registryStatus),
+      );
     }
   }
 

@@ -752,6 +752,24 @@ body.page { padding: 0; }
   letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
 }
 .agroup--count { font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+/*
+ * The catalogue's department headings, and only the catalogue's.
+ *
+ * Seven course headings down one column is what Sushi was looking at when he
+ * asked whether this could be organised "by majors". The courses he is in stay
+ * flat — there are four of them, and a second level of headings over four rows
+ * is the thing being complained about — but the published list only grows, so
+ * inside the disclosure the courses sit under their department. Darker and
+ * ruled, because it has to read as the level *above* `.agroup--head`, which is
+ * muted small caps. `13px` is the indent `.why > div` gives everything else in
+ * there; an `h4` is not a `div` and would otherwise sit proud of its courses.
+ */
+.why > .agroup--dept {
+  margin: 16px 0 8px 13px; padding: 0 0 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--fg);
+}
+.why > .agroup--dept:first-of-type { margin-top: 10px; }
 /* Inline and unboxed: it reports something that already happened and is about
    to go away on its own, so a banner would outweigh what it says. */
 .agroup--undo {
