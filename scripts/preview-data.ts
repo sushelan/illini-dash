@@ -356,6 +356,18 @@ const adapters: Record<string, unknown>[] = [
     url: "https://courses.grainger.illinois.edu/ece411/fa2026/exams.html",
     hostPattern: "https://courses.grainger.illinois.edu/*",
     enabled: true, granted: false, currentTerm: true },
+  // Two courses this student is not in and has not switched on, which is what
+  // the registry mostly is: published for everyone. Without them the harness
+  // could not draw the "N more courses" disclosure at all, and a page that
+  // wrongly listed every course as yours would look correct in it.
+  { id: "ece310-fa26", label: "ECE 310 course site", courseCode: "ECE310",
+    url: "https://courses.grainger.illinois.edu/ece310/fa2026/",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
+  { id: "ece391-fa26", label: "ECE 391 course site", courseCode: "ECE391",
+    url: "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
   // One the student added themselves, which is the only kind with a Remove
   // button. `local` is set by the worker and is not on the response type, so
   // without an entry carrying it here the button was unreachable in the harness.

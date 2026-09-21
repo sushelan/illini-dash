@@ -249,7 +249,13 @@ export type Response =
     }
   | {
       type: "adapters";
-      adapters: (Adapter & { enabled: boolean; granted: boolean; currentTerm: boolean })[];
+      adapters: (Adapter & {
+        enabled: boolean;
+        granted: boolean;
+        currentTerm: boolean;
+        /** Added by this student rather than published. The worker has always sent it. */
+        local: boolean;
+      })[];
       fetchedAt?: string;
     }
   | { type: "permission"; granted: boolean }

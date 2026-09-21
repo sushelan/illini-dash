@@ -30,7 +30,10 @@ import {
   type ModelOutcome,
 } from "../core/author.js";
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
-import { currentTermCode } from "../core/registry.js";
+import {
+  adaptersForYou,
+  currentTermCode,
+} from "../core/registry.js";
 import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
 import { isDevHash, normalizePageUrl } from "../core/page-url.js";
 import {
@@ -1464,14 +1467,56 @@ async function renderOptions(): Promise<void> {
      * order they were written, and reordering them here would make "the second
      * ECE 411 row" mean different things in two places.
      */
-    const groups = new Map<string, typeof current>();
-    for (const adapter of current) {
-      const list = groups.get(adapter.courseCode);
-      if (list) list.push(adapter);
-      else groups.set(adapter.courseCode, [adapter]);
-    }
+    const byCourse = (list: typeof current) => {
+      const groups = new Map<string, typeof current>();
+      for (const adapter of list) {
+        const found = groups.get(adapter.courseCode);
+        if (found) found.push(adapter);
+        else groups.set(adapter.courseCode, [adapter]);
+      }
+      return groups;
+    };
+
+    /*
+     * Yours first, everyone else's behind a disclosure.
+     *
+     * The registry is published for every student, so this drew every entry for
+     * the term: nine rows over seven courses, four of them courses Sushi has
+     * never taken, with his own two somewhere in the middle. The catalogue is
+     * still reachable — finding out that your course has a site is the whole
+     * point of publishing one — but it is no longer what the section opens on.
+     */
+    const { yours, others } = adaptersForYou(
+      current,
+      state.courses.map((course) => course.key),
+    );
+    const groups = byCourse(yours);
     for (const [courseCode, list] of groups) {
       adaptersEl.append(adapterGroup(courseCode, list, registryStatus));
+    }
+    if (yours.length === 0 && current.length > 0) {
+      const box = el("div", undefined, "rows");
+      box.append(
+        plainRow(
+          "None of your courses yet",
+          "Sites for other courses are below, and you can add your own.",
+        ),
+      );
+      adaptersEl.append(box);
+    }
+    const otherGroups = byCourse(others);
+    if (otherGroups.size > 0) {
+      const more = el("details", undefined, "why");
+      const summary = el("summary");
+      summary.textContent =
+        otherGroups.size === 1
+          ? "One more course has a site Illini Dash can read"
+          : `${otherGroups.size} more courses have a site Illini Dash can read`;
+      more.append(summary);
+      for (const [courseCode, list] of otherGroups) {
+        more.append(adapterGroup(courseCode, list, registryStatus));
+      }
+      adaptersEl.append(more);
     }
 
     /*

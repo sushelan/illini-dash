@@ -30,6 +30,7 @@ import {
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
+  adaptersForYou,
   compareVersions,
   currentTermCode,
   isCurrentTerm,
@@ -2917,5 +2918,66 @@ describe("registry validation of clauses", () => {
     expect(requiredVersionFor({ clauses: "." })).toBe("1.2.0");
     expect(requiredVersionFor({ duePhrase: "due" })).toBe("1.1.0");
     expect(requiredVersionFor({ due: ".due" })).toBe("0.1.0");
+  });
+});
+
+describe("adaptersForYou: the catalogue is published for everyone, the list is yours", () => {
+  const entry = (courseCode: string, extra: Partial<{ enabled: boolean; local: boolean }> = {}) => ({
+    courseCode,
+    enabled: false,
+    local: false,
+    ...extra,
+  });
+
+  it("keeps a course a source has seen on this account", () => {
+    const { yours, others } = adaptersForYou(
+      [entry("CS424"), entry("ECE310"), entry("ECE411")],
+      ["CS424", "PHYS435"],
+    );
+    expect(yours.map((a) => a.courseCode)).toEqual(["CS424"]);
+    expect(others.map((a) => a.courseCode)).toEqual(["ECE310", "ECE411"]);
+  });
+
+  it("matches a cross-listed entry on either code", () => {
+    // The registry writes `CS425/ECE428`; Gradescope calls the course `CS425`.
+    // String equality filed Sushi's own CS 425 under other people's courses.
+    const { yours } = adaptersForYou([entry("CS425/ECE428")], ["CS425"]);
+    expect(yours).toHaveLength(1);
+    const alsoMine = adaptersForYou([entry("CS425/ECE428")], ["ECE428"]);
+    expect(alsoMine.yours).toHaveLength(1);
+  });
+
+  it("reads the codes out of a course whose key is its name", () => {
+    /*
+     * `CourseSummary.key` is "a code when there is one" — and when there is
+     * not, it is the course's raw name. Gradescope calls this one
+     * "CS425 ECE428 Fall 2026", so the student's side has to be split into
+     * codes exactly as the adapter's side is, or a course they are plainly
+     * enrolled in files under other people's.
+     */
+    const { yours } = adaptersForYou([entry("CS425/ECE428")], ["CS425 ECE428 Fall 2026"]);
+    expect(yours).toHaveLength(1);
+  });
+
+  it("keeps one the student added or switched on, whatever the sources have seen", () => {
+    const { yours, others } = adaptersForYou(
+      [entry("CS374", { local: true }), entry("ECE391", { enabled: true }), entry("ECE310")],
+      [],
+    );
+    expect(yours.map((a) => a.courseCode)).toEqual(["CS374", "ECE391"]);
+    expect(others.map((a) => a.courseCode)).toEqual(["ECE310"]);
+  });
+
+  it("keeps the order the registry wrote, on both sides", () => {
+    // `adapterGroup` says why: reordering makes "the second ECE 411 row" mean
+    // two different things in two places.
+    const { others } = adaptersForYou([entry("ECE411"), entry("ECE310"), entry("ECE391")], []);
+    expect(others.map((a) => a.courseCode)).toEqual(["ECE411", "ECE310", "ECE391"]);
+  });
+
+  it("puts everything in others when no course is known yet", () => {
+    const { yours, others } = adaptersForYou([entry("CS424"), entry("ECE310")], []);
+    expect(yours).toEqual([]);
+    expect(others).toHaveLength(2);
   });
 });

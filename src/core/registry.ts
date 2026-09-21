@@ -11,6 +11,7 @@
  * be half-applied.
  */
 
+import { extractCourseCodes } from "./normalize.js";
 import { EXTENSION_VERSION } from "../build-info.js";
 import { CANVAS_ORIGIN } from "../sources/canvas.js";
 import { GRADESCOPE_ORIGIN } from "../sources/gradescope.js";
@@ -551,6 +552,47 @@ export function currentTermCode(now: Date): string {
   if (month <= 4) return `sp${year}`;
   if (month <= 6) return `su${year}`;
   return `fa${year}`;
+}
+
+/** An adapter, as far as the "is this one of mine?" question is concerned. */
+export interface AdapterStanding {
+  courseCode: string;
+  enabled: boolean;
+  local: boolean;
+}
+
+/**
+ * The course sites that are this student's, and the rest of the catalogue.
+ *
+ * The registry is published for everyone, so every entry for the current term
+ * was drawn — nine rows across seven courses on Sushi's machine (2026-09-21),
+ * four of those courses ones he has never taken, and his own two buried among
+ * them. The list was doing two jobs at once: managing what is on, and browsing
+ * what exists. It still does both, but not in the same breath.
+ *
+ * A course site is yours when you added it, when it is switched on, or when a
+ * source has seen that course on your account. Matched on the *codes*, not on
+ * the string: a cross-listed entry reads `CS425/ECE428` while Gradescope calls
+ * the course `CS425`, and string equality would file Sushi's own CS 425 under
+ * other people's courses.
+ *
+ * Insertion order is kept on both sides, for the reason `adapterGroup` states:
+ * reordering makes "the second ECE 411 row" mean two different things.
+ */
+export function adaptersForYou<T extends AdapterStanding>(
+  adapters: readonly T[],
+  courseKeys: readonly string[],
+): { yours: T[]; others: T[] } {
+  const mine = new Set<string>();
+  for (const key of courseKeys) for (const code of extractCourseCodes(key)) mine.add(code);
+  const yours: T[] = [];
+  const others: T[] = [];
+  for (const adapter of adapters) {
+    const codes = extractCourseCodes(adapter.courseCode);
+    const known = codes.some((code) => mine.has(code));
+    (adapter.local || adapter.enabled || known ? yours : others).push(adapter);
+  }
+  return { yours, others };
 }
 
 /** A published entry that a local one stands in for, and why. */
