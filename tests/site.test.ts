@@ -1702,6 +1702,15 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       ]);
     });
 
+    it("carries the cross-listing on a demo as on its deadline", () => {
+      // `CS425/ECE428`: the second code rides in `extra.altCodes` so §5.1 can
+      // meet an ECE 428 row. An event read out of the same sentence gets it too.
+      const events = items.filter((i) => i.kind === "event");
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.every((i) => i.extra?.["altCodes"] === "CS425 ECE428")).toBe(true);
+      expect(items.find((i) => i.kind === "assignment")?.extra?.["altCodes"]).toBe("CS425 ECE428");
+    });
+
     it("says a demo's hour is assumed, and the deadline's is not", () => {
       /*
        * "Demos on 9/14 (Mon)" states no clock, so 23:59 is this code's

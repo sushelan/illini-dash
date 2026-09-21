@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2484 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2517 tests; three in `popup-draw.test.ts` depend on the wall clock and fail on Sunday evenings, see the 2026-09-20 entry).
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -97,6 +97,25 @@ commits, on top of 0f74bc2.
   every name a sentence long — a reading of the same dates from *inside* each row.
   `dedupe` folds a candidate whose dated rows all sit inside a kept candidate's dated
   rows and date nothing new.
+- **`clauses`: a cell with several dated clauses is several items.** Sushi, on the
+  lectures page: `MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)` landed on Sunday as
+  one row and the demo was lost. One new declarative field, a literal separator like
+  `splitTitle`. The runner splits the located text into clauses; the clause the reader
+  hooks is the deadline as before; every other clause with a date becomes an
+  `event` on its own day, named `<row>: <clause head>` (`MP2: Demos`), unless its head is
+  a release word (`released`, `out`, `posted`, `available`), because nobody attends a
+  release; `filter.exclude` reaches events, `filter.include` does not. Kind per clause
+  is a small §4.5 amendment: the deadline clause keeps the adapter's kind, auxiliary
+  clauses are always events. The proposer offers the separator whose clauses carry
+  dates on two or more rows; `cs425-fa26` carries `clauses: "."` and needs 1.2.0, so
+  the manifest is 1.2.0 and a 1.1.0 install drops that entry with a logged reason until
+  it is rebuilt. Fourteen count-asserted mutations; two survived as untested and got
+  their input (`duePrev` is not a one-cell reader; the two-row floor).
+- **Three `tests/popup-draw.test.ts` tests fail on `main` tonight and on this branch
+  alike** (the timeline rail's heading, its clock cell, the card's clock under it). The
+  file reads `Date.now()`, so what it draws depends on when it runs; on a Sunday
+  evening the rail it expects is not drawn. Verified on a clean checkout of `main`.
+  Not touched here: it is a test that has to pin its clock, a separate fix.
 - **The third live run: CS 425's lectures page, and a wrong deadline offered first.**
   Sushi pasted `lectures.html`, a lecture table with a column of lecture dates beside
   cells reading `MP1 due 11.59 PM 9/13 (Sun)`. The search read the column by position,

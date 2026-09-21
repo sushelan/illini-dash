@@ -1775,6 +1775,9 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
             clause: "true",
             dueText: event.text.slice(0, 120),
             ...(event.timeAssumed ? { timeAssumed: "true" } : {}),
+            // The cross-listing travels with the event as it does with the
+            // deadline, or CS 425's demos would never meet an ECE 428 row.
+            ...(codes.length > 1 ? { altCodes: codes.join(" ") } : {}),
           },
           fetchedAt: page.fetchedAt,
         });
