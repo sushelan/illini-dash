@@ -2,13 +2,53 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2562 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2572 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## A course is one group, a one-page course is one line, and the catalogue is by major — 2026-09-21
+
+"surely this isnt a good way to organize this right, maybe instead of long rows we can
+organize it by majors", over a screenshot of seven headings down a column. Three faults in
+it, and the first was introduced an hour earlier by the entry below.
+
+- **One course was drawn on both sides.** `adaptersForYou` partitioned *adapters* and the
+  page grouped by course afterwards, so CS 374 — a page Sushi added plus a published one —
+  was torn in half: half under his courses, half inside a disclosure that claims to be
+  other people's. Grouping now happens first, over every adapter, and the partition moves
+  a whole group. One verdict per course, so it cannot be in two places.
+- **One course was drawn as two.** "CS 425" and "CS425/ECE428" were separate headings,
+  because the key was `courseCode` compared as a string. A course's identity is now its
+  *code set*, and a later cross-listed entry merges the groups its codes bridge. The label
+  is built from the codes rather than copied from one of them, so nothing reaches the
+  screen unformatted: `CS 425 / ECE 428`.
+- **A one-page course took two lines to say one thing**, a heading and a row named
+  "course site". It is one row now, named for the course; the heading and the "N pages"
+  count return at two or more, where `adapterPageName` ("assignments", "exams") earns its
+  line.
+- **The catalogue is grouped by department**, which is Sushi's "by majors" applied where
+  it earns its place: that list grows with the registry. The yours side stays flat — he
+  has four courses there, and a second level of headings over four rows is the thing he
+  was complaining about. The summary still counts courses.
+- `pendingUndo` matched a raw `courseCode` in two places and would have hung the "Removed
+  CS 425 · Undo" line under the wrong heading; both ask `groupHasCourse` now. Checked with
+  real presses, including the removal that takes a course's last page.
+- Nine count-asserted mutations, all killed. One needed its test strengthened first: with
+  three entries the merge happened to produce registry order anyway, so dropping the sort
+  was unreachable; a fourth entry is what separates merge order from registry order.
+- `scripts/preview-data.ts` could show neither bug, so it gained a course with a local and
+  a published page, a cross-listed pair spelled two ways, a single-page course and a
+  two-page one in a second and third department. With everything published under ECE, a
+  page that ignored the department entirely would have looked correct.
+
+Out of scope, noted: `adapterPagePath` renders a directory URL as the hint `fa2026`, which
+now sits under a row named for the course and says nothing. And `npm run shots` cannot
+reach a state behind a press on the *options* page — `scripts/preview-open.js` is
+popup-only — so the open-catalogue capture is a separate file rather than part of the set.
 
 ## Your course sites come first, and the catalogue goes behind one line — 2026-09-21
 
