@@ -180,8 +180,15 @@ export type Response =
       courses: CourseSummary[];
       overrides: Overrides;
       itemCount: number;
-      hiddenItems: { id: string; title: string; courseLabel: string }[];
-      doneItems: { id: string; title: string; courseLabel: string }[];
+      /**
+       * `members` is what a Trash button rests on: a row is deletable only when
+       * every row that merged into it is one the student typed (`core/manual.ts`'s
+       * `trashable`). It is the source and the id and nothing else, because a
+       * page that only has to answer "may this be deleted, and which stored rows
+       * is it" has no business carrying the titles twice.
+       */
+      hiddenItems: TidyItem[];
+      doneItems: TidyItem[];
       setAsideCourses: { id: string; name: string; courseCode?: string; reason: string }[];
       /**
        * Page observers and what they have actually read.
@@ -316,4 +323,19 @@ export async function send(request: Request): Promise<Response> {
     );
   }
   return response;
+}
+
+
+/**
+ * One row in Settings' "hidden and ticked off" line.
+ *
+ * Its own name because two message fields have the shape and a third thing —
+ * `core/manual.ts`'s `trashable` — reads one of its fields; three copies of a
+ * shape is how the fourth one quietly loses a field.
+ */
+export interface TidyItem {
+  id: string;
+  title: string;
+  courseLabel: string;
+  members: { source: string; sourceId: string }[];
 }

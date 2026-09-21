@@ -18,6 +18,7 @@ import {
   dedupeInput,
   editManualItem,
   newManualItem,
+  trashable,
   type ManualInput,
 } from "../src/core/manual.js";
 import { memberKey, type RawItem } from "../src/sources/types.js";
@@ -379,5 +380,66 @@ describe("a manual row with no date (brief D11)", () => {
     expect(items[0]!.dueAt).toBeUndefined();
     expect(sectionFor(items[0]!, new Date(NOW))).toBeUndefined();
     expect(badgeFor(items, store.sources, DEFAULT_SETTINGS, new Date(NOW)).text).toBe("");
+  });
+});
+
+
+/* -------------------------------------------------------------------------- */
+/* What Trash may delete (2026-09-21)                                          */
+/* -------------------------------------------------------------------------- */
+
+describe("trashable", () => {
+  const member = (source: string, sourceId: string) => ({ source, sourceId });
+
+  it("answers with the stored ids of a row the student typed in", () => {
+    // Sushi's hidden list is `test`, `test1`, `test2`, `test3`, `testt`: rows
+    // he typed and could not be rid of, because Unhide puts them back and Hide
+    // only takes them out.
+    expect(trashable([member("manual", "m-test1")])).toEqual(["m-test1"]);
+  });
+
+  it("answers with every member's id, because an item is a group", () => {
+    expect(trashable([member("manual", "m-1"), member("manual", "m-2")])).toEqual(["m-1", "m-2"]);
+  });
+
+  it("refuses a row a source states, whatever else merged into it", () => {
+    /*
+     * The rule is *every* member, not any. A hand-typed row merged with a
+     * Gradescope one is a row Gradescope still states: deleting the manual half
+     * leaves the item on screen, so a Trash there would mean "hide, and lie
+     * about it" — the failure house rule 2 is about, with a label on it.
+     */
+    expect(trashable([member("gradescope", "12345")])).toBeNull();
+    expect(trashable([member("manual", "m-1"), member("gradescope", "12345")])).toBeNull();
+    expect(trashable([member("gradescope", "12345"), member("manual", "m-1")])).toBeNull();
+  });
+
+  it("refuses a source whose name merely starts with the right letters", () => {
+    // Matched exactly, not by prefix or substring (house rule 6).
+    expect(trashable([member("manualish", "x")])).toBeNull();
+    expect(trashable([member("MANUAL", "x")])).toBeNull();
+  });
+
+  it("refuses an id that is not one — `\"\"` passes `typeof x === \"string\"`", () => {
+    // House rule 5. An empty id deletes nothing while the row vanishes from the
+    // list until the next draw puts it back.
+    expect(trashable([member("manual", "")])).toBeNull();
+    expect(trashable([{ source: "manual" }])).toBeNull();
+    expect(trashable([{ source: "manual", sourceId: 7 }])).toBeNull();
+  });
+
+  it("refuses a shape an older worker sends, rather than reading it as nothing-disagrees", () => {
+    /*
+     * `members` reaches the page across a message hop, and Chrome keeps the
+     * running worker while it reloads the page from disk — so the field is
+     * simply absent on a build from before today (worker rule 8). Absent has to
+     * read as "no button".
+     */
+    expect(trashable(undefined)).toBeNull();
+    expect(trashable(null)).toBeNull();
+    expect(trashable([])).toBeNull();
+    expect(trashable("manual")).toBeNull();
+    expect(trashable([null])).toBeNull();
+    expect(trashable([{}])).toBeNull();
   });
 });

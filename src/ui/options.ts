@@ -69,7 +69,8 @@ import { icon } from "./icons.js";
 import { probeMarkers } from "../core/markers.js";
 import { scrubHtml } from "../core/scrub.js";
 import type { Gate0Result } from "../gate0.js";
-import { send, type Response } from "../messages.js";
+import { send, type Response, type TidyItem } from "../messages.js";
+import { trashable } from "../core/manual.js";
 
 const runButton = document.getElementById("run-gate0") as HTMLButtonElement;
 const copyButton = document.getElementById("copy-gate0") as HTMLButtonElement;
@@ -1689,8 +1690,6 @@ async function renderOptions(): Promise<void> {
  * still opens, onto nothing, which reads as "it broke" rather than "there is
  * nothing here".
  */
-type TidyItem = { id: string; title: string; courseLabel: string };
-
 function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
   const host = document.getElementById("tidy");
   if (!host) return;
@@ -1714,6 +1713,22 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
     kind: "unhide" | "undone",
   ): void => {
     details.append(el("h4", heading));
+    /*
+     * Said once, above the rows, because most of them will not have a Trash.
+     *
+     * A Trash on a row a source states would mean "hide, and lie about it" —
+     * the next sync writes it back. The student still needs to know *why* the
+     * button is missing from the row they want gone, and what the other one
+     * does instead.
+     */
+    details.append(
+      el(
+        "p",
+        "Only deadlines you typed in yourself can be deleted; the rest come back " +
+          "on the next check, so Unhide is the only thing that changes them.",
+        "opt-note",
+      ),
+    );
     const rows = el("div", undefined, "rows");
     if (items.length === 0) rows.append(plainRow(empty));
     for (const item of items) {
@@ -1723,6 +1738,8 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
         void send({ type: "override", action: { kind, itemId: item.id } }).then(refreshOptions);
       });
       row.append(undo);
+      const ids = trashable(item.members);
+      if (ids !== null) row.append(trashButton(item, ids));
       rows.append(row);
     }
     details.append(rows);
@@ -1731,6 +1748,47 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
   list(hiddenItems, "Hidden", "Nothing hidden", "Unhide", "unhide");
   list(doneItems, "Ticked off", "Nothing ticked off", "Not done", "undone");
   host.append(details);
+}
+
+/**
+ * Deletes a hand-typed row for good — the row and its correction both.
+ *
+ * `delete-manual-item` per member rather than a new message: the worker already
+ * drops the `manualItems` entry *and* the override keyed on it, and a second
+ * path that did the same thing would be the second copy of a decision that
+ * drifts (mutation-check rule 3). An item is a group, so a group of two
+ * hand-typed rows is two deletes.
+ *
+ * It says "Deleting…" on the control (UI rule 4) and reports a refusal on the
+ * row rather than in `#data-status`, which is somewhere else on a long page
+ * (UI rule 3), and it carries a `.catch` (UI rule 2) — without one a worker on
+ * an older build rejects into a console nobody has open and the button just
+ * sits there.
+ */
+function trashButton(item: TidyItem, sourceIds: string[]): HTMLElement {
+  const button = el("button", "Trash", "btn btn-secondary btn-sm");
+  button.title = `Deletes “${item.title}” and the corrections on it. You typed it in, so nothing else loses it.`;
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    button.textContent = "Deleting\u2026";
+    const restore = (text: string): void => {
+      button.disabled = false;
+      button.textContent = "Trash";
+      const hint = button.parentElement?.querySelector(".srow2--hint");
+      if (hint) hint.textContent = text;
+    };
+    void Promise.all(sourceIds.map((sourceId) => send({ type: "delete-manual-item", sourceId })))
+      .then((responses) => {
+        const failed = responses.find((response) => response.type === "error");
+        if (failed !== undefined && failed.type === "error") {
+          restore(failed.message);
+          return undefined;
+        }
+        return refreshOptions();
+      })
+      .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+  });
+  return button;
 }
 
 /* ---- Google Calendar (§8.3) --------------------------------------------

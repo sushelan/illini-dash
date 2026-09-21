@@ -373,3 +373,46 @@ export function editManualItem(
 export function dedupeInput(raw: Record<string, RawItem>, manualItems: RawItem[]): RawItem[] {
   return [...Object.values(raw), ...manualItems];
 }
+
+/* -------------------------------------------------------------------------- */
+/* What Trash may delete (2026-09-21)                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The `sourceId`s a Trash button may delete, or `null` when there is no such
+ * button to draw.
+ *
+ * Settings grew a Trash beside Unhide because Sushi's hidden list is `test`,
+ * `test1`, `test2`, `test3`, `testt` — rows he typed in himself and can never
+ * be rid of, because Unhide puts them back in the list and Hide only takes
+ * them out of it. Deleting a hand-typed row is honest: `manualItems` is the
+ * only copy, so removing it removes the thing.
+ *
+ * **A row that came from a source cannot be deleted, and must not offer a
+ * button that says it can.** The next sync writes it back into `raw` and it
+ * returns, so a Trash there would mean "hide, and lie about it" — house rule 2
+ * with a label on it. The rule is therefore *every* member, not any: an item is
+ * the group of rows that merged into it (§5.3), so one hand-typed row merged
+ * with a Gradescope one is a row Gradescope still states.
+ *
+ * Here rather than in `ui/options.ts` because it is the decision the button
+ * rests on (worker house rule 1), and it validates positively rather than
+ * trusting the shape: `hiddenItems` reaches the page as a message from a worker
+ * that may be an older build, where `members` is simply absent — and `absent`
+ * has to read as "no button", never as "nothing disagrees, so delete".
+ */
+export function trashable(members: unknown): string[] | null {
+  if (!Array.isArray(members) || members.length === 0) return null;
+  const ids: string[] = [];
+  for (const member of members) {
+    if (typeof member !== "object" || member === null) return null;
+    const { source, sourceId } = member as { source?: unknown; sourceId?: unknown };
+    // `typeof x === "string"` is not validation (house rule 5): `""` passes it,
+    // and an empty `sourceId` deletes nothing while the row disappears from the
+    // list until the next draw puts it back.
+    if (source !== "manual") return null;
+    if (typeof sourceId !== "string" || sourceId === "") return null;
+    ids.push(sourceId);
+  }
+  return ids;
+}

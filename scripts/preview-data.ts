@@ -514,8 +514,33 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
           settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
                       hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
           courses,
-          hiddenItems: [{ id: "h1", courseLabel: "CS411", title: "Course syllabus acknowledgement" }],
-          doneItems: [{ id: "d1", courseLabel: "CS424", title: "Homework 1" }],
+          // Two hidden rows, not one, because the Trash button (2026-09-21) is
+          // drawn from `members` and must be **absent** from a row a source
+          // states: a harness that only ever shows the deletable case cannot
+          // tell a correct page from one that offers to delete a Gradescope row
+          // and silently unhides it instead.
+          hiddenItems: [
+            {
+              id: "h1",
+              courseLabel: "CS411",
+              title: "Course syllabus acknowledgement",
+              members: [{ source: "gradescope", sourceId: "4410001" }],
+            },
+            {
+              id: "h2",
+              courseLabel: "CS424",
+              title: "test2",
+              members: [{ source: "manual", sourceId: "m-test2" }],
+            },
+          ],
+          doneItems: [
+            {
+              id: "d1",
+              courseLabel: "CS424",
+              title: "Homework 1",
+              members: [{ source: "canvas", sourceId: "77" }],
+            },
+          ],
           setAsideCourses,
           // One course renamed and one not, so both halves of the control are
           // visible at once: a filled box beside an empty one whose placeholder

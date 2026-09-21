@@ -145,9 +145,9 @@ import {
   type SyncTrigger,
 } from "./core/sync.js";
 import { runGate0 } from "./gate0.js";
-import type { Request, Response } from "./messages.js";
+import type { Request, Response, TidyItem } from "./messages.js";
 import type { ParserId } from "./sources/registry.js";
-import { memberKey, type Adapter } from "./sources/types.js";
+import { memberKey, type Adapter, type Item } from "./sources/types.js";
 
 const SYNC_ALARM = "sync";
 /** notificationId → the url its click should open (§7). */
@@ -2245,12 +2245,11 @@ chrome.runtime.onMessage.addListener(
           courseNames: store.overrides.courseNames,
           overrides: store.overrides,
           itemCount: store.items.length,
-          hiddenItems: store.items
-            .filter((item) => item.hidden)
-            .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
-          doneItems: store.items
-            .filter((item) => item.done)
-            .map((item) => ({ id: item.id, title: item.title, courseLabel: item.courseLabel })),
+          // `members` stripped to source + id: it is what `trashable` reads,
+          // and sending the whole `RawItem[]` would put every member's title,
+          // url and `extra` on a message whose consumer draws one line.
+          hiddenItems: store.items.filter((item) => item.hidden).map(tidyItem),
+          doneItems: store.items.filter((item) => item.done).map(tidyItem),
           setAsideCourses: store.setAsideCourses,
           observers: store.observers,
           gcal: store.gcal,
@@ -2630,3 +2629,24 @@ chrome.runtime.onMessage.addListener(
 );
 
 console.log(`[illini-dash] service worker loaded (build ${BUILD_ID})`);
+
+
+/**
+ * One row of Settings' "hidden and ticked off" line.
+ *
+ * Named rather than inlined twice: the two lists differ only in which flag they
+ * filter on, and a field added to one of two copies is a field the other list
+ * silently lacks — which here would mean a Trash button on the hidden rows and
+ * none on the ticked ones, for no reason anybody could find.
+ */
+function tidyItem(item: Item): TidyItem {
+  return {
+    id: item.id,
+    title: item.title,
+    courseLabel: item.courseLabel,
+    members: item.members.map((member) => ({
+      source: member.source,
+      sourceId: member.sourceId,
+    })),
+  };
+}
