@@ -2,13 +2,36 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2591 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2593 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Course websites names itself once, and the switches share a column — 2026-09-21
+
+"why does it say course websites and reading course websites again, just make it course
+websites and say if its connected. the rows still look ugly."
+
+- Under `<h3>Course websites</h3>` sat a row titled **"Reading course websites"** whose
+  caption was "The last attempt at all of them." The heading restated twice, and the only
+  thing either line carried that the heading did not was one state chip. The reasoning in
+  the source for making it a row — a state word with nothing beside it reads as a state of
+  the *section* — was wrong in this one case, because that is exactly what it is: one
+  source reads every page listed under that heading. The chip is beside the heading and
+  the row is gone.
+- The rows were ragged because `.crow--pages` was `justify-self: end` against an `auto`
+  track, so each row's switches began wherever that row's own pages happened to end. Three
+  courses, three left edges, nothing to run an eye down. The name column is a fixed range
+  now and the pages start at its right edge: measured across seven rows, every first
+  switch at 565px.
+- Two static checks over `public/options.html`, both mutation-killed: the section says its
+  name once and carries the state beside it, and the three ids the popup deep-links to
+  (`sec-sites`, `sec-courses`, `sec-help`) survive being moved onto headings. That second
+  one has no other guard — those ids moved off their sections two changes ago and nothing
+  would have noticed them going.
 
 ## A page is named by its address, not by a restatement of its course — 2026-09-21
 
