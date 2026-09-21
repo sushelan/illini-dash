@@ -812,6 +812,135 @@ describe("the real CS 425 page: a keyword mid-sentence", () => {
   });
 });
 
+describe("the real CS 425 lectures page: a column of dates that are not the deadlines", () => {
+  /*
+   * Live, 2026-09-20. The table has a column of lecture dates and, in the
+   * topic cell, sentences like `MP1 due 11.59 PM 9/13 (Sun)`. The search read
+   * the column by position, dated MP1 on the 10th, and offered that first —
+   * the one failure §11 ranks above every other, on the first page a student
+   * tried after the merge.
+   */
+  const doc = fixture("cs425-fa2026-lectures.html");
+  const found = propose(doc);
+  const best = found[0]!;
+
+  it("offers the sentence's reading of the cell, not the column's", () => {
+    expect(best.duePhrase).toBe("due");
+    expect(best.dueSlot).toBe(6);
+    expect(best.titleSlot).toBe(6);
+    expect(locatorDescription(best)).toBe(
+      "date after the word “due” in column 7 of a table with no header row",
+    );
+  });
+
+  it("dates MP1 on the 13th, from a clock written before the day", () => {
+    const rows = pairsOfCandidate(best, doc, "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html");
+    expect(rows).toHaveLength(8);
+    expect(rows.map((row) => row[1])).toEqual([
+      "2026-09-13T23:59:00-05:00",
+      "2026-09-20T23:59:00-05:00",
+      "2026-09-27T23:59:00-05:00",
+      "2026-10-04T23:59:00-05:00",
+      "2026-11-01T23:59:00-06:00",
+      "2026-11-08T23:59:00-06:00",
+      "2026-12-03T23:59:00-06:00",
+      "2026-12-06T23:59:00-06:00",
+    ]);
+  });
+
+  it("does not offer the column read by position, because the rows contradict it", () => {
+    expect(found.some((candidate) => candidate.dueSlot !== undefined && !candidate.duePhrase)).toBe(false);
+    expect(found.every((candidate) => !candidate.sample.some((row) => row.due === "2026-09-10T23:59:00-05:00"))).toBe(true);
+  });
+
+  it("does not cut the names at the colon inside 11:59", () => {
+    expect(found.every((candidate) => candidate.titleBefore === undefined)).toBe(true);
+  });
+
+  it("folds the link-level reading of the same cells into the row-level one", () => {
+    expect(found).toHaveLength(1);
+  });
+});
+
+describe("a column read by position is checked against what the rows say after 'due'", () => {
+  it("refuses the column when the sentences disagree with it (deliberately unrealistic)", () => {
+    // Three lecture dates beside three sentences naming other days. Real
+    // pages also have rows that agree, which is why this one has none.
+    const page = docFrom(
+      "<table id='s'><tbody>" +
+        "<tr><td>9/10</td><td>Paxos. MP1 due 9/13</td></tr>" +
+        "<tr><td>9/17</td><td>Raft. HW1 due 9/20</td></tr>" +
+        "<tr><td>9/24</td><td>Chord. MP2 due 9/27</td></tr>" +
+        "</tbody></table>",
+    );
+    const offered = propose(page);
+    expect(offered).toHaveLength(1);
+    expect(offered[0]!.duePhrase).toBe("due");
+    expect(offered[0]!.sample.map((row) => row.due)).toEqual([
+      "2026-09-13T23:59:00-05:00",
+      "2026-09-20T23:59:00-05:00",
+      "2026-09-27T23:59:00-05:00",
+    ]);
+  });
+
+  it("refuses a column headed 'Date' the same way, and names the cell the reading came from", () => {
+    // The lectures trap with a header row on it. `Date` names a column, not a
+    // deadline, so the sentences in the topic cell are still the check.
+    const page = docFrom(
+      "<table id='s'><thead><tr><th>Date</th><th>Topic</th></tr></thead><tbody>" +
+        "<tr><td>9/10</td><td>Paxos. MP1 due 9/13</td></tr>" +
+        "<tr><td>9/17</td><td>Raft. HW1 due 9/20</td></tr>" +
+        "<tr><td>9/24</td><td>Chord. MP2 due 9/27</td></tr>" +
+        "</tbody></table>",
+    );
+    const offered = propose(page);
+    expect(offered).toHaveLength(1);
+    expect(offered[0]!.columns).toEqual({ title: "topic", due: "topic" });
+    expect(offered[0]!.duePhrase).toBe("due");
+    expect(locatorDescription(offered[0]!)).toBe("date after the word “due” in the “topic” column");
+    expect(offered[0]!.sample.map((row) => row.due)).toEqual([
+      "2026-09-13T23:59:00-05:00",
+      "2026-09-20T23:59:00-05:00",
+      "2026-09-27T23:59:00-05:00",
+    ]);
+  });
+
+  it("stands by a column headed 'Due Date' even when a sentence disagrees", () => {
+    // The page's own statement of the deadline is the column. The sentence is
+    // offered too; the student sees both and the disagreement.
+    const page = docFrom(
+      "<table id='s'><thead><tr><th>Due Date</th><th>Assignment</th></tr></thead><tbody>" +
+        "<tr><td>9/13</td><td>MP1 (also due 9/14 for section B)</td></tr>" +
+        "<tr><td>9/20</td><td>HW1 (also due 9/21 for section B)</td></tr>" +
+        "<tr><td>9/27</td><td>MP2 (also due 9/28 for section B)</td></tr>" +
+        "</tbody></table>",
+    );
+    const offered = propose(page);
+    expect(offered[0]!.columns?.due).toBe("due date");
+    expect(offered[0]!.duePhrase).toBeUndefined();
+    expect(offered.some((candidate) => candidate.duePhrase === "due")).toBe(true);
+  });
+
+  it("keeps the column when the sentences agree with it", () => {
+    // The same shape with the dates agreeing, plus a row whose sentence states
+    // no date, which only the column can read. Two honest answers, the column
+    // first because it reads one row more.
+    const page = docFrom(
+      "<table id='s'><tbody>" +
+        "<tr><td>9/13</td><td>MP1 due 9/13</td></tr>" +
+        "<tr><td>9/20</td><td>HW1 due 9/20</td></tr>" +
+        "<tr><td>9/27</td><td>MP2 due 9/27</td></tr>" +
+        "<tr><td>9/30</td><td>HW9 due soon</td></tr>" +
+        "</tbody></table>",
+    );
+    const offered = propose(page);
+    expect(offered.map((candidate) => [candidate.dueSlot, candidate.duePhrase, candidate.dated])).toEqual([
+      [0, undefined, 4],
+      [1, "due", 3],
+    ]);
+  });
+});
+
 describe("the real CS/ECE 374 A pages: the date in the sibling before the row", () => {
   for (const [name, id] of [
     ["cs374a-fa2026-homeworks.html", "cs374a-fa26-hw"],

@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2467 tests) all pass.
+`npm run build`, `npm run typecheck`, `npm test` (2484 tests) all pass.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
@@ -97,6 +97,28 @@ commits, on top of 0f74bc2.
   every name a sentence long — a reading of the same dates from *inside* each row.
   `dedupe` folds a candidate whose dated rows all sit inside a kept candidate's dated
   rows and date nothing new.
+- **The third live run: CS 425's lectures page, and a wrong deadline offered first.**
+  Sushi pasted `lectures.html`, a lecture table with a column of lecture dates beside
+  cells reading `MP1 due 11.59 PM 9/13 (Sun)`. The search read the column by position,
+  dated MP1 on the 10th, and offered it above a correct but partial reading — §11's worst
+  failure, on the first page tried after the merge. Three causes, each fixed and pinned
+  (branch `lectures-fix`, ten count-asserted mutations, all killed after two test
+  rewrites): inside a table the keyword was never looked for, so `locatorEvidence` now
+  probes every cell (`LocatorEvidence.cell`) and the candidate reads the date after the
+  word inside the cell it addresses by slot or header; a column read by position, or by
+  a header that does not itself say "due", is refused when the rows' sentences date two
+  or more of them differently (`disagreements`); and `11.59 PM 9/13` puts the clock
+  before the day, which the start-anchored grammar could not read at all, so every
+  format takes a clock in front (`CLOCK_FIRST`), the hook too, and `clockGroups` reads
+  either copy. Two smaller ones from the same paste: the slot guard counted every cell
+  with text rather than the rows its reader hooks, which refused the right reading; and
+  `titleBefore ":"` was proposed off the colon inside `11:59` (`titleSeparatorAt`, one
+  rule for the proposer and the runner). The page is a fixture, not an entry — its eight
+  deadlines are `assignments.html`'s under other names, and two adapters on one course's
+  deadlines are two rows per deadline. One edit in that fixture, banner and README say
+  which: the page has no `</head>` or `<body>`, Chrome implies one at the first table and
+  linkedom does not, so the unedited capture proposed nothing in the suite while the same
+  bytes proposed a wrong deadline in Chrome.
 - **The second live run** (Sushi enabled a self-added CS 374 A page) found three more
   things, fixed with tests and five count-asserted mutations, all killed. The ask to look
   for `[registry] 8 adapters accepted` was mine and wrong: the worker reads the registry

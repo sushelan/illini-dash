@@ -1,0 +1,577 @@
+<!--
+  fixtures/sites/cs425-fa2026-lectures.html
+  Captured 2026-09-20 by curl from
+  https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html (public).
+
+  ONE EDIT, and the reason it is here: the page has no </head> and no <body>.
+  Chrome's HTML5 parser closes the head at the first <table> and implies a body,
+  which is the document the extension searched. linkedom, which the suite
+  parses fixtures with, does not: it keeps every table under <head>, and the
+  inventory drops HEAD's descendants, so the unedited capture proposes nothing
+  in the suite while the same bytes proposed a wrong deadline in Chrome. The
+  line `</head><body>` below is inserted where Chrome inserts it. Nothing else
+  is changed. See fixtures/sites/README.md.
+-->
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><title>Distributed Systems :: Fall :: CS 425 / ECE 428 :: Lectures</title>
+</head><body>
+
+<table id="table14" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="index.html">Home</a></p></td>
+        <td style="color: rgb(0, 153, 0);" align="center" valign="center"><p align="right"> <font size="6"><span style="font-variant: small-caps; font-weight: 700; text-decoration: underline;">Distributed
+          Systems</span></font></p></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table15" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="lectures.html">Lectures</a></p></td>
+        <td align="center" valign="center"><p align="right">&nbsp; <img src="downarrow2.jpg" border="0" height="37" width="41"><img src="uparrow2.jpg" border="0" height="44" width="46"><img src="uparrow2.jpg" border="0" height="44" width="46"><img src="updownarrow3.jpg" border="0" height="40" width="44"><img src="updownarrow3.jpg" border="0" height="40" width="44"></p></td>
+      </tr>
+   </tbody>
+  </table>
+  <table id="table16" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="assignments.html">Assignments</a></p></td>
+        <td align="center" valign="center"><big> </big>
+          <p style="color: rgb(0, 153, 0);" align="right"><big> <span style="text-decoration: overline;"><font size="4"><big><u>CS 425 : ECE
+            428</u></big></font></span></big></p>
+          <big> </big></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table17" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+      <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="resources.html">Resources</a></p></td>
+        <td align="center" valign="center"><p align="right">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="downarrow2.jpg" border="0" height="37" width="41"> <img src="updownarrow3.jpg" border="0" height="44" width="46"> <img src="updownarrow3.jpg" border="0" height="44" width="46"> </p></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="table18" cellpadding="0" cellspacing="5" width="760">
+    <tbody>
+       <tr>
+        <td align="center" valign="center" width="173"><p align="right"> <a href="staff.html">Contact Course Staff</a></p></td>
+        <td style="color: rgb(255, 102, 0);" align="center" valign="center"><p align="right"> <font size="5"><span style="text-decoration: overline;"><strong>Fall 2026</strong></span></font></p></td>
+      </tr>
+     </tbody>
+  </table>
+	
+<br>
+
+&nbsp;
+<p align="right">&nbsp; </p>
+
+<table align="center" width="90%">
+
+  <tbody>
+    <tr>
+      <td><!-- start page content -->
+      <h2 style="color: rgb(102, 51, 102);"> Lectures Schedule
+(Tentative)</h2>
+      <p align="left"> <i>Note: Slides are marked as </i>"Tentative"<i>
+before the lecture. These slides are not authoritative until marked as </i>"Final"<i>.</i></p>
+      <div align="center">
+      <center>
+      <center>&nbsp;</center>
+      <table width="902" border="6" cellpadding="2" bordercolor="#68228b" bordercolorlight="#008000" bordercolordark="#008000" id="Table3" style="width: 903px; height: 2262px;">
+        <tbody>
+          <tr>
+            <td style="width: 88px; height: 65px; text-align: center;">
+              <strong>Lecture #</strong></td>
+            <td align="center" height="65" width="90"> <b>Category</b></td>
+            <td align="center" height="65" width="79"> <strong>Date</strong></td>
+            <td align="center" height="65" valign="center" width="159">
+              <strong>&nbsp;Lecture Name</strong></td>
+            <td align="center" height="65" valign="center" width="171">
+              <strong>&nbsp;Readings</strong></td>
+            <td align="center" height="65" valign="center" width="123">
+              <p> <strong>Slides</strong></p>
+              </td>
+            <td align="center" height="65" valign="center" width="128">
+              <p> <b>HWs and MPs, Etc.</b></p>
+              </td>
+          </tr>
+          
+          <tr>
+            <td align="center" height="35" valign="center" width="82"> <strong>1</strong></td>
+            <td align="center" height="35" width="90"><em>Welcome!</em></td>
+            <td align="center" height="35" width="79">8/25</td>
+            <td style="text-align: left;" height="35" valign="center" width="159">Introduction</td>
+            <td align="left" height="35" valign="center" width="171">Relevant
+              parts of Chapter 1</td>
+            <td style="text-align: center;" height="35" valign="center" width="123"><p>&nbsp;</p>
+              <p>[<a href="L1.FA26.pptx">ppt</a>] [<a href="L1.FA26.pdf">pdf</a>] (Final) </p></td>
+            <td style="text-align: center;" height="35" valign="top" width="128"><a href="assignments.html">MP1 out</a></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;"><br>
+2<br>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><em>Clouds</em></td>
+            <td style="vertical-align: top; text-align: center;">8/27</td>
+            <td style="vertical-align: top; text-align: left;">Introduction to Cloud Computing</td>
+            <td style="vertical-align: top;"><br>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><p>&nbsp;</p>
+              <p>[<a href="L2.FA26.pptx">ppt</a>] [<a href="L2.FA26.pdf">pdf</a>] (Final) </p></td>
+            <td style="text-align: center;" height="35" valign="top" width="128"><a href="assignments.html">HW1 out</a></td>
+          </tr>
+			<tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;"><br>
+3<br>
+            </td>
+            <td style="vertical-align: top; text-align: center;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/1</td>
+            <td style="vertical-align: top; text-align: left;">Mapreduce/Hadoop <br/><strong><span style="color: red; font-weight: bold;"> MapReduce internals covered on 9/8
+</span></strong></td>
+            <td style="vertical-align: top;"><br>
+
+ <p><a href="https://www.usenix.org/legacy/publications/library/proceedings/osdi04/tech/full_papers/dean/dean.pdf">MapReduce Paper</a></p>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><p>&nbsp;</p>
+               <p>[<a href="L3.FA26.pptx">ppt</a>] [<a href="L3.FA26.pdf">pdf</a>] (Final) </p></td>
+            <td style="vertical-align: top;"><br>
+
+</td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">4<br>
+              </td>
+            <td style="vertical-align: top; text-align: center;"><em>Classical Distributed Algorithms</em></td>
+            <td style="vertical-align: top; text-align: center;">9/3</td>
+            <td style="vertical-align: top; text-align: left;">Gossip</td>
+            <td style="vertical-align: top;"> Section 18.4 (Relevant
+Parts)</td>
+            <td style="vertical-align: top; text-align: center;">[<a href="L4.FA26.pptx">ppt</a>] [<a href="L4.FA26.pdf">pdf</a>] [<a href="L4.FA26-annotated.pdf">annotated pdf</a>](Final)</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">5<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/8</td>
+            <td style="vertical-align: top; text-align: left;">Failure Detectors and Membership</td>
+            <td style="vertical-align: top;">Section
+15.1 and relevant parts of Section 2.4.2<br>
+Further readings (<strong>log in via UIUC VPN to access Digital Library Papers at ACM, IEEE, etc.!</strong>):<br>
+<ul>
+              <li> [<a href="http://dl.acm.org/citation.cfm?id=1659238">Gossip-style
+FD</a>]</li>
+              <li> [<a href="dsn02-SWIM.pdf">SWIM</a><a href="http://ieeexplore.ieee.org/document/1028914/?reload=true&amp;arnumber=1028914"></a>][<a href="http://dl.acm.org/citation.cfm?id=384010">Pre-SWIM paper</a>]</li>
+            </ul>
+            </td>
+            <td style="vertical-align: top; text-align: center;">
+          [<a href="L5-6.a.FA26.pptx">ppt</a>] [<a href="L5-6.a.FA26.pdf">pdf</a>][<a href="L5-6.a.FA26-annotated.pdf">annotated pdf</a>](Final) </td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">6<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/10</td>
+            <td style="vertical-align: top; text-align: left;">Failure Detectors and Membership (Contd.) <br/><br/>Grids</td>
+            <td style="vertical-align: top;">See above</td>
+            <td style="vertical-align: top; text-align: center; color: #000000;">
+            <p>See above</p>
+	      <p><b>Grid Lecture:</b> <br/>
+          [<a href="L6.b.FA26.pptx">ppt</a>] [<a href="L6.b.FA26.pdf">pdf</a>]<br/>
+          [<a href="https://mediaspace.illinois.edu/media/t/1_tiibm5z1/33582211">Video</a>]</p></td>
+            <td style="vertical-align: top;"><a href="assignments.html">MP1 due 11.59 PM 9/13 (Sun), MP1 demos on 9/14 (Mon)</a><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">7<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/15</td>
+            <td style="vertical-align: top; text-align: left;">P2P Systems</td>
+            <td style="vertical-align: top;"><a href="gnutella_protocol_0.4.pdf">Paper - "Gnutella Protocol
+Specification"</a></td>
+            <td style="vertical-align: top; text-align: center;"> [<a href="L7-8.FA26.pptx">ppt</a>] [<a href="L7-8.FA26.pdf">pdf</a>] (Tentative)</td>
+            <td style="vertical-align: top;"><a href="assignments.html">MP2 out 9/15</a></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;"><br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/17</td>
+            <td style="vertical-align: top; text-align: left;">P2P Systems (II)</td>
+            <td style="vertical-align: top;">
+				<ul>
+              <li> Required: <a href="https://dl.acm.org/doi/10.1145/964723.383071">Paper
+- "Chord"</a> (Sections 1-4, 6-7). </li>
+			<li>Optional: <a href="https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf">(Chord Extended Paper)</a> </li>
+				</ul>
+				</td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><a href="assignments.html"></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">9<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/22</td>
+            <td style="vertical-align: top; text-align: left;">Key-value Stores/NoSQL</td>
+            <td style="vertical-align: top;">
+            <ul>
+              <li>
+                <div style="line-height: 90%; margin-top: 0pt; margin-bottom: 0pt; text-align: left; direction: ltr; unicode-bidi: embed; vertical-align: baseline;">
+                <span style="font-family: Times New Roman; color: black;"><a href="http://docs.datastax.com/en/cassandra/2.0/">Cassandra
+2.0 Documentation at datastax.com</a></span> (source of lecture material)</div>
+              </li>
+              <li> <span style="font-family: Times New Roman; color: black;"><a href="http://www.datastax.com/documentation/articles/cassandra/cassandrathenandnow.html">Cassandra
+2.0 Paper</a></span></li>
+              <li><a href="http://docs.datastax.com/en/cassandra/3.0/">Cassandra 3.0 Documentation (may differ from material being discussed)</a></li>
+              <li> <a href="http://www.slideshare.net/Eweaver/cassandra-presentation-at-nosql">Cassandra
+NoSQL Presentation</a></li>
+              <li><a href="http://cassandra.apache.org/">Main Cassandra page</a>&nbsp;</li>
+              <li> <a href="http://hbase.apache.org/book/">HBase</a></li>
+              <li><a href="http://www.mongodb.org/">MongoDB</a></li>
+            </ul>
+            </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)
+            <p><a href="https://mediaspace.illinois.edu/media/t/1_jwst92s6/33642961">HBase Lecture Video</a>
+	    </td>
+			  <td style="vertical-align: top;"><a href="assignments.html">HW1 due 9/20 11:59 PM (Sun), HW2 out 9/21</a></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">10<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/24</td>
+            <td style="vertical-align: top; text-align: left;">Key-value Stores/NoSQL (Contd.)</td>
+            <td style="vertical-align: top;">See above</td>
+            <td style="vertical-align: top; text-align: center;">See above</td>
+            <td style="vertical-align: top;"><a href="assignments.html">MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)</a></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">11<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">9/29</td>
+            <td style="vertical-align: top; text-align: left;">Consistency Models, start of Time and Ordering</td>
+            <td style="vertical-align: top;">Chapter 12 (relevant parts).<br><br>
+Sections 14.1-14.4</td>
+            <td style="vertical-align: top; text-align: center;">See above, and See Below</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>
+			
+         <tr>
+            <td style="vertical-align: top; text-align: center;"><strong>12</strong><br></td>
+            <td style="vertical-align: top; text-align: center;"><em>Classical Distributed Algorithms</em></td>
+            <td style="vertical-align: top; text-align: center;">10/1</td>
+            <td style="vertical-align: top; text-align: left;">Time and Ordering (Contd.)</td>
+            <td style="vertical-align: top; text-align: left;">Sections
+14.1-14.4</td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top; text-align: center;"><a href="assignments.html">HW2 due 10/4 at 11:59 PM (Sun)</a></td>
+          </tr>
+			
+		<tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">13<br></td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">10/6</td>
+            <td style="vertical-align: top;">Snapshots</td>
+            <td style="vertical-align: top;">Section 14.5<br></td>
+            <td style="vertical-align: top; text-align: center;">
+	      [ppt][pdf] (Tentative)</td>
+              <p>&nbsp;</p>
+              <p>&nbsp;</p></td>
+		<td style="vertical-align: top;"><br></td>
+		</tr>
+
+
+          <tr>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="82"> <strong>14</strong></td>
+            <td align="center" bgcolor="#ffff00" height="38" width="90">&nbsp;</td>
+            <td align="center" bgcolor="#ffff00" height="38" width="79">10/8</td>
+            <td align="left" bgcolor="#ffff00" height="38" valign="center" width="159">IN-CLASS MIDTERM EXAM</td>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="171"><p><strong>Syllabus</strong>: For all students except MCS Coursera: All lecture material from
+              Lectures 1-12, and all HWs1-2. </p>
+              <p>For MCS Coursera students: All material in C3 Part 1, including lectures, Coursera quizzes, <a href="assignments.html">HWs 1-2</a>, Coursera MP1.</p>
+				  
+<p><strong><strong>Locations (on campus)</strong></strong>: </p>
+              <p>
+		<ul>
+		  <li><strong>if (your LAST NAME starts with <span style="color: blue; font-weight: bold;">A-M </span>)</strong> goto: <span style="color: blue; font-weight: bold;">xxxxx</span></li>
+		  <li><strong>else (LAST NAME starts with <span style="color: red; font-weight: bold;">N-Z</span>)</strong> goto: <span style="color: red; font-weight: bold;">yyyy[Map])</span></li>
+		</ul>
+	      </p>
+	      <p>MCS Coursera students will have a timed-exam (90 minutes + buffer). See pinned Piazza post for more instructions.</p>
+	    </td>
+            <td style="text-align: left;" bgcolor="#ffff00" height="38" valign="center" width="123"><ul>
+            </ul>
+            </td>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="128">
+	      <em>On-campus midterm is 75 min, closed-book, and closed-notes. Calculators allowed. NO cheatsheets and other devices allowed. Midterm will be held during class hours.</em>
+	      <br></td>
+          </tr>
+
+		  
+           <tr>
+            <td style="vertical-align: top; text-align: center;"><strong>15</strong></td>
+            <td style="vertical-align: top; text-align: center;"><em>Classical Distributed Algorithms</em></td>
+            <td style="vertical-align: top; text-align: center;">10/13</td>
+            <td style="vertical-align: top; text-align: left;">Multicast Communications</td>
+			
+            <td style="vertical-align: top;">Section
+	      15.4</td>
+	    <td align="center">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><a href="assignments.html">HW3 out on 10/12, MP3 out on 10/13</a></td>
+          </tr>
+		  
+		  
+		  
+		           <tr>
+            <td style="vertical-align: top; text-align: center;"><span style="font-weight: bold;">16</span><br></td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">10/15</td>
+            <td style="vertical-align: top; text-align: left;">Mutual Exclusion</td>
+            <td style="vertical-align: top;">Section 15.2<br>
+			<ul>
+				<li>[<a href="358527.ricart-agrawala.pdf">Ricart-Agrawala Mutual Exclusion Paper</a>]</li>
+				<li>[<a href="p145-maekawa.pdf">Maekawa Mutual Exclusion Paper</a>]</li>
+				</ul>
+			  </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr> 
+		  
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">17<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">10/20</td>
+            <td style="vertical-align: top;">Consensus</td>
+            <td style="vertical-align: top;">
+              <a>Paper-<a href="https://dl.acm.org/doi/10.1145/3149.214121">"Impossibility
+of Distributed Consensus"</a> (sections 1-3 only), and Section 15.5.2.<br>
+<br>
+<strong><span style="color: red; font-weight: bold;"> This lecture's material</span><span style="color: red; font-weight: bold;"> is mandatory for all students (all sections of class). In spite of what the videos might say, the material is NOT optional. <br>
+</span></strong>
+            </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; font-weight: bold; text-align: center;">18<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">10/22</td>
+            <td style="vertical-align: top;">Leader Election</td>
+            <td style="vertical-align: top;">Section 15.3</td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; text-align: center;"> <b>19</b></td>
+            <td style="vertical-align: top; text-align: center;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">10/27</td>
+            <td style="vertical-align: top;">Paxos and Raft</td>
+            <td>Section 17.3.1, 21.5.2 (Paxos sections)</td>
+            <td style="text-align: center;" height="38" valign="center" width="123">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top; text-align: center;"><br></td>
+          </tr>
+          <tr>
+            <td align="center" height="38" valign="center" width="82"> <span style="font-weight: bold;">20</span><br>
+            </td>
+            <td align="center" height="38" width="90"><em>Concurrency and Replication</em></td>
+            <td align="center" height="38" width="79">10/29</td>
+            <td align="left" height="38" valign="center" width="159">RPCs and Marshalling</td>
+            <td align="center" height="38" valign="center" width="171">
+            
+            <p align="left"><br>
+ </p>
+            <p align="left">Sections 4.3, Relevant parts of Chapter 5</p>
+            <p align="left"><br>
+            </p>
+            <p align="left"><br>
+</p>
+
+            </td>
+            <td style="text-align: center;" height="38" valign="center" width="123">[ppt][pdf] (Tentative)</td>
+            <td style="text-align: center;" height="38" valign="center" width="128"><a href="assignments.html">HW3 due 11/1 at 11:59 PM (Sun)</a></td>
+          </tr>
+         <tr>
+            <td align="center" height="32" valign="center"><strong>21</strong></td>
+            <td align="center" height="32">&nbsp;</td>
+            <td align="center" height="32">11/3</td>
+            <td style="color: black;" align="left" height="32" valign="center">Concurrency Control, Transactions</td>
+            <td align="left" height="32" valign="center">Section 16.{1, 2, 4},&nbsp; 17.{1, 2, 3, 5}</td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="text-align: center;" height="38" valign="center" width="128"><a href="assignments.html">HW4 out</a></td>
+          </tr>
+	  
+          <tr>
+            <td style="vertical-align: top;" height="21">
+              <p align="center"> <b>22</b></p>
+              </td>
+            <td style="vertical-align: top; text-align: center;" height="21">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;" height="21">11/5</td>
+            <td style="vertical-align: top;" height="21">Replication Control/2PC</td>
+            <td style="vertical-align: top;" height="21">Sections
+                18.1-18.3, 18.5<br><br>
+Relevant parts of Section 17.{1, 2, 3, 5}</td>
+            <td style="vertical-align: top; text-align: center;" height="21">[ppt][pdf] (Tentative)</td>
+             <td><br></td>
+          </tr>
+	  
+	  
+           <tr>
+            <td style="vertical-align: top; text-align: center; font-weight: bold;">23<br>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><em>The New Age</em></td>
+            <td style="vertical-align: top; text-align: center;">11/10</td>
+            <td align="left" height="32" valign="center">Stream Processing and Scheduling</td>
+            <td align="left" height="32" valign="center">
+	      <ul>
+<li> <a href="https://storm.apache.org/">Storm</a></li>
+<li><a href="http://www.eecs.berkeley.edu/Pubs/TechRpts/2012/EECS-2012-259.pdf">Spark Streaming</a></li>
+<li><a href="nsdi_drf.pdf">DRF Paper</a></li>
+	      </ul>
+            </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)
+      	      <p style="vertical-align: top; text-align: center;">Spark <span style="color: red; font-weight: bold;">(In syllabus, everyone should see video (since not lectured in class). Not optional!) </span>: [<a href="L26.B.FA26.pptx">Spark-ppt</a>] [<a href="L26.B.FA26.pdf">Spark-pdf</a>] [<a href="https://mediaspace.illinois.edu/media/t/1_xsuxezqb">Spark Mediaspace Video Lecture (one video)</a>] </p>
+	    </td>
+          <td style="text-align: center;" height="32" valign="center"><a href="assignments.html">MP3 due 11.59 PM 11/8 (Sunday), demos 11/9 (Mon). MP4 out 11/10.</a></td>
+          </tr>
+           <tr>
+            <td style="vertical-align: top; text-align: center; font-weight: bold;">24<br>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><em>Back to Basics</em></td>
+            <td style="vertical-align: top; text-align: center;">11/12</td>
+            <td style="vertical-align: top;">Remote and Distributed File Systems (NFS, AFS, GFS)</td>
+            <td style="vertical-align: top;">Chapter 12 (relevant
+parts).</td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="text-align: center;" height="32" valign="center"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; text-align: center; font-weight: bold;">25<br>
+            </td>
+            <td style="vertical-align: top;">&nbsp;</td>
+            <td style="vertical-align: top; text-align: center;">11/17</td>
+            <td style="vertical-align: top;">Distributed Shared Memory</td>
+            <td style="vertical-align: top;"> Sections 6.5 (relevant
+parts).
+            <p> Optional: Chap 6 from Tanenbaum, Distributed Systems:
+principles and paradigms</p>
+            </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top;"><br></td>
+          </tr>	  
+	  
+	     <tr>
+            <td align="center" height="63" valign="center" width="82"><span style="font-weight: bold;">26</span><br></td>
+            <td align="center" height="63" width="90"><em>The New Age</em></td>
+            <td align="center" height="63" width="79">11/19</td>
+            <td align="left" height="32" valign="center" width="159">Graph Processing and Machine Learning (Both topics ARE in syllabus)</td>
+            <td align="left" height="32" valign="center" width="171">
+            <ul>
+		<li><a href="http://dl.acm.org/citation.cfm?id=1807184">Pregel</a></li>
+            </ul>
+<br>
+            <br>
+            </td>
+            <td align="center" height="63" valign="center" width="123">
+	      <p style="vertical-align: top; text-align: center;">Graphs, ML <span style="color: red; font-weight: bold;"> (All topics including ML are in syllabus and not optional!) </span>:<p>[ppt][pdf] (Tentative)
+		 </td>
+           <td style="vertical-align: top; text-align: center;" height="21"><br>
+          </tr>
+
+         <tr>
+            <td align="center" height="38" valign="center">&nbsp;</td>
+            <td align="center" height="38">&nbsp;</td>
+            <td align="center" height="38">11/24</td>
+            <td colspan="4" align="left" height="38" valign="center"><p align="center">&nbsp; </p>
+              <p align="center">&nbsp; </p>
+              <p align="center"> FALL/THANKSGIVING BREAK - no class.</p>
+              <p align="center">&nbsp; </p>
+              <p align="center">&nbsp; </p></td>
+          </tr>
+          <tr>
+            <td align="center" height="38" valign="center">&nbsp;</td>
+            <td align="center" height="38">&nbsp;</td>
+            <td align="center" height="38">11/26</td>
+            <td colspan="4" align="center" height="38" valign="center"><p align="center">&nbsp; </p>
+              <p align="center">&nbsp; </p>
+              <p align="center"> FALL/THANKSGIVING BREAK - no class.</p>
+              <p align="center"><br>
+              </p>
+              <p align="center"> &nbsp;&nbsp;</p></td>
+          </tr>
+
+          <tr>
+            <td align="center" height="32" valign="center" width="82"> <b>27
+              </b></td>
+            <td align="center" height="32" width="90">&nbsp;</td>
+            <td align="center" height="32" width="79">12/1</td>
+            <td align="left" height="32" valign="center" width="159">Security</td>
+            <td align="left" height="32" valign="center" width="171"><br>
+              <p><br>
+                </p>
+              </td>
+            <td align="center" height="32" valign="center" width="123">[ppt][pdf] (Tentative)</td>
+            <td align="center" height="32" valign="center" width="128"><br></td>
+          </tr>
+          <tr>
+            <td style="vertical-align: top; text-align: center;"><span style="font-weight: bold;">28 </span><br>
+            </td>
+            <td style="vertical-align: top; text-align: center;"><em>Real Behaviors</em></td>
+            <td style="vertical-align: top; text-align: center;">12/3</td>
+            <td style="vertical-align: top;">Datacenter Disasters - Case Studies</td>
+            <td style="vertical-align: top;"><br>
+See links on slides<br>
+            </td>
+            <td style="vertical-align: top; text-align: center;">[ppt][pdf] (Tentative)</td>
+            <td style="vertical-align: top; text-align: center;"><a href="assignments.html">HW4 due 12/3 at 11.59 PM (DUE on a THURSDAY!)</a></td>
+          </tr>
+          <tr>
+            <td align="center" height="50" valign="center" width="82"> <b>29</b></td>
+            <td align="center" height="50" width="90"><em>Onward</em></td>
+            <td align="center" height="50" width="79">12/8</td>
+            <td align="left" height="50" valign="center" width="159">Wrap-up</td>
+            <td align="left" height="50" valign="center" width="171">&nbsp;</td>
+            <td style="text-align: center;" height="50" valign="center" width="123">[ppt][pdf] (Tentative)</td>
+            <td style="text-align: center;" height="50" valign="center" width="128"><a href="assignments.html">MP4 due 12/6 at 11.59 PM (Sun), demos 12/7 (Mon)</a></td>
+          </tr>
+		  
+		   <tr>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="82">&nbsp; </td>
+            <td align="center" bgcolor="#ffff00" height="38" width="90">&nbsp;</td>
+            <td align="center" bgcolor="#ffff00" height="38" width="79">FINAL EXAM: TBD</td>
+            <td align="left" bgcolor="#ffff00" height="38" valign="center" width="159"><font><strong>FINAL EXAM. Final exam for all students except MCS Coursera will be in-person and timed (3 hours). <br/> Final exam for Coursera students will be online and timed (3 hours + buffer). </strong><em>(No conflicts given for travel, holiday travel, interviews, course double booking. Conflict requests must be received 2 weeks before, and ack-ed by instructor. Medical reasons should come with medical certificate mentioning patient name.)</em></font></td>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="171"><p><strong>Syllabus</strong>: For all students except MCS Coursera: All lecture material from
+              Lectures 1 through Lecture 29 (both inclusive), and all HWs1-4. </p>
+              <p>For Coursera students: All material in C3 Parts 1 and 2, including lectures, Coursera quizzes and exams, HWs 1-4, Coursera MP1, MP2.</p>
+	    </td>
+			  
+			  
+            <td style="text-align: left;" bgcolor="#ffff00" height="38" valign="center" width="123"><p><strong><strong>Location (on campus)</strong></strong>: TBD.</p></td>
+            <td align="center" bgcolor="#ffff00" height="38" valign="center" width="128"></td>
+          </tr>
+
+        </tbody>
+      </table>
+      </center>
+      </div>
+<!-- end page content --></td>
+    </tr>
+  </tbody>
+</table>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-43422418-1', 'illinois.edu');
+  ga('send', 'pageview');
+
+</script>
+</body></html>

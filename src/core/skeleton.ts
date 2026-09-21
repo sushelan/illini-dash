@@ -975,6 +975,13 @@ export interface LocatorEvidence {
    * proposal could validate against one reading and be saved under another).
    */
   spec: string;
+  /**
+   * For a `phrase` read **inside a table**: the one cell the keyword is looked
+   * for in. CS 425's lectures page keeps `MP1 due 11.59 PM 9/13` in a cell
+   * beside a column of lecture dates, and the only reading of that row that
+   * is right is the sentence's own, not the column's.
+   */
+  cell?: { slot: number } | { header: string };
   /** Rows this probe was offered at all — a table's data rows, or the group. */
   of: number;
   /** Rows where the reader hooked: a cell with text, a declared label, a keyword. */
@@ -1030,8 +1037,19 @@ function isFreeRow(row: Element): boolean {
 }
 
 /** A fragment `locateDue` can read, for one probe. Never run as an adapter. */
-function probeFragment(kind: LocatorKind, spec: string): Adapter {
+function probeFragment(
+  kind: LocatorKind,
+  spec: string,
+  cell?: { slot: number } | { header: string },
+): Adapter {
   const fragment: Record<string, unknown> = { due: "." };
+  if (cell) {
+    // A keyword read inside one cell: the cell is the locator, the word is the reader.
+    fragment["duePhrase"] = spec;
+    if ("slot" in cell) fragment["dueSlot"] = cell.slot;
+    else fragment["columns"] = { title: "", due: cell.header };
+    return fragment as unknown as Adapter;
+  }
   if (kind === "header") fragment["columns"] = { title: "", due: spec };
   else if (kind === "slot") fragment["dueSlot"] = Number(spec);
   else if (kind === "prev") fragment["duePrev"] = spec;
@@ -1065,8 +1083,9 @@ function probe(
   timezone: string,
   reference: string,
   grids: GridCache,
+  cell?: { slot: number } | { header: string },
 ): Probed {
-  const fragment = probeFragment(kind, spec);
+  const fragment = probeFragment(kind, spec, cell);
   const hookedAt = new Set<number>();
   const read: { at: number; texts: string[]; formats: string[] }[] = [];
   let pending = 0;
@@ -1112,6 +1131,7 @@ function probe(
     evidence: {
       kind,
       spec,
+      ...(cell ? { cell } : {}),
       of: offered.length,
       hooked: hookedAt.size,
       pending,
@@ -1188,6 +1208,28 @@ export function locatorEvidence(
       const grid = gridFor(rows[first]!, grids);
       for (let slot = 0; slot < (grid ? width(grid) : 0); slot += 1) {
         keep(probe("slot", String(slot), rows, data, timezone, reference, grids));
+      }
+    }
+    /*
+     * The keyword, looked for inside each cell of the table.
+     *
+     * A schedule table keeps a column of dates that are not deadlines — the
+     * lecture's — and states the deadline in a sentence in another cell:
+     * CS 425's lectures page reads `9/10 | … | MP1 due 11.59 PM 9/13 (Sun)`.
+     * Read by column, that row is due on the 10th; read after the word, on the
+     * 13th. Without this probe the column was the only reading a table could
+     * get, and the wrong one was offered first (2026-09-20, live).
+     */
+    const grid = gridFor(rows[first]!, grids);
+    const cells: ({ slot: number } | { header: string })[] =
+      headers.size >= 2
+        ? [...headers.keys()].map((header) => ({ header }))
+        : headers.size === 0 && grid
+          ? Array.from({ length: width(grid) }, (_, slot) => ({ slot }))
+          : [];
+    for (const cell of cells) {
+      for (const keyword of PHRASE_KEYWORDS) {
+        keep(probe("phrase", keyword, rows, data, timezone, reference, grids, cell));
       }
     }
   }

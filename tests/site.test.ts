@@ -22,6 +22,7 @@ import {
   supportedDateFormats,
   timeLikeTail,
   titleBefore,
+  titleSeparatorAt,
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
@@ -2465,5 +2466,100 @@ describe("registry validation of the list-shaped fields", () => {
   it("refuses a non-string", () => {
     expect(validateAdapter({ ...ADAPTER, dueLabel: ["Due"] }).reason).toMatch(/bad dueLabel/);
     expect(validateAdapter({ ...ADAPTER, time: 7 }).reason).toMatch(/bad time/);
+  });
+});
+
+describe("a clock before the date (CS 425's lectures page, 2026-09-20)", () => {
+  const ZONE = "America/Chicago";
+  const REF = "2026-09-20T12:00:00.000Z";
+
+  it("reads `11.59 PM 9/13` as the 13th at 23:59, stated", () => {
+    // `MP1 due 11.59 PM 9/13 (Sun)`: the clock first, then the day. Every
+    // format is anchored at the start, so this read no date at all — and to the
+    // phrase reader a row with no date after "due" is not its row, so the three
+    // MP rows vanished without a word.
+    const parts = parseAdapterDateParts("11.59 PM 9/13 (Sun), MP1 demos on 9/14 (Mon)", "M/d", ZONE, REF);
+    expect(parts?.iso).toBe("2026-09-13T23:59:00-05:00");
+    expect(parts?.timeAssumed).toBe(false);
+    expect(parts?.unparsedTime).toBeUndefined();
+  });
+
+  it("reads `5pm on Sep 20` and `18:00, 2026-09-20` the same way", () => {
+    expect(parseAdapterDateParts("5pm on Sep 20", "MMM d, h:mm a", ZONE, REF)?.iso).toBe("2026-09-20T17:00:00-05:00");
+    expect(parseAdapterDateParts("18:00, 2026-09-20", "yyyy-MM-dd", ZONE, REF)?.iso).toBe("2026-09-20T18:00:00-05:00");
+  });
+
+  it("still refuses a bare number in front of the date as a clock", () => {
+    // `5 9/13` is not five o'clock on the 13th; it is a date with a stray digit.
+    const parts = parseAdapterDateParts("5 9/13", "M/d", ZONE, REF);
+    expect(parts).toBeUndefined();
+    expect(parseAdapterDateParts("9/13", "M/d", ZONE, REF)?.timeAssumed).toBe(true);
+  });
+});
+
+describe("titleSeparatorAt: a clock's colon is not a separator", () => {
+  it("skips the colon inside 11:59", () => {
+    // `HW1 due 9/20 11:59 PM (Sun)` has no name in front of its colon; cutting
+    // there titled the row `HW1 due 9/20 11` (2026-09-20, proposed live).
+    expect(titleSeparatorAt("HW1 due 9/20 11:59 PM (Sun)", ":")).toBe(-1);
+    expect(titleBefore("HW1 due 9/20 11:59 PM (Sun)", ":")).toBe("HW1 due 9/20 11:59 PM (Sun)");
+  });
+
+  it("finds the separator when one comes before or after a clock", () => {
+    expect(titleSeparatorAt("[HW1 Document]: Released 8/27.", ":")).toBe(14);
+    expect(titleSeparatorAt("Lab 3: due 5:00 PM", ":")).toBe(5);
+    expect(titleSeparatorAt("Due 5:00 PM: Lab 3", ":")).toBe(11);
+  });
+
+  it("takes any other literal as written", () => {
+    expect(titleSeparatorAt("Homework 4 — [solutions]", "—")).toBe(11);
+  });
+});
+
+describe("the slot guard counts the rows its reader hooks", () => {
+  // Six lecture rows; two of them carry a deadline in the topic cell. Read by
+  // position alone that column is two dates in six, and the guard threw
+  // (2026-09-20) — but under `duePhrase` the four rows without the word are not
+  // this adapter's rows, and the two that are both read.
+  const page = doc(
+    "<table id='s'><tbody>" +
+      "<tr><td>9/8</td><td>Intro to consensus</td></tr>" +
+      "<tr><td>9/10</td><td>Paxos, part 1. MP1 due 9/13 (Sun)</td></tr>" +
+      "<tr><td>9/15</td><td>Paxos, part 2</td></tr>" +
+      "<tr><td>9/17</td><td>Raft. HW1 due 9/20 at 11:59 PM</td></tr>" +
+      "<tr><td>9/22</td><td>Byzantine faults</td></tr>" +
+      "<tr><td>9/24</td><td>Midterm review</td></tr>" +
+      "</tbody></table>",
+  );
+  const adapter = {
+    id: "lect-fa26",
+    label: "Lectures",
+    courseCode: "CS425",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "#s tr",
+    title: "td",
+    due: "td",
+    dueSlot: 1,
+    titleSlot: 1,
+    duePhrase: "due",
+    dateFormat: "M/d",
+    timezone: "America/Chicago",
+    minExtensionVersion: "1.1.0",
+  } as unknown as Adapter;
+  const ctx: PageCtx = { url: adapter.url, fetchedAt: "2026-09-09T12:00:00.000Z" };
+
+  it("reads the two rows that say due, and does not throw over the four that do not", () => {
+    const items = runAdapter(adapter, page, ctx);
+    expect(items.map((i) => [i.title, i.dueAt])).toEqual([
+      ["Paxos, part 1. MP1 due 9/13 (Sun)", "2026-09-13T23:59:00-05:00"],
+      ["Raft. HW1 due 9/20 at 11:59 PM", "2026-09-20T23:59:00-05:00"],
+    ]);
+  });
+
+  it("still throws for a plain slot read of the same column, which is not a date column", () => {
+    const plain = { ...adapter, duePhrase: undefined, dueSlot: 1, titleSlot: 0 } as unknown as Adapter;
+    expect(() => runAdapter(plain, page, ctx)).toThrow("column 1 read as a date on 0 of 6 rows");
   });
 });

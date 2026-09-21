@@ -105,6 +105,32 @@ as the minute separator — with only `:` every one of these carried `timeAssume
   nothing. So every row falls back to the page (house rule 7 would have applied anyway to
   the two rows whose link is off-origin).
 
+## The lectures page, and why it is a fixture and not an entry
+
+`lectures.html` is the other page with the same deadlines on it: a table with a
+column of lecture dates and, in the topic cell, `MP1 due 11.59 PM 9/13 (Sun), MP1
+demos on 9/14 (Mon)`. On 2026-09-20 Sushi pasted it and the search offered the
+**column** first — MP1 dated 9/10, the lecture, not the deadline — above a correct but
+partial reading of the sentences. Three things were wrong and each is fixed and pinned:
+
+- Inside a table the keyword was never looked for, so the sentence's reading did not
+  exist for table rows. `locatorEvidence` now probes every cell of a table for the
+  keyword too (`LocatorEvidence.cell`), and the candidate it builds addresses the cell by
+  slot or header and reads the date after the word (`dueSlot` + `duePhrase`).
+- A column read by position was never checked against what the rows say. It is now
+  refused when the rows' own sentences date two or more of them differently
+  (`disagreements` in `detect.ts`): a slot has no header to corroborate it, and the
+  page's words are the one check there is.
+- `MP1 due 11.59 PM 9/13` puts the clock before the day, which the start-anchored
+  grammar could not read at all — and to the phrase reader a row with nothing readable
+  after "due" is not its row, so the three MP rows were silently dropped. Every format
+  now accepts a clock in front of the date (`CLOCK_FIRST`), and the hook accepts it too.
+
+The page stays a fixture. Its eight deadlines are the eight `assignments.html` already
+reads under different titles, and two adapters on one course's deadlines are two rows
+per deadline: §3.1 keys a site row on the adapter id, and §5.3 merges across sources,
+never within one. Add the lectures page and every homework appears twice.
+
 ## The rows selector
 
 `table[align=center] li` — 42 rows, 8 of them deadlines.

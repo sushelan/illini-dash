@@ -258,6 +258,19 @@ export const TIME =
   `|(?<hour>\\d{1,2})[:.](?<minute>\\d{2})\\s*(?<ampm>am|pm)?` +
   `|(?<hour12>\\d{1,2})\\s*(?<ampm12>am|pm))`;
 
+/**
+ * The same clock, named so it can stand *before* the date in one expression.
+ *
+ * CS 425's lectures page writes `MP1 due 11.59 PM 9/13 (Sun)`: the clock
+ * first, then the day. Every format below is anchored at the start, so without
+ * this the row read no date at all — and a row that reads no date is "not this
+ * adapter's row" to the phrase reader, which dropped the three MP rows without
+ * a word (2026-09-20, live). JavaScript refuses a group name used twice in one
+ * pattern, so the leading copy carries a suffix and `clockGroups` reads either.
+ */
+const TIME_BEFORE = TIME.replace(/\(\?<([a-z0-9]+)>/g, "(?<$1Before>");
+const CLOCK_FIRST = `(?:${TIME_BEFORE}[\\s,]*(?:on|@)?[\\s,]*)?`;
+
 /** One wall-clock reading: what a page stated, or what an adapter defaults to. */
 export interface Clock {
   hour: number;
@@ -316,13 +329,15 @@ export interface ClockGroups {
  * one of those answers in here would change the other's behaviour silently.
  */
 export function clockGroups(g: Record<string, string | undefined>): ClockGroups {
-  const rawHour = g["hour"] ?? g["hour12"] ?? g["hour24"];
+  const rawHour =
+    g["hour"] ?? g["hour12"] ?? g["hour24"] ?? g["hourBefore"] ?? g["hour12Before"] ?? g["hour24Before"];
   if (rawHour === undefined) return { minute: 0, ambiguous: false };
-  const rawMinute = g["minute"] ?? g["minute24"];
-  const ampm = (g["ampm"] ?? g["ampm12"])?.toLowerCase();
+  const rawMinute = g["minute"] ?? g["minute24"] ?? g["minuteBefore"] ?? g["minute24Before"];
+  const ampm = (g["ampm"] ?? g["ampm12"] ?? g["ampmBefore"] ?? g["ampm12Before"])?.toLowerCase();
   // `0930 hrs` is 24-hour by the page's own say-so, so it is never ambiguous.
   const ambiguous =
     g["hour24"] === undefined &&
+    g["hour24Before"] === undefined &&
     ampm === undefined &&
     rawMinute !== undefined &&
     Number(rawHour) < 13 &&
@@ -350,19 +365,19 @@ export function clockGroups(g: Record<string, string | undefined>): ClockGroups 
 const DATE_FORMATS: Record<string, RegExp> = {
   // 2026-09-11 · 2026-09-11 23:59 · Fri, 2026-09-11 at 18:00
   "yyyy-MM-dd": new RegExp(
-    `^(?:${WEEKDAY})?(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
+    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
   "MMM d, h:mm a": new RegExp(
-    `^(?:${WEEKDAY})?(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
+    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
-  // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM
+  // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM · 11.59 PM 9/13
   "M/d": new RegExp(
-    `^(?:${WEEKDAY})?(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
@@ -520,6 +535,27 @@ export function labelSuffix(label: string): string {
 }
 
 /**
+ * Where `separator` first occurs as a separator, or -1.
+ *
+ * A colon inside a clock is not one: `HW1 due 9/20 11:59 PM (Sun)` has no
+ * name before its colon, and cutting there titled the row `HW1 due 9/20 11`
+ * (2026-09-20, the proposer offered it). Any other literal is taken as
+ * written. Exported so the proposer decides "is every row named this way"
+ * with the same rule the runner cuts by.
+ */
+export function titleSeparatorAt(text: string, separator: string): number {
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(separator, from);
+    if (at < 0) return -1;
+    const inClock =
+      separator === ":" && /\d$/.test(text.slice(0, at)) && /^\d\d/.test(text.slice(at + 1));
+    if (!inClock) return at;
+    from = at + 1;
+  }
+}
+
+/**
  * The title a labelled row gets.
  *
  * Two shapes, one rule. When the row has a name of its own — ECE 411's `<h3>`,
@@ -573,7 +609,8 @@ const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
  * of keeping a third copy.
  */
 export const DATE_SHAPED = new RegExp(
-  `^(?:${WEEKDAY})?(?:\\d{1,2}/\\d{1,2}|\\d{4}-\\d{1,2}-\\d{1,2}` +
+  `^(?:${WEEKDAY})?(?:\\d{1,2}[:.]\\d{2}\\s*(?:am|pm)?[\\s,]*(?:on|@)?[\\s,]*|\\d{1,2}\\s*(?:am|pm)[\\s,]*(?:on|@)?[\\s,]*)?` +
+    `(?:\\d{1,2}/\\d{1,2}|\\d{4}-\\d{1,2}-\\d{1,2}` +
     `|(?:${MONTHS})[a-z]*\\.?\\s+\\d{1,2})\\b`,
   "i",
 );
@@ -672,7 +709,7 @@ export function matchDuePhrase(text: string, spec: string): DuePhraseHit[] {
  */
 export function titleBefore(text: string, separator: string): string {
   const whole = text.replace(/\s+/g, " ").trim();
-  const at = whole.indexOf(separator);
+  const at = titleSeparatorAt(whole, separator);
   const head = (at < 0 ? whole : whole.slice(0, at)).trim();
   const bracketed = /^\[(.+)\]$/.exec(head);
   // Never empty: a row whose text begins with the separator would otherwise be
@@ -1149,7 +1186,8 @@ function matchesFilter(title: string, filter: Adapter["filter"]): boolean {
  * date column reads as a date, and if it stops doing so on this page, the
  * column has moved and that is a redesign, not an empty term.
  *
- * Counted over **every matched row**, before the loop, deliberately. A count
+ * Counted over **every matched row the reader hooks**, before the loop,
+ * deliberately. A count
  * taken inside the loop would only see rows that already have a title, and on
  * a shifted grid those are a different, self-selected set — the check would be
  * asking the question of exactly the rows least able to answer it.
@@ -1168,10 +1206,19 @@ function guardSlotHitRate(
   let withText = 0;
   let dated = 0;
   for (const row of rows) {
-    const { text } = cellBySlot(row, slot, grids);
-    if (!text) continue;
+    // Through the adapter's own reader, not the raw cell: under `duePhrase` a
+    // slot's rows are the ones that say the word, and the rest are not this
+    // adapter's rows at all. Counting every cell with text in it refused CS
+    // 425's lectures table, where 8 of 33 lecture cells carry a deadline and
+    // all 8 read (2026-09-20). With no reader declared this is the cell text.
+    const located = locateDue(row, adapter, grids);
+    if (!located.hookSeen || !located.readerSeen || located.texts.length === 0) continue;
     withText += 1;
-    if (parseAdapterDateParts(text, adapter.dateFormat, adapter.timezone, page.fetchedAt)) {
+    if (
+      located.texts.some((text) =>
+        parseAdapterDateParts(text, adapter.dateFormat, adapter.timezone, page.fetchedAt),
+      )
+    ) {
       dated += 1;
     }
   }

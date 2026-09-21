@@ -36,12 +36,15 @@
 import { shortHash } from "./dates.js";
 import {
   headerIndex,
+  locateDue,
   MIN_DATED_ROWS,
   MIN_DATED_SHARE,
+  parseAdapterDate,
   PLACEHOLDER_WORDS,
   runAdapter,
   statedTimeInText,
   supportedDateFormats,
+  titleSeparatorAt,
 } from "../sources/site.js";
 import { requiredVersionFor, validateAdapter } from "./registry.js";
 import { cellAt, gridFor, width, type GridCache } from "./table-grid.js";
@@ -474,6 +477,41 @@ export function searchCandidates(
         continue;
       }
 
+      /*
+       * A column read by position is refused when the rows themselves say a
+       * different date after the word "due".
+       *
+       * CS 425's lectures table has a column of lecture dates and, in another
+       * cell, `MP1 due 11.59 PM 9/13`. The column read 9/10 for that row and
+       * was offered first, because it dated more rows than the sentence did.
+       * A slot has no header to corroborate it, so the one check available is
+       * the page's own words — and where they disagree on two or more rows,
+       * the position is the reading that is wrong. The same holds for a header
+       * that does not itself say "due".
+       */
+      const unspokenFor =
+        evidence.kind === "slot" ||
+        // A header that does not say "due" names a column, not a deadline: a
+        // lecture table headed `Date | Topic` is the same trap with a label on
+        // it. One headed `Due Date` is the page's own statement and stands.
+        (evidence.kind === "header" && !DUE_WORD_RE.test(evidence.spec));
+      if (unspokenFor) {
+        const spoken = structure.locators.find(
+          (other) =>
+            other.kind === "phrase" &&
+            other.cell !== undefined &&
+            other.dated >= MIN_DATED_ROWS &&
+            disagreements(rows, evidence, other, timezone, reference, grids) >= MIN_DATED_ROWS,
+        );
+        if (spoken) {
+          refuse(
+            `its rows say a different date after the word ${quote(spoken.spec)} ` +
+              "than the column holds",
+          );
+          continue;
+        }
+      }
+
       const trial = trialFor(structure, evidence, rows, grids);
       if (!trial) {
         refuse("there is nothing on these rows this could use as a name");
@@ -628,6 +666,60 @@ const TITLE_SEPARATOR_WITHIN = 60;
  * the locator and the format from the evidence, the title column from the dated
  * rows themselves. Nothing is a default that happened to work on one page.
  */
+/** Whether a row's text has its name in front of the separator, by the runner's own rule. */
+function namedBySeparator(text: string): boolean {
+  const at = titleSeparatorAt(text, TITLE_SEPARATOR);
+  return at >= 0 && at < TITLE_SEPARATOR_WITHIN;
+}
+
+/** How many rows two readings both date, to different instants. */
+function disagreements(
+  rows: readonly Element[],
+  column: LocatorEvidence,
+  spoken: LocatorEvidence,
+  timezone: string,
+  reference: string,
+  grids: GridCache,
+): number {
+  const byColumn = instantsByRow(rows, column, timezone, reference, grids);
+  const bySentence = instantsByRow(rows, spoken, timezone, reference, grids);
+  let differ = 0;
+  for (const [at, instant] of bySentence) {
+    const other = byColumn.get(at);
+    if (other !== undefined && other !== instant) differ += 1;
+  }
+  return differ;
+}
+
+/** The instant each of an evidence's dated rows reads to, under its own hook and format. */
+function instantsByRow(
+  rows: readonly Element[],
+  evidence: LocatorEvidence,
+  timezone: string,
+  reference: string,
+  grids: GridCache,
+): Map<number, string> {
+  const fragment: Record<string, unknown> = { due: "." };
+  if (evidence.cell && "slot" in evidence.cell) fragment["dueSlot"] = evidence.cell.slot;
+  else if (evidence.cell) fragment["columns"] = { title: "", due: evidence.cell.header };
+  else if (evidence.kind === "slot") fragment["dueSlot"] = Number(evidence.spec);
+  else if (evidence.kind === "header") fragment["columns"] = { title: "", due: evidence.spec };
+  if (evidence.kind === "phrase") fragment["duePhrase"] = evidence.spec;
+  const adapter = fragment as unknown as Adapter;
+  const instants = new Map<number, string>();
+  for (const at of evidence.datedAt) {
+    const located = locateDue(rows[at]!, adapter, grids);
+    for (const text of located.texts) {
+      const instant = parseAdapterDate(text, evidence.format, timezone, reference);
+      if (instant !== undefined) {
+        instants.set(at, instant);
+        break;
+      }
+    }
+  }
+  return instants;
+}
+
 function trialFor(
   structure: RepeatedStructure,
   evidence: LocatorEvidence,
@@ -699,6 +791,34 @@ function trialFor(
     };
   }
 
+  if (evidence.cell) {
+    // The keyword inside one cell: that cell is both the name and, after the
+    // word, the date. `validateAdapter` wants `title` and `due` present; the
+    // slots or headers are what read the row, so the strings are inert.
+    const cell = evidence.cell;
+    const texts = dated.map((row) => {
+      const slot =
+        "slot" in cell
+          ? cell.slot
+          : headerIndex(row.closest("table") ?? row, grids).get(cell.header);
+      return slot === undefined ? "" : textOf(cellOf(row, slot, grids));
+    });
+    const named = texts.length > 0 && texts.every(namedBySeparator);
+    return {
+      ...base,
+      ...("slot" in cell
+        ? { dueSlot: cell.slot, titleSlot: cell.slot, title: "td", due: "td" }
+        : {
+            columns: { title: cell.header, due: cell.header },
+            title: "td:nth-child(1)",
+            due: "td:nth-child(2)",
+          }),
+      duePhrase: evidence.spec,
+      filter: { exclude: PLACEHOLDER_EXCLUDE },
+      ...(named ? { titleBefore: TITLE_SEPARATOR } : {}),
+    };
+  }
+
   // The four hooks that live outside a table. Their rows have no cells, so the
   // name is the row's own text (cut at `titleBefore`) or the heading above it.
   const whole: Trial = {
@@ -721,11 +841,7 @@ function trialFor(
   }
 
   const linked = dated.filter((row) => row.querySelector("a[href]")).length * 2 >= dated.length;
-  const named =
-    dated.every((row) => {
-      const at = textOf(row).indexOf(TITLE_SEPARATOR);
-      return at >= 0 && at < TITLE_SEPARATOR_WITHIN;
-    }) && dated.length > 0;
+  const named = dated.every((row) => namedBySeparator(textOf(row))) && dated.length > 0;
   return {
     ...whole,
     ...(evidence.kind === "prev" ? { duePrev: evidence.spec } : {}),
@@ -1057,11 +1173,13 @@ function withDefaultTime(
  * shape every hand-written entry had before locators existed.
  */
 export function locatorKindOf(candidate: Trial): LocatorKind | "free" {
+  // The reader names the kind before the cell does: a keyword read inside a
+  // table cell is the sentence's reading, whatever addressed the cell.
+  if (candidate.duePhrase) return "phrase";
   if (candidate.columns) return "header";
   if (candidate.dueSlot !== undefined) return "slot";
   if (candidate.duePrev) return "prev";
   if (candidate.dueLabel) return "label";
-  if (candidate.duePhrase) return "phrase";
   if (candidate.due?.includes("@")) return "attr";
   return "free";
 }
@@ -1104,7 +1222,13 @@ export function locatorDescription(candidate: Candidate): string {
   }
   if (kind === "prev") return `date in the <${candidate.duePrev}> before each entry`;
   if (kind === "phrase") {
-    return `date after the word ${quote(candidate.duePhrase ?? "due")} in each line`;
+    const where =
+      candidate.dueSlot !== undefined
+        ? `in column ${candidate.dueSlot + 1} of a table with no header row`
+        : candidate.columns
+          ? `in the ${quote(candidate.columns.due)} column`
+          : "in each line";
+    return `date after the word ${quote(candidate.duePhrase ?? "due")} ${where}`;
   }
   if (kind === "attr") return "date from each row's <time> tag";
   return `date from ${quote(dueTag(candidate))} in each row`;

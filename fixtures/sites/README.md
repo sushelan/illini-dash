@@ -41,6 +41,7 @@ forgotten.
 | `ece411-fa2026-assignments.html` | `…/ece411/fa2026/assignments.html` | 2026-09-18 | Sphinx; `Release: 8/25` / `Due: 9/7` bullets under an `<h3>` |
 | `ece411-fa2026-syllabus.html` | `…/ece411/fa2026/syllabus.html` | 2026-09-18 | exam dates, with the clock in a sibling `<li>` |
 | `cs425-fa2026-assignments.html` | `…/cs425/fa2026/assignments.html` | 2026-09-18 | prose: the deadline is a clause between a release date and a demo date |
+| `cs425-fa2026-lectures.html` | `…/cs425/fa2026/lectures.html` | 2026-09-20 | a lecture table: a column of lecture dates beside cells reading `MP1 due 11.59 PM 9/13 (Sun)`. **One edit**: `</head><body>` inserted after `</title>`, because the page has neither and linkedom keeps every table under `<head>` while Chrome implies a body; the banner in the file says so. Fixture only — its deadlines repeat `assignments.html`'s |
 | `cs374a-fa2026-homeworks.html` | `…/cs374al1/fa2026/homeworks.html` | 2026-09-18 | `<dl class="calendar">`; the date is the `<dt>` **before** each `<dd>` |
 | `cs374a-fa2026-gps.html` | `…/cs374al1/fa2026/gps.html` | 2026-09-18 | same shape, every link off-origin |
 | `cs374a-fa2026-calendar.html` | `…/cs374al1/fa2026/calendar.html` | 2026-09-18 | fifteen `<dl>`s, 93 pairs — **fixture only, no registry entry** |
