@@ -735,7 +735,16 @@ export function pageHostname(url: string): string {
 
 /** How one course's pages are presented on its single row. */
 export interface CoursePagesLayout {
-  /** Whether each switch is labelled with its own page's name. */
+  /**
+   * Whether each switch is labelled with its own page's name.
+   *
+   * Always, since the name became the page's address rather than the adapter's
+   * label: `schedule.html` is not a restatement of "CS 424" the way
+   * "course site" was, and a lone unlabelled switch floating at the end of a
+   * row said nothing about what it read. Kept as a field rather than deleted
+   * because the layout, not the drawing code, is where this belongs if a shape
+   * ever wants it off.
+   */
   labelPages: boolean;
   /** Each page's host, in the group's order. */
   hosts: string[];
@@ -765,7 +774,7 @@ export function coursePagesLayout(urls: readonly string[]): CoursePagesLayout {
   const first = hosts[0];
   const shared = first !== undefined && hosts.every((host) => host === first) ? first : undefined;
   return {
-    labelPages: urls.length > 1,
+    labelPages: urls.length > 0,
     hosts,
     ...(shared !== undefined ? { sharedHost: shared } : {}),
   };

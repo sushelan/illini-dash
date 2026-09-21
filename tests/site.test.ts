@@ -3064,11 +3064,14 @@ describe("courseGroupsForYou: one course, one place", () => {
 describe("coursePagesLayout: what a course's row has to draw", () => {
   const G = "https://courses.grainger.illinois.edu";
 
-  it("labels the pages only when there is more than one to tell apart", () => {
-    // One page means the course's own name already says what the switch is
-    // for, and "CS 424 / course site" is the redundancy 8812d32 took out.
-    expect(coursePagesLayout([`${G}/cs424/fa2026/`]).labelPages).toBe(false);
+  it("labels every page, because the label is the address and not the course", () => {
+    // While the page's name came from the adapter's label, one page meant the
+    // course's own name already said it and "CS 424 / course site" was the
+    // redundancy 8812d32 took out. The name is the address now, so a lone
+    // switch with nothing beside it was the worse of the two.
+    expect(coursePagesLayout([`${G}/cs424/fa2026/schedule.html`]).labelPages).toBe(true);
     expect(coursePagesLayout([`${G}/a.html`, `${G}/b.html`]).labelPages).toBe(true);
+    // A course with no pages has nothing to label.
     expect(coursePagesLayout([]).labelPages).toBe(false);
   });
 

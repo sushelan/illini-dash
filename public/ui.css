@@ -789,7 +789,35 @@ label.crow--name { cursor: pointer; }
   display: inline-flex; flex-wrap: wrap; justify-content: flex-end;
   align-items: center; gap: 6px;
 }
-.crow--page-name { font-size: 12px; font-weight: 500; cursor: pointer; }
+.crow--page-name {
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  /* An address, so it reads as one and lines up with its neighbours. */
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: -0.01em;
+}
+/*
+ * Remove, as a mark on the page it acts on.
+ *
+ * It was a `btn-secondary` the size of the switches, wedged between two of
+ * them, and it read as a third control rather than as something done to the
+ * one on its left ("ew", 2026-09-21). Quiet rather than hidden: a mark nobody
+ * can see until they hover it is one a student never learns is there, and this
+ * is the only way to take back a page they added. Faint at rest, full on hover
+ * or focus, so it is discoverable without competing with the switches.
+ */
+.crow--remove {
+  border: 0; background: none; padding: 0 2px; line-height: 1;
+  font-size: 15px; color: var(--muted); cursor: pointer; opacity: 0.45;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.crow--page:hover .crow--remove,
+.crow--remove:focus-visible { opacity: 1; }
+.crow--remove:hover { color: var(--err, #ff6b6b); }
+.crow--remove:disabled { opacity: 1; cursor: default; }
+/* Nothing to hover on a touch screen, so it is simply always there. */
+@media (hover: none) {
+  .crow--remove { opacity: 1; }
+}
 /* Only drawn when a course's pages are on different hosts — otherwise the row
    said it once, under the course's name. */
 .crow--page-host { font-size: 11px; color: var(--muted); }

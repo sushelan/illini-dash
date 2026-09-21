@@ -72,24 +72,48 @@ export function isLocalAdapter(adapter: AdapterEntry): boolean {
   return (adapter as { local?: unknown }).local === true;
 }
 
+/** A path segment that names the term rather than the page: `fa2026`, `sp26`. */
+const TERM_SEGMENT = /^(?:fa|sp|su|wi)\d{2,4}$/i;
+
 /**
- * The page an adapter reads, as the student would say it: `assignments`.
+ * The page an adapter reads, named by its address: `assignments.html`.
  *
- * The adapter's label with the course code taken off the front, because the
- * course's name is already on the left of this row and repeating it in every
- * switch along it spends the space on the one thing the switches do not
- * distinguish. `ECE 411 assignments` becomes `assignments`. A label that is not
- * prefixed with its code is left exactly as it is rather than guessed at, and a
- * label that is *only* the code keeps the whole label, because an unlabelled
- * switch is worse than a repeated word.
+ * It was the adapter's *label* with the course code stripped off the front,
+ * and the labels do not agree with each other: the registry writes
+ * `CS/ECE 374 A course site` for a `CS374` entry and `CS 425 course site` for
+ * a `CS425/ECE428` one, so neither prefix matched and the whole label came
+ * through. One row then read "course site · Remove · CS/ECE 374 A course site"
+ * — three restatements of the course beside a course name, and nothing saying
+ * which switch reads which page (2026-09-21, and Sushi's word for it was "ew").
+ *
+ * The address is the one thing that differs and the one thing the student can
+ * check against the site: `gps.html` beside `homeworks.html`. A URL that ends
+ * in a directory has no page to name, so the term segment or an empty one
+ * falls back to the label with the course taken off, which is what a hand-
+ * written entry calls itself (`exams`).
  */
 export function adapterPageName(adapter: AdapterEntry): string {
+  const segment = pagePathSegment(adapter.url);
+  if (segment !== undefined) return segment;
   for (const prefix of [displayCourseLabel(adapter.courseCode), adapter.courseCode]) {
     if (!adapter.label.toLowerCase().startsWith(prefix.toLowerCase())) continue;
     const rest = adapter.label.slice(prefix.length).trim();
     if (rest !== "") return rest;
   }
   return adapter.label;
+}
+
+/** The last path segment when it names a page, else undefined. */
+function pagePathSegment(url: string): string | undefined {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return undefined;
+  }
+  const last = path.split("/").filter(Boolean).pop();
+  if (last === undefined || last === "" || TERM_SEGMENT.test(last)) return undefined;
+  return last.length <= 40 ? last : undefined;
 }
 
 /** Writes a sentence where the action that produced it happened. */
@@ -201,7 +225,11 @@ export function courseRow(
     }
 
     if (isLocalAdapter(adapter)) {
-      const remove = el("button", "Remove", `btn btn-secondary btn-sm ${REMOVE_CLASS}`);
+      // A quiet mark on this page's own cell, not a button wedged between two
+      // switches: it acts on one page, and drawn as a peer of the switches it
+      // read as a third one.
+      const remove = el("button", "\u00d7", `btn-bare ${REMOVE_CLASS}`);
+      remove.setAttribute("aria-label", `Remove ${adapterPageName(adapter)}`);
       remove.title =
         `Removes ${adapter.label} from this browser. You added it yourself, so nobody ` +
         `else loses it — and you can put it back for a few seconds afterwards.`;
@@ -210,7 +238,7 @@ export function courseRow(
         // tells "the click never ran" from "the round trip failed" with no
         // console at all.
         remove.disabled = true;
-        remove.textContent = "Removing…";
+        remove.textContent = "\u2026";
         actions.remove(adapter, say, remove);
       });
       cell.append(remove);

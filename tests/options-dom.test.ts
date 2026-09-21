@@ -153,11 +153,23 @@ describe("Course websites: one row per course", () => {
 });
 
 describe("Course websites: every switch is a real labelled control", () => {
-  it("labels each switch with its page's name when a course has more than one", () => {
+  it("labels each switch with the page it reads, so the switches differ by address", () => {
+    /*
+     * The labels used to come from the adapter's own `label` with the course
+     * stripped off, and the registry does not spell those consistently:
+     * `CS/ECE 374 A course site` under a `CS374` code, `CS 425 course site`
+     * under `CS425/ECE428`. Neither prefix matched, so the whole label came
+     * through and a row read "course site · CS/ECE 374 A course site" beside a
+     * course called CS 374 (2026-09-21).
+     */
     const list = draw();
     const row = rowFor(list, "ECE 411");
     const labels = [...row.querySelectorAll(`.${mod.PAGE_NAME_CLASS}`)];
-    expect(labels.map((l) => l.textContent)).toEqual(["assignments", "exams", "labs"]);
+    expect(labels.map((l) => l.textContent)).toEqual([
+      "assignments.html",
+      "exams.html",
+      "labs.html",
+    ]);
     // Associated, not merely adjacent: `for` points at a checkbox in this row.
     for (const label of labels as HTMLLabelElement[]) {
       const control = page.document.getElementById(label.htmlFor);
@@ -167,21 +179,33 @@ describe("Course websites: every switch is a real labelled control", () => {
     }
   });
 
-  it("draws no page name on a single-page course and makes the course name the label", () => {
-    const list = draw();
-    const row = rowFor(list, "CS 424");
-    // The redundancy 8812d32 took out of the heading: "CS 424 / course site".
-    expect(row.querySelectorAll(`.${mod.PAGE_NAME_CLASS}`)).toHaveLength(0);
-    const name = row.querySelector(`.${mod.COURSE_NAME_CLASS}`) as HTMLLabelElement;
-    expect(name.tagName).toBe("LABEL");
-    expect(name.htmlFor).toBe((switchesOf(row)[0] as HTMLInputElement).id);
+  it("names a single page too, rather than leaving one switch floating unlabelled", () => {
+    // While the name came from the adapter's label this was the redundancy
+    // "CS 424 / course site" and was left off. An address is not a
+    // restatement of the course, and the lone switch at the end of the row
+    // said nothing about what it read.
+    const row = rowFor(draw(), "CS 424");
+    const labels = [...row.querySelectorAll(`.${mod.PAGE_NAME_CLASS}`)];
+    expect(labels.map((l) => l.textContent)).toEqual(["schedule"]);
   });
 
-  it("leaves the course name a plain span when its pages carry the labels", () => {
-    // Otherwise a multi-page row has two labels pointing at one switch, and
-    // pressing the course's name toggles whichever page happens to be first.
-    expect(rowFor(draw(), "ECE 411").querySelector(`.${mod.COURSE_NAME_CLASS}`)!.tagName)
-      .toBe("SPAN");
+  it("leaves the course name a plain span, because the pages carry the labels", () => {
+    // Otherwise a row has two labels pointing at one switch, and pressing the
+    // course's name toggles whichever page happens to be first.
+    for (const course of ["ECE 411", "CS 424"]) {
+      expect(rowFor(draw(), course).querySelector(`.${mod.COURSE_NAME_CLASS}`)!.tagName)
+        .toBe("SPAN");
+    }
+  });
+
+  it("falls back to the entry's own name for an address with no page in it", () => {
+    // ECE 310's URL ends at its term, `/ece310/fa2026/`, and "fa2026" names
+    // the term rather than the page.
+    expect(mod.adapterPageName({
+      courseCode: "ECE310",
+      label: "ECE 310 course site",
+      url: "https://courses.grainger.illinois.edu/ece310/fa2026/",
+    } as never)).toBe("course site");
   });
 
   it("gives every switch a distinct id, so one label cannot own two", () => {
@@ -217,7 +241,7 @@ describe("Course websites: the host, and the rest of the address", () => {
       "https://cs128.org/exams/",
     ]);
     expect(
-      (rowFor(list, "CS 424").querySelector(`.${mod.COURSE_NAME_CLASS}`) as HTMLElement).title,
+      (rowFor(list, "CS 424").querySelector(`.${mod.PAGE_NAME_CLASS}`) as HTMLElement).title,
     ).toBe("https://courses.grainger.illinois.edu/cs424/fa2026/schedule/");
   });
 });
@@ -231,7 +255,7 @@ describe("Course websites: what a page can be asked to do", () => {
     expect(
       (local[0]!.closest(`.${mod.PAGE_CLASS}`)!.querySelector(`.${mod.PAGE_NAME_CLASS}`))!
         .textContent,
-    ).toBe("group problem sessions");
+    ).toBe("gps.html");
     expect(rowFor(list, "ECE 411").querySelectorAll(`.${mod.REMOVE_CLASS}`)).toHaveLength(0);
   });
 
@@ -240,7 +264,7 @@ describe("Course websites: what a page can be asked to do", () => {
     const allow = row.querySelectorAll(`.${mod.ALLOW_CLASS}`);
     expect(allow).toHaveLength(1);
     const cell = allow[0]!.closest(`.${mod.PAGE_CLASS}`)!;
-    expect(cell.querySelector(`.${mod.PAGE_NAME_CLASS}`)!.textContent).toBe("exams");
+    expect(cell.querySelector(`.${mod.PAGE_NAME_CLASS}`)!.textContent).toBe("exams.html");
     expect(cell.textContent).toContain("Permission missing");
     // The two pages that are fine say nothing.
     expect(row.querySelectorAll(".chip-state")).toHaveLength(1);
