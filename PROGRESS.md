@@ -2,10 +2,69 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2517 tests; three in `popup-draw.test.ts` depend on the wall clock and fail on Sunday evenings, see the 2026-09-20 entry).
+`npm run build`, `npm run typecheck`, `npm test` (2556 tests) all pass. Three tests in
+`popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
+because the timeline rail is not drawn then; they pass again and still have no pinned
+clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Late means the deadline you missed, and a course page no longer votes on doneness — 2026-09-21
+
+Two reports off one screenshot each, and they are not the same bug.
+
+**A source with nothing to say was voting.** Sushi's CS 425 HW1 sat in the Late band
+reading "45m late" while Gradescope's own page said **Submitted**. `isItemDone` asked
+*every* member of a merged row to say done. §4.5 emits `status: "unknown"` on every
+course-site row, because a schedule page states a deadline and never a submission, so
+`every` read that abstention as dissent: any Gradescope submission that merged with a
+course page was permanently unfinished. It silenced nothing either, so §7 went on
+reminding about work already handed in and "hide submitted" could never hide it.
+`unknown` now abstains; a member that *has* an opinion and says the work is outstanding
+still vetoes, which is what the rule was written for. The rule feeds nine decisions and
+the whole suite passed with it inverted, so nothing pinned it. Four tests and three
+count-asserted mutations now do.
+
+**Late is banded by the deadline you missed.** Sushi, on a PrairieLearn MP with the 100%
+deadline gone and 80% running until that night: "if its late it should show up in late no
+matter what even if its 80%. i think 80% deadline shouldnt be yellow its confusing. it
+should appear in the late tab and it should say when the 80% due date is." That reverses
+what `liveDeadline` did, and `liveDeadline`'s comment records the defect *it* was written
+for: the row read "1d ago" in overdue red, planned no reminder for the date that was still
+live, and fell out of the list seven days later while PrairieLearn was still paying 80%.
+So the two questions were split rather than one being traded for the other:
+`missedDeadline(item)` — no clock in its signature, which is the clearest statement of the
+difference — answers where a row is banded and what it says; `liveDeadline(item, now)` is
+unchanged and still answers what is planned against it, so the reminder still fires for
+the 80% date and `withinOverdueWindow` keeps the row until that date has passed. Each
+comment names the other in its first sentence.
+- The row now reads **`80% until Sun 11:59 PM`**. The figure comes from
+  `extra.creditRemaining` or, where §4.3 wrote none, from the `creditSchedule` ladder
+  matched on the tier's end — which is why Sushi's own MP showed no number. Gradescope
+  states a date and no credit, so its wording is unchanged.
+- The amber edge is gone from this state, which is what he meant by yellow: the row takes
+  `row-overdue` and the Late band's own colour. `row-late` survives for §4.3's
+  no-popover shape, the one row with a window and no missed instant to measure from.
+- Thirteen count-asserted mutations, all killed; two survived first as untested and got
+  their tests (the row's clock, and its countdown on the Alerts tab, which is the only
+  caller that passes no status word). Seven existing tests were rewritten rather than
+  annotated, each saying in place why: they pinned the banding he rejected.
+- Verified in `preview-popup.html` at 400×600 in dark mode, the mode his machine is in:
+  the row is under Late, reads the credit and the date, its edge is the course line rather
+  than `rgb(255, 209, 102)`, and the band counts add up. No console errors.
+
+**Found on the way, not fixed.** `#view .row-overdue { border-color: var(--err) }` never
+wins: `#view .row[class*="course-"]` is (1,2,0) against its (1,1,0), so an overdue card's
+edge is the course colour and always has been. Same shape as the ZIP pass's finding 5, and
+worth one decision about whether overdue is meant to have an edge at all.
+
+**Still open, from a friend's screenshot.** Three CS 411 Canvas rows read late while the
+work is done in PrairieLearn. `mapStatus` already answers `graded` for a row Canvas never
+received a submission for, which is what a grade passback looks like, so either Canvas
+shows a grade and we misread it, or Canvas has no grade yet and the PrairieLearn row is
+not merging. One export of that student's JSON separates the two; asked for, not yet
+received.
 
 ## Settings has four headings, and five buttons that repeated themselves are gone — 2026-09-21
 
