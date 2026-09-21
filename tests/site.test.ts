@@ -30,7 +30,9 @@ import {
   titleWithLabel,
 } from "../src/sources/site.js";
 import {
-  adaptersForYou,
+  byDepartment,
+  courseGroupsForYou,
+  groupHasCourse,
   compareVersions,
   currentTermCode,
   isCurrentTerm,
@@ -2921,63 +2923,195 @@ describe("registry validation of clauses", () => {
   });
 });
 
-describe("adaptersForYou: the catalogue is published for everyone, the list is yours", () => {
-  const entry = (courseCode: string, extra: Partial<{ enabled: boolean; local: boolean }> = {}) => ({
-    courseCode,
-    enabled: false,
-    local: false,
-    ...extra,
+
+describe("courseGroupsForYou: one course, one place", () => {
+  const entry = (
+    courseCode: string,
+    id = courseCode,
+    extra: Partial<{ enabled: boolean; local: boolean }> = {},
+  ) => ({ id, courseCode, enabled: false, local: false, ...extra });
+
+  const labels = (groups: { label: string }[]) => groups.map((group) => group.label);
+  const ids = (group: { adapters: { id: string }[] }) => group.adapters.map((a) => a.id);
+
+  it("keeps a course whose pages differ in standing on one side", () => {
+    /*
+     * Bug 1, 2026-09-21. CS 374 was drawn under "yours" for the `gps.html` Sushi
+     * added (local) *and* inside the "4 more courses" disclosure for the
+     * published `homeworks.html`, because the partition ran over adapters and
+     * the grouping ran after it. One course, torn in half, half of it filed
+     * under other people's courses.
+     */
+    const { yours, others } = courseGroupsForYou(
+      [
+        entry("CS374", "cs374-gps", { local: true }),
+        entry("CS374", "cs374-hw"),
+        entry("ECE310", "ece310"),
+      ],
+      [],
+    );
+    expect(labels(yours)).toEqual(["CS 374"]);
+    expect(ids(yours[0]!)).toEqual(["cs374-gps", "cs374-hw"]);
+    expect(labels(others)).toEqual(["ECE 310"]);
   });
 
-  it("keeps a course a source has seen on this account", () => {
-    const { yours, others } = adaptersForYou(
+  it("is one course when a cross-listed entry and a single-code one share a code", () => {
+    /*
+     * Bug 2, same screenshot: "CS 425" (his local `lectures.html`) and
+     * "CS425/ECE428" (the published `assignments.html`) were two headings, one
+     * of them unformatted, because the key was the `courseCode` string.
+     */
+    const { yours } = courseGroupsForYou(
+      [
+        entry("CS425", "cs425-lectures", { local: true }),
+        entry("CS425/ECE428", "cs425-assignments"),
+      ],
+      [],
+    );
+    expect(yours).toHaveLength(1);
+    expect(yours[0]!.label).toBe("CS 425 / ECE 428");
+    expect(yours[0]!.codes).toEqual(["CS425", "ECE428"]);
+    expect(ids(yours[0]!)).toEqual(["cs425-lectures", "cs425-assignments"]);
+  });
+
+  it("joins two groups a later cross-listed entry turns out to bridge", () => {
+    // `CS425` and `ECE428` stand alone until `CS425/ECE428` arrives and says
+    // they were always one course; the pages stay in registry order.
+    const { others } = courseGroupsForYou(
+      [entry("CS425", "a"), entry("ECE428", "b"), entry("CS425", "c"), entry("CS425/ECE428", "d")],
+      [],
+    );
+    expect(others).toHaveLength(1);
+    // Registry order, not merge order: `c` joined the `CS425` group before `d`
+    // merged the `ECE428` one into it, so an unsorted merge reads a, c, b, d.
+    expect(ids(others[0]!)).toEqual(["a", "b", "c", "d"]);
+    expect(others[0]!.label).toBe("CS 425 / ECE 428");
+  });
+
+  it("keeps a group whose course a source has seen on this account", () => {
+    const { yours, others } = courseGroupsForYou(
       [entry("CS424"), entry("ECE310"), entry("ECE411")],
       ["CS424", "PHYS435"],
     );
-    expect(yours.map((a) => a.courseCode)).toEqual(["CS424"]);
-    expect(others.map((a) => a.courseCode)).toEqual(["ECE310", "ECE411"]);
+    expect(labels(yours)).toEqual(["CS 424"]);
+    expect(labels(others)).toEqual(["ECE 310", "ECE 411"]);
   });
 
-  it("matches a cross-listed entry on either code", () => {
-    // The registry writes `CS425/ECE428`; Gradescope calls the course `CS425`.
-    // String equality filed Sushi's own CS 425 under other people's courses.
-    const { yours } = adaptersForYou([entry("CS425/ECE428")], ["CS425"]);
-    expect(yours).toHaveLength(1);
-    const alsoMine = adaptersForYou([entry("CS425/ECE428")], ["ECE428"]);
-    expect(alsoMine.yours).toHaveLength(1);
+  it("matches a cross-listed group on either of the student's codes", () => {
+    expect(courseGroupsForYou([entry("CS425/ECE428")], ["CS425"]).yours).toHaveLength(1);
+    expect(courseGroupsForYou([entry("CS425/ECE428")], ["ECE428"]).yours).toHaveLength(1);
   });
 
-  it("reads the codes out of a course whose key is its name", () => {
+  it("reads the codes out of a course key that is its name", () => {
     /*
-     * `CourseSummary.key` is "a code when there is one" — and when there is
-     * not, it is the course's raw name. Gradescope calls this one
-     * "CS425 ECE428 Fall 2026", so the student's side has to be split into
-     * codes exactly as the adapter's side is, or a course they are plainly
-     * enrolled in files under other people's.
+     * `CourseSummary.key` is "a code when there is one" — and when there is not
+     * it is the raw name. Gradescope calls this one "CS425 ECE428 Fall 2026",
+     * so the student's side is split into codes exactly as the adapter's is.
      */
-    const { yours } = adaptersForYou([entry("CS425/ECE428")], ["CS425 ECE428 Fall 2026"]);
+    const { yours } = courseGroupsForYou([entry("CS425/ECE428")], ["CS425 ECE428 Fall 2026"]);
     expect(yours).toHaveLength(1);
   });
 
   it("keeps one the student added or switched on, whatever the sources have seen", () => {
-    const { yours, others } = adaptersForYou(
-      [entry("CS374", { local: true }), entry("ECE391", { enabled: true }), entry("ECE310")],
+    const { yours, others } = courseGroupsForYou(
+      [
+        entry("CS374", "cs374", { local: true }),
+        entry("ECE391", "ece391", { enabled: true }),
+        entry("ECE310", "ece310"),
+      ],
       [],
     );
-    expect(yours.map((a) => a.courseCode)).toEqual(["CS374", "ECE391"]);
-    expect(others.map((a) => a.courseCode)).toEqual(["ECE310"]);
+    expect(labels(yours)).toEqual(["CS 374", "ECE 391"]);
+    expect(labels(others)).toEqual(["ECE 310"]);
   });
 
   it("keeps the order the registry wrote, on both sides", () => {
     // `adapterGroup` says why: reordering makes "the second ECE 411 row" mean
     // two different things in two places.
-    const { others } = adaptersForYou([entry("ECE411"), entry("ECE310"), entry("ECE391")], []);
-    expect(others.map((a) => a.courseCode)).toEqual(["ECE411", "ECE310", "ECE391"]);
+    const { yours, others } = courseGroupsForYou(
+      [
+        entry("ECE411", "a", { enabled: true }),
+        entry("ECE310", "b"),
+        entry("CS374", "c", { local: true }),
+        entry("ECE391", "d"),
+        entry("CS233", "e"),
+      ],
+      [],
+    );
+    expect(labels(yours)).toEqual(["ECE 411", "CS 374"]);
+    expect(labels(others)).toEqual(["ECE 310", "ECE 391", "CS 233"]);
   });
 
   it("puts everything in others when no course is known yet", () => {
-    const { yours, others } = adaptersForYou([entry("CS424"), entry("ECE310")], []);
+    const { yours, others } = courseGroupsForYou([entry("CS424"), entry("ECE310")], []);
     expect(yours).toEqual([]);
     expect(others).toHaveLength(2);
+  });
+
+  it("gives a course with no derivable code its raw name, alone", () => {
+    const { others } = courseGroupsForYou([entry("Rhetoric seminar"), entry("Music studio")], []);
+    expect(labels(others)).toEqual(["Rhetoric seminar", "Music studio"]);
+    expect(others[0]!.department).toBe("Other");
+  });
+
+  it("names the department from the first code", () => {
+    const { others } = courseGroupsForYou([entry("ECE310"), entry("CS425/ECE428")], []);
+    expect(others.map((group) => group.department)).toEqual(["ECE", "CS"]);
+  });
+});
+
+describe("groupHasCourse: the undo line lands under the right heading", () => {
+  const group = courseGroupsForYou(
+    [{ courseCode: "CS425/ECE428", enabled: false, local: false }],
+    [],
+  ).others[0]!;
+
+  it("matches the raw code of a removed page of that course", () => {
+    // The removal remembers `CS425`; the heading now reads `CS 425 / ECE 428`,
+    // and comparing the strings put "Removed CS 425 · Undo" under no heading.
+    expect(groupHasCourse(group, "CS425")).toBe(true);
+    expect(groupHasCourse(group, "ECE428")).toBe(true);
+    expect(groupHasCourse(group, "CS425/ECE428")).toBe(true);
+  });
+
+  it("refuses another course", () => {
+    expect(groupHasCourse(group, "ECE310")).toBe(false);
+  });
+
+  it("matches a codeless course on its name", () => {
+    const named = courseGroupsForYou(
+      [{ courseCode: "Rhetoric seminar", enabled: false, local: false }],
+      [],
+    ).others[0]!;
+    expect(groupHasCourse(named, "Rhetoric seminar")).toBe(true);
+    expect(groupHasCourse(named, "Music studio")).toBe(false);
+  });
+});
+
+describe("byDepartment: the catalogue is by major, the yours list is not", () => {
+  const entry = (courseCode: string) => ({ courseCode, enabled: false, local: false });
+
+  it("groups the catalogue by department, first-appearance order", () => {
+    const { others } = courseGroupsForYou(
+      [entry("ECE310"), entry("CS233"), entry("ECE391"), entry("MATH241"), entry("CS374")],
+      [],
+    );
+    expect(
+      byDepartment(others).map((dept) => [dept.department, dept.courses.map((c) => c.label)]),
+    ).toEqual([
+      ["ECE", ["ECE 310", "ECE 391"]],
+      ["CS", ["CS 233", "CS 374"]],
+      ["MATH", ["MATH 241"]],
+    ]);
+  });
+
+  it("files a course whose codes span two departments once", () => {
+    const { others } = courseGroupsForYou([entry("ECE310"), entry("CS425/ECE428")], []);
+    const departments = byDepartment(others);
+    expect(departments.flatMap((dept) => dept.courses.map((c) => c.label))).toEqual([
+      "ECE 310",
+      "CS 425 / ECE 428",
+    ]);
+    expect(departments.map((dept) => dept.department)).toEqual(["ECE", "CS"]);
   });
 });

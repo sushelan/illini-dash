@@ -11,6 +11,7 @@
  * be half-applied.
  */
 
+import { displayCourseLabel } from "./names.js";
 import { extractCourseCodes } from "./normalize.js";
 import { EXTENSION_VERSION } from "../build-info.js";
 import { CANVAS_ORIGIN } from "../sources/canvas.js";
@@ -561,38 +562,174 @@ export interface AdapterStanding {
   local: boolean;
 }
 
+/** One course and every page of it the registry knows, on one side or the other. */
+export interface CourseGroup<T> {
+  /**
+   * Every code any of its adapters spells, in order of first appearance.
+   * Empty only for a course whose `courseCode` yields none — the raw name is
+   * then the group's identity, and its label.
+   */
+  codes: string[];
+  /** `CS 425 / ECE 428`: every code formatted by `displayCourseLabel`. */
+  label: string;
+  /** `ECE310` → `ECE`. `"Other"` for a course with no derivable code. */
+  department: string;
+  /** Its pages, in registry order. */
+  adapters: T[];
+}
+
+const DEPARTMENT = /^([A-Z]+)/;
+
+/** The identity of a course: its codes, or its raw name when it has none. */
+function courseKeysOf(courseCode: string): { codes: string[]; keys: string[] } {
+  const codes = extractCourseCodes(courseCode);
+  // House rule from the handoff: a course with no derivable code still shows
+  // its raw name, so it is its own group keyed by that name rather than being
+  // merged with every other codeless entry.
+  return { codes, keys: codes.length > 0 ? codes : [courseCode.trim().toUpperCase()] };
+}
+
+/** A group's presentation, in one place so the empty one cannot drift from a real one. */
+function finishGroup<T>(codes: string[], raw: string, adapters: T[]): CourseGroup<T> {
+  return {
+    codes,
+    label: codes.length > 0 ? codes.map(displayCourseLabel).join(" / ") : raw,
+    department: DEPARTMENT.exec(codes[0] ?? "")?.[1] ?? "Other",
+    adapters,
+  };
+}
+
 /**
- * The course sites that are this student's, and the rest of the catalogue.
- *
- * The registry is published for everyone, so every entry for the current term
- * was drawn — nine rows across seven courses on Sushi's machine (2026-09-21),
- * four of those courses ones he has never taken, and his own two buried among
- * them. The list was doing two jobs at once: managing what is on, and browsing
- * what exists. It still does both, but not in the same breath.
- *
- * A course site is yours when you added it, when it is switched on, or when a
- * source has seen that course on your account. Matched on the *codes*, not on
- * the string: a cross-listed entry reads `CS425/ECE428` while Gradescope calls
- * the course `CS425`, and string equality would file Sushi's own CS 425 under
- * other people's courses.
- *
- * Insertion order is kept on both sides, for the reason `adapterGroup` states:
- * reordering makes "the second ECE 411 row" mean two different things.
+ * A course with no pages left, for the undo line of a removal that took the
+ * last one — the heading it hangs under has to come from somewhere.
  */
-export function adaptersForYou<T extends AdapterStanding>(
+export function emptyCourseGroup<T>(courseCode: string): CourseGroup<T> {
+  return finishGroup(extractCourseCodes(courseCode), courseCode, []);
+}
+
+/**
+ * Is this course code the same course as this group?
+ *
+ * The one place the question is answered, because two callers ask it: the undo
+ * line ("Removed CS 425 · Undo") has only the removed adapter's raw
+ * `courseCode`, and it has to land under the heading that now reads
+ * `CS 425 / ECE 428`. Comparing the strings put it under no heading at all.
+ */
+export function groupHasCourse(group: CourseGroup<unknown>, courseCode: string): boolean {
+  const { keys } = courseKeysOf(courseCode);
+  const mine = group.codes.length > 0 ? group.codes : [group.label.trim().toUpperCase()];
+  return keys.some((key) => mine.includes(key));
+}
+
+/**
+ * The student's courses, and the rest of the catalogue — grouped by *course*.
+ *
+ * The registry is published for everyone, so every entry for the term was drawn
+ * — nine rows over seven courses on Sushi's machine (2026-09-21), four of those
+ * courses ones he has never taken. Splitting them was right; splitting them
+ * **before** grouping was not, and produced two faults in one screenshot:
+ *
+ * - CS 374 appeared on *both* sides, because the page he added is `local` and
+ *   the published `homeworks.html` for the same course is neither local nor
+ *   enabled. A partition over adapters tears a course in half whenever its
+ *   pages differ in standing, and half of it then hides behind a disclosure
+ *   headed "other people's courses".
+ * - CS 425 appeared as *two* courses, because the grouping key was the
+ *   `courseCode` string and the registry spells the cross-listed entry
+ *   `CS425/ECE428` while his own local page says `CS425`.
+ *
+ * Both are impossible here: the group is formed first, on intersecting code
+ * *sets*, and the partition then moves whole groups. A group is yours when any
+ * of its adapters is local or switched on, or when any of its codes is one of
+ * yours — and the student's own keys are split into codes too, because a
+ * Gradescope course arrives as `CS425 ECE428 Fall 2026`.
+ *
+ * Registry order is kept for the groups and for the adapters inside them, for
+ * the reason `adapterGroup` gives: reordering makes "the second ECE 411 row"
+ * mean two different things in two places.
+ */
+export function courseGroupsForYou<T extends AdapterStanding>(
   adapters: readonly T[],
   courseKeys: readonly string[],
-): { yours: T[]; others: T[] } {
+): { yours: CourseGroup<T>[]; others: CourseGroup<T>[] } {
   const mine = new Set<string>();
   for (const key of courseKeys) for (const code of extractCourseCodes(key)) mine.add(code);
-  const yours: T[] = [];
-  const others: T[] = [];
-  for (const adapter of adapters) {
-    const codes = extractCourseCodes(adapter.courseCode);
-    const known = codes.some((code) => mine.has(code));
-    (adapter.local || adapter.enabled || known ? yours : others).push(adapter);
+
+  interface Building {
+    codes: string[];
+    keys: string[];
+    /** Position in `adapters`, so a merge cannot reorder a course's pages. */
+    at: number[];
+  }
+  const building: Building[] = [];
+  adapters.forEach((adapter, index) => {
+    const { codes, keys } = courseKeysOf(adapter.courseCode);
+    // Every group this adapter touches, not just the first: an entry spelled
+    // `CS425/ECE428` arriving after separate `CS425` and `ECE428` groups is the
+    // evidence that those two were always one course.
+    const hits: number[] = [];
+    building.forEach((group, at) => {
+      if (keys.some((key) => group.keys.includes(key))) hits.push(at);
+    });
+    if (hits.length === 0) {
+      building.push({ codes: [...codes], keys: [...keys], at: [index] });
+      return;
+    }
+    const home = building[hits[0]!]!;
+    // Latest first, so the splices do not move a group this loop still holds.
+    for (const at of hits.slice(1).reverse()) {
+      const merged = building[at]!;
+      home.codes.push(...merged.codes);
+      home.keys.push(...merged.keys);
+      home.at.push(...merged.at);
+      building.splice(at, 1);
+    }
+    home.codes.push(...codes);
+    home.keys.push(...keys);
+    home.at.push(index);
+  });
+
+  const yours: CourseGroup<T>[] = [];
+  const others: CourseGroup<T>[] = [];
+  for (const group of building) {
+    const codes = [...new Set(group.codes)];
+    const order = [...new Set(group.at)].sort((a, b) => a - b);
+    const members = order.map((at) => adapters[at]!);
+    const finished = finishGroup(codes, members[0]?.courseCode ?? "", members);
+    const isYours =
+      members.some((adapter) => adapter.local || adapter.enabled) ||
+      codes.some((code) => mine.has(code));
+    (isYours ? yours : others).push(finished);
   }
   return { yours, others };
+}
+
+/** A department and the courses filed under it. */
+export interface DepartmentGroup<T> {
+  department: string;
+  courses: CourseGroup<T>[];
+}
+
+/**
+ * The catalogue, by department — Sushi's "maybe organize it by majors".
+ *
+ * Only the catalogue. His own side has four courses, and a second level of
+ * headings over four rows is the thing he was complaining about; a hundred
+ * other people's courses as a flat run of headings is the thing that gets
+ * worse as the registry fills.
+ *
+ * First-appearance order, matching the groups, and a cross-listed course is
+ * filed once — under its first code's department, because a course listed
+ * twice is the fault this whole change is about.
+ */
+export function byDepartment<T>(groups: readonly CourseGroup<T>[]): DepartmentGroup<T>[] {
+  const out: DepartmentGroup<T>[] = [];
+  for (const group of groups) {
+    const found = out.find((entry) => entry.department === group.department);
+    if (found) found.courses.push(group);
+    else out.push({ department: group.department, courses: [group] });
+  }
+  return out;
 }
 
 /** A published entry that a local one stands in for, and why. */
