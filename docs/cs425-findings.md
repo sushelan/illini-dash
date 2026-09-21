@@ -69,18 +69,23 @@ the head, and the brackets come off because they are the page's own list punctua
 
 `cs425-fa26`, against the capture, with `fetchedAt` 2026-09-18:
 
-| title | dueAt | clock |
-|---|---|---|
-| MP1 Specification Document | 2026-09-13T23:59:00−05:00 | stated |
-| MP2 Specification Document | 2026-09-27T23:59:00−05:00 | stated |
-| MP3 Specification Document | 2026-11-08T23:59:00−06:00 | stated |
-| MP4 Specification Document | 2026-12-06T23:59:00−06:00 | stated |
-| HW1 Document | 2026-09-20T23:59:00−05:00 | stated |
-| HW2 Document | 2026-10-04T23:59:00−05:00 | stated |
-| HW3 Document | 2026-11-01T23:59:00−06:00 | stated |
-| HW4 Document | 2026-12-03T23:59:00−06:00 | stated |
+| title | kind | dueAt | clock |
+|---|---|---|---|
+| MP1 Specification Document | assignment | 2026-09-13T23:59:00−05:00 | stated |
+| MP1 Specification Document: Demos | event | 2026-09-14T23:59:00−05:00 | assumed |
+| MP2 Specification Document | assignment | 2026-09-27T23:59:00−05:00 | stated |
+| MP2 Specification Document: Demos | event | 2026-09-28T23:59:00−05:00 | assumed |
+| MP3 Specification Document | assignment | 2026-11-08T23:59:00−06:00 | stated |
+| MP3 Specification Document: Demos | event | 2026-11-09T23:59:00−06:00 | assumed |
+| MP4 Specification Document | assignment | 2026-12-06T23:59:00−06:00 | stated |
+| MP4 Specification Document: Demos | event | 2026-12-07T23:59:00−06:00 | assumed |
+| HW1 Document | assignment | 2026-09-20T23:59:00−05:00 | stated |
+| HW2 Document | assignment | 2026-10-04T23:59:00−05:00 | stated |
+| HW3 Document | assignment | 2026-11-01T23:59:00−06:00 | stated |
+| HW4 Document | assignment | 2026-12-03T23:59:00−06:00 | stated |
 
-Eight rows out of 42 matched `<li>`s. Not one invented time: the page writes
+Eight deadlines out of 42 matched `<li>`s, and the four demos `clauses` reads beside them
+(see below). Not one invented time on a deadline: the page writes
 `11.59 PM Central Time` on every deadline, which is why the grammar had to learn a dot
 as the minute separator — with only `:` every one of these carried `timeAssumed`, and
 §5.3 would have let any Canvas row overwrite a deadline the course had stated plainly.
@@ -131,6 +136,38 @@ reads under different titles, and two adapters on one course's deadlines are two
 per deadline: §3.1 keys a site row on the adapter id, and §5.3 merges across sources,
 never within one. Add the lectures page and every homework appears twice.
 
+### What `clauses` reads, on both pages
+
+Both pages date the **demo** in the same sentence as the deadline, and until 1.2.0 that
+date was not a row this read badly — it was a row nothing ever offered. `clauses` is the
+separator the cell is cut at, and it is a different character on each page:
+
+- `assignments.html`, `clauses: "."` — the shipped entry. `[MP1 Specification Document]:
+  Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).` becomes
+  three clauses: the release, which is dropped because nobody attends one; the deadline,
+  which is unchanged; and `Demos on 9/14 (Mon)`, which becomes an event titled
+  `MP1 Specification Document: Demos` at 23:59 on the 14th, `timeAssumed` because the
+  clause states no clock. The entry gains four events, one per MP — the HW rows' third
+  clause is `(HW1 is due on a SUNDAY!)`, which carries no date and produces nothing.
+- `lectures.html`, `clauses: ","` (what the search proposes; the page is still a fixture)
+  — `MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)` cuts at the comma. Here the title
+  cell *is* the due cell, so the deadline is also renamed to its own clause: the row
+  reads `MP2 due 11.59 PM 9/27 (Sun)` rather than the whole sentence. `HW1 due 9/20 11:59
+  PM (Sun), HW2 out 9/21` gains nothing — "out" is a release — and neither does `MP3 …,
+  demos 11/9 (Mon). MP4 out 11/10.`, whose second clause gives one event (the demo) and
+  not two.
+
+The `.` cannot be the separator on the lectures page and the `,` cannot be it on the
+assignments page, which is why it is measured rather than defaulted: the only dots in
+`MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)` are inside the clock, and
+`splitClauses` never cuts a `.` that sits between two digits.
+
+The demo names differ between the two pages and the extension does not tidy them: the
+lectures page writes `MP1 demos on 9/14` and `demos 11/9`, so its events are
+`MP1: MP1 demos` and `MP3: demos`, where the assignments page's are
+`MP3 Specification Document: Demos`. The head is the page's own words, and a normaliser
+here would be this code deciding what a course meant.
+
 ## The rows selector
 
 `table[align=center] li` — 42 rows, 8 of them deadlines.
@@ -154,6 +191,9 @@ some *other* sentence said "due" followed by a date; this page has none.
   page shape after the header table, the rowspan grid and the `label: value` list.
 - **§4.5's date grammar.** `11.59 PM` is not a typo the course will fix; it is how the
   page writes all eight of its deadlines. `TIME` takes `.` as a minute separator.
+- **§4.5's adapter shape, a third time.** One cell can hold several *dated clauses* —
+  a release, a deadline and a demo in one sentence — and only one of them is work that
+  is owed. `clauses` cuts the cell and the others become `kind: "event"` rows (1.2.0).
 
 ## The adversarial fixture
 

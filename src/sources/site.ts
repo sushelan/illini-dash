@@ -670,6 +670,29 @@ export interface DuePhraseHit {
  * parses.
  */
 export function matchDuePhrase(text: string, spec: string): DuePhraseHit[] {
+  // The public shape is the two fields a caller has always had. `at` is dropped
+  // here rather than added to `DuePhraseHit`, because it answers a different
+  // question — see `duePhraseHits`.
+  return duePhraseHits(text, spec).map(({ rest, pending }) => ({ rest, pending }));
+}
+
+/** A hook, and where in the text the keyword was. */
+interface DuePhraseHitAt extends DuePhraseHit {
+  /** The index of the keyword, so the caller can read what stands in front of it. */
+  at: number;
+}
+
+/**
+ * `matchDuePhrase`, with the position kept.
+ *
+ * `clauses` names an event after the row — `MP2` out of `MP2 due 11.59 PM
+ * 9/27` — and the only thing that says where `MP2` ends is where the keyword
+ * begins. Written here rather than by a second keyword regex at the call site:
+ * "whole word, longest first, escaped" is one decision and a mutation to one
+ * copy of it would be masked by the other staying strict (mutation house rule
+ * 3).
+ */
+function duePhraseHits(text: string, spec: string): DuePhraseHitAt[] {
   const keywords = spec
     .split("|")
     .map((word) => word.trim())
@@ -680,12 +703,12 @@ export function matchDuePhrase(text: string, spec: string): DuePhraseHit[] {
     .map(escapeRegex);
   if (keywords.length === 0) return [];
 
-  const hits: DuePhraseHit[] = [];
+  const hits: DuePhraseHitAt[] = [];
   const pattern = new RegExp(`\\b(?:${keywords.join("|")})\\b`, "gi");
   for (const match of text.matchAll(pattern)) {
     const rest = text.slice(match.index + match[0].length).replace(DUE_CONNECTOR, "").trim();
-    if (DATE_SHAPED.test(rest)) hits.push({ rest, pending: false });
-    else if (PENDING_AT_START.test(rest)) hits.push({ rest, pending: true });
+    if (DATE_SHAPED.test(rest)) hits.push({ rest, pending: false, at: match.index });
+    else if (PENDING_AT_START.test(rest)) hits.push({ rest, pending: true, at: match.index });
   }
   return hits;
 }
@@ -1066,10 +1089,44 @@ export interface DueLocation {
   readerSeen: boolean;
   /** Candidate date texts in document order; the runner takes the first that parses. */
   texts: string[];
+  /**
+   * The located text itself, before the reader took the date out of it.
+   *
+   * What `clauses` cuts up, and what the search measures a separator against.
+   * The reader's `texts` are everything *after* the keyword, so the words that
+   * name the row — and every clause in front of the deadline's — are only here.
+   */
+  raw?: string;
   /** For `label`: the registry's spelling, which the title is built from. */
   label?: string;
   /** For `phrase`: every hook was a TBD/TBA/N/A placeholder, so no date exists yet. */
   pending?: boolean;
+  /** For `phrase`: the text in front of the keyword, which is what names the row. */
+  before?: string;
+}
+
+/**
+ * The reader, applied to one string. The half of `locateDue` that is not a DOM.
+ *
+ * `clauses` asks the same question of each clause that `locateDue` asks of the
+ * whole cell — "does this hook, and what would the date be read out of" — so
+ * the rules live here once and both callers ask them (mutation house rule 3).
+ */
+function readDue(located: string, reader: DueReader): Omit<DueLocation, "hookSeen" | "raw"> {
+  if (reader.kind === "whole") return { readerSeen: true, texts: [located] };
+  if (reader.kind === "label") {
+    const matched = matchDueLabel(located, reader.labels);
+    return matched
+      ? { readerSeen: true, texts: [matched.rest], label: matched.label }
+      : { readerSeen: false, texts: [] };
+  }
+  const hits = duePhraseHits(located, reader.keywords);
+  return {
+    readerSeen: hits.length > 0,
+    texts: hits.map((hit) => hit.rest),
+    ...(hits.length > 0 && hits.every((hit) => hit.pending) ? { pending: true } : {}),
+    ...(hits[0] ? { before: located.slice(0, hits[0].at).replace(/\s+/g, " ").trim() } : {}),
+  };
 }
 
 /**
@@ -1100,21 +1157,7 @@ export function locateDue(row: Element, adapter: Adapter, grids: GridCache): Due
 
   if (located === undefined) return { hookSeen, readerSeen: false, texts: [] };
 
-  const reader = dueReaderOf(adapter);
-  if (reader.kind === "whole") return { hookSeen, readerSeen: true, texts: [located] };
-  if (reader.kind === "label") {
-    const matched = matchDueLabel(located, reader.labels);
-    return matched
-      ? { hookSeen, readerSeen: true, texts: [matched.rest], label: matched.label }
-      : { hookSeen, readerSeen: false, texts: [] };
-  }
-  const hits = matchDuePhrase(located, reader.keywords);
-  return {
-    hookSeen,
-    readerSeen: hits.length > 0,
-    texts: hits.map((hit) => hit.rest),
-    ...(hits.length > 0 && hits.every((hit) => hit.pending) ? { pending: true } : {}),
-  };
+  return { hookSeen, raw: located, ...readDue(located, dueReaderOf(adapter)) };
 }
 
 /** Where a row's title comes from. */
@@ -1157,6 +1200,215 @@ export function locateTitle(row: Element, adapter: Adapter, grids: GridCache): T
   // rows on the strength of words the student never sees.
   const text = adapter.titleBefore ? titleBefore(raw, adapter.titleBefore) : raw;
   return { hookSeen: true, ...(text ? { text } : {}) };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Several dated clauses in one cell (`clauses`)                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One cell, cut at a literal separator.
+ *
+ * CS 425's lectures page puts two dated clauses in one cell — `MP2 due 11.59
+ * PM 9/27 (Sun), Demos on 9/28 (Mon)` — and its assignments page puts three in
+ * one `<li>`. Without the cut the demo is simply lost: the row is one item on
+ * the deadline's day.
+ *
+ * A `.` between two digits is never a cut. The same page writes every deadline
+ * as `11.59 PM`, so splitting there would leave `11` and `59 PM 9/27` and the
+ * clock would be read as neither. `titleSeparatorAt` has the same rule for the
+ * colon inside `11:59`, one field over and for the same page.
+ */
+export function splitClauses(text: string, separator: string): string[] {
+  if (!separator) return [];
+  const parts: string[] = [];
+  let from = 0;
+  // Advanced by the separator's own length, so a two-character one cannot match
+  // overlapping itself and cut a part out of the middle of its predecessor.
+  for (
+    let at = text.indexOf(separator);
+    at >= 0;
+    at = text.indexOf(separator, at + separator.length)
+  ) {
+    if (separator === "." && /\d$/.test(text.slice(0, at)) && /^\d/.test(text.slice(at + 1))) {
+      continue;
+    }
+    parts.push(text.slice(from, at));
+    from = at + separator.length;
+  }
+  parts.push(text.slice(from));
+  return parts.map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+
+/**
+ * A clause head that names a release rather than an occasion.
+ *
+ * `Released 8/25`, `HW2 out 9/21`, `MP4 out 11/10` are all real clauses on
+ * these two pages, and every one of them carries a date. Nobody attends a
+ * release: an event on that day is a line in the student's list for something
+ * that needs no attendance and no submission, next to eight that do.
+ */
+export const RELEASE_WORDS = /\b(?:released?|out|posted|available)\b/i;
+
+/** What the words in front of a clause's date call it, and where the date starts. */
+export interface ClauseDate {
+  /** Everything before the date, with a trailing `on`/`@`/`:`/`,` taken off. */
+  head: string;
+  /** The clause from the date onward — what the date parser is handed. */
+  text: string;
+}
+
+/** The connector a page puts between an event's name and its day. */
+const HEAD_CONNECTOR = /(?:\s*[:,@]|\s+on)$/i;
+
+/**
+ * The first date in a clause, and what the clause calls it.
+ *
+ * The date formats are start-anchored (deliberately — a format that matched
+ * mid-string would read a date out of any prose), so a clause has to be cut at
+ * its date before it can be parsed at all. Only positions after whitespace are
+ * tried, so `9/14` inside a word is not a date.
+ *
+ * The head is only the words **before** the date: `Demos on 9/14 (Mon)` is
+ * "Demos", and `Review session on Sep 20 in ECEB 1002` is "Review session" and
+ * not the room. Taking words from both sides would need a rule for where the
+ * sentence ends, and every candidate for that rule is the separator this cell
+ * was already cut at.
+ *
+ * So a clause that leads with its clock has no head at all — the clock is part
+ * of the date token, because `11.59 PM 9/13` is how CS 425 writes one — and
+ * `clauseEvents` drops it rather than inventing a name for it.
+ */
+export function firstDateIn(clause: string): ClauseDate | undefined {
+  for (let at = 0; at < clause.length; at += 1) {
+    if (at > 0 && !/\s/.test(clause[at - 1]!)) continue;
+    if (!DATE_SHAPED.test(clause.slice(at))) continue;
+    return {
+      head: clause.slice(0, at).replace(/\s+/g, " ").trim().replace(HEAD_CONNECTOR, "").trim(),
+      text: clause.slice(at),
+    };
+  }
+  return undefined;
+}
+
+/** How long a name read off the front of a clause may be before it is a sentence. */
+const EVENT_NAME_MAX = 40;
+
+/** The clause the deadline is in, and what the row calls itself in front of it. */
+interface DeadlineClause {
+  at: number;
+  text: string;
+  /** The words before the keyword: `MP2` out of `MP2 due 11.59 PM 9/27`. */
+  before: string;
+}
+
+/**
+ * Which of a cell's clauses is the deadline.
+ *
+ * The reader decides, exactly as it does for a whole cell: the clause carrying
+ * the keyword, or the declared label, or — with no reader — the first clause
+ * that parses. Where several hook, the first that *parses* wins, which is the
+ * occurrence rule the runner has always followed for a row with two "due"s in
+ * it ("Due @ 12/13 … Resubmissions due @ 12/20").
+ *
+ * A hook that parses nothing still answers: `Due Date: TBD` is this row's
+ * deadline clause and the course has simply not set a date.
+ */
+function deadlineClauseOf(
+  parts: readonly string[],
+  adapter: Adapter,
+  timezone: string,
+  reference: string,
+): DeadlineClause | undefined {
+  const reader = dueReaderOf(adapter);
+  let first: DeadlineClause | undefined;
+  for (const [at, text] of parts.entries()) {
+    const read = readDue(text, reader);
+    if (!read.readerSeen) continue;
+    const hit = { at, text, before: read.before ?? "" };
+    first ??= hit;
+    if (
+      read.texts.some((candidate) =>
+        parseAdapterDateParts(candidate, adapter.dateFormat, timezone, reference),
+      )
+    ) {
+      return hit;
+    }
+  }
+  return first;
+}
+
+/** One dated clause that is not the deadline: something to turn up to. */
+export interface ClauseEvent {
+  title: string;
+  dueAt: string;
+  /** The clause stated no clock, so the instant carries this code's 23:59. */
+  timeAssumed: boolean;
+  /** The clause itself, for `extra.dueText`. */
+  text: string;
+}
+
+/**
+ * Every clause of one cell that is an occasion rather than the deadline.
+ *
+ * Pure over the located text, and the *only* implementation of these rules:
+ * `runAdapter` calls it for the items it emits and the search calls it to
+ * decide whether a separator is worth proposing, so a mutation to one of them
+ * cannot be masked by the other reading the cell its own way (mutation house
+ * rule 3).
+ *
+ * The name is the row's, not the clause's: `Demos on 9/28` says nothing about
+ * which assignment's demo it is. The words in front of the keyword are used
+ * where there are any — `MP2` out of `MP2 due 11.59 PM 9/27` — and the row's
+ * own title otherwise, which is what the assignments page needs, where every
+ * deadline clause starts with the word "Due".
+ *
+ * `filter.exclude` is applied here so an adapter can drop these; `filter.include`
+ * deliberately is not. Include selects the rows that are deadlines — CS 424's
+ * is `\bdue\b` — and applying it here would remove every demo on the page.
+ */
+export function clauseEvents(
+  raw: string,
+  adapter: Adapter,
+  rowName: string,
+  timezone: string,
+  reference: string,
+): ClauseEvent[] {
+  if (!adapter.clauses) return [];
+  const parts = splitClauses(raw, adapter.clauses);
+  const deadline = deadlineClauseOf(parts, adapter, timezone, reference);
+  // No clause hooks the reader, so nothing here is named as this row's
+  // deadline and every dated clause would be guesswork.
+  if (!deadline) return [];
+  const name =
+    deadline.before && deadline.before.length <= EVENT_NAME_MAX ? deadline.before : rowName;
+
+  const exclude = adapter.filter?.exclude;
+  const events: ClauseEvent[] = [];
+  for (const [at, text] of parts.entries()) {
+    if (at === deadline.at) continue;
+    const found = firstDateIn(text);
+    if (!found) continue;
+    // A bare date is not an event: a clause that is nothing but a day has
+    // nothing to put in a student's list.
+    if (!found.head) continue;
+    if (RELEASE_WORDS.test(found.head)) continue;
+    /*
+     * No `statedElsewhere` and no `defaultTime`.
+     *
+     * Both are answers to "when is this row's *deadline*" — the sentence that
+     * says "due at 18:00", the page that says homework is due at 9pm — and a
+     * demo is not the deadline. A clock inside the clause is read by the
+     * grammar's own leading and trailing rules, and a clause with no clock is
+     * marked assumed (worker rule 3).
+     */
+    const parsed = parseAdapterDateParts(found.text, adapter.dateFormat, timezone, reference);
+    if (!parsed) continue;
+    const title = name ? `${name}: ${found.head}` : found.head;
+    if (exclude !== undefined && !matchesFilter(title, { exclude })) continue;
+    events.push({ title, dueAt: parsed.iso, timeAssumed: parsed.timeAssumed, text });
+  }
+  return events;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1333,10 +1585,44 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     const inherited = adapter.titleFrom ? resolveTitleFrom(row, adapter.titleFrom) : undefined;
     if (inherited) sawTitleFrom = true;
 
+    /*
+     * §4.5's `clauses`: this cell holds several dated clauses, and one of them
+     * is the deadline.
+     *
+     * The date is read out of that clause rather than out of the whole cell, so
+     * `extra.dueText` names the sentence the instant came from and not the demo
+     * behind it. A cell no clause of which hooks the reader leaves this
+     * undefined, and the whole located text is read exactly as before: a
+     * separator must never cost a row.
+     */
+    const clause =
+      adapter.clauses && due.raw !== undefined
+        ? deadlineClauseOf(
+            splitClauses(due.raw, adapter.clauses),
+            adapter,
+            adapter.timezone,
+            page.fetchedAt,
+          )
+        : undefined;
+    const dueTexts = clause ? readDue(clause.text, reader).texts : due.texts;
+    /*
+     * The name, when the name and the date are the same cell.
+     *
+     * CS 425's lectures table has one cell per row, so the title *is* the whole
+     * sentence — deadline, demo and all. Narrowed to the deadline's clause it
+     * reads `MP2 due 11.59 PM 9/27 (Sun)`. Where the two come from different
+     * places (the assignments page's `[MP1 Specification Document]:` head) the
+     * title is already the row's name and nothing is cut.
+     */
+    const named =
+      clause && due.raw !== undefined && normalizeLabel(cell) === normalizeLabel(due.raw)
+        ? clause.text
+        : cell;
+
     // §4.5: one cell can hold several events. Split first, then filter, so a
     // filter can reject one half of `HW5 Due; HW6 Out` and keep the other —
     // which it cannot do while they share a string.
-    const titles = (adapter.splitTitle ? cell.split(adapter.splitTitle) : [cell])
+    const titles = (adapter.splitTitle ? named.split(adapter.splitTitle) : [named])
       .map((part) => part.replace(/\s+/g, " ").trim())
       .filter(Boolean)
       .filter((part) => matchesFilter(part, adapter.filter));
@@ -1363,7 +1649,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      */
     let parsed: AdapterDate | undefined;
     let dueText: string | undefined;
-    for (const text of due.texts) {
+    for (const text of dueTexts) {
       parsed = parseAdapterDateParts(
         text,
         adapter.dateFormat,
@@ -1379,7 +1665,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
     }
     // What the row *offered*, for the "nothing here parsed" record below. The
     // first hook rather than the last: it is the one a reader would look at.
-    const rawDate = due.texts[0];
+    const rawDate = dueTexts[0];
     const dueAt = parsed?.iso;
     const linkHref = adapter.columns?.link
       ? cellByHeader(row, adapter.columns.link, "href", grids)
@@ -1396,6 +1682,8 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       adapter.url,
     );
 
+    /** The deadline this row produced, which is what its events are named after. */
+    let deadlineTitle: string | undefined;
     for (const part of titles) {
       // The label is what tells three checkpoints of one MP apart, and §3.1
       // hashes the title — see `titleWithLabel`.
@@ -1442,6 +1730,55 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         extra,
         fetchedAt: page.fetchedAt,
       });
+      deadlineTitle ??= title;
+    }
+
+    /*
+     * The other dated clauses of the same cell: things to turn up to.
+     *
+     * Emitted beside the deadline they came from rather than collected at the
+     * end, so a reading of the page — the proposal preview's sample most of all
+     * — shows each demo under the assignment whose demo it is.
+     */
+    if (adapter.clauses && due.raw !== undefined && deadlineTitle !== undefined) {
+      for (const event of clauseEvents(
+        due.raw,
+        adapter,
+        deadlineTitle,
+        adapter.timezone,
+        page.fetchedAt,
+      )) {
+        const sourceId = `${adapter.id}:${hashTitleAndDate(event.title, event.dueAt)}`;
+        // House rule 4, and one cell really can say the same thing twice.
+        if (keys.has(sourceId)) continue;
+        keys.claim(sourceId, `row ${JSON.stringify(event.title)}`);
+        items.push({
+          source: "site",
+          sourceId,
+          courseRaw: adapter.label,
+          courseCode: codes[0],
+          title: event.title,
+          // Never the adapter's `kind`: a demo on an assignments page is not an
+          // assignment, and §3's `event` is "a thing that happens at a time,
+          // not work that is owed" — nothing marks it done and nothing is
+          // submitted for it.
+          kind: "event",
+          dueAt: event.dueAt,
+          url,
+          status: "unknown",
+          extra: {
+            adapterId: adapter.id,
+            term: adapter.term,
+            // What this row is: read out of a clause beside a deadline rather
+            // than from a row of its own, which is the one thing a student
+            // checking it against the page needs to know.
+            clause: "true",
+            dueText: event.text.slice(0, 120),
+            ...(event.timeAssumed ? { timeAssumed: "true" } : {}),
+          },
+          fetchedAt: page.fetchedAt,
+        });
+      }
     }
   }
 

@@ -35,8 +35,10 @@
 
 import { shortHash } from "./dates.js";
 import {
+  clauseEvents,
   headerIndex,
   locateDue,
+  locateTitle,
   MIN_DATED_ROWS,
   MIN_DATED_SHARE,
   parseAdapterDate,
@@ -152,6 +154,8 @@ export interface Candidate {
   titleFrom?: string;
   time?: string;
   splitTitle?: string;
+  /** The cell holds several dated clauses; the ones that are not the deadline are events. */
+  clauses?: string;
   /** The date is a clause in the row's own sentence, after this keyword. */
   duePhrase?: string;
   /** The date is in the nearest preceding sibling matching this selector. */
@@ -210,6 +214,7 @@ const READ_FIELDS = {
   due: "due",
   link: "link",
   splitTitle: "splitTitle",
+  clauses: "clauses",
   columns: "columns",
   dueLabel: "dueLabel",
   duePhrase: "duePhrase",
@@ -527,6 +532,7 @@ export function searchCandidates(
   }
 
   withDefaultTime(ran, doc, reference, timezone);
+  withClauses(ran, doc, reference, timezone, grids);
   const candidates = dedupe(ran.sort(byRank));
   const nearest =
     candidates.length > 0
@@ -1162,6 +1168,90 @@ function withDefaultTime(
 }
 
 /* -------------------------------------------------------------------------- */
+/* One cell, several dated clauses                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The separators a cell is tried against, in the order a tie is broken.
+ *
+ * Three, and all three are punctuation a course writes between two clauses of
+ * one sentence. Not a field the student types: a separator that cuts a page
+ * wrongly costs a deadline, and this is measured against the page instead —
+ * proposed only where it actually produces events on `MIN_DATED_ROWS` rows.
+ */
+const CLAUSE_SEPARATORS = [",", ".", ";"] as const;
+
+/**
+ * Whether this candidate reads its date out of one cell's worth of text.
+ *
+ * `clauses` cuts what the locator found, so it means something only where that
+ * is a sentence or a cell: a keyword or a label picks the deadline out of it,
+ * and a whole-text read of one cell or column is the same shape with no reader.
+ * A `duePrev` candidate's located text is the sibling `<dt>` — a bare date with
+ * nothing beside it — and a free `due` selector already points at the date
+ * alone.
+ */
+function readsOneCell(candidate: Trial): boolean {
+  return (
+    candidate.duePhrase !== undefined ||
+    candidate.dueLabel !== undefined ||
+    candidate.dueSlot !== undefined ||
+    candidate.columns !== undefined
+  );
+}
+
+/**
+ * Re-runs every candidate whose cells hold a second dated clause.
+ *
+ * CS 425 is two pages of this: the lectures table writes `MP2 due 11.59 PM
+ * 9/27 (Sun), Demos on 9/28 (Mon)` in one cell and the assignments list writes
+ * the same pair as two sentences. Without a separator the demo is not a row the
+ * search read badly — it is a row nothing on the page ever offered, and the
+ * preview cannot show what was never extracted.
+ *
+ * Measured, never guessed. A separator is proposed only where `clauseEvents` —
+ * the runner's own rules, not a second reading of them — yields an event on
+ * `MIN_DATED_ROWS` of the candidate's dated rows, so a `.` inside `11.59 PM`
+ * proposes nothing and a comma inside `Tue, Sep 01` proposes nothing. The one
+ * with the most such rows wins, and a candidate the runner then refuses is left
+ * exactly as it was: a demo is worth having and never worth a deadline.
+ */
+function withClauses(
+  ran: Ran[],
+  doc: Document,
+  reference: string,
+  timezone: string,
+  grids: GridCache,
+): void {
+  for (const [index, outcome] of ran.entries()) {
+    const trial = trialOf(outcome.candidate);
+    if (!readsOneCell(trial) || trial.clauses !== undefined) continue;
+    const adapter = { ...trial, timezone } as unknown as Adapter;
+
+    // The located text of each dated row, read the way the runner reads it.
+    const cells: { raw: string; name: string }[] = [];
+    for (const row of outcome.datedRows) {
+      const located = locateDue(row, adapter, grids);
+      if (located.raw === undefined) continue;
+      cells.push({ raw: located.raw, name: locateTitle(row, adapter, grids).text ?? "" });
+    }
+
+    let best: { separator: string; rows: number } | undefined;
+    for (const separator of CLAUSE_SEPARATORS) {
+      const cut = { ...adapter, clauses: separator };
+      const rows = cells.filter(
+        (cell) => clauseEvents(cell.raw, cut, cell.name, timezone, reference).length > 0,
+      ).length;
+      if (rows >= MIN_DATED_ROWS && (!best || rows > best.rows)) best = { separator, rows };
+    }
+    if (!best) continue;
+
+    const again = runCandidate({ ...trial, clauses: best.separator }, doc, reference, timezone);
+    if (again.ok) ran[index] = { ...again, datedRows: outcome.datedRows };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* What the student is told                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -1263,6 +1353,12 @@ export function candidateNotes(candidate: Candidate): string[] {
     notes.push(
       `Cells with ${quote(candidate.splitTitle)} are split into one deadline each; ` +
         "parts without the word “due” are dropped.",
+    );
+  }
+  if (candidate.clauses) {
+    notes.push(
+      `Cells are cut at ${quote(candidate.clauses)}; a clause with its own date, ` +
+        "like “Demos on 9/28”, becomes an event on that day.",
     );
   }
   if (candidate.defaultTime) {

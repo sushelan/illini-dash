@@ -401,6 +401,31 @@ export interface Adapter {
    * a ReDoS run against every row of every page.
    */
   splitTitle?: string;
+  /**
+   * A literal separator that cuts one cell into several **dated clauses**.
+   *
+   * CS 425's lectures page writes `MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28
+   * (Mon)` in one cell and its assignments page writes `[MP1 Specification
+   * Document]: Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on
+   * 9/14 (Mon).` in one `<li>`. Without this the row is one item on the
+   * deadline's day and the demo — a thing the student has to turn up to — is
+   * lost entirely.
+   *
+   * The clause the reader hooks is the deadline and produces the item it always
+   * did. Every *other* clause that carries a date becomes a `kind: "event"`
+   * item on that day, titled from the words in front of its date; a clause
+   * whose head says "released"/"out"/"posted" is dropped, because nobody
+   * attends a release.
+   *
+   * Not `splitTitle`, which cuts one cell into several *deadlines* sharing one
+   * date cell — the opposite shape. `validateAdapter` refuses an entry that
+   * declares both, because two rules cutting one cell is an entry that has not
+   * decided what the page looks like.
+   *
+   * A literal, never a regex, for the reason `splitTitle` is one: this is
+   * remote data applied to every row.
+   */
+  clauses?: string;
   due: string;
   link?: string;
   /**

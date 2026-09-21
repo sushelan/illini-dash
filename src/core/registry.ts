@@ -101,6 +101,7 @@ const KNOWN_FIELDS = {
   rows: true,
   title: true,
   splitTitle: true,
+  clauses: true,
   due: true,
   link: true,
   columns: true,
@@ -165,9 +166,20 @@ const FIELDS_ADDED_IN_1_1 = [
   "defaultTime",
 ] as const;
 
+/**
+ * And the same list for 1.2.0, which learned to read the clauses of one cell.
+ *
+ * A 1.1.0 build refuses an unknown field outright (`KNOWN_FIELDS`), so an entry
+ * carrying `clauses` is dropped there with a reason either way. The floor is
+ * what makes the refusal say *which version* to update to rather than "unknown
+ * field clauses", which reads like a broken registry.
+ */
+const FIELDS_ADDED_IN_1_2 = ["clauses"] as const;
+
 /** The lowest extension version that can run this entry. */
 export function requiredVersionFor(entry: object): string {
   const record = entry as Record<string, unknown>;
+  if (FIELDS_ADDED_IN_1_2.some((field) => record[field] !== undefined)) return "1.2.0";
   return FIELDS_ADDED_IN_1_1.some((field) => record[field] !== undefined) ? "1.1.0" : "0.1.0";
 }
 
@@ -224,6 +236,11 @@ export function validateAdapter(
   // A literal separator, and a short one: it is remote data applied to every row.
   if (a["splitTitle"] !== undefined && !isPlainString(a["splitTitle"], 8)) {
     return fail("bad splitTitle");
+  }
+  // The same, one shape over: `clauses` cuts a cell into a deadline and the
+  // occasions beside it. Also a literal, for the same reason.
+  if (a["clauses"] !== undefined && !isPlainString(a["clauses"], 8)) {
+    return fail("bad clauses");
   }
 
   const url = a["url"];
@@ -399,6 +416,17 @@ export function validateAdapter(
   }
   if (dueLabel !== undefined && duePhrase !== undefined) {
     return fail("dueLabel and duePhrase both read the date out of the located text; declare one");
+  }
+  /*
+   * And two rules cutting one cell is the same mistake one field over.
+   *
+   * `splitTitle` cuts a cell into several deadlines sharing one date;
+   * `clauses` cuts it into one deadline and the occasions beside it. An entry
+   * declaring both is claiming the page is two shapes at once, and whichever
+   * ran first would decide what the other saw.
+   */
+  if (a["splitTitle"] !== undefined && a["clauses"] !== undefined) {
+    return fail("splitTitle and clauses both cut a cell into parts; declare one");
   }
 
   const filter = a["filter"];

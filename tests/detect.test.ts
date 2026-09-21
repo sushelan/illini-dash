@@ -790,13 +790,25 @@ describe("the real CS 425 page: a keyword mid-sentence", () => {
     expect(best.dateFormat).toBe("M/d");
   });
 
-  it("records the same eight deadlines the shipped entry does", () => {
+  it("records the same eight deadlines and four demos the shipped entry does", () => {
     // `cs425-fa26` hooks the page's one content table; this hooks its lists.
     // Two spellings of one set of rows, and only what they produce can say so.
+    // Both cut the sentence at "." now, so both find the demo behind each MP.
     const entry = shipped("cs425-fa26");
     const theirs = pairsOf(entry, doc);
-    expect(theirs).toHaveLength(8);
+    expect(theirs).toHaveLength(12);
     expect(pairsOfCandidate(best, doc, entry.url)).toEqual(theirs);
+  });
+
+  it("proposes the separator the page's own sentences ask for", () => {
+    expect(best.clauses).toBe(".");
+    expect(best.sample).toContainEqual({
+      title: "MP1 Specification Document: Demos",
+      due: "2026-09-14T23:59:00-05:00",
+      read: "Demos on 9/14 (Mon)",
+    });
+    // "Released 8/25" is a dated clause too, and no student attends one.
+    expect(best.sample.some((row) => /Released/i.test(row.title))).toBe(false);
   });
 
   it("names the keyword it read, so the student can see what selected the date", () => {
@@ -835,17 +847,38 @@ describe("the real CS 425 lectures page: a column of dates that are not the dead
 
   it("dates MP1 on the 13th, from a clock written before the day", () => {
     const rows = pairsOfCandidate(best, doc, "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html");
-    expect(rows).toHaveLength(8);
+    // Eight deadlines and the four demos in the same cells; `HW2 out 9/21` and
+    // `MP4 out 11/10` are dated clauses too and are not occasions.
+    expect(rows).toHaveLength(12);
     expect(rows.map((row) => row[1])).toEqual([
       "2026-09-13T23:59:00-05:00",
+      "2026-09-14T23:59:00-05:00",
       "2026-09-20T23:59:00-05:00",
       "2026-09-27T23:59:00-05:00",
+      "2026-09-28T23:59:00-05:00",
       "2026-10-04T23:59:00-05:00",
       "2026-11-01T23:59:00-06:00",
       "2026-11-08T23:59:00-06:00",
+      "2026-11-09T23:59:00-06:00",
       "2026-12-03T23:59:00-06:00",
       "2026-12-06T23:59:00-06:00",
+      "2026-12-07T23:59:00-06:00",
     ]);
+  });
+
+  it("cuts the cell at the comma, and names each row by its own clause", () => {
+    /*
+     * One cell per row here — the title *is* the sentence — so without the cut
+     * the row is called "MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)" and
+     * the demo is not a row at all. The comma is measured, not guessed: a "."
+     * proposes nothing on this page because the only ones are inside `11.59`.
+     */
+    expect(best.clauses).toBe(",");
+    const rows = pairsOfCandidate(best, doc, "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html");
+    expect(rows[3]).toEqual(["MP2 due 11.59 PM 9/27 (Sun)", "2026-09-27T23:59:00-05:00"]);
+    expect(rows[4]).toEqual(["MP2: Demos", "2026-09-28T23:59:00-05:00"]);
+    // `HW1 due 9/20 …, HW2 out 9/21` — the second clause is a release.
+    expect(rows.some((row) => row[1] === "2026-09-21T23:59:00-05:00")).toBe(false);
   });
 
   it("does not offer the column read by position, because the rows contradict it", () => {
@@ -1390,6 +1423,122 @@ describe("the hour a page states once", () => {
     const best = propose(doc)[0]!;
     expect(best.defaultTime).toBeUndefined();
     expect(best.sample.map((row) => row.due.slice(11, 16))).toEqual(["21:00", "23:59", "23:59"]);
+  });
+});
+
+/**
+ * A separator is measured against the page, never assumed.
+ *
+ * `clauses` is the one proposable field that *adds* rows, so the cost of
+ * guessing it is a list of occasions no course ever wrote. The only evidence
+ * that a cell holds two dated clauses is that cutting it produces one, which is
+ * what `clauseEvents` is asked — on the candidate's own dated rows, with the
+ * runner's own rules.
+ */
+describe("the separator a page's own cells ask for", () => {
+  it("proposes nothing for the four pages whose cells hold one date", () => {
+    /*
+     * ECE 310's `09/04 @ 11:59pm`, CS 424's `9/16`, CS 374 A's `Tue Sep 01`
+     * and ECE 411's `Due: 9/7` all carry a comma, a dot or a semicolon
+     * somewhere on the page, and not one of them means a second occasion. A
+     * separator proposed here would put a row in the student's list for the
+     * back half of a date.
+     */
+    for (const name of [
+      "ece310-fa2026-index.html",
+      "cs424-fa2026-schedule.html",
+      "cs374a-fa2026-homeworks.html",
+      "cs374a-fa2026-gps.html",
+      "ece411-fa2026-assignments.html",
+      "ece411-fa2026-assignments-dated.html",
+      "example-course-schedule.html",
+    ]) {
+      const found = propose(fixture(name));
+      expect(
+        found.map((candidate) => candidate.clauses),
+        name,
+      ).toEqual(found.map(() => undefined));
+    }
+  });
+
+  it("does not read a comma between a day and its clock as a clause", () => {
+    // `Sep 25, 5:00 pm` cut at the comma is a deadline at an invented 23:59
+    // and an event called nothing. The clock half carries no date, so it is
+    // not an event, so the comma is never proposed — and the row keeps 17:00.
+    const best = propose(fixture("example-course-schedule.html"))[0]!;
+    expect(best.clauses).toBeUndefined();
+    expect(best.sample[1]!.due).toBe("2026-09-25T17:00:00-05:00");
+  });
+
+  it("takes the separator that yields the most rows with an occasion", () => {
+    /*
+     * Both are present on this page: the comma cuts every row and the
+     * semicolon cuts one. Reading them in declaration order alone would take
+     * the comma here by luck; it is taken because it is measured.
+     */
+    const doc = docFrom(
+      "<table id='s'><tbody>" +
+        "<tr><td>9/8</td><td>MP1 due 9/13; see the forum, Demos on 9/14</td></tr>" +
+        "<tr><td>9/15</td><td>MP2 due 9/27, Demos on 9/28</td></tr>" +
+        "<tr><td>9/22</td><td>MP3 due 10/11, Demos on 10/12</td></tr>" +
+        "</tbody></table>",
+    );
+    const best = propose(doc)[0]!;
+    expect(best.clauses).toBe(",");
+    expect(best.sample.map((row) => row.title)).toContain("MP2: Demos");
+  });
+
+  it("wants the page to say it twice before it believes a separator", () => {
+    // One row in three is how a stray comma looks as well as how a real demo
+    // does, and `MIN_DATED_ROWS` is this project's answer to "one is not
+    // evidence" everywhere else it has to decide the same thing.
+    const doc = docFrom(
+      "<table id='s'><tbody>" +
+        "<tr><td>9/8</td><td>MP1 due 9/13, Demos on 9/14</td></tr>" +
+        "<tr><td>9/15</td><td>HW1 due 9/20 at 11:59 PM</td></tr>" +
+        "<tr><td>9/22</td><td>HW2 due 10/4 at 11:59 PM</td></tr>" +
+        "</tbody></table>",
+    );
+    const best = propose(doc)[0]!;
+    expect(best.clauses).toBeUndefined();
+    expect(best.sample[0]!.title).toBe("MP1 due 9/13, Demos on 9/14");
+  });
+
+  it("leaves the date in the sibling before a row alone", () => {
+    /*
+     * A `duePrev` candidate's located text is the `<dt>` — a date and nothing
+     * else — so there is no sentence in it to cut, and the shapes a `<dt>`
+     * really writes are `Tue, Sep 01` and `Sep 25, 5:00 pm`: a comma between
+     * the halves of one instant. The rows here carry a second date on purpose,
+     * which no captured page does, so that the decision is visible at all.
+     */
+    const doc = docFrom(
+      "<main><dl>" +
+        "<dt>Sep 1, demos Sep 2</dt><dd>Homework 1: strings</dd>" +
+        "<dt>Sep 8, demos Sep 9</dt><dd>Homework 2: graphs</dd>" +
+        "<dt>Sep 15, demos Sep 16</dt><dd>Homework 3: flows</dd>" +
+        "</dl></main>",
+    );
+    const best = propose(doc)[0]!;
+    expect(best.duePrev).toBe("dt");
+    expect(best.clauses).toBeUndefined();
+    expect(best.sample.map((row) => row.due.slice(0, 10))).toEqual([
+      "2026-09-01",
+      "2026-09-08",
+      "2026-09-15",
+    ]);
+  });
+
+  it("says on the proposal that cells are cut, and where", () => {
+    const best = propose(fixture("cs425-fa2026-lectures.html"))[0]!;
+    expect(candidateNotes(best)).toContain(
+      "Cells are cut at “,”; a clause with its own date, like “Demos on 9/28”, becomes an event on that day.",
+    );
+    // And the entry the student saves carries it, or the preview is a picture
+    // of something the runner will not do.
+    const entry = adapterFromCandidate(best, "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html", "CS425", "fa26");
+    expect(entry["clauses"]).toBe(",");
+    expect(entry["minExtensionVersion"]).toBe("1.2.0");
   });
 });
 

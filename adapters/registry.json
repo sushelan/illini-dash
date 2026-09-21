@@ -97,7 +97,7 @@
       "minExtensionVersion": "1.0.0"
     },
     {
-      "$comment": "CS 425 writes each deadline mid-sentence \u2014 \"Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).\" \u2014 so the word \"due\" is what selects it, not an element. The HW and MP lists carry no id and no class, so the rows hook is the page's one content table (table[align=center], width 90%); every other table on the page is a nav strip. See docs/cs425-findings.md.",
+      "$comment": "CS 425 writes each deadline mid-sentence \u2014 \"Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).\" \u2014 so the word \"due\" is what selects it, not an element. The HW and MP lists carry no id and no class, so the rows hook is the page's one content table (table[align=center], width 90%); every other table on the page is a nav strip. The same sentence dates the demo a day later, and clauses \".\" is what keeps it: the clause with \"due\" in it is the deadline, \"Demos on 9/14 (Mon)\" becomes an event on the 14th, and \"Released 8/25\" is dropped because nobody attends a release. See docs/cs425-findings.md.",
       "id": "cs425-fa26",
       "label": "CS 425 course site",
       "courseCode": "CS425/ECE428",
@@ -107,11 +107,12 @@
       "rows": "table[align=center] li",
       "title": ".",
       "titleBefore": ":",
+      "clauses": ".",
       "due": ".",
       "duePhrase": "due",
       "dateFormat": "M/d",
       "timezone": "America/Chicago",
-      "minExtensionVersion": "1.1.0"
+      "minExtensionVersion": "1.2.0"
     },
     {
       "$comment": "ECE 374 A's homeworks page is a definition list: the date is the <dt> and the assignment is the <dd> after it, so the date is outside the row and duePrev is the only locator that reaches it. The page states the clock once, in prose above the list (\"Written homeworks are due every Tuesday at 9pm\"), which is what defaultTime carries. See docs/cs374a-findings.md.",

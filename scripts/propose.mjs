@@ -102,6 +102,7 @@ const FIELDS = [
   "titleFrom",
   "time",
   "splitTitle",
+  "clauses",
   "filter",
   "dateFormat",
 ];

@@ -9,15 +9,19 @@ import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
+  clauseEvents,
   clockFromText,
   clockGroups,
   clockOf,
+  firstDateIn,
   matchDueLabel,
   matchDuePhrase,
   parseAdapterDate,
   parseAdapterDateParts,
+  RELEASE_WORDS,
   resolveTitleFrom,
   runAdapter,
+  splitClauses,
   statedTimeInText,
   supportedDateFormats,
   timeLikeTail,
@@ -693,7 +697,12 @@ describe("the bundled registry", () => {
       "cs374a-fa26-hw",
       "cs374a-fa26-gps",
     ]);
-    for (const line of rejected) expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
+    // Each says which version to update to, and CS 425 is the one that says
+    // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field.
+    expect(rejected[0]).toContain("needs extension 1.2.0, this is 1.0.0");
+    for (const line of rejected.slice(1)) {
+      expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
+    }
     expect(adapters.map((a) => a.id)).toEqual([
       "cs424-fa26",
       "ece310-fa26",
@@ -1663,27 +1672,56 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       expect(validateAdapter(cs425).adapter).toBeDefined();
     });
 
-    it("finds all eight deadlines and nothing else", () => {
-      // 42 `<li>`s match the rows selector. Eight of them carry the keyword
-      // followed by a date; the rest are instructions, regrade policy, exam
-      // prose and solution links.
-      expect(items.map((i) => [i.title, i.dueAt])).toEqual([
-        ["MP1 Specification Document", "2026-09-13T23:59:00-05:00"],
-        ["MP2 Specification Document", "2026-09-27T23:59:00-05:00"],
-        ["MP3 Specification Document", "2026-11-08T23:59:00-06:00"],
-        ["MP4 Specification Document", "2026-12-06T23:59:00-06:00"],
-        ["HW1 Document", "2026-09-20T23:59:00-05:00"],
-        ["HW2 Document", "2026-10-04T23:59:00-05:00"],
-        ["HW3 Document", "2026-11-01T23:59:00-06:00"],
-        ["HW4 Document", "2026-12-03T23:59:00-06:00"],
+    /** The deadlines, as opposed to the demos `clauses` reads beside them. */
+    const deadlines = items.filter((i) => i.kind !== "event");
+
+    it("finds all eight deadlines, and the four demos beside them", () => {
+      /*
+       * 42 `<li>`s match the rows selector. Eight of them carry the keyword
+       * followed by a date; the rest are instructions, regrade policy, exam
+       * prose and solution links.
+       *
+       * Each MP's sentence dates its demo a day later, and `clauses` is what
+       * keeps it: an event under the deadline it belongs to, in the order the
+       * page writes them. "Released 8/25" carries a date too and is not one —
+       * nobody attends a release.
+       */
+      expect(items.map((i) => [i.title, i.kind, i.dueAt])).toEqual([
+        ["MP1 Specification Document", "assignment", "2026-09-13T23:59:00-05:00"],
+        ["MP1 Specification Document: Demos", "event", "2026-09-14T23:59:00-05:00"],
+        ["MP2 Specification Document", "assignment", "2026-09-27T23:59:00-05:00"],
+        ["MP2 Specification Document: Demos", "event", "2026-09-28T23:59:00-05:00"],
+        ["MP3 Specification Document", "assignment", "2026-11-08T23:59:00-06:00"],
+        ["MP3 Specification Document: Demos", "event", "2026-11-09T23:59:00-06:00"],
+        ["MP4 Specification Document", "assignment", "2026-12-06T23:59:00-06:00"],
+        ["MP4 Specification Document: Demos", "event", "2026-12-07T23:59:00-06:00"],
+        ["HW1 Document", "assignment", "2026-09-20T23:59:00-05:00"],
+        ["HW2 Document", "assignment", "2026-10-04T23:59:00-05:00"],
+        ["HW3 Document", "assignment", "2026-11-01T23:59:00-06:00"],
+        ["HW4 Document", "assignment", "2026-12-03T23:59:00-06:00"],
       ]);
     });
 
+    it("says a demo's hour is assumed, and the deadline's is not", () => {
+      /*
+       * "Demos on 9/14 (Mon)" states no clock, so 23:59 is this code's
+       * invention and §5.3 must not rank it above anything (worker rule 3).
+       * The deadlines state theirs: before the grammar learned a dotted clock
+       * every row here carried `timeAssumed`, and any Canvas row could then
+       * have overwritten a deadline CS 425 had stated plainly.
+       */
+      for (const item of deadlines) expect(item.extra?.["timeAssumed"], item.title).toBeUndefined();
+      for (const item of items.filter((i) => i.kind === "event")) {
+        expect(item.extra?.["timeAssumed"], item.title).toBe("true");
+        // And says what it is, so a student checking the row against the page
+        // knows it was read out of a clause beside a deadline.
+        expect(item.extra?.["clause"], item.title).toBe("true");
+        expect(item.extra?.["dueText"], item.title).toMatch(/^Demos on \d+\/\d+ \(Mon\)$/);
+      }
+    });
+
     it("reads the 11.59 PM the page states, on every one of them", () => {
-      // Not one invented time on this page. Before the grammar learned a dotted
-      // clock every row here carried `timeAssumed`, and §5.3 would then have
-      // let any Canvas row overwrite a deadline CS 425 had stated plainly.
-      for (const item of items) expect(item.extra?.["timeAssumed"], item.title).toBeUndefined();
+      for (const item of deadlines) expect(item.dueAt?.slice(11, 16)).toBe("23:59");
     });
 
     it("takes the deadline and not the release date beside it", () => {
@@ -1696,9 +1734,11 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
     });
 
     it("takes the deadline and not the demo date after it", () => {
-      // "Demos on 9/14 (Mon)" is in the same sentence, one clause later.
-      expect(items.some((i) => i.dueAt?.startsWith("2026-09-14"))).toBe(false);
-      expect(items.some((i) => i.dueAt?.startsWith("2026-12-07"))).toBe(false);
+      // "Demos on 9/14 (Mon)" is in the same sentence, one clause later. It is
+      // a row of its own now, and it must still never be the *deadline*: a
+      // reminder aimed at the demo fires a day after the work was owed.
+      expect(deadlines.some((i) => i.dueAt?.startsWith("2026-09-14"))).toBe(false);
+      expect(deadlines.some((i) => i.dueAt?.startsWith("2026-12-07"))).toBe(false);
     });
 
     it("emits nothing for the policy bullet that says 'due' with no date", () => {
@@ -1717,7 +1757,8 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       // Two more real bullets: "Homeworks are due at 11.59 PM Central Time on
       // the due-date" and "We try to stagger HW deadlines". Neither is followed
       // by a date, and neither may become a row.
-      expect(items).toHaveLength(8);
+      expect(deadlines).toHaveLength(8);
+      expect(items).toHaveLength(12);
     });
 
     it("titles each row from the head of its sentence, without the brackets", () => {
@@ -1754,10 +1795,12 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       for (const item of items) expect(item.url).toBe(cs425.url);
     });
 
-    it("gives eight rows eight sourceIds", () => {
+    it("gives twelve rows twelve sourceIds", () => {
       // House rule 4. §3's `raw` is keyed by memberKey, so a collision merges
-      // two deadlines into one with nothing failing.
-      expect(new Set(items.map((i) => i.sourceId)).size).toBe(8);
+      // two deadlines into one with nothing failing — and four demos titled
+      // "Demos" are exactly the shape that collides, which is why the row's
+      // name is in front of every one of them.
+      expect(new Set(items.map((i) => i.sourceId)).size).toBe(12);
     });
 
     it("throws, naming the keyword, if the page reworded every 'due'", () => {
@@ -1782,7 +1825,13 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
 
     it("keeps the eight real rows untouched", () => {
       expect(by("MP1 Specification Document").dueAt).toBe("2026-09-13T23:59:00-05:00");
-      expect(items).toHaveLength(11);
+      // Eleven deadlines, and seven clauses beside them that carry a date of
+      // their own: four demos, and the three this fixture invented to trap a
+      // substring match — "Overdue 12/15", "Undue 12/16" and a resubmission
+      // window. They are events, which is what the rule says they are; none of
+      // them is a deadline, which is what the fixture exists to check.
+      expect(items.filter((i) => i.kind !== "event")).toHaveLength(11);
+      expect(items).toHaveLength(18);
     });
 
     it("skips a 'due' that introduces no date, and takes the one that does", () => {
@@ -1801,7 +1850,10 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
        */
       const hw6 = by("HW6 Document");
       expect(hw6.dueAt).toBeUndefined();
-      expect(hw6.extra?.["unparsedDate"]).toBe("TBD. Released 12/1.");
+      // The clause, not the rest of the line: `clauses` cuts "Released 12/1."
+      // off the front of what could not be read, and the release is dropped
+      // rather than becoming an event.
+      expect(hw6.extra?.["unparsedDate"]).toBe("TBD");
       expect(items.some((i) => i.dueAt?.startsWith("2026-12-01"))).toBe(false);
     });
 
@@ -1809,8 +1861,9 @@ describe("CS 425: a deadline in the middle of a sentence", () => {
       // House rule 6, and the reason this fixture exists. A substring match
       // takes 12/15 and every date on the page would look plausible.
       expect(by("HW7 Document").dueAt).toBe("2026-12-13T23:59:00-06:00");
-      expect(items.some((i) => i.dueAt?.startsWith("2026-12-15"))).toBe(false);
-      expect(items.some((i) => i.dueAt?.startsWith("2026-12-16"))).toBe(false);
+      const deadlines = items.filter((i) => i.kind !== "event");
+      expect(deadlines.some((i) => i.dueAt?.startsWith("2026-12-15"))).toBe(false);
+      expect(deadlines.some((i) => i.dueAt?.startsWith("2026-12-16"))).toBe(false);
     });
 
     it("takes the first hooked occurrence, not the last", () => {
@@ -2561,5 +2614,299 @@ describe("the slot guard counts the rows its reader hooks", () => {
   it("still throws for a plain slot read of the same column, which is not a date column", () => {
     const plain = { ...adapter, duePhrase: undefined, dueSlot: 1, titleSlot: 0 } as unknown as Adapter;
     expect(() => runAdapter(plain, page, ctx)).toThrow("column 1 read as a date on 0 of 6 rows");
+  });
+});
+
+/**
+ * `clauses`: one cell, a deadline and the occasions beside it.
+ *
+ * CS 425's lectures page writes `MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28
+ * (Mon)` in one cell, so the demo — a thing the student has to turn up to — was
+ * not a row this read badly, it was a row nothing ever offered.
+ *
+ * Two rows here are **deliberately unrealistic** (parser rule 10): no course
+ * writes a bare `, 9/21` or a clause that is only "bring a laptop". They are
+ * the two cases where a wrong implementation and a right one read the real page
+ * identically — a missing head check and a missing date check both produce
+ * nothing visible on CS 425.
+ */
+describe("clauses: several dated clauses in one cell", () => {
+  const cells = doc(
+    "<table id='s'><tbody>" +
+      "<tr><td>9/22</td><td>MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)</td></tr>" +
+      "<tr><td>9/24</td><td>HW1 due 9/20 11:59 PM (Sun), Released 8/25, 9/21</td></tr>" +
+      "<tr><td>9/29</td><td>HW2 due 10/4 at 11:59 PM (Sun), bring a laptop</td></tr>" +
+      "</tbody></table>",
+  );
+  const base = {
+    id: "lect-fa26",
+    label: "Lectures",
+    courseCode: "CS425",
+    term: "fa26",
+    url: "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    rows: "#s tr",
+    title: "td",
+    due: "td",
+    dueSlot: 1,
+    titleSlot: 1,
+    duePhrase: "due",
+    dateFormat: "M/d",
+    timezone: "America/Chicago",
+    minExtensionVersion: "1.2.0",
+  } as unknown as Adapter;
+  const cut = { ...base, clauses: "," } as unknown as Adapter;
+  const ctx: PageCtx = { url: base.url, fetchedAt: "2026-09-09T12:00:00.000Z" };
+  const run = (adapter: Adapter, page = cells) => runAdapter(adapter, page, ctx);
+
+  it("reads the deadline out of its own clause and names the row by it", () => {
+    // The title cell *is* the due cell here, so without the cut the row is
+    // called "MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)" — a sentence
+    // in the popup's title column, and §3.1 hashes it.
+    const items = run(cut);
+    expect([items[0]!.title, items[0]!.kind, items[0]!.dueAt]).toEqual([
+      "MP2 due 11.59 PM 9/27 (Sun)",
+      "assignment",
+      "2026-09-27T23:59:00-05:00",
+    ]);
+    expect(items[0]!.extra?.["dueText"]).toBe("11.59 PM 9/27 (Sun)");
+    expect(items[0]!.extra?.["timeAssumed"]).toBeUndefined();
+  });
+
+  it("makes the demo an event on its own day, named after the row", () => {
+    const demo = run(cut).find((item) => item.kind === "event")!;
+    // "Demos on 9/28" says nothing about whose demo it is, and four rows
+    // titled "Demos" collide on one sourceId (house rule 4).
+    expect(demo.title).toBe("MP2: Demos");
+    expect(demo.dueAt).toBe("2026-09-28T23:59:00-05:00");
+    // The clause states no clock, so 23:59 is this code's (worker rule 3).
+    expect(demo.extra?.["timeAssumed"]).toBe("true");
+    expect(demo.extra?.["clause"]).toBe("true");
+    expect(demo.extra?.["dueText"]).toBe("Demos on 9/28 (Mon)");
+    expect(demo.status).toBe("unknown");
+    expect(demo.url).toBe(base.url);
+  });
+
+  it("drops a release, a bare date and a clause with no date at all", () => {
+    const items = run(cut);
+    // Nobody attends a release; a bare date has nothing to put in a list; and
+    // "bring a laptop" is not an occasion, it is the rest of the sentence.
+    expect(items.map((i) => i.dueAt)).toEqual([
+      "2026-09-27T23:59:00-05:00",
+      "2026-09-28T23:59:00-05:00",
+      "2026-09-20T23:59:00-05:00",
+      "2026-10-04T23:59:00-05:00",
+    ]);
+    expect(items.some((i) => /Released|laptop/i.test(i.title))).toBe(false);
+  });
+
+  it("emits the events beside the deadline they came from", () => {
+    // Document order, so the proposal preview shows each demo under the
+    // assignment whose demo it is rather than in a block at the end.
+    expect(run(cut).map((i) => i.kind)).toEqual(["assignment", "event", "assignment", "assignment"]);
+  });
+
+  it("lets filter.exclude drop the events and keep the deadline", () => {
+    const filtered = { ...cut, filter: { exclude: "Demos" } } as unknown as Adapter;
+    const items = run(filtered);
+    expect(items.some((i) => i.kind === "event")).toBe(false);
+    expect(items.map((i) => i.dueAt)).toEqual([
+      "2026-09-27T23:59:00-05:00",
+      "2026-09-20T23:59:00-05:00",
+      "2026-10-04T23:59:00-05:00",
+    ]);
+  });
+
+  it("does not apply filter.include to an event", () => {
+    /*
+     * `include` selects the rows that are deadlines — CS 424's is `\bdue\b`,
+     * proposed on every grid — and no demo clause says "due". Applied here it
+     * would remove every event on the page, which is the one thing this field
+     * exists to produce.
+     */
+    const filtered = { ...cut, filter: { include: "\\bdue\\b" } } as unknown as Adapter;
+    expect(run(filtered).find((i) => i.kind === "event")?.title).toBe("MP2: Demos");
+  });
+
+  it("changes nothing at all without the field", () => {
+    const items = run(base);
+    expect(items.map((i) => [i.title, i.kind])).toEqual([
+      ["MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)", "assignment"],
+      ["HW1 due 9/20 11:59 PM (Sun), Released 8/25, 9/21", "assignment"],
+      ["HW2 due 10/4 at 11:59 PM (Sun), bring a laptop", "assignment"],
+    ]);
+  });
+
+  describe("a page that writes its clauses as sentences", () => {
+    const sentences = doc(
+      "<table id='s'><tbody>" +
+        "<tr><td>9/22</td><td>MP2 due 11.59 PM 9/27 (Sun). Demos on 9/28 (Mon).</td></tr>" +
+        "<tr><td>10/6</td><td>MP3 due 11.59 PM 10/11 (Sun). Demos on 10/12 (Mon).</td></tr>" +
+        "</tbody></table>",
+    );
+    const dotted = { ...base, clauses: "." } as unknown as Adapter;
+
+    it("never cuts inside 11.59, so the clock stays stated", () => {
+      // Split at that dot the deadline clause is "MP2 due 11" — nothing hooks,
+      // the cut falls back to the whole cell, and the demo disappears.
+      const items = run(dotted, sentences);
+      expect(items.map((i) => [i.title, i.dueAt])).toEqual([
+        ["MP2 due 11.59 PM 9/27 (Sun)", "2026-09-27T23:59:00-05:00"],
+        ["MP2: Demos", "2026-09-28T23:59:00-05:00"],
+        ["MP3 due 11.59 PM 10/11 (Sun)", "2026-10-11T23:59:00-05:00"],
+        ["MP3: Demos", "2026-10-12T23:59:00-05:00"],
+      ]);
+      expect(items[0]!.extra?.["timeAssumed"]).toBeUndefined();
+    });
+  });
+});
+
+describe("splitClauses, firstDateIn and clauseEvents, in isolation", () => {
+  const ZONE = "America/Chicago";
+  const REF = "2026-09-20T12:00:00.000Z";
+
+  describe("splitClauses", () => {
+    it("cuts at the literal and trims what is left", () => {
+      expect(splitClauses("MP2 due 9/27, Demos on 9/28", ",")).toEqual([
+        "MP2 due 9/27",
+        "Demos on 9/28",
+      ]);
+    });
+
+    it("never cuts a dot that sits between two digits", () => {
+      // CS 425 writes every deadline as `11.59 PM`, on both its pages.
+      expect(splitClauses("MP2 due 11.59 PM 9/27 (Sun). Demos on 9/28.", ".")).toEqual([
+        "MP2 due 11.59 PM 9/27 (Sun)",
+        "Demos on 9/28",
+      ]);
+    });
+
+    it("drops the empty parts a trailing separator leaves", () => {
+      expect(splitClauses("a,,b,", ",")).toEqual(["a", "b"]);
+      expect(splitClauses("", ",")).toEqual([]);
+      expect(splitClauses("a,b", "")).toEqual([]);
+    });
+  });
+
+  describe("firstDateIn", () => {
+    it("names a clause by the words in front of its date", () => {
+      expect(firstDateIn("Demos on 9/14 (Mon)")).toEqual({
+        head: "Demos",
+        text: "9/14 (Mon)",
+      });
+      expect(firstDateIn("Quiz @ Sep 20")).toEqual({ head: "Quiz", text: "Sep 20" });
+      expect(firstDateIn("Review: 2026-09-20")).toEqual({ head: "Review", text: "2026-09-20" });
+    });
+
+    it("takes only the words before the date, never the ones after", () => {
+      /*
+       * A clause that goes on after the day would need a rule for where the
+       * sentence ends, and every candidate for that is the separator the cell
+       * was already cut at.
+       *
+       * So a clause that leads with its clock has no head at all — the clock is
+       * part of the date token (`11.59 PM 9/13` is how CS 425 writes one) — and
+       * `clauseEvents` drops it rather than inventing a name for it.
+       */
+      expect(firstDateIn("Review session on Sep 20 in ECEB 1002")).toEqual({
+        head: "Review session",
+        text: "Sep 20 in ECEB 1002",
+      });
+      expect(firstDateIn("5pm on Sep 20 review session")?.head).toBe("");
+    });
+
+    it("says nothing about a clause with no date, or a clause that is one", () => {
+      expect(firstDateIn("bring a laptop")).toBeUndefined();
+      expect(firstDateIn("9/21")?.head).toBe("");
+    });
+
+    it("only looks where a word starts", () => {
+      // `mp9/14` is a filename, not a day.
+      expect(firstDateIn("see mp9/14 for details")).toBeUndefined();
+    });
+  });
+
+  describe("clauseEvents", () => {
+    const adapter = {
+      clauses: ",",
+      duePhrase: "due",
+      due: ".",
+      dateFormat: "M/d",
+    } as unknown as Adapter;
+
+    it("is the one implementation the runner and the search both call", () => {
+      expect(
+        clauseEvents(
+          "MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)",
+          adapter,
+          "row name",
+          ZONE,
+          REF,
+        ),
+      ).toEqual([
+        {
+          title: "MP2: Demos",
+          dueAt: "2026-09-28T23:59:00-05:00",
+          timeAssumed: true,
+          text: "Demos on 9/28 (Mon)",
+        },
+      ]);
+    });
+
+    it("falls back to the row's name when the deadline clause has none", () => {
+      // The assignments page: every deadline clause starts with the word "Due",
+      // so there is nothing in front of the keyword to name the demo after.
+      const events = clauseEvents(
+        "Due @ 9/13 11.59 PM Central Time (Sun), Demos on 9/14 (Mon)",
+        adapter,
+        "MP1 Specification Document",
+        ZONE,
+        REF,
+      );
+      expect(events.map((event) => event.title)).toEqual([
+        "MP1 Specification Document: Demos",
+      ]);
+    });
+
+    it("has nothing to say about a cell no clause of which is a deadline", () => {
+      expect(clauseEvents("Paxos, Demos on 9/28", adapter, "row", ZONE, REF)).toEqual([]);
+    });
+
+    it("keeps a release out of the list, by the words alone", () => {
+      for (const word of ["Released", "released", "out", "posted", "available"]) {
+        expect(RELEASE_WORDS.test(`MP4 ${word}`), word).toBe(true);
+      }
+      expect(RELEASE_WORDS.test("Demos")).toBe(false);
+      // "Outline" is not "out": a substring match would drop a real occasion.
+      expect(RELEASE_WORDS.test("Outline review")).toBe(false);
+    });
+  });
+});
+
+describe("registry validation of clauses", () => {
+  it("accepts a short literal", () => {
+    expect(validateAdapter({ ...ADAPTER, clauses: "." }).adapter).toBeDefined();
+  });
+
+  it("refuses an empty one, a long one and a non-string", () => {
+    // House rule 5: `typeof x === "string"` passes `""`, and an empty separator
+    // would cut every row into nothing.
+    expect(validateAdapter({ ...ADAPTER, clauses: "" }).reason).toMatch(/bad clauses/);
+    expect(validateAdapter({ ...ADAPTER, clauses: "x".repeat(9) }).reason).toMatch(/bad clauses/);
+    expect(validateAdapter({ ...ADAPTER, clauses: [","] }).reason).toMatch(/bad clauses/);
+  });
+
+  it("refuses an entry that also declares splitTitle", () => {
+    // Two rules cutting one cell, and whichever ran first would decide what the
+    // other saw — the same refusal `columns.due` and `dueSlot` get.
+    expect(validateAdapter({ ...ADAPTER, clauses: ".", splitTitle: ";" }).reason).toMatch(
+      /splitTitle and clauses both cut a cell into parts; declare one/,
+    );
+  });
+
+  it("demands 1.2.0, which is the build that learned the field", () => {
+    expect(requiredVersionFor({ clauses: "." })).toBe("1.2.0");
+    expect(requiredVersionFor({ duePhrase: "due" })).toBe("1.1.0");
+    expect(requiredVersionFor({ due: ".due" })).toBe("0.1.0");
   });
 });

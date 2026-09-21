@@ -109,6 +109,18 @@ Six more fields arrived in 1.1.0. All are optional, and no entry carries all of 
   **still set**: this is an adapter's inference from a sentence, not a clock this row
   states, and §5.3 must go on preferring a real Canvas instant (worker rule 3).
 
+One more arrived in 1.2.0:
+
+```json
+"clauses": "."
+```
+
+- `clauses` is *"a literal separator that cuts one cell into several **dated clauses**"*.
+  The clause the reader hooks is the deadline and produces the item it always did; every
+  other clause that carries a date becomes a `kind: "event"` item on that day. See
+  "Several dated clauses in one cell" below. Refused together with `splitTitle`, which
+  cuts a cell the other way.
+
 ## Where the date comes from — exactly one locator per entry
 
 Four fields answer "which text on this page is this row's date". An entry declares one;
@@ -168,10 +180,14 @@ elsewhere, so it is a trust boundary:
   `bad defaultTime (HH:mm, 24-hour)`, checked with an anchored regex rather than
   split-and-`Number` because `Number("")` is 0 and would put every deadline on the page
   at midnight, a whole day early and looking exactly like a real answer;
+- `bad clauses` — the 1.2.0 field, checked exactly as `splitTitle` is: a plain string of
+  at most 8 characters, because `""` passes a `typeof` test (house rule 5) and would cut
+  every row into nothing;
 - two answers to one question: `columns.due and duePrev each locate the date cell;
   declare one` (any two of `columns.due`, `dueSlot` and `duePrev`, named in the message),
-  `columns.title and titleSlot both locate the title cell; declare one`, and
-  `dueLabel and duePhrase both read the date out of the located text; declare one`.
+  `columns.title and titleSlot both locate the title cell; declare one`,
+  `dueLabel and duePhrase both read the date out of the located text; declare one`, and
+  `splitTitle and clauses both cut a cell into parts; declare one`.
   Refused rather than silently ranked, because the ranking would be invisible in the
   preview — what the student approves would not be what the runner goes on reading;
 - `unknown field ${key}`. A key this build has never heard of means the entry was written
@@ -201,10 +217,10 @@ answer: running it would mean reading the date out of whichever hook the old cod
 understand, which is a wrong deadline rather than a missing one.
 
 An entry carries the version that introduced its fields, and nobody has to remember which
-build learned `duePrev`: `requiredVersionFor` returns `1.1.0` when an entry uses
-`duePrev`, `duePhrase`, `dueSlot`, `titleSlot`, `titleBefore` or `defaultTime`, and
-`0.1.0` otherwise, and the search writes it onto every proposal. **So a new field means a
-manifest bump.** Until one ships, no build has the code the entry needs: every installed
+build learned `duePrev`: `requiredVersionFor` returns `1.2.0` when an entry uses
+`clauses`, `1.1.0` when it uses `duePrev`, `duePhrase`, `dueSlot`, `titleSlot`,
+`titleBefore` or `defaultTime`, and `0.1.0` otherwise, and the search writes it onto
+every proposal. **So a new field means a manifest bump.** Until one ships, no build has the code the entry needs: every installed
 copy reads it at the next daily refresh and refuses it as `unknown field`, which is the
 right answer and not a substitute for shipping the version that can run it.
 
@@ -373,6 +389,62 @@ Three rules, each forced by something on this page:
 `titleBefore: ":"` takes the name off the head of the sentence and drops the brackets,
 which are the page's own list punctuation. The evidence, row by row, is in
 **[docs/cs425-findings.md](cs425-findings.md)**.
+
+## Several dated clauses in one cell
+
+The same sentence dates the demo, and until 1.2.0 the demo was simply lost — not a row
+read badly, a row nothing ever offered. CS 425 writes the pair two ways:
+
+```
+[MP1 Specification Document]: Released 8/25. Due @ 9/13 11.59 PM Central Time (Sun). Demos on 9/14 (Mon).
+MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28 (Mon)
+```
+
+`clauses` is the separator the cell is cut at — `"."` on the assignments page, `","` on
+the lectures table. What each clause becomes:
+
+- The clause the **reader hooks** is the deadline, and produces the item it always did.
+  Where several hook, the first that *parses* wins, which is the occurrence rule
+  `duePhrase` already followed. A hook that parses nothing still answers: `Due Date: TBD`
+  is this row's deadline clause, and the course has simply not set a date.
+- Every **other** clause with a date in it becomes a `kind: "event"` item — §3's "a thing
+  that happens at a time, not work that is owed". Its instant is the clause's first
+  date-shaped token; a clock inside the clause is read by the grammar's own rules, and a
+  clause that states none carries `extra.timeAssumed` like every other invented 23:59.
+  It also carries `extra.clause: "true"`, so a student can see it was read out of a
+  clause beside a deadline rather than from a row of its own.
+- Its **name** is the row's, never the clause's: "Demos on 9/28" says nothing about whose
+  demo it is, and §3.1 hashes the title, so four rows called "Demos" would collide on one
+  `sourceId`. The words in front of the keyword name it where there are any — `MP2` out
+  of `MP2 due 11.59 PM 9/27` — and the row's own title otherwise, which is what the
+  assignments page needs, where every deadline clause starts with the word "Due".
+- A clause whose head says **released / out / posted / available** is dropped: nobody
+  attends a release, and `Released 8/25`, `HW2 out 9/21` and `MP4 out 11/10` are all real
+  clauses on these two pages. So is a clause with **no head** — a bare `9/21` has nothing
+  to put in a list — and one with no date at all.
+- `filter.exclude` applies to an event's title, so an adapter can drop them.
+  `filter.include` deliberately does not: it selects the rows that are *deadlines* (CS
+  424's is `\bdue\b`, proposed on every grid), and applied here it would remove every
+  demo on the page.
+
+Two rules keep the cut from costing a deadline. A `.` **between two digits is never a
+separator** — CS 425 writes every deadline as `11.59 PM`, and cutting there leaves `11`
+and `59 PM 9/13`, which is no date at all. (`titleSeparatorAt` has the same rule for the
+colon inside `11:59`, one field over and for the same page.) And a cell **no clause of
+which hooks the reader** falls back to being read whole, exactly as before: a separator
+must never lose a row.
+
+Where the title and the date are the same cell — the lectures table is one cell per row —
+the deadline is titled by its own clause rather than by the whole sentence, so the row
+reads `MP2 due 11.59 PM 9/27 (Sun)` and not `MP2 due 11.59 PM 9/27 (Sun), Demos on 9/28
+(Mon)`.
+
+The search proposes a separator only where it is **measured**: `clauseEvents` — the
+runner's own rules, not a second reading of them — has to produce an event on at least
+`MIN_DATED_ROWS` of the candidate's dated rows, and of `,` `.` `;` the one that does so
+on the most rows wins. So `Sep 25, 5:00 pm` proposes nothing (the clock half carries no
+date, so it is not an event), a `.` inside `11.59 PM` proposes nothing, and a candidate
+the runner then refuses is left exactly as it was.
 
 ## What ECE 374 A taught us: the date is the element before the row, and the clock is stated once
 
