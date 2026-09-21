@@ -1663,24 +1663,6 @@ async function renderOptions(): Promise<void> {
   pollRow.append(poll);
   remindRows.append(pollRow);
 
-  const testRow = el("div", undefined, "srow2");
-  testRow.append(el("span"), el("span", "Send a test reminder", "srow2--name"));
-  const testResult = el("span", "One notification, now.", "srow2--hint");
-  testRow.append(testResult);
-  const testButton = el("button", "Send", "btn btn-secondary btn-sm");
-  testButton.addEventListener("click", () => {
-    testResult.textContent = "Sending…";
-    void send({ type: "test-notification" }).then((response) => {
-      // Says which of the two things happened, rather than going quiet on the
-      // failure that matters (worker house rule 5, in the UI).
-      testResult.textContent =
-        response.type === "error"
-          ? response.message
-          : "Sent. If nothing appeared, Chrome or the operating system is hiding it.";
-    });
-  });
-  testRow.append(testButton);
-  remindRows.append(testRow);
   reminders.append(remindRows);
 
   /* Hidden, and ticked off (§8.1's Hide and tick, both undoable) */
@@ -1849,27 +1831,9 @@ function renderGcal(facts: GcalFacts | undefined): void {
   const hint = row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
   row.append(chip);
 
-  if (facts?.enabled) {
-    const push = el("button", "Push now", "btn btn-secondary btn-sm");
-    push.addEventListener("click", () => {
-      push.disabled = true;
-      const was = push.textContent;
-      push.textContent = "Pushing\u2026";
-      void send({ type: "gcal-push-now" })
-        .then((response) => {
-          if (response.type === "error") hint.textContent = response.message;
-          return refreshOptions();
-        })
-        .catch((err: unknown) => {
-          hint.textContent = err instanceof Error ? err.message : String(err);
-        })
-        .finally(() => {
-          push.disabled = false;
-          push.textContent = was;
-        });
-    });
-    row.append(push);
-  }
+  // No "Push now": every sync pushes, so the button's only effect was to do
+  // sooner what the next check does anyway — and it was the second control on
+  // a row whose first one is the decision.
   rows.append(row);
 
   if (facts?.enabled) {
@@ -1918,19 +1882,6 @@ document.getElementById("download-ics")!.addEventListener("click", async () => {
   dataStatus().textContent = `Exported ${count} items. This is a one-time copy, not a subscription.`;
 });
 
-document.getElementById("copy-diagnostics")!.addEventListener("click", async () => {
-  const dataStatus = document.getElementById("data-status")!;
-  dataStatus.textContent = "Collecting…";
-  const response = await send({ type: "get-diagnostics" });
-  if (response.type !== "diagnostics") {
-    dataStatus.textContent =
-      response.type === "error" ? response.message : "Unexpected response.";
-    return;
-  }
-  await navigator.clipboard.writeText(response.report);
-  dataStatus.textContent = `Diagnostics copied (${response.report.length} characters). Paste it into the issue.`;
-});
-
 document.getElementById("export")!.addEventListener("click", async () => {
   const response = await send({ type: "export" });
   if (response.type !== "export") return;
@@ -1938,6 +1889,17 @@ document.getElementById("export")!.addEventListener("click", async () => {
   dataStatus().textContent = "Exported.";
 });
 
+/*
+ * Under Developer (`#dev`) since 2026-09-21, not deleted.
+ *
+ * The pass that cut the repetitive controls listed this one as "folds into the
+ * Piazza row", which the code contradicts: it clears `setupDoneAt` and opens
+ * the first-run screen, and no Piazza control does any part of that. Deleting
+ * it outright would leave Reset as the only way back to that screen — which is
+ * exactly the substitution `background.ts` records Sushi making, at the cost of
+ * every hide, merge and tick. So it moved to the section a student never sees
+ * rather than off the page.
+ */
 document.getElementById("restart-setup")!.addEventListener("click", async () => {
   const status = document.getElementById("restart-setup-status")!;
   status.textContent = "Reopening…";
@@ -1960,12 +1922,6 @@ document.getElementById("reset")!.addEventListener("click", async () => {
 });
 
 void refreshOptions();
-
-document.getElementById("refresh-registry")!.addEventListener("click", async () => {
-  document.getElementById("registry-status")!.textContent = "Checking…";
-  await send({ type: "refresh-registry" });
-  await refreshOptions();
-});
 
 
 /* ---- §8.2's "report a broken page" ---------------------------------------

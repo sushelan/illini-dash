@@ -48,43 +48,21 @@
         <section id="sec-sources" data-nav="Sources">
           <h2>Sources</h2>
           <p class="lede">The sites Illini Dash reads your deadlines from.</p>
-          <details class="why">
-            <summary>Why does it need these?</summary>
-            <p>
-              Each one is read using the login session already in your browser, the same way
-              a second tab would be. Nothing here ever sees a password, and nothing leaves
-              your computer. Switching a source off stops it being read and stops it
-              counting toward the line at the top of this page.
-            </p>
-          </details>
           <div id="sources" class="rows"></div>
-          <p class="row-actions">
-            <button id="restart-setup" class="btn btn-quiet">Choose again</button>
-            <span id="restart-setup-status" class="opt-note"></span>
-          </p>
-
           <!-- `sec-sites`, `sec-courses` and `sec-help` moved from a <section>
                onto the heading that replaced it, because three places in the
                popup deep-link to them (`screens/setup.ts`, `screens/deadline.ts`)
                and this change is not the popup's to edit. -->
           <h3 id="sec-sites">Course websites</h3>
           <p class="lede">Some courses keep the real schedule on their own site.</p>
-          <details class="why">
-            <summary>Why are these separate?</summary>
-            <p>
-              A course website is just a URL and a few CSS selectors, so a broken one can be
-              fixed without updating the extension. Switching one on asks Chrome for
-              permission to read that one site, which is why they are not requested up front.
-            </p>
-          </details>
           <div id="site-health" class="opt-note"></div>
           <!-- Not `.rows` itself any more: one course can have several pages, so
                this holds one bordered group per course rather than one flat list. -->
           <div id="adapters" class="agroups"></div>
-          <p class="row-actions">
-            <button id="refresh-registry" class="btn btn-quiet">Check for updates</button>
-            <span id="registry-status" class="opt-note"></span>
-          </p>
+          <!-- No "Check for updates" button: the list refreshes daily and on
+               every extension reload, so the only thing a press could add is a
+               second way to learn what this line already says. -->
+          <p id="registry-status" class="opt-note"></p>
 
           <h4>Add a course site</h4>
           <p class="lede">Paste the page that lists your deadlines. Nothing is saved until you have seen what it found.</p>
@@ -128,14 +106,6 @@
 
         <section id="sec-appearance" data-nav="Appearance">
           <h2>Appearance</h2>
-          <details class="why">
-            <summary>Why not let me pick the colours?</summary>
-            <p>
-              Colour here carries meaning — red is overdue, amber is a window still open,
-              green is a source that answered. A free choice lets two of those end up the
-              same colour, and the result looks fine and lies.
-            </p>
-          </details>
           <div id="themes"></div>
         </section>
 
@@ -184,17 +154,6 @@
             Right-click the page it is on and choose “Report this page to Illini Dash”, or
             paste its address below.
           </p>
-          <div class="rows">
-            <div class="srow2">
-              <span class="srow2--name">Copy diagnostics</span>
-              <span class="srow2--hint">
-                Which sources worked and what failed. No titles, no links, nothing that
-                identifies you.
-              </span>
-              <button id="copy-diagnostics" class="btn btn-secondary">Copy</button>
-            </div>
-          </div>
-
           <details class="why" id="report-box">
             <summary>Prepare a report</summary>
             <!--
@@ -237,6 +196,11 @@
           <p class="lede">
             You are here because the address ends in <code>#dev</code>. Nothing here is
             needed to use Illini Dash.
+          </p>
+
+          <p class="row-actions">
+            <button id="restart-setup" class="btn btn-quiet">Show the first-run screen</button>
+            <span id="restart-setup-status" class="opt-note"></span>
           </p>
 
           <details class="why">
