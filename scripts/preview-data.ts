@@ -356,10 +356,19 @@ const adapters: Record<string, unknown>[] = [
     url: "https://courses.grainger.illinois.edu/ece411/fa2026/exams.html",
     hostPattern: "https://courses.grainger.illinois.edu/*",
     enabled: true, granted: false, currentTerm: true },
+  // A third page, so the row has to cope with more switches than the two that
+  // prompted the change. Two wrapping is a layout nobody would notice; three
+  // beside a long course name is where a row runs out of width.
+  { id: "ece411-fa26-labs", label: "ECE 411 labs", courseCode: "ECE411",
+    url: "https://courses.grainger.illinois.edu/ece411/fa2026/labs.html",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: false, granted: false, currentTerm: true },
   // Two courses this student is not in and has not switched on, which is what
-  // the registry mostly is: published for everyone. Without them the harness
-  // could not draw the "N more courses" disclosure at all, and a page that
-  // wrongly listed every course as yours would look correct in it.
+  // the registry mostly is: published for everyone. They must draw *nothing*
+  // since 2026-09-21 ("they shouldnt be able to see courses that they havent
+  // selected"), and they stay here for that: a page that listed every published
+  // course would be indistinguishable from a correct one in a fixture that only
+  // held the student's own.
   { id: "ece310-fa26", label: "ECE 310 course site", courseCode: "ECE310",
     url: "https://courses.grainger.illinois.edu/ece310/fa2026/",
     hostPattern: "https://courses.grainger.illinois.edu/*",
@@ -403,11 +412,25 @@ const adapters: Record<string, unknown>[] = [
     hostPattern: "https://courses.grainger.illinois.edu/*",
     enabled: false, granted: false, currentTerm: true },
   /*
-   * And three more courses in two further departments, so the disclosure's
-   * department grouping has something to group: with everything published under
-   * ECE, a page that ignored the department and drew one heading would look
-   * exactly like one that worked. CS 446 is two pages, so the catalogue also
-   * shows a multi-page course under a department heading.
+   * A course whose two pages are on **different hosts** — CS 128 really does
+   * keep half of itself on cs128.org. The row says its host once when every
+   * page shares one, and per page when they do not, and without an entry like
+   * this the harness could only ever show the first branch: a page that said
+   * `courses.grainger.illinois.edu` under a course with a page somewhere else
+   * would look exactly right in every screenshot.
+   */
+  { id: "cs128-fa26-assignments", label: "CS 128 assignments", courseCode: "CS128",
+    url: "https://courses.grainger.illinois.edu/cs128/fa2026/assignments/",
+    hostPattern: "https://courses.grainger.illinois.edu/*",
+    enabled: true, granted: true, currentTerm: true },
+  { id: "cs128-fa26-exams", label: "CS 128 exams", courseCode: "CS128",
+    url: "https://cs128.org/exams/",
+    hostPattern: "https://cs128.org/*",
+    enabled: false, granted: false, currentTerm: true },
+  /*
+   * And three more nobody has switched on, CS 446 among them with two pages —
+   * so "a course that is not yours is not drawn" is tested against a multi-page
+   * course too, which is the shape the row-building code is about.
    */
   { id: "math241-fa26", label: "MATH 241 course site", courseCode: "MATH241",
     url: "https://math.illinois.edu/math241/fa2026/",

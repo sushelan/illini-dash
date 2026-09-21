@@ -31,7 +31,9 @@ import {
 } from "../src/sources/site.js";
 import {
   courseGroupsForYou,
+  coursePagesLayout,
   groupHasCourse,
+  pageHostname,
   compareVersions,
   currentTermCode,
   isCurrentTerm,
@@ -3056,6 +3058,48 @@ describe("courseGroupsForYou: one course, one place", () => {
   it("names the department from the first code", () => {
     const { others } = courseGroupsForYou([entry("ECE310"), entry("CS425/ECE428")], []);
     expect(others.map((group) => group.department)).toEqual(["ECE", "CS"]);
+  });
+});
+
+describe("coursePagesLayout: what a course's row has to draw", () => {
+  const G = "https://courses.grainger.illinois.edu";
+
+  it("labels the pages only when there is more than one to tell apart", () => {
+    // One page means the course's own name already says what the switch is
+    // for, and "CS 424 / course site" is the redundancy 8812d32 took out.
+    expect(coursePagesLayout([`${G}/cs424/fa2026/`]).labelPages).toBe(false);
+    expect(coursePagesLayout([`${G}/a.html`, `${G}/b.html`]).labelPages).toBe(true);
+    expect(coursePagesLayout([]).labelPages).toBe(false);
+  });
+
+  it("says the host once when every page shares it", () => {
+    const layout = coursePagesLayout([`${G}/ece411/assignments.html`, `${G}/ece411/exams.html`]);
+    expect(layout.sharedHost).toBe("courses.grainger.illinois.edu");
+    expect(layout.hosts).toEqual([
+      "courses.grainger.illinois.edu",
+      "courses.grainger.illinois.edu",
+    ]);
+  });
+
+  it("refuses to name one host for a course with two", () => {
+    // CS 128 keeps half of itself on cs128.org. A row saying
+    // `courses.grainger.illinois.edu` under both switches would be a lie by
+    // omission about the host the student is being asked to grant.
+    const layout = coursePagesLayout([`${G}/cs128/fa2026/`, "https://cs128.org/exams/"]);
+    expect(layout.sharedHost).toBeUndefined();
+    expect(layout.hosts).toEqual(["courses.grainger.illinois.edu", "cs128.org"]);
+  });
+
+  it("shows an unparseable address instead of throwing out of the whole page", () => {
+    // `new URL(adapter.url).hostname` ran unguarded while building a row, and
+    // a locally added adapter's url is text the student typed.
+    expect(coursePagesLayout(["not a url"]).hosts).toEqual(["not a url"]);
+    expect(coursePagesLayout(["not a url"]).sharedHost).toBe("not a url");
+    expect(pageHostname("https://cs128.org:8443/exams/")).toBe("cs128.org");
+  });
+
+  it("has no shared host for a course with no pages left", () => {
+    expect(coursePagesLayout([])).toEqual({ labelPages: false, hosts: [] });
   });
 });
 
