@@ -15,13 +15,12 @@
     <link rel="stylesheet" href="popup-views.css" />
     <link rel="stylesheet" href="popup-screens.css" />
     <!--
-      The visual-language explorations (2026-09-19). Each is scoped under
-      `html[data-design="…"]`, so all four load and none applies unless the
-      device has picked one (theme-panel.ts, `illini-dash.design`).
+      Classical, the design (2026-09-19, approved; the only one since
+      2026-09-21). Every sheet is scoped under `html[data-design="classical"]`,
+      and `theme-panel.ts` sets that attribute on every load — there is no
+      longer a stored value that can switch it off, and the three stub sheets
+      it used to choose between are deleted.
     -->
-    <link rel="stylesheet" href="design-timetable.css" />
-    <link rel="stylesheet" href="design-rams.css" />
-    <link rel="stylesheet" href="design-editorial.css" />
     <link rel="stylesheet" href="design-classical.css" />
     <link rel="stylesheet" href="design-classical-shell.css" />
     <link rel="stylesheet" href="design-classical-today.css" />

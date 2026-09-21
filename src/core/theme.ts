@@ -197,3 +197,37 @@ export function normalizeTweaks(stored: Partial<Record<keyof Tweaks, unknown>>):
   };
   return { urgencyEdge: read("urgencyEdge"), showSourceNames: read("showSourceNames") };
 }
+
+/* -------------------------------------------------------------------------- */
+/* The visual language                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one design, and the value `html[data-design]` always carries.
+ *
+ * It was a choice of four for a day (2026-09-19): `timetable`, `rams` and
+ * `editorial` were one-line stubs that never gained rules, so the picker in
+ * Appearance offered "Classical calendar" against a "Plain" that meant *no*
+ * stylesheet at all — a setting whose other end is the absence of the design
+ * Sushi approved. The stubs are deleted and the radio group with them
+ * (2026-09-21, "lot of the buttons are repetitive/unnecessary").
+ *
+ * Here rather than in `ui/theme-panel.ts` because the sentence below is a
+ * migration, and a migration is a decision the suite has to be able to mutate
+ * (worker house rule 1).
+ */
+export const DESIGN = "classical";
+
+/**
+ * What a profile is on, whatever it has stored.
+ *
+ * The argument is read and then deliberately discarded: `illini-dash.design`
+ * holds `"rams"`, `"editorial"`, `"timetable"` or the `"none"` that meant Plain
+ * on any device that opened Appearance before today, and every one of those
+ * names now selects a stylesheet that does not exist. Mapping them all to
+ * Classical is the migration — nobody is left on a design that no longer ships,
+ * and no key has to be cleared for that to be true.
+ */
+export function resolveDesign(_stored: unknown): typeof DESIGN {
+  return DESIGN;
+}

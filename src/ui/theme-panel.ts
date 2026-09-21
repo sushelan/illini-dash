@@ -28,6 +28,7 @@ import {
   normalizeTheme,
   normalizeTweaks,
   resolveDark,
+  resolveDesign,
   themeClass,
   type ModeName,
   type ThemeName,
@@ -62,6 +63,15 @@ function write(key: string, value: string): void {
     // Nothing to do. The choice applies to this page and will not persist.
   }
 }
+
+/**
+ * Where the design was stored while there were four of them.
+ *
+ * Read and thrown away by `resolveDesign`, never written: a device that chose
+ * `rams` or Plain last week opens on Classical like every other device, and the
+ * key is left alone rather than cleared so nothing has to run a cleanup pass.
+ */
+const DESIGN_KEY = "illini-dash.design";
 
 /** The stored choice, or the default. Never throws. */
 export function storedTheme(): ThemeName {
@@ -122,43 +132,10 @@ export function applyStoredTheme(): void {
   const root = document.documentElement;
   root.classList.remove(...allThemeClasses());
   root.classList.add(themeClass(storedTheme()));
-  applyDesign(root);
+  // One design, always set. `core/theme.ts` owns the value and the migration
+  // off the three stubs; this line is the only place it reaches the document.
+  root.dataset.design = resolveDesign(read(DESIGN_KEY));
   applyMode();
-}
-
-/*
- * The visual-language variant (2026-09-19 exploration): `timetable`, `rams`,
- * `editorial` or `classical`. Each is one stylesheet scoped under `html[data-design="…"]`,
- * so with no value stored the page is exactly the shipped design. Per-device
- * like the theme, and for the same reason: read before first paint, no worker
- * round trip.
- */
-const DESIGN_KEY = "illini-dash.design";
-const DESIGNS = ["timetable", "rams", "editorial", "classical"] as const;
-/**
- * What an install with nothing stored gets: the Classical calendar.
- *
- * It stopped being an exploration on 2026-09-19 — "ensure by the end of this
- * iteration i can click on reload card and see the UI exactly like [the mock]".
- * A design behind a stored key cannot satisfy that sentence: a fresh load, and
- * every load on a machine that has never opened Settings, has no key.
- */
-const DEFAULT_DESIGN = "classical";
-/** The stored value that means "the design that shipped before Classical". */
-const NO_DESIGN = "none";
-function applyDesign(root: HTMLElement): void {
-  let value: string | null = null;
-  try {
-    value = window.localStorage.getItem(DESIGN_KEY);
-  } catch {
-    value = null;
-  }
-  // Nothing stored is now a *choice* rather than an absence, so opting out
-  // needs a value of its own — `delete` would be indistinguishable from a
-  // profile that has never been asked.
-  if (value === NO_DESIGN) delete root.dataset.design;
-  else if (value && (DESIGNS as readonly string[]).includes(value)) root.dataset.design = value;
-  else root.dataset.design = DEFAULT_DESIGN;
 }
 
 /*
@@ -254,114 +231,7 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
   }
   host.append(rows);
   host.append(renderModePanel());
-  host.append(renderDesignPanel());
   host.append(renderTweakPanel());
-}
-
-/**
- * The visual language, beside the palette and the mode.
- *
- * It exists because the alternative was a console. The choice has lived in
- * `localStorage` since the explorations were scaffolded and nothing on screen
- * could set it, so turning one on meant opening devtools on the full view and
- * typing a `setItem` — and *reloading the extension card does not do it*, which
- * is the first thing anyone tries and the one thing that cannot work. A setting
- * with no surface is a setting nobody has.
- *
- * Only the designs that have rules in them are offered. Three of the four
- * stylesheets are still one-line stubs, and a picker whose options are
- * indistinguishable is worse than no picker: it says the click did nothing.
- * They join the list below when they have something to show.
- */
-const DESIGN_CHOICES: { value: string; label: string; hint: string }[] = [
-  { value: "classical", label: "Classical calendar", hint: "Vellum and a serif, with the tabs at the foot of the window" },
-  { value: "", label: "Plain", hint: "The design that shipped before Classical" },
-];
-
-function renderDesignPanel(): HTMLElement {
-  // `dataset.design` is the resolved answer, so the radio matches what is on
-  // screen rather than what happens to be in storage — a profile with nothing
-  // stored is on Classical and the picker has to say so.
-  const chosen = document.documentElement.dataset.design ?? "";
-  const wrap = document.createElement("div");
-
-  const heading = document.createElement("h3");
-  heading.textContent = "Visual language";
-  wrap.append(heading);
-
-  const rows = document.createElement("div");
-  rows.className = "rows";
-  for (const design of DESIGN_CHOICES) {
-    const row = document.createElement("label");
-    row.className = "srow2 themerow";
-    row.htmlFor = `design-${design.value || "default"}`;
-
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "design";
-    radio.id = `design-${design.value || "default"}`;
-    radio.className = "srow2--lead";
-    radio.checked = design.value === chosen;
-    radio.addEventListener("change", () => {
-      /*
-       * Written, then applied from what was written — not from `design.value`.
-       *
-       * `applyDesign` is the one function that decides whether a stored string
-       * is a design, and routing the click through it means the picker cannot
-       * set a value the loader would refuse. Two copies of that decision is how
-       * a radio ends up selected for a design that never applies.
-       */
-      write(DESIGN_KEY, design.value || NO_DESIGN);
-      applyDesign(document.documentElement);
-      /*
-       * And redraw the list, because **a design is markup, not paint**.
-       *
-       * `rows.ts`'s `cardDesign()` reads `data-design` at render time and
-       * builds a different row for Classical — a two-line card with
-       * `.row--main` / `.row--when` and the source name — from the one-line
-       * `.row--compact` every other design gets. Flipping the attribute alone
-       * leaves the *previous* design's children under the new design's
-       * stylesheet, and the two sheets place their tracks differently: the
-       * compact row's `[dot, title, code, rel]` carry none of the areas
-       * `design-classical.css` names, so they auto-place into
-       * `main tick menu` and the title lands in the narrow `auto` column with
-       * the whole flexible track empty to its left. That is Sushi's
-       * "messed up rows" (2026-09-19), and it is the same failure
-       * `views/alerts.ts` documents for the suggestion row — one design's
-       * children under the other design's grid.
-       *
-       * `TWEAKS_EVENT` rather than a design-specific event: its listener in
-       * `rows.ts` already re-reads the appearance state and calls
-       * `app.refresh()`, which is exactly what is wanted, and a second event
-       * would be a second copy of one decision. Re-reading the tweaks is
-       * idempotent. The panel is drawn in two documents and only one has a
-       * list, so this is announced rather than called (see `TWEAKS_EVENT`).
-       */
-      window.dispatchEvent(new Event(TWEAKS_EVENT));
-    });
-
-    const label = document.createElement("span");
-    label.className = "srow2--name";
-    label.textContent = design.label;
-    const hint = document.createElement("span");
-    hint.className = "srow2--hint";
-    hint.textContent = design.hint;
-
-    /*
-     * No swatches on these rows, unlike the palette rows above.
-     *
-     * A theme is a set of classes, so a swatch inside the page can wear one and
-     * paint itself. A design is an attribute on the **root** and a stylesheet
-     * that only `popup.html` links — so a swatch here would inherit the tokens
-     * of the page it is sitting in and preview whatever is already on screen.
-     * A preview that shows the wrong thing is worse than no preview; the popup
-     * itself changes under the click, which is the real one.
-     */
-    row.append(radio, label, hint);
-    rows.append(row);
-  }
-  wrap.append(rows);
-  return wrap;
 }
 
 /** The stored tweaks, or their defaults. Never throws. */

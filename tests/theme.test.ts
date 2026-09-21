@@ -19,6 +19,8 @@ import {
   isModeName,
   normalizeMode,
   resolveDark,
+  resolveDesign,
+  DESIGN,
   THEMES,
   THEME_KEY,
   allThemeClasses,
@@ -235,64 +237,40 @@ panelGlobals["localStorage"] = {
 };
 const panel = await import("../src/ui/theme-panel.js");
 
-describe("choosing a design redraws the list", () => {
+describe("the one design (2026-09-21)", () => {
   /*
-   * §the defect, 2026-09-19: "in full screen when i go to appearance and click
-   * plain and click back on illini dash on top left i see the messed up rows".
-   *
-   * A design is **markup**, not paint. `rows.ts`'s `cardDesign()` reads
-   * `data-design` at render time and builds a two-line card with `.row--main`
-   * and `.row--when` for Classical, against the one-line `.row--compact` every
-   * other design gets. Flipping the attribute without redrawing leaves one
-   * design's children under the other's grid, and the children auto-place into
-   * whatever tracks the new sheet names: measured in the real document, the
-   * title of a compact row left behind under `design-classical.css` moved from
-   * 9px to **638px** from the row's left edge on an 842px row (and 90px on a
-   * 264px one) — Sushi's "messed up rows", and the same failure
-   * `views/alerts.ts` documents for the suggestion row.
-   *
-   * The event is what `rows.ts` listens for, so this is the line that makes
-   * the two designs' markup follow their stylesheets.
+   * Appearance offered four visual languages for two days. Three of them —
+   * `timetable`, `rams`, `editorial` — were one-line stubs that never gained
+   * rules, so the radio group read as "Classical calendar / Plain" where Plain
+   * meant *no* design stylesheet at all: the other end of the only choice on
+   * the panel was the absence of the design Sushi approved. The group is gone
+   * (Sushi, 2026-09-21: "lot of the buttons are repetitive/unnecessary"), and
+   * what is left is a migration — every stored value reads as Classical.
    */
-  function designPanel(): { radios: Record<string, HTMLInputElement>; heard: string[] } {
+  it("reads every stored value, and every absent one, as Classical", () => {
+    // The three deleted stubs, the `"none"` that meant Plain, and the two
+    // shapes a cleared or blocked origin hands back.
+    for (const stored of ["rams", "editorial", "timetable", "none", "", null, undefined]) {
+      expect(resolveDesign(stored)).toBe("classical");
+    }
+    expect(DESIGN).toBe("classical");
+  });
+
+  it("puts the design on the root whatever the device chose before", () => {
+    panelStore.clear();
+    panelStore.set("illini-dash.design", "rams");
+    panel.applyStoredTheme();
+    expect(panelDom.document.documentElement.dataset["design"]).toBe("classical");
+  });
+
+  it("offers no design radio at all", () => {
+    panelStore.clear();
     const host = panelDom.document.getElementById("themes") as unknown as HTMLElement;
     panel.renderThemePanel(host);
-    const heard: string[] = [];
-    panelDom.window.addEventListener(panel.TWEAKS_EVENT, () => heard.push("redraw"));
-    const radios: Record<string, HTMLInputElement> = {};
-    for (const radio of host.querySelectorAll("input[name='design']")) {
-      radios[(radio as HTMLInputElement).id] = radio as unknown as HTMLInputElement;
-    }
-    return { radios, heard };
-  }
-
-  it("offers Classical and Plain, and Classical is what an unset profile is on", () => {
-    panelStore.clear();
-    panel.applyStoredTheme();
-    const { radios } = designPanel();
-    expect(Object.keys(radios).sort()).toEqual(["design-classical", "design-default"]);
-    // Nothing stored is a *choice* since 2026-09-19, not an absence.
-    expect(panelDom.document.documentElement.dataset["design"]).toBe("classical");
-  });
-
-  it("announces a redraw when Plain is chosen, not only the attribute", () => {
-    panelStore.clear();
-    const { radios, heard } = designPanel();
-    radios["design-default"]!.checked = true;
-    radios["design-default"]!.dispatchEvent(new panelDom.window.Event("change"));
-    // The attribute is gone, so every sheet scoped to `html[data-design=…]` is
-    // off — which is exactly when the rows built for one must be rebuilt.
-    expect(panelDom.document.documentElement.dataset["design"]).toBeUndefined();
-    expect(heard).toEqual(["redraw"]);
-  });
-
-  it("announces a redraw when Classical is chosen, which is the direction that strands the title", () => {
-    panelStore.clear();
-    panelStore.set("illini-dash.design", "none");
-    const { radios, heard } = designPanel();
-    radios["design-classical"]!.checked = true;
-    radios["design-classical"]!.dispatchEvent(new panelDom.window.Event("change"));
-    expect(panelDom.document.documentElement.dataset["design"]).toBe("classical");
-    expect(heard).toEqual(["redraw"]);
+    expect(host.querySelectorAll("input[name='design']").length).toBe(0);
+    // The palette, the mode and the two tweaks are all still there: this is a
+    // deletion of one group, not of the panel.
+    expect(host.querySelectorAll("input[name='theme']").length).toBe(THEMES.length);
+    expect(host.querySelectorAll("input[name='mode']").length).toBe(MODES.length);
   });
 });
