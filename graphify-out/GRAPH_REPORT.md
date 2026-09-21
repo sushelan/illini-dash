@@ -1,24 +1,24 @@
 # Graph Report - illini-due  (2026-09-21)
 
 ## Corpus Check
-- 269 files · ~1,013,694 words
+- 269 files · ~1,018,294 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 20 file(s) not represented in the graph (top: .css 13, (none) 5, .woff2 2)
 
 ## Summary
-- 3390 nodes · 9057 edges · 169 communities (158 shown, 11 thin omitted)
+- 3392 nodes · 9062 edges · 155 communities (143 shown, 12 thin omitted)
 - Extraction: 90% EXTRACTED · 10% INFERRED · 0% AMBIGUOUS · INFERRED: 880 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2369ecec`
+- Built from commit: `44f309cb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - store.ts
 - ParseError
-- Canvas — what the API actually returns
+- PrairieTest — what the fetched HTML actually contains
 - UX plan for the store release
 - calendar.ts
 - scripts
@@ -27,47 +27,47 @@
 - schedule.ts
 - course-sites.ts
 - manifest.json
-- messages.ts
+- offscreen-client.ts
 - options.ts
 - month.ts
-- popup.ts
-- theme-panel.ts
-- Adapter registry (bundled + daily GitHub refresh)
+- Canvas — what the API actually returns
+- applyStoredTheme
+- parseAdapterDateParts
 - prairietest.ts
 - canvas.ts
-- Gradescope source (§4.2, HTML)
+- Review outcome — PrairieLearn (12 findings, all survived)
 - site.ts
 - support.js
 - observer-ui.ts
 - icon
 - Chrome Web Store listing draft (§9 G5)
-- piazza.test.ts
-- gcalPush
-- announce.ts
 - piazza.ts
-- makeRowsNavigable
-- deadline.ts
+- The design
+- announce.ts
+- manifest.test.ts
+- Popup feature inventory
+- rows.ts
 - options.html: Settings page
 - background.ts
 - core/registry.ts
-- overrides.test.ts
+- types.ts
 - gcal-auth.ts
 - classical_vellum_journal/DESIGN.md
-- grouping.ts
+- names.ts
 - detect.ts
 - compilerOptions
 - compat.ts
 - preview-data.ts
-- locateDue
+- announce-real.test.ts
 - health.ts
 - ref_node_path
 - screens/editor.ts
-- linkedom
+- table-grid.ts
 - Tier 0a: make what exists trustworthy
 - gcal-client.ts
 - gradescope.ts
-- Piazza fixtures
-- capture.ts
+- gcal-config.ts
+- gate0.ts
 - gcal.ts
 - shell.ts
 - RawItem
@@ -84,13 +84,13 @@
 - piazza-real.test.ts
 - needs_login detection
 - Tier 0b: beta prerequisites that need Sushi
-- theme.ts
-- cellByHeader
+- theme-panel.ts
+- Mutation check
 - Campuswire fixtures
-- Campuswire — findings
+- describeEmpty
 - suggest.ts
 - diagnostics.ts
-- syncSites
+- sources.ts
 - Roadmap ideas (88 ranked gaps)
 - skeleton.ts
 - Popup UI (§8.1)
@@ -109,19 +109,19 @@
 - graphify reference: commit hook and native CLAUDE.md integration
 - graphify reference: incremental update and cluster-only
 - PrairieLearn fixtures
-- 3. Findings, ranked
+- deadline.ts
 - graphify reference: GitHub clone and cross-repo merge
 - CLAUDE.md
 - extraction-spec.md
 - What You Must Do When Invoked
 - Gradescope fixtures provenance
 - sync.ts
-- isItemDone
-- SyncDeps
-- piazzaRun
+- resolveMentions
+- markers.ts
+- Defect: a Gradescope course labelled stat_425_120248_268442
 - 2. Findings, ranked
 - row-order.test.ts
-- StoreV1Plus
+- Illini Dash UI acceptance
 - graphify reference: extra exports and benchmark
 - Sync loop runSync (§6)
 - Ponytail
@@ -130,14 +130,12 @@
 - validateAdapter
 - Triaging a beta report
 - announce.test.ts
-- detect.test.ts
+- ground
 - graphify reference: transcribe video and audio
 - Tracing a symptom along a runtime path
-- types.ts
-- popup.html: the popup and full view document
+- Tier 1: highest value after the beta, no spec change
 - ui-acceptance.mjs
 - propose.mjs
-- suggest.test.ts
 - Asking Sushi for a browser action
 - graphify reference: query, path, explain
 - held-press.mjs
@@ -159,29 +157,17 @@
 - core/campuswire.ts
 - ui-acceptance.test.mjs
 - icons.mjs
-- What the two stages read, and the scorecard over the real feed
 - build.mjs
 - vitest
 - package.json
 - UI acceptance reference contract
-- 3. Mutation table
 - scrub-file.mjs
-- preview-acceptance.test.ts
+- Source
 - Google Stitch prompt — Illini Dash popup
-- createStoreQueue
-- 9.2 The five tabs
-- Amendment (2026-09-18, evening): the fetch plan after the trace
-- I08 · Local Done check-off, separate from Hide
-- 4. Measurements
+- dedupe
 - graphify reference: transcribe video and audio
-- local-adapters.test.ts
-- piazzaClasses
-- course-colour.test.ts
-- offscreen.html: DOMParser host for the service worker
-- Sushi's time is the scarce resource
+- ref_node_fs
 - ui-browser.mjs
-- exams-verified.test.ts
-- J. Day view
 
 ## God Nodes (most connected - your core abstractions)
 1. `ParseError` - 82 edges
@@ -204,8 +190,8 @@
   .agents/skills/capture-ask/SKILL.md → src/capture.ts
 - `Capturing a fixture (the usual ask)` --references--> `isAllowedCaptureUrl()`  [INFERRED]
   .claude/skills/capture-ask/SKILL.md → src/capture.ts
-- `post.json — `POST https://piazza.com/logic/api?method=content.get`` --references--> `describeEmpty()`  [INFERRED]
-  fixtures/piazza/README.md → src/core/announce.ts
+- `M6 — PROGRESS's "redundant" classification for `dayList`'s title tie-break is wrong; the case is *untested*` --references--> `dayList()`  [INFERRED]
+  docs/design/review-r3.md → src/core/calendar.ts
 
 ## Import Cycles
 - None detected.
@@ -221,195 +207,195 @@
 - **Stable sourceId amendment across the four sources** — docs_sourceid_decision_memberkey_stability, docs_sourceid_decision_gradescope_key, docs_sourceid_decision_prairielearn_badge_key, docs_sourceid_decision_prairietest_title_hash_key, docs_gradescope_findings_row_control_changes_on_submit, docs_prairielearn_findings_assessment_instance_link, docs_prairietest_findings_reservation_id_not_exam [EXTRACTED 1.00]
 - **UX plan phases A-G** — docs_ux_plan_phase_a, docs_ux_plan_phase_b_primitives, docs_ux_plan_phase_c_popup_ia, docs_ux_plan_phase_d_settings, docs_ux_plan_phase_e_first_run, docs_ux_plan_phase_f_notifications, docs_ux_plan_phase_g_store [EXTRACTED 1.00]
 
-## Communities (169 total, 11 thin omitted)
+## Communities (155 total, 12 thin omitted)
 
 ### Community 0 - "store.ts"
-Cohesion: 0.10
-Nodes (32): 8. Storage, Amendment (2026-09-19): the announcement is not the row's name, I54 · Versioned store migrations with memberKey remapping, ALL_OBSERVERS, ALL_SOURCES, BACKOFF_MINUTES, FETCHED_SOURCES, foundAlreadyPast() (+24 more)
+Cohesion: 0.08
+Nodes (42): 4. Course-site adapters, 8. Storage, isOlderThan(), guessCourseCode(), isInstant(), ALL_OBSERVERS, ALL_SOURCES, BACKOFF_MINUTES (+34 more)
 
 ### Community 1 - "ParseError"
 Cohesion: 0.11
-Nodes (38): House rules for parsers, Parser rule 1: a bad value costs its field, a missing hook throws, Parser rule 5: typeof x === 'string' is not validation, The signed-out page, and the positive marker it made possible, Shared parser primitives (src/core/parsing.ts), FieldResult, isInstant(), KeyGuard (+30 more)
+Nodes (38): House rules for parsers, Parser rule 1: a bad value costs its field, a missing hook throws, cs424-fa26 adapter (rowspan grid, td:not(.auto-style6), 401 in place), splitTitle literal separator (never regex), Shared parser primitives (src/core/parsing.ts), monthIndex(), FieldResult, KeyGuard (+30 more)
 
-### Community 2 - "Canvas — what the API actually returns"
-Cohesion: 0.06
-Nodes (58): Canvas — what the API actually returns, Amendment: §5.1 regex runs on Canvas name, not course_code, Amendment: §5.3 courseLabel never uses course_code, Concluded-course filter not implementable from course fields, Canvas course_code is an opaque slug (cs_357_120268_263847), Current-term rule: keep courses in a term that brackets now; set aside unbounded ones, Empty planner is correct: 67 assignments, 0 with due_at, Fail open when no term is current (+50 more)
+### Community 2 - "PrairieTest — what the fetched HTML actually contains"
+Cohesion: 0.12
+Nodes (29): Row control changes on submit: <a href> vs button data-assignment-id, Status from div.submissionStatus--text, ignore colour modifiers, PrairieLearn — what the fetched HTML actually contains, Row link becomes /assessment_instance/{iid} once started, Credit schedule in data-bs-content popover, second DOMParser pass, 0-credit row End is an em dash meaning no end, Access table has a header row and no tbody; select rows with td, lateDueAt only from a next tier with credit above 0 (+21 more)
 
 ### Community 3 - "UX plan for the store release"
 Cohesion: 0.15
 Nodes (25): Rows say 'time not given' rather than inventing a time, UX plan for the store release, B1: a sat exam is not Overdue, B2: primary button invisible in dark (--brand on brand page), B3: white on accent fails AA; --accent-ink #1a0d04, Button system: btn-primary/secondary/quiet/icon, Computed WCAG contrast table, Copy guide: names, states, verbs; nothing from a spec reaches the screen (+17 more)
 
 ### Community 4 - "calendar.ts"
-Cohesion: 0.07
-Nodes (42): AgendaRow, agendaRows(), allTimed(), Anchor, ATTENTION_ACTIONABLE, ATTENTION_ORDER, attentionCount(), AttentionGroup (+34 more)
+Cohesion: 0.05
+Nodes (92): 7. Health, notifications, calendar, 3. Mutation table, L13 — two of PROGRESS's four "survivors" are equivalent mutants, which is a different fact, L9 — `countdown` says "1d late" for something two hours late, Defect: finished work with a late window open appeared nowhere, Audit: 'hiding an event doesn't work on the calendar' — not found, AgendaRow, agendaRows() (+84 more)
 
 ### Community 5 - "scripts"
 Cohesion: 0.13
 Nodes (15): scripts, build, icons, package, pretest, preview, propose, scrub (+7 more)
 
 ### Community 6 - "dedupe.ts"
-Cohesion: 0.11
-Nodes (34): M5 — a `set-due` outranks every later source date, for ever, with nothing on screen to say the source now disagrees, applyRetention(), badgesOf(), buildItem(), byPrecedence(), canonicalCourseLabel(), canonicalStatus(), carryNotified() (+26 more)
+Cohesion: 0.15
+Nodes (22): applyRetention(), badgesOf(), carryNotified(), contradictsDone(), courseCodesOf(), datesCompatible(), DedupeOptions, effectiveInstant() (+14 more)
 
 ### Community 7 - "prairielearn.ts"
 Cohesion: 0.10
-Nodes (39): A survivor has three meanings — decide which before acting, Mutation rule 2: a survivor is untested, unreachable, or redundant, A survivor has three meanings — decide which before acting, RFC-3339, readDateBody(), DAYS_IN_MONTH, inferYear(), isNoEndMarker() (+31 more)
+Nodes (36): House rules for mutation checks, A survivor has three meanings — decide which before acting, Mutation rule 2: a survivor is untested, unreachable, or redundant, A survivor has three meanings — decide which before acting, RFC-3339, DAYS_IN_MONTH, inferYear(), isNoEndMarker() (+28 more)
 
 ### Community 8 - "schedule.ts"
-Cohesion: 0.10
-Nodes (33): I28 · Keep reminders working past Chrome's 500-alarm cap, I38 · Coalesce catch-up reminder bursts, word by real remaining time, I40 · CBTF reservation-window escalation and missed-reservation notice, Daily reminder for CBTF exams open for booking, store-toast.png is a composite, not a screenshot, Defect: an exam already sat counted as Overdue, Review outcome — steps 9–12 (16 findings, 13 code defects), UX plan phases A–G (2026-09-12) (+25 more)
+Cohesion: 0.11
+Nodes (34): House rules for the worker and the loop, Worker rule 4: every store writer goes through the queue, and the queue is re-entrant, W. What lives in Options, not the popup, I27 · 'Can reminders reach you?' check and test-reminder button, I28 · Keep reminders working past Chrome's 500-alarm cap, I38 · Coalesce catch-up reminder bursts, word by real remaining time, store-toast.png is a composite, not a screenshot, Defect: the store queue deadlocked (+26 more)
 
 ### Community 9 - "course-sites.ts"
 Cohesion: 0.08
-Nodes (29): displayCourseLabel(), CourseGroup, courseGroupsForYou(), courseKeysOf(), emptyCourseGroup(), finishGroup(), groupHasCourse(), Response (+21 more)
+Nodes (29): CourseGroup, courseGroupsForYou(), courseKeysOf(), emptyCourseGroup(), finishGroup(), groupHasCourse(), Response, AdapterEntry (+21 more)
 
 ### Community 10 - "manifest.json"
 Cohesion: 0.06
 Nodes (35): action, default_icon, default_popup, default_title, background, service_worker, type, commands (+27 more)
 
-### Community 11 - "messages.ts"
-Cohesion: 0.12
-Nodes (24): ask(), detectInOffscreen(), ensureOffscreenDocument(), parseGradescopeDashboard(), parseHtml(), parseSmartPhysicsCourses(), runAdapterInOffscreen(), CourseSummary (+16 more)
+### Community 11 - "offscreen-client.ts"
+Cohesion: 0.11
+Nodes (24): ask(), detectInOffscreen(), ensureOffscreenDocument(), parseGradescopeDashboard(), parseHtml(), parseSmartPhysicsCourses(), runAdapterInOffscreen(), check() (+16 more)
 
 ### Community 12 - "options.ts"
 Cohesion: 0.07
-Nodes (35): What a student is told now, saveProposedAdapter(), adapterFromCandidate(), candidateNotes(), locatorDescription(), quote(), showMoreLabel(), shownCandidates() (+27 more)
+Nodes (31): MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY, downloadFile(), downloadIcs(), itemsToExport(), addSiteUrl, captureButton (+23 more)
 
 ### Community 13 - "month.ts"
-Cohesion: 0.13
-Nodes (31): BROKEN (1), G. Date navigator, L. Month view, dayKey(), startOfDay(), weekContents(), quietState, navFor() (+23 more)
+Cohesion: 0.09
+Nodes (38): 9.2 The five tabs, Exams — everything you have to turn up to, Month — two drawings of one month, No date — listed somewhere, dated nowhere, Today — a schedule for the day, Week — seven day cards, 1. Counts, 3. Every non-PRESERVED item (+30 more)
 
-### Community 14 - "popup.ts"
-Cohesion: 0.08
-Nodes (52): House rules from the ZIP acceptance pass, 2026-09-19, Structural decisions, R-3 — DEGRADED. A tweak changed in the Appearance panel does not repaint the list until the panel is dismissed, 5. R1's ten, re-checked, M3 — Pressing a tab while the editor screen is open is a dead control that silently rewrites the remembered tab., The focus mechanism, as built, B. Header bar, E. Tabs and view state (+44 more)
-
-### Community 15 - "theme-panel.ts"
-Cohesion: 0.17
-Nodes (24): Light/dark is the is-dark class, not a media query, Theme choice in localStorage (illini-dash.theme / illini-dash.mode), V. Theme and dark mode, menu, allThemeClasses(), ModeName, normalizeTweaks(), themeClass() (+16 more)
-
-### Community 16 - "Adapter registry (bundled + daily GitHub refresh)"
+### Community 14 - "Canvas — what the API actually returns"
 Cohesion: 0.12
-Nodes (26): Open: course sites split across pages, Open: Coursera for the online CS courses, Parallelism policy, Parser rule 13: a per-student URL means a source, not an adapter, Parser rule 3: never index cells positionally, Trace the path, not just the file, Worker rule 3: a value this code invented is not a value the source stated, Worker rule 5: log both branches of any decision the user will have to debug (+18 more)
+Nodes (24): Canvas — what the API actually returns, Amendment: §5.1 regex runs on Canvas name, not course_code, Amendment: §5.3 courseLabel never uses course_code, Concluded-course filter not implementable from course fields, Canvas course_code is an opaque slug (cs_357_120268_263847), Current-term rule: keep courses in a term that brackets now; set aside unbounded ones, Empty planner is correct: 67 assignments, 0 with due_at, Fail open when no term is current (+16 more)
+
+### Community 15 - "applyStoredTheme"
+Cohesion: 0.22
+Nodes (11): Check it in the mode Sushi actually uses (dark), Sushi's time is the scarce resource, UI rule 1: a popup and the service worker have different consoles, Light/dark is the is-dark class, not a media query, Theme choice in localStorage (illini-dash.theme / illini-dash.mode), V. Theme and dark mode, Light or dark is a setting (is-dark class), applyMode() (+3 more)
+
+### Community 16 - "parseAdapterDateParts"
+Cohesion: 0.14
+Nodes (24): Open: course sites split across pages, Parallelism policy, Parser rule 3: never index cells positionally, Trace the path, not just the file, Worker rule 3: a value this code invented is not a value the source stated, Worker rule 5: log both branches of any decision the user will have to debug, Worker rule 7: live data is a source of truth the fixtures are not, Adapter.columns — header-driven column lookup (+16 more)
 
 ### Community 17 - "prairietest.ts"
-Cohesion: 0.11
-Nodes (22): Credit schedule in data-bs-content popover, second DOMParser pass, data-format-date JSON (ISO UTC + IANA tz) is the primary time source, parseDateAttribute(), parseDateRangeAttribute(), SOURCE_ORIGIN, sourceForUrl(), textOf(), cardFor() (+14 more)
+Cohesion: 0.14
+Nodes (16): parseDateAttribute(), parseDateRangeAttribute(), textOf(), cardFor(), EMPTY_CARD, examKey(), isEmptyCard(), isEmptyRow() (+8 more)
 
 ### Community 18 - "canvas.ts"
-Cohesion: 0.18
-Nodes (19): Decision: Canvas concluded-course filter via include[]=term, extractCourseCodes(), CANVAS_ORIGIN, CanvasCourse, courseMap(), coursesUrl(), currentTermCourses(), isLoginResponse() (+11 more)
+Cohesion: 0.17
+Nodes (20): Decision: Canvas concluded-course filter via include[]=term, extractCourseCodes(), CANVAS_ORIGIN, CanvasCourse, courseMap(), coursesUrl(), currentTermCourses(), isLoginResponse() (+12 more)
 
-### Community 19 - "Gradescope source (§4.2, HTML)"
-Cohesion: 0.13
-Nodes (26): Parser rule 11: never signed in is not session expired, and both are needs_login, Parser rule 12: a signed-out marker must be absent from the healthy page, Parser rule 6: match markers exactly and scope them to the smallest element, Amendment §4.2/§3.1: Gradescope row is a button before submission and an a after, Amendment §4.3: credit table has a header row and no tbody, Amendment §4.4: PrairieTest links and machine-readable dates, Never-signed-in detection for Gradescope and PrairieTest, Review outcome — Gradescope (12 findings, 11 fixed) (+18 more)
+### Community 19 - "Review outcome — PrairieLearn (12 findings, all survived)"
+Cohesion: 0.20
+Nodes (16): Parser rule 5: typeof x === 'string' is not validation, Amendment §4.3: credit table has a header row and no tbody, Amendment §4.4: PrairieTest links and machine-readable dates, Review outcome — PrairieLearn (12 findings, all survived), VERIFY: does PrairieTest render the available card for a student with no CBTF courses?, Gradescope datetime attribute format, Open questions (§12), parseLocalDate(parts, zone) helper (+8 more)
 
 ### Community 20 - "site.ts"
-Cohesion: 0.06
-Nodes (58): 3. Where the date comes from, How the date is read out of the located text, 3. Where the date comes from, How the date is read out of the located text, The lectures page, and why it is a fixture and not an entry, What `clauses` reads, on both pages, AdapterDate, ClauseDate (+50 more)
+Cohesion: 0.05
+Nodes (63): A survivor sometimes indicts the design, 3. Where the date comes from, How the date is read out of the located text, Mutation rule 3: a survivor sometimes indicts the design, A survivor sometimes indicts the design, 3. Where the date comes from, How the date is read out of the located text, The lectures page, and why it is a fixture and not an entry (+55 more)
 
 ### Community 21 - "support.js"
 Cohesion: 0.06
 Nodes (75): boot(), bundledBlob(), cdnScriptFor(), collectProps(), compileAttr(), compileTemplate(), contentKey(), createComponentFactory() (+67 more)
 
 ### Community 22 - "observer-ui.ts"
-Cohesion: 0.18
-Nodes (16): Evidence first, Honest completion, Illini UI acceptance, Six-stage execution, Piazza and Campuswire on the front, describeObserver(), observerRows(), describePiazza() (+8 more)
+Cohesion: 0.13
+Nodes (20): Six-stage execution, Icons, Implementation completed in candidate 1, Piazza and Campuswire on the front, Popup and five reference views, Preview and acceptance truthfulness, Settings, Shared visual system (+12 more)
 
 ### Community 23 - "icon"
 Cohesion: 0.09
-Nodes (35): Y. Every DOM id and class the popup writes, ExamPlacement, reservationVerified(), createEditor(), Editor, EDITOR_CLASS, EDITOR_SELECTOR, EditorOptions (+27 more)
+Nodes (36): 10. Permissions, Y. Every DOM id and class the popup writes, END_OF_DAY_HEADING, LATE_HEADING, ExamPlacement, reservationVerified(), bookMark(), icon() (+28 more)
 
 ### Community 24 - "Chrome Web Store listing draft (§9 G5)"
-Cohesion: 0.07
-Nodes (41): Store description (plain text), Not affiliated with UIUC, Instructure, Gradescope or PrairieLearn, No account, no password, no server, One entry per assignment across Gradescope and Canvas, Chrome Web Store listing draft (§9 G5), Category: Workflow & Planning, Data disclosure form: website content read locally, never transmitted, Before-submitting checklist (G5) (+33 more)
+Cohesion: 0.06
+Nodes (43): Store description (plain text), Daily reminder for CBTF exams open for booking, Not affiliated with UIUC, Instructure, Gradescope or PrairieLearn, No account, no password, no server, Chrome Web Store listing draft (§9 G5), Category: Workflow & Planning, Data disclosure form: website content read locally, never transmitted, Before-submitting checklist (G5) (+35 more)
 
-### Community 25 - "piazza.test.ts"
-Cohesion: 0.10
-Nodes (26): bodyBatch, currentTermKey(), highestNr(), MAX_BODIES_PER_SYNC, ObservedPost, PIAZZA_LOGIN_GRACE, PIAZZA_MATCH, PIAZZA_READER_VERSION (+18 more)
+### Community 25 - "piazza.ts"
+Cohesion: 0.04
+Nodes (104): Amendment (2026-09-18): a cross-listed class keeps both codes all the way down, Amendment (2026-09-18): a weekday in brackets between the date and the clock, Amendment (2026-09-18, corrected 2026-09-19): the reader version, and posts read at their snippets, Amendment (2026-09-18, evening): the fetch plan after the trace, Amendment (2026-09-18): `lastNr` may not run past a post nobody read, Amendment (2026-09-18): the anchor is the version that was read, Amendment (2026-09-18): three ways one field cost a whole class, Amendment (2026-09-18): `type: "note"` is not "staff wrote it" (+96 more)
 
-### Community 26 - "gcalPush"
-Cohesion: 0.16
-Nodes (15): 1. The extension key → `public/manifest.json`, 2. The OAuth client → `oauth2.client_id`, 3. Then, in the browser, Decisions worth not re-litigating, Google Calendar sync, Looking at it without a Google account, The design, What it costs (+7 more)
+### Community 26 - "The design"
+Cohesion: 0.20
+Nodes (11): 1. The extension key → `public/manifest.json`, 2. The OAuth client → `oauth2.client_id`, 3. Then, in the browser, Google Calendar sync, Looking at it without a Google account, The design, What it costs, What Sushi has to do before this can run (+3 more)
 
 ### Community 27 - "announce.ts"
-Cohesion: 0.04
-Nodes (62): Announcement fixtures, addDays(), ASSUMED_CLOCK, BADGE, BADGE_WORD, badgeIn(), BOUNDARY, CAL_MONTH (+54 more)
+Cohesion: 0.05
+Nodes (52): addDays(), ASSUMED_CLOCK, BADGE, BADGE_WORD, badgeIn(), BOUNDARY, CAL_MONTH, CAL_NUM (+44 more)
 
-### Community 28 - "piazza.ts"
-Cohesion: 0.08
-Nodes (28): Amendment (2026-09-18): three ways one field cost a whole class, CAMPUSWIRE_ORIGIN, ANY_TAG, BLOCK_TAG, BodyAttempt, CLASS_LIST_MAX_AGE_MS, ClassPage, ClassPageKind (+20 more)
+### Community 28 - "manifest.test.ts"
+Cohesion: 0.14
+Nodes (10): SOURCE_ORIGIN, sourceForUrl(), REGISTRY_URL, GRADESCOPE_ORIGIN, PRAIRIETEST_ORIGIN, build, justifications, listing (+2 more)
 
-### Community 29 - "makeRowsNavigable"
-Cohesion: 0.09
-Nodes (23): Deliberately replaced (must be listed in PROGRESS.md and the inventory), Fixed constraints (from CLAUDE.md, none negotiable), Module plan, Popup redesign brief — "soft card direction", Verification, 1. Counts, 2. Findings without an F-number, 3. Every non-PRESERVED item (+15 more)
+### Community 29 - "Popup feature inventory"
+Cohesion: 0.10
+Nodes (18): Deliberately replaced (must be listed in PROGRESS.md and the inventory), Fixed constraints (from CLAUDE.md, none negotiable), Module plan, Popup redesign brief — "soft card direction", Verification, Contents, F. Course filter chips, H. The row (+10 more)
 
-### Community 30 - "deadline.ts"
-Cohesion: 0.09
-Nodes (52): 6. Checked and clean, L8 — `openedFrom` survives a screen the tab change discarded., Important files to resume from, Interaction review: four product findings and one harness gap, The repair batch: 1–7 done, 8–10 running, N. Attention view and suggestions, courseColours(), coursesIn() (+44 more)
+### Community 30 - "rows.ts"
+Cohesion: 0.12
+Nodes (27): AttentionName, courseColours(), coursesIn(), examDetail(), DATE_FLAGS, QualityFlag, qualityFlags(), SOFT_FLAGS (+19 more)
 
 ### Community 31 - "options.html: Settings page"
-Cohesion: 0.15
-Nodes (16): I30 · One-click scrubbed diagnostics bundle, I43 · Split Options into Settings and a hidden Developer panel, I61 · Right-click 'Report this page to Illini Dash', #build-info warning slot, hidden unless wrong, Fixture capture (#run-capture, #capture-presets), Gate 0 cookie-authenticated fetch check (#run-gate0), options.js module script, options.html: Settings page (+8 more)
+Cohesion: 0.08
+Nodes (31): I30 · One-click scrubbed diagnostics bundle, I43 · Split Options into Settings and a hidden Developer panel, I61 · Right-click 'Report this page to Illini Dash', Promo tile 440x280 from ui.css tokens, Generated store screenshots (npm run shots), Reporting a broken page uploads nothing, PII and authentication not collected, #back plain link to popup.html?view=full (+23 more)
 
 ### Community 32 - "background.ts"
-Cohesion: 0.11
-Nodes (34): House rules for the worker and the loop, Worker rule 4: every store writer goes through the queue, and the queue is re-entrant, W. What lives in Options, not the popup, Defect: the store queue deadlocked, applyObserver(), applySettings(), deps, ensureObservers() (+26 more)
+Cohesion: 0.10
+Nodes (36): Decisions worth not re-litigating, applyObserver(), applySettings(), deps, ensureObservers(), gcalClientId(), gcalEventFor(), gcalPush() (+28 more)
 
 ### Community 33 - "core/registry.ts"
-Cohesion: 0.05
-Nodes (44): Amendments to SPEC.md, ECE 411 (FA 2026) — what the pages actually say, The exam times are stated somewhere else, The live schedule is in a Google Sheets iframe, and cannot be read, The page shape: `label: value` bullets, not a table, Two pages, so two adapters, Remote code: none — adapters are data, not code, Remote code: No (+36 more)
+Cohesion: 0.08
+Nodes (32): 4. The date grammar, 4. The date grammar, I57 · Term rollover: term dates in the registry, Expired section, allAdapters(), enabledAdapters(), BUILD_ID, EXTENSION_VERSION, ADAPTER_KINDS (+24 more)
 
-### Community 34 - "overrides.test.ts"
-Cohesion: 0.14
-Nodes (29): HANDOFF 2026-09-13: the row menu receives no mouse events, UI rule 4: when a control does something asynchronous, say so on the control, UI rule 5: a synthetic .click() is not a press, UI rule 6: the preview pane's coordinates are not the page's, Row menu (⋯), applyOverride(), acceptSuggestion(), applyDueOverride() (+21 more)
+### Community 34 - "types.ts"
+Cohesion: 0.11
+Nodes (36): HANDOFF 2026-09-13: the row menu receives no mouse events, UI rule 4: when a control does something asynchronous, say so on the control, UI rule 5: a synthetic .click() is not a press, UI rule 6: the preview pane's coordinates are not the page's, Row menu (⋯), applyOverride(), acceptSuggestion(), applyDueOverride() (+28 more)
 
 ### Community 35 - "gcal-auth.ts"
-Cohesion: 0.12
-Nodes (22): ALL_GCAL_STATES, classifyAuthFailure(), describeGcal(), GcalDescription, GcalEvent, GcalFacts, GcalState, isGcalState() (+14 more)
+Cohesion: 0.19
+Nodes (14): ALL_GCAL_STATES, describeGcal(), GcalAction, GcalDescription, GcalEvent, GcalFacts, GcalState, isGcalState() (+6 more)
 
 ### Community 36 - "classical_vellum_journal/DESIGN.md"
 Cohesion: 0.07
 Nodes (27): 1. Buttons, 1. The Parchment Plate Hierarchy, 2. Cards & Folio Panes, 2. Debossed Rules & Inset Engravings, 3. Notebook Lines & Inputs, 3. Tactile Hardware Accents, 4. Checkboxes & Task Trackers, 5. Chips & Marginalia Tags (+19 more)
 
-### Community 37 - "grouping.ts"
-Cohesion: 0.14
-Nodes (20): 7. Health, notifications, calendar, 4. Timezone results, clockOf(), countdown(), creditPercentFor(), creditWindowText(), dayOf(), daysAway() (+12 more)
+### Community 37 - "names.ts"
+Cohesion: 0.32
+Nodes (9): fullStamp(), LOGIN_URL, SOURCE_CODE, SOURCE_HOME, SOURCE_NAME, SOURCE_TITLE, STATE_PHRASE, STATE_WORD (+1 more)
 
 ### Community 38 - "detect.ts"
-Cohesion: 0.08
-Nodes (43): AdapterIdentity, byRank(), candidatesFoundLine(), cellOf(), CLAUSE_SEPARATORS, clocksIn(), Column, dedupe() (+35 more)
+Cohesion: 0.05
+Nodes (73): And the deterministic proposer reads the whole page itself, Every group now says how much of it is dated, Running it without a browser, The inventory says which groups carry dates, and the search reads them, The retry names the groups that do carry dates, What a student is told now, Amendments to SPEC.md, ECE 411 (FA 2026) — what the pages actually say (+65 more)
 
 ### Community 39 - "compilerOptions"
 Cohesion: 0.12
 Nodes (15): compilerOptions, exactOptionalPropertyTypes, isolatedModules, lib, module, moduleResolution, noEmit, noImplicitOverride (+7 more)
 
 ### Community 40 - "compat.ts"
-Cohesion: 0.20
-Nodes (15): UI rule 2: every send() from a page needs a .catch, Worker rule 8: a message from the worker is data from another build, not a typed object, Course rename override (overrides.courseNames), Defect: a worker on an older build killed the settings page, FieldKind, fill(), isRecord(), NormalizedOptionsState (+7 more)
+Cohesion: 0.21
+Nodes (14): UI rule 2: every send() from a page needs a .catch, Worker rule 8: a message from the worker is data from another build, not a typed object, Defect: a worker on an older build killed the settings page, FieldKind, fill(), isRecord(), NormalizedOptionsState, normalizeOptionsState() (+6 more)
 
 ### Community 41 - "preview-data.ts"
 Cohesion: 0.08
-Nodes (22): adapters, courses, dataset, gcalState, item(), itemOfManual(), items, listeners (+14 more)
+Nodes (21): adapters, courses, dataset, gcalState, item(), items, listeners, manualRaw (+13 more)
 
-### Community 42 - "locateDue"
-Cohesion: 0.15
-Nodes (25): A selector the page has not got is refused before the runner, And the deterministic proposer reads the whole page itself, Checking the three lines without a model, Every group now says how much of it is dated, One session per attempt, and what `kErrorUnknown` meant, Running it without a browser, The attempt line says what the model emitted, The context window (+17 more)
+### Community 42 - "announce-real.test.ts"
+Cohesion: 0.22
+Nodes (8): EmptyReason, ReadMention, PostPayload, EMPTY, Expected, HTML, mentionsOf(), POSTS
 
 ### Community 43 - "health.ts"
-Cohesion: 0.06
-Nodes (80): 9.3 The four screens, Notes on items classified PRESERVED that moved, M8 — The setup screen's "Connected" chip outranks the source's current state., B1 — `footerLine` has no caller. The footer that ships is a second copy, and it paints green over sources that were never read, L12 — `compactAgo` is dead, and D10's "synced 2m ago" is not what ships, C. Health pill and source popover, P. Empty and error states, Z. Test files that pin popup behaviour (+72 more)
+Cohesion: 0.12
+Nodes (32): Structural decisions, B1 — `footerLine` has no caller. The footer that ships is a second copy, and it paints green over sources that were never read, L12 — `compactAgo` is dead, and D10's "synced 2m ago" is not what ships, Z. Test files that pin popup behaviour, Defect: the debounce asked 'how long' instead of 'has anything happened', Defect: enabling a course site stayed 'Checking…' and wrote state ok by hand, AlertsInput, Badge (+24 more)
 
 ### Community 44 - "ref_node_path"
 Cohesion: 0.17
 Nodes (11): ref_node_child_process, ref_node_path, bundle, DEV_ONLY, dist, manifest, out, dist (+3 more)
 
 ### Community 45 - "screens/editor.ts"
-Cohesion: 0.12
-Nodes (38): 4. Cross-worker seam checks, L5 — Two round trips with no popup-side log line, and one with no caption., Contents, D. Banners, I. The row menu, K. Week view, M. Exams view, O. The editor (manual items) (+30 more)
+Cohesion: 0.10
+Nodes (38): L5 — Two round trips with no popup-side log line, and one with no caption., D. Banners, O. The editor (manual items), createEditor(), Editor, EDITOR_CLASS, EDITOR_SELECTOR, EditorOptions (+30 more)
 
-### Community 46 - "linkedom"
-Cohesion: 0.16
-Nodes (21): linkedom, isDataRow(), isFreeRow(), locatorEvidence, precedingTag(), cellAt(), columnOf(), directCells() (+13 more)
+### Community 46 - "table-grid.ts"
+Cohesion: 0.29
+Nodes (12): columnOf(), directCells(), formTableGrid(), GridCache, rowGroups(), rowIndex(), spanValue(), TableGrid (+4 more)
 
 ### Community 47 - "Tier 0a: make what exists trustworthy"
 Cohesion: 0.16
@@ -417,39 +403,39 @@ Nodes (19): Decision 6: snooze amends §7's daily booking nag, I01 · Deadline m
 
 ### Community 48 - "gcal-client.ts"
 Cohesion: 0.15
-Nodes (22): call(), classifyStatus(), createCalendar(), deleteCalendar(), deleteEvent(), FetchLike, GcalError, GcalFailure (+14 more)
+Nodes (21): call(), classifyStatus(), createCalendar(), deleteCalendar(), deleteEvent(), FetchLike, GcalError, GcalFailure (+13 more)
 
 ### Community 49 - "gradescope.ts"
-Cohesion: 0.11
-Nodes (22): isOlderThan(), parseGradescopeDateTime(), shortHash(), assignmentIdFor(), courseIdFrom(), currentTermCourses(), dueTimes(), GRADESCOPE_ORIGIN (+14 more)
+Cohesion: 0.14
+Nodes (21): Gradescope — what the fetched HTML actually contains, Dashboard: courseList--term, coursesForTerm, current term first, Hidden Due Date column is state-dependent; parse <time datetime>, Rows: tr containing th.table--primaryLink, <time class=submissionTimeChart--dueDate> discriminated by aria-label prefix, Trap: .courseBox includes the add-course button; use a.courseBox[href^=/courses/], Skip fetching courses stating 0 assignments, linkedom (+13 more)
 
-### Community 50 - "Piazza fixtures"
-Cohesion: 0.33
-Nodes (5): class-page-signed-out.html — `GET https://piazza.com/class/<nid>` (signed OUT), feed.json — `POST https://piazza.com/logic/api?method=network.get_my_feed`, Piazza fixtures, post.json — `POST https://piazza.com/logic/api?method=content.get`, post-running.json — `POST …?method=content.get`, a note that states a deadline
+### Community 50 - "gcal-config.ts"
+Cohesion: 0.20
+Nodes (9): GCAL_API_ORIGIN, GCAL_CALENDAR_COLOR, GCAL_CALENDAR_DESCRIPTION, GCAL_CALENDAR_NAME, GCAL_CLIENT_ID_PLACEHOLDER, GCAL_KEY_PLACEHOLDER, GCAL_MATCH, GCAL_SCOPE (+1 more)
 
-### Community 51 - "capture.ts"
-Cohesion: 0.18
-Nodes (16): ALLOWED_HOSTS, capture(), CaptureResult, isAllowedCaptureUrl(), isGrantedUpFront(), originPattern(), reportUrlFromHash(), countOccurrences() (+8 more)
+### Community 51 - "gate0.ts"
+Cohesion: 0.19
+Nodes (16): ALLOWED_HOSTS, capture(), CaptureResult, isAllowedCaptureUrl(), isGrantedUpFront(), originPattern(), reportUrlFromHash(), checkOne() (+8 more)
 
 ### Community 52 - "gcal.ts"
-Cohesion: 0.14
-Nodes (23): B3 — "Give it a date" accepts any year the regex allows; a wrong one removes the row from every tab, and the Undo is only reachable from the row, calendarDate(), calendarDayAfter(), GCAL_TIMEZONE, describeSources(), diffEvents(), diffSize(), EVENT_MINUTES (+15 more)
+Cohesion: 0.16
+Nodes (21): B3 — "Give it a date" accepts any year the regex allows; a wrong one removes the row from every tab, and the Undo is only reachable from the row, calendarDate(), calendarDayAfter(), describeSources(), diffSize(), EVENT_MINUTES, EventDiff, EventTime (+13 more)
 
 ### Community 53 - "shell.ts"
-Cohesion: 0.06
-Nodes (58): M6 — `closeMenus` strips the pill's `aria-expanded` on **every** document click, including when nothing is open., A. Document shell and load-time behaviour, F. Course filter chips, actionOutcome, UNEXPLAINED_REFUSAL, OverrideAction, appMark(), bookMark() (+50 more)
+Cohesion: 0.04
+Nodes (105): House rules from the ZIP acceptance pass, 2026-09-19, M8 — The setup screen's "Connected" chip outranks the source's current state., The focus mechanism, as built, A. Document shell and load-time behaviour, B. Header bar, E. Tabs and view state, R. First-run setup screen, S. Sync, refresh and liveness (+97 more)
 
 ### Community 54 - "RawItem"
-Cohesion: 0.20
-Nodes (22): The inventory sketches one row's insides, 5. Checked and clean, ASSUMED_TIME, editManualItem(), fieldsOf(), instantOf(), KINDS, ManualInput (+14 more)
+Cohesion: 0.23
+Nodes (20): 5. Checked and clean, ASSUMED_TIME, editManualItem(), fieldsOf(), instantOf(), KINDS, ManualInput, ManualItemError (+12 more)
 
 ### Community 55 - "renderOptions"
-Cohesion: 0.22
-Nodes (19): clearRemoval(), el(), stateChip(), gcalSection(), hasOrigin(), observerRow(), offersValue(), pendingUndo() (+11 more)
+Cohesion: 0.27
+Nodes (19): send(), clearRemoval(), el(), stateChip(), gcalSection(), observerRow(), pendingUndo(), plainRow() (+11 more)
 
 ### Community 56 - "scrub.ts"
 Cohesion: 0.20
-Nodes (10): Report this page to Illini Dash (right-click, scrubbed file), escapeRegex(), BASE_RULES, Rule, scrubHtml(), ScrubOptions, ScrubReport, ScrubResult (+2 more)
+Nodes (9): Report this page to Illini Dash (right-click, scrubbed file), BASE_RULES, Rule, scrubHtml(), ScrubOptions, ScrubReport, ScrubResult, ScrubWarning (+1 more)
 
 ### Community 57 - "devDependencies"
 Cohesion: 0.29
@@ -464,68 +450,68 @@ Cohesion: 0.27
 Nodes (8): Block, blocks(), channels(), contrast(), CSS, luminance(), palettes(), resolve()
 
 ### Community 60 - "popup-draw.test.ts"
-Cohesion: 0.08
-Nodes (21): answer(), bands(), document, globals, gridHues(), hueOf(), items, keydown() (+13 more)
+Cohesion: 0.09
+Nodes (20): answer(), bands(), document, globals, gridHues(), hueOf(), items, legendHues() (+12 more)
 
 ### Community 61 - "Installing Illini Dash (beta)"
 Cohesion: 0.14
 Nodes (23): Installing Illini Dash (beta), Copy diagnostics (Settings > Data), First-run screen: choose sources, open all sign-in pages, Header health dots: grey/green/yellow/red, No server: everything stored locally, uninstall deletes all, Row menu: Split / Hide / Mark done, smartPhysics off by default (PHYS 211-214 only, 8:00 AM deadlines), Dev loop gotchas (+15 more)
 
 ### Community 62 - "author.ts"
-Cohesion: 0.06
-Nodes (52): House rules for the on-device model, What the student is told, attemptCount(), AttemptInfo, attemptLogLine(), AuthorOptions, AuthorOutcome, AuthorPage (+44 more)
+Cohesion: 0.05
+Nodes (78): House rules for the on-device model, A selector the page has not got is refused before the runner, Checking the three lines without a model, One session per attempt, and what `kErrorUnknown` meant, The attempt line says what the model emitted, The context window, The inventory sketches one row's insides, The manifest needs no new permission (+70 more)
 
 ### Community 63 - "Illini Dash ZIP UI acceptance handoff"
-Cohesion: 0.11
-Nodes (17): Baseline and candidate evidence, Chrome-only work still requiring Sushi, Definition of done for this request, Icons, Illini Dash ZIP UI acceptance handoff, Implementation completed in candidate 1, Independent review results, Objective and authority (+9 more)
+Cohesion: 0.12
+Nodes (19): Baseline and candidate evidence, Chrome-only work still requiring Sushi, Definition of done for this request, Illini Dash ZIP UI acceptance handoff, Important files to resume from, Independent review results, Interaction review: four product findings and one harness gap, Objective and authority (+11 more)
 
 ### Community 64 - "ics.ts"
 Cohesion: 0.27
 Nodes (12): buildIcs(), escapeIcsText(), event(), foldIcsLine(), googleCalendarUrl(), icsDate(), icsDayAfter(), icsTimestamp() (+4 more)
 
 ### Community 65 - "piazza-real.test.ts"
-Cohesion: 0.10
-Nodes (19): Evidence and completion, Illini Dash UI acceptance, Inputs, Invoke and run, Reproducible states, Six stages, PostBody, PostPayload (+11 more)
+Cohesion: 0.14
+Nodes (14): Evidence and completion, PostBody, PostPayload, EXPECTED, FEED, ingest(), NO_OVERRIDES, notes() (+6 more)
 
 ### Community 66 - "needs_login detection"
-Cohesion: 0.14
-Nodes (16): Mutation rule 1: verify the mutation applied, Parser rule 10: a test that passes against a wrong implementation is not a test, Parser rule 2: silent empty is the worst outcome, Parser rule 8: login detection needs the HTTP status, Amendment §4.1/§5.3: Canvas course_code is an opaque slug, Defect: signing in changed nothing until Sync was pressed, Defect: a Gradescope course labelled stat_425_120248_268442, The one source with no login page (course sites) (+8 more)
+Cohesion: 0.13
+Nodes (23): Open: Coursera for the online CS courses, Parser rule 11: never signed in is not session expired, and both are needs_login, Parser rule 12: a signed-out marker must be absent from the healthy page, Parser rule 13: a per-student URL means a source, not an adapter, Parser rule 2: silent empty is the worst outcome, Parser rule 8: login detection needs the HTTP status, Amendment §4.2/§3.1: Gradescope row is a button before submission and an a after, Defect: signing in changed nothing until Sync was pressed (+15 more)
 
 ### Community 67 - "Tier 0b: beta prerequisites that need Sushi"
-Cohesion: 0.15
-Nodes (15): I05 · First-run onboarding page, I44 · Canvas 'No date' section with LTI-shell explanation, I45 · Canvas concluded-course filter via include[]=term, I46 · 'Not used by you' source state for PrairieLearn / PrairieTest, I49 · Adapter date grammar matching real fa26 pages, I55 · Beta install kit: zip, install guide, unlisted-store decision, I60 · Page-aware popup: this course first, focus tab, auto-resync, I62 · Practice / not-for-credit tagging and demotion (+7 more)
+Cohesion: 0.14
+Nodes (17): I44 · Canvas 'No date' section with LTI-shell explanation, I45 · Canvas concluded-course filter via include[]=term, I46 · 'Not used by you' source state for PrairieLearn / PrairieTest, I49 · Adapter date grammar matching real fa26 pages, I55 · Beta install kit: zip, install guide, unlisted-store decision, I82 · Publisher-tool deadlines: name the host first, Theme: growth is gated on logged-in captures, Tier 0b: beta prerequisites that need Sushi (+9 more)
 
-### Community 68 - "theme.ts"
-Cohesion: 0.18
-Nodes (19): DARK_CLASS, DEFAULT_MODE, DEFAULT_THEME, DEFAULT_TWEAKS, DESIGN, isModeName(), isThemeName(), MODE_KEY (+11 more)
-
-### Community 69 - "cellByHeader"
+### Community 68 - "theme-panel.ts"
 Cohesion: 0.13
-Nodes (19): House rules for mutation checks, A survivor sometimes indicts the design, Always assert the match count, Mutation check, Reporting, The procedure, When the defect was in covered code, Worked example (this repo) (+11 more)
+Nodes (35): menu, allThemeClasses(), DARK_CLASS, DEFAULT_MODE, DEFAULT_THEME, DEFAULT_TWEAKS, DESIGN, isModeName() (+27 more)
 
-### Community 71 - "Campuswire — findings"
-Cohesion: 0.25
-Nodes (7): Amendments to the fixture README (house rule 9), Campuswire — findings, The like count is glued to the date, The noon assumption, What is read, and what is not, What the first live sync taught the grammar (2026-09-18, Piazza — same module), Why this is an observer and not a source
+### Community 69 - "Mutation check"
+Cohesion: 0.13
+Nodes (12): Always assert the match count, Mutation check, Reporting, The procedure, When the defect was in covered code, Worked example (this repo), Always assert the match count, Mutation check (+4 more)
+
+### Community 71 - "describeEmpty"
+Cohesion: 0.12
+Nodes (15): Amendments to the fixture README (house rule 9), Campuswire — findings, The like count is glued to the date, The noon assumption, What is read, and what is not, What the feed taught the grammar (found here, fixed the same night in `core/announce.ts`), What the first live sync taught the grammar (2026-09-18, Piazza — same module), Why this is an observer and not a source (+7 more)
 
 ### Community 72 - "suggest.ts"
-Cohesion: 0.17
-Nodes (22): What the feed taught the grammar (found here, fixed the same night in `core/announce.ts`), Amendment (2026-09-18): a cross-listed class matched none of the student's rows, Amendment (2026-09-18): "EOD" in front of a calendar date read as nothing at all, Amendment (2026-09-18): what the first seven live suggestions said, The fixture's scrub was broken, and is repaired, describeEmpty(), extractCourseCode(), alreadySuggested() (+14 more)
+Cohesion: 0.09
+Nodes (37): Amendment (2026-09-18): a cross-listed class matched none of the student's rows, Amendment (2026-09-18): "EOD" in front of a calendar date read as nothing at all, Amendment (2026-09-18): what the first seven live suggestions said, The fixture's scrub was broken, and is repaired, itemOfManual(), courseColour(), courseGroup(), courseNumber() (+29 more)
 
 ### Community 73 - "diagnostics.ts"
-Cohesion: 0.17
-Nodes (15): buildDiagnostics(), Diagnostics, DiagnosticsInput, hoursSince(), scrubError(), SourceDiagnostics, emptyGcal(), emptyStore() (+7 more)
+Cohesion: 0.29
+Nodes (9): buildDiagnostics(), Diagnostics, hoursSince(), scrubError(), SourceDiagnostics, Settings, input(), NOW (+1 more)
 
-### Community 74 - "syncSites"
-Cohesion: 0.20
-Nodes (13): Worker rule 2: a green dot must mean 'I fetched, and it was fine', Worker rule 6: a mutation check proves a test is load-bearing, not that it pins the right requirement, I17 · Health-aware popup empty state; no green dot before success, Defect: a failed fetch was reported as parse_error, Defect: 'couldn't be read' for both parse and network failures, Defect: site: ok (0 items) was a lie, #status: errors only, hidden otherwise, defaultStatus() (+5 more)
+### Community 74 - "sources.ts"
+Cohesion: 0.21
+Nodes (19): Worker rule 2: a green dot must mean 'I fetched, and it was fine', 9.3 The four screens, Notes on items classified PRESERVED that moved, C. Health pill and source popover, Defect: 'couldn't be read' for both parse and network failures, The one source with no login page (course sites), Tier 0a (2026-09-10, 13 items), Per-source health indicator (+11 more)
 
 ### Community 75 - "Roadmap ideas (88 ranked gaps)"
-Cohesion: 0.12
-Nodes (23): Roadmap ideas (88 ranked gaps), Decision 5: campus rows without a course, Decision 3: content scripts on host pages, yes or no, Decision 1: Google Calendar OAuth sync now or v1.1, Decision 4: manual deadline entry, aggregator or planner, Decision 2: is §0 decision 1 negotiable in wording, G5: store submission after G4, I21 · Manual deadlines as a sixth 'manual' source (+15 more)
+Cohesion: 0.22
+Nodes (13): Roadmap ideas (88 ranked gaps), Decision 3: content scripts on host pages, yes or no, Decision 1: Google Calendar OAuth sync now or v1.1, Decision 2: is §0 decision 1 negotiable in wording, G5: store submission after G4, I42 · Google Calendar sync via chrome.identity, I52 · Point-and-click selector picker on the live course page, I53 · Sync settings and overrides via storage.sync (+5 more)
 
 ### Community 76 - "skeleton.ts"
-Cohesion: 0.10
-Nodes (50): The summary has to show a list, not mention one, isHeaderRowOutsideTbody(), rowSelectorForList(), rowSelectorForTable(), selectorForTable(), ancestry(), anchorSelector(), answerableSelector() (+42 more)
+Cohesion: 0.09
+Nodes (54): The summary has to show a list, not mention one, PLACEHOLDER, rowSelectorForTable(), selectorForTable(), ancestry(), anchorSelector(), answerableSelector(), bestDated() (+46 more)
 
 ### Community 77 - "Popup UI (§8.1)"
 Cohesion: 0.16
@@ -556,16 +542,16 @@ Cohesion: 0.25
 Nodes (7): 1. Quote the report verbatim, first, 2. Separate symptom from cause, and do not stop at the first cause, 3. Check the fixtures can even reach the state — they usually cannot, 4. Decide which log line would have answered it — and add it, 5. Gate failure, or ordinary fix?, 6. The PROGRESS.md entry, Triaging a beta report
 
 ### Community 84 - "PROGRESS.md — what is done, which gate, what is blocked"
-Cohesion: 0.16
-Nodes (17): Independent reviewers, Integrator (main agent), Interaction reviewer prompt, Visual reviewer prompt, Development loop (dist/ as unpacked extension), Parser rule 9: the capture beats the spec, CLAUDE.md project instructions and house rules, Fixtures captured (+9 more)
+Cohesion: 0.13
+Nodes (20): Independent reviewers, Integrator (main agent), Interaction reviewer prompt, Visual reviewer prompt, Evidence first, Honest completion, Illini UI acceptance, Development loop (dist/ as unpacked extension) (+12 more)
 
 ### Community 85 - "Tracing a symptom along a runtime path"
 Cohesion: 0.25
 Nodes (7): 1. State the symptom as an observation, 2. Cut the path into segments, 3. The prompt each agent gets, 4. Findings are leads, not results, 5. Where a fix goes, Trace or review?, Tracing a symptom along a runtime path
 
 ### Community 86 - "provenance.test.ts"
-Cohesion: 0.23
-Nodes (13): STUDENT_POST_ID, assumedTimeNote(), dateOrigin, HEADING, isStudentsOwn(), movedHeading(), movedRange(), OWN_TIME_NOTE (+5 more)
+Cohesion: 0.21
+Nodes (15): movedText(), STUDENT_POST_ID, assumedTimeNote(), dateOrigin, HEADING, isStudentsOwn(), movedHeading(), movedRange() (+7 more)
 
 ### Community 87 - "The colour layer"
 Cohesion: 0.18
@@ -591,9 +577,9 @@ Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphif
 Cohesion: 0.50
 Nodes (3): `assessments-cs357.html` — a real capture, `assessments-partial-scores.html` — **constructed, not a capture**, PrairieLearn fixtures
 
-### Community 93 - "3. Findings, ranked"
-Cohesion: 0.09
-Nodes (29): The row menu bug — found and fixed 2026-09-18, 1. Counts, 2. The new class: **a guard that asks another listener whether its own work is still undone**, 3. Findings, ranked, 7. The single cheapest standing check, L10 — `SUGGESTION_SOURCE[suggestion.source]` is unguarded (worker rule 8's shape)., L1 — `needs-you.ts:108` writes `".menu-surface"` out by hand., L2 — Opening a screen moves focus nowhere. (+21 more)
+### Community 93 - "deadline.ts"
+Cohesion: 0.06
+Nodes (68): The row menu bug — found and fixed 2026-09-18, 2. Findings without an F-number, 4. Cross-worker seam checks, R-1 — BROKEN. A stray merge marker in `public/popup-screens.css` kills the Needs-you screen's shell rule, R-2 — `src/ui/popup/suggestions.ts` is dead, and is a second copy of F108–F111, R-3 — DEGRADED. A tweak changed in the Appearance panel does not repaint the list until the panel is dismissed, R-4 — DEGRADED. A refusal about **Ends** or **Link** lands inside a closed `<details>`, R-5 — The committed captures are stale, and one is a 404 page (+60 more)
 
 ### Community 97 - "What You Must Do When Invoked"
 Cohesion: 0.08
@@ -604,40 +590,40 @@ Cohesion: 0.36
 Nodes (8): Gradescope fixtures provenance, course-1352838.html (real, PHYS435, submitted and unsubmitted rows), dashboard.html (real, 15 courses, 5 terms), js-logInButton as the signed-out marker, not 'Log In', signed-out.html (real, 2026-09-10, no session, trimmed to 16 KB), PrairieTest fixtures provenance, /pl/prairietest/auth handoff link as the signed-out marker, signed-out.html (real, 2026-09-10, no session, 4 KB)
 
 ### Community 99 - "sync.ts"
-Cohesion: 0.11
-Nodes (28): Defect: source Off but its rows still on the calendar, Defect: the sync took the sum of its sources, Per-source backoff, Fetch rules for all sources, dedupeInput(), backoffMinutes(), inBackoff(), nextAttemptAt() (+20 more)
+Cohesion: 0.05
+Nodes (61): Worker rule 1: the service worker is the file the suite cannot reach, so keep it empty, Worker rule 6: a mutation check proves a test is load-bearing, not that it pins the right requirement, Agenda (popup), Day grid (full view), Drag-to-add, J. Day view, Defect: source Off but its rows still on the calendar, Defect: a failed fetch was reported as parse_error (+53 more)
 
-### Community 100 - "isItemDone"
-Cohesion: 0.22
-Nodes (20): Defect: finished work with a late window open appeared nowhere, Audit: 'hiding an event doesn't work on the calendar' — not found, anchorOf(), attentionGroups(), bandInstant(), dayContents, isFinished(), isPast() (+12 more)
+### Community 100 - "resolveMentions"
+Cohesion: 0.29
+Nodes (8): cleanTitle(), courseMatches(), earlier(), isGenericSubject(), itemCodes(), resolveMentions(), titleFor(), normalizeTitle()
 
-### Community 101 - "SyncDeps"
-Cohesion: 0.25
-Nodes (8): fetchAll(), NeedsLogin, syncCanvas(), SyncDeps, syncGradescope(), syncPrairieLearn(), syncPrairieTest(), syncSmartPhysics()
+### Community 101 - "markers.ts"
+Cohesion: 0.32
+Nodes (7): countOccurrences(), Marker, MARKER_GROUPS, MarkerGroup, MarkerHit, probeMarkers(), ProbeResult
 
-### Community 102 - "piazzaRun"
-Cohesion: 0.16
-Nodes (18): Amendment (2026-09-18, corrected 2026-09-19): the reader version, and posts read at their snippets, The two re-read lines now count the same thing, asJson(), piazzaBody(), piazzaRun(), piazzaToken(), piazzaTrigger(), pool() (+10 more)
+### Community 102 - "Defect: a Gradescope course labelled stat_425_120248_268442"
+Cohesion: 0.50
+Nodes (5): Mutation rule 1: verify the mutation applied, Parser rule 10: a test that passes against a wrong implementation is not a test, Amendment §4.1/§5.3: Canvas course_code is an opaque slug, Defect: a Gradescope course labelled stat_425_120248_268442, Course code extraction (§5.1)
 
 ### Community 103 - "2. Findings, ranked"
-Cohesion: 0.12
-Nodes (16): 1. Counts, 2. Findings, ranked, 6. The one standing check worth adding, B2 — `needsYouPill` says "All clear", in green, while three of four sources have never been read, L10 — `applyOverride` logs the two counters a `set-due` cannot change, and not the one it can, L11 — `"attention"` survives in the popup's view table, with a comment asserting it still has a tab, L13 — two of PROGRESS's four "survivors" are equivalent mutants, which is a different fact, L14 — the suite pins no timezone, and one test defeats itself outside Chicago (+8 more)
+Cohesion: 0.14
+Nodes (13): 1. Counts, 2. Findings, ranked, 4. Timezone results, 6. The one standing check worth adding, B2 — `needsYouPill` says "All clear", in green, while three of four sources have never been read, L10 — `applyOverride` logs the two counters a `set-due` cannot change, and not the one it can, L11 — `"attention"` survives in the popup's view table, with a comment asserting it still has a tab, L14 — the suite pins no timezone, and one test defeats itself outside Chicago (+5 more)
 
 ### Community 104 - "row-order.test.ts"
-Cohesion: 0.11
-Nodes (12): document, globals, items, now, opened, popup, Rule, shape() (+4 more)
+Cohesion: 0.12
+Nodes (10): document, globals, items, now, opened, popup, Rule, SHEETS (+2 more)
 
-### Community 105 - "StoreV1Plus"
-Cohesion: 0.46
-Nodes (4): StoreV1Plus, QueuedSyncIo, syncOnce(), SyncResult
+### Community 105 - "Illini Dash UI acceptance"
+Cohesion: 0.40
+Nodes (5): Illini Dash UI acceptance, Inputs, Invoke and run, Reproducible states, Six stages
 
 ### Community 106 - "graphify reference: extra exports and benchmark"
 Cohesion: 0.22
 Nodes (8): graphify reference: extra exports and benchmark, Step 6b - Wiki (only if --wiki flag), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag), Step 7a - FalkorDB export (only if --falkordb or --falkordb-push flag), Step 7b - SVG export (only if --svg flag), Step 7c - GraphML export (only if --graphml flag), Step 7d - MCP server (only if --mcp flag), Step 8 - Token reduction benchmark (only if total_words > 5000)
 
 ### Community 107 - "Sync loop runSync (§6)"
-Cohesion: 0.16
-Nodes (22): Parser rule 4: guard duplicate sourceIds on one page, Parser rule 7: RawItem.url is https on the source origin or the fallback, Amendment §3: hides and done ticks are keyed by memberKeys, not Item.id, Review outcome — PrairieTest (12 findings, all survived), Tier 0a (2026-09-10, 13 items), Repo layout: worker is wiring, decisions live in core/, Daily booking nag, §0.5 Chrome only (+14 more)
+Cohesion: 0.17
+Nodes (21): Parser rule 4: guard duplicate sourceIds on one page, Parser rule 6: match markers exactly and scope them to the smallest element, Parser rule 7: RawItem.url is https on the source origin or the fallback, Amendment §3: hides and done ticks are keyed by memberKeys, not Item.id, Review outcome — PrairieTest (12 findings, all survived), Repo layout: worker is wiring, decisions live in core/, Daily booking nag, §0.5 Chrome only (+13 more)
 
 ### Community 108 - "Ponytail"
 Cohesion: 0.22
@@ -653,7 +639,7 @@ Nodes (9): I81 · smartPhysics prelectures and checkpoints (PHYS 211-214), smart
 
 ### Community 111 - "validateAdapter"
 Cohesion: 0.05
-Nodes (55): 0. Is it even an adapter?, 1. The capture, 2. The schema, 5. The fixture test (required before it ships), 6. Delivery, Adding a course-site adapter (§4.5), 0. Is it even an adapter?, 1. The capture (+47 more)
+Nodes (53): 0. Is it even an adapter?, 1. The capture, 2. The schema, 5. The fixture test (required before it ships), 6. Delivery, Adding a course-site adapter (§4.5), 0. Is it even an adapter?, 1. The capture (+45 more)
 
 ### Community 112 - "Triaging a beta report"
 Cohesion: 0.25
@@ -663,21 +649,13 @@ Nodes (7): 1. Quote the report verbatim, first, 2. Separate symptom from cause, 
 Cohesion: 0.24
 Nodes (7): Mention, SUBJECT_WORDS, UnreadableMention, FIXTURES, only(), read(), unreadable()
 
-### Community 114 - "detect.test.ts"
-Cohesion: 0.20
-Nodes (11): 4. The date grammar, 4. The date grammar, noCandidateReason(), proposeCandidates(), statedTimeInText(), supportedDateFormats(), timeLikeTail(), pairsOf() (+3 more)
-
 ### Community 116 - "Tracing a symptom along a runtime path"
 Cohesion: 0.25
 Nodes (7): 1. State the symptom as an observation, 2. Cut the path into segments, 3. The prompt each agent gets, 4. Findings are leads, not results, 5. Where a fix goes, Trace or review?, Tracing a symptom along a runtime path
 
-### Community 117 - "types.ts"
-Cohesion: 0.21
-Nodes (11): 2. Data model, checkOne(), collapse(), GATE0_TARGETS, Gate0Result, Gate0Target, LOGIN_URL_MARKERS, runGate0() (+3 more)
-
-### Community 118 - "popup.html: the popup and full view document"
-Cohesion: 0.12
-Nodes (20): I03 · Toolbar badge: today's count, red ! when a source is broken, I16 · Honest status line and stale-data banner, I47 · Per-adapter health state and N->0 guard per course site, Theme: health is honest only inside the popup, Promo tile 440x280 from ui.css tokens, Generated store screenshots (npm run shots), #back plain link to popup.html?view=full, #page-sub: version, last check, sources answered (+12 more)
+### Community 118 - "Tier 1: highest value after the beta, no spec change"
+Cohesion: 0.11
+Nodes (24): Decision 5: campus rows without a course, Decision 4: manual deadline entry, aggregator or planner, I03 · Toolbar badge: today's count, red ! when a source is broken, I05 · First-run onboarding page, I16 · Honest status line and stale-data banner, I17 · Health-aware popup empty state; no green dot before success, I21 · Manual deadlines as a sixth 'manual' source, I24 · Registrar deadlines as shipped campus rows (+16 more)
 
 ### Community 119 - "ui-acceptance.mjs"
 Cohesion: 0.28
@@ -686,10 +664,6 @@ Nodes (14): capture(), compare(), escape(), filesIn(), gallery(), init(), read()
 ### Community 120 - "propose.mjs"
 Cohesion: 0.18
 Nodes (10): args, { candidates, nearest }, { document }, FIELDS, input, manifest, reference, ROOT (+2 more)
-
-### Community 121 - "suggest.test.ts"
-Cohesion: 0.23
-Nodes (12): AUTO_MOVE_CONFIDENCE, ObservedPost, demoPost(), fixture(), input(), item(), items(), member() (+4 more)
 
 ### Community 122 - "Asking Sushi for a browser action"
 Cohesion: 0.29
@@ -732,8 +706,8 @@ Cohesion: 0.13
 Nodes (29): When live data contradicts a document: rewrite the claim, Review policy, Chrome Web Store submission (draft, not submitted), Amendment §5.3 (step 7): a single badge token can satisfy the subset rule, Amendment §4.1: no while(1); prefix on this deployment, Defect: cs124.org could not be added at all, Open full view reuses one tab, Review outcome — dedupe + sync (16 findings, 7 code defects) (+21 more)
 
 ### Community 134 - "Piazza — what the live client actually does (2026-09-18)"
-Cohesion: 0.18
-Nodes (10): Authentication: the session cookie, echoed as a header, Discovery: the class list is in the class page, not in the JWT, Piazza — what the live client actually does (2026-09-18), Policy: classmate-written pinned notes are ignored (Sushi, 2026-09-19), The feed's shapes, as captured, What the term rule is, and why `status` is not it, What was captured (the parser is written against these), PiazzaClass (+2 more)
+Cohesion: 0.22
+Nodes (8): Amendment (2026-09-19): the announcement is not the row's name, Authentication: the session cookie, echoed as a header, Discovery: the class list is in the class page, not in the JWT, Piazza — what the live client actually does (2026-09-18), Policy: classmate-written pinned notes are ignored (Sushi, 2026-09-19), What the term rule is, and why `status` is not it, What was captured (the parser is written against these), PiazzaClass
 
 ### Community 135 - "shots.mjs"
 Cohesion: 0.15
@@ -741,7 +715,7 @@ Nodes (9): ref_node_util, chrome, CHROME_CANDIDATES, designArg, dist, filter, ru
 
 ### Community 136 - "Illini Dash — design as built"
 Cohesion: 0.10
-Nodes (20): 10. Permissions, 11. Build and test, 12. Invariants, 13. Known open design questions, 1.1 Why an offscreen document, 1.2 Where decisions are allowed to live, 1. The shape of the thing, 3.1 Login detection needs the status (+12 more)
+Nodes (19): 11. Build and test, 12. Invariants, 13. Known open design questions, 1.1 Why an offscreen document, 1.2 Where decisions are allowed to live, 1. The shape of the thing, 3.1 Login detection needs the status, 3. Sources (+11 more)
 
 ### Community 137 - "site.mjs"
 Cohesion: 0.23
@@ -756,8 +730,8 @@ Cohesion: 0.24
 Nodes (11): isDevHash(), normalizePageUrl(), notAWebAddress(), PageUrlResult, quoted(), schemeOf(), RFC-3986, applyDevVisibility() (+3 more)
 
 ### Community 140 - "core/campuswire.ts"
-Cohesion: 0.09
-Nodes (37): EmptyReason, ReadMention, ASSUMED_HOUR, CAMPUSWIRE_MATCH, classCodeFromPath(), isClassFeed(), ObservedPost, ObserverFacts (+29 more)
+Cohesion: 0.10
+Nodes (33): ASSUMED_HOUR, CAMPUSWIRE_MATCH, CAMPUSWIRE_ORIGIN, classCodeFromPath(), isClassFeed(), ObservedPost, ObserverFacts, PageContext (+25 more)
 
 ### Community 141 - "ui-acceptance.test.mjs"
 Cohesion: 0.27
@@ -767,17 +741,13 @@ Nodes (9): ref_node_assert_strict, ref_node_test, ref_node_url, ref_node_vm, cap
 Cohesion: 0.20
 Nodes (8): all, args, candidates, chrome, CHROME_CANDIDATES, named, SIZES, srcDir
 
-### Community 143 - "What the two stages read, and the scorecard over the real feed"
-Cohesion: 0.22
-Nodes (11): Amendment (2026-09-18): a cross-listed class keeps both codes all the way down, Amendment (2026-09-18): a weekday in brackets between the date and the clock, Amendment (2026-09-18): `lastNr` may not run past a post nobody read, Amendment (2026-09-18): the anchor is the version that was read, Amendment (2026-09-18): `type: "note"` is not "staff wrote it", Amendment (2026-09-18): which feed field says a post was edited, What the two stages read, and the scorecard over the real feed, editedSinceSeen() (+3 more)
-
 ### Community 144 - "build.mjs"
 Cohesion: 0.28
 Nodes (8): buildId, copyStatic(), observerOptions, options, refuseConflictMarkers(), setup(), watch, esbuild
 
 ### Community 145 - "vitest"
-Cohesion: 0.18
-Nodes (5): vitest, html, visible, { document, window }, globals
+Cohesion: 0.20
+Nodes (4): vitest, { document, window }, globals, V1
 
 ### Community 146 - "package.json"
 Cohesion: 0.25
@@ -787,73 +757,29 @@ Nodes (7): name, private, type, version, @types/chrome, @types/node, typescript
 Cohesion: 0.29
 Nodes (7): Authority and provenance, Functional and platform exceptions (already justified), Literal tokens and asset requirements, Structure to preserve by view, UI acceptance reference contract, Unresolved visual choices and bounded decisions, Visual acceptance evidence
 
-### Community 148 - "3. Mutation table"
-Cohesion: 0.27
-Nodes (10): 3. Mutation table, M8 — every student-typed date is built in `SITE_TIMEZONE`; every view buckets it in the browser's zone, doneLast(), monthCells(), monthDots(), noDateCount(), noDateGroups(), overdueItems() (+2 more)
-
 ### Community 149 - "scrub-file.mjs"
 Cohesion: 0.29
 Nodes (5): ref_node_fs_promises, blockers, counts, { html, report }, [input, output, ...rest]
 
-### Community 150 - "preview-acceptance.test.ts"
-Cohesion: 0.29
-Nodes (4): ref_node_crypto, referenceItems(), globals, popup
+### Community 150 - "Source"
+Cohesion: 0.10
+Nodes (27): 2. Data model, Defect: an exam already sat counted as Overdue, UX plan phases A–G (2026-09-12), ref_node_crypto, referenceItems(), EmptyState, HealthSummary, NeedsYouInput (+19 more)
 
 ### Community 151 - "Google Stitch prompt — Illini Dash popup"
 Cohesion: 0.40
 Nodes (4): Google Stitch prompt — Illini Dash popup, If it drifts, The brief, What to bring back
 
-### Community 152 - "createStoreQueue"
-Cohesion: 0.24
-Nodes (6): Worker rule 1: the service worker is the file the suite cannot reach, so keep it empty, createStoreQueue(), QueueOptions, SLOW_HOLD_MS, StoreQueue, io()
+### Community 156 - "dedupe"
+Cohesion: 0.16
+Nodes (15): M5 — a `set-due` outranks every later source date, for ever, with nothing on screen to say the source now disagrees, I08 · Local Done check-off, separate from Hide, Theme: two sources can never say done, One entry per assignment across Gradescope and Canvas, #sec-tidy: Hidden and Ticked off rows, buildItem(), byPrecedence(), canonicalCourseLabel() (+7 more)
 
-### Community 153 - "9.2 The five tabs"
-Cohesion: 0.33
-Nodes (6): 9.2 The five tabs, Exams — everything you have to turn up to, Month — two drawings of one month, No date — listed somewhere, dated nowhere, Today — a schedule for the day, Week — seven day cards
-
-### Community 154 - "Amendment (2026-09-18, evening): the fetch plan after the trace"
-Cohesion: 0.25
-Nodes (9): Amendment (2026-09-18, evening): the fetch plan after the trace, applyPiazzaResult(), cappedLastNr(), classPageAttempts(), feedSignedOut(), piazzaNeedsRecheck(), PiazzaResult, readClassList() (+1 more)
-
-### Community 156 - "I08 · Local Done check-off, separate from Hide"
-Cohesion: 0.22
-Nodes (9): I08 · Local Done check-off, separate from Hide, Theme: two sources can never say done, Canvas fixtures provenance, assignments-cs425.json (real, 1 undated row), courses-active.json (real, 2026-09-03, 3 courses), planner-items-empty.json (real, genuinely []), planner-items.json (real, 2026-09-10, one dated row), planner-items-SYNTHETIC.json (hand-written, not a capture) (+1 more)
-
-### Community 159 - "4. Measurements"
-Cohesion: 0.33
-Nodes (6): 4.1 Width — the invariant holds everywhere, 4.2 Height — floating panels against the 600px ceiling, 4.3 Contrast, dark — nothing under 4.5:1, 4.4 Tokens, 4.5 The sizing invariants, 4. Measurements
-
-### Community 161 - "local-adapters.test.ts"
-Cohesion: 0.22
-Nodes (7): 4. Course-site adapters, guessCourseCode(), localAdapterId(), withLocalAdapter(), withoutLocalAdapter(), VALID, adapter()
-
-### Community 162 - "piazzaClasses"
-Cohesion: 0.33
-Nodes (6): class-page.html — `GET https://piazza.com/class/<nid>` (signed in), piazzaClasses(), classifyClassPage(), classPageUrl(), hasLoginForm(), PiazzaNeedsLogin
-
-### Community 163 - "course-colour.test.ts"
-Cohesion: 0.29
-Nodes (6): COURSE_COLOURS, BLOCKS, CLASSICAL, POPUP, UI, USED
-
-### Community 164 - "offscreen.html: DOMParser host for the service worker"
-Cohesion: 0.50
-Nodes (5): offscreen permission justification, offscreen justification (form), offscreen.js module script, offscreen.html: DOMParser host for the service worker, Offscreen parser round-trip check (#run-selftest)
-
-### Community 165 - "Sushi's time is the scarce resource"
-Cohesion: 0.50
-Nodes (4): Check it in the mode Sushi actually uses (dark), Sushi's time is the scarce resource, UI rule 1: a popup and the service worker have different consoles, Light or dark is a setting (is-dark class)
+### Community 163 - "ref_node_fs"
+Cohesion: 0.14
+Nodes (10): ref_node_fs, ref_vitest_config, BLOCKS, CLASSICAL, POPUP, UI, USED, html (+2 more)
 
 ### Community 166 - "ui-browser.mjs"
 Cohesion: 0.50
 Nodes (4): ref_node_http, ref_node_os, openBrowser(), sleep()
-
-### Community 167 - "exams-verified.test.ts"
-Cohesion: 0.83
-Nodes (3): booked(), exam(), member()
-
-### Community 168 - "J. Day view"
-Cohesion: 0.50
-Nodes (4): Agenda (popup), Day grid (full view), Drag-to-add, J. Day view
 
 ## Ambiguous Edges - Review These
 - `healthPill` → `#page-sub: version, last check, sources answered`  [AMBIGUOUS]
@@ -866,7 +792,7 @@ Nodes (4): Agenda (popup), Day grid (full view), Drag-to-add, J. Day view
 ## Knowledge Gaps
 - **862 isolated node(s):** `watch`, `buildId`, `options`, `observerOptions`, `name` (+857 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1043 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -877,11 +803,11 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
 - **What is the exact relationship between `--blink-settings=preferredColorScheme, not --force-dark-mode` and `npm run shots headless capture script`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
-- **Why does `ParseError` connect `ParseError` to `Piazza — what the live client actually does (2026-09-18)`, `prairielearn.ts`, `Illini Dash — design as built`, `messages.ts`, `core/campuswire.ts`, `What the two stages read, and the scorecard over the real feed`, `prairietest.ts`, `canvas.ts`, `site.ts`, `piazza.test.ts`, `Amendment (2026-09-18, evening): the fetch plan after the trace`, `announce.ts`, `piazza.ts`, `background.ts`, `core/registry.ts`, `detect.ts`, `gradescope.ts`, `author.ts`, `needs_login detection`, `suggest.ts`, `syncSites`, `skeleton.ts`, `sync.ts`, `SyncDeps`, `announce.test.ts`, `types.ts`, `suggest.test.ts`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Why does `vitest` connect `vitest` to `options-dom.test.ts`, `ParseError`, `store.ts`, `calendar.ts`, `dedupe.ts`, `prairielearn.ts`, `schedule.ts`, `page-url.ts`, `core/campuswire.ts`, `popup.ts`, `prairietest.ts`, `package.json`, `canvas.ts`, `observer-ui.ts`, `icon`, `preview-acceptance.test.ts`, `piazza.test.ts`, `createStoreQueue`, `piazza.ts`, `deadline.ts`, `local-adapters.test.ts`, `core/registry.ts`, `course-colour.test.ts`, `gcal-auth.ts`, `grouping.ts`, `overrides.test.ts`, `exams-verified.test.ts`, `compat.ts`, `health.ts`, `linkedom`, `gcal-client.ts`, `gradescope.ts`, `capture.ts`, `gcal.ts`, `shell.ts`, `RawItem`, `scrub.ts`, `tokens.test.ts`, `popup-draw.test.ts`, `author.ts`, `ics.ts`, `piazza-real.test.ts`, `theme.ts`, `diagnostics.ts`, `skeleton.ts`, `provenance.test.ts`, `sync.ts`, `row-order.test.ts`, `announce.test.ts`, `detect.test.ts`, `types.ts`, `suggest.test.ts`?**
+- **Why does `vitest` connect `vitest` to `store.ts`, `options-dom.test.ts`, `ParseError`, `calendar.ts`, `dedupe.ts`, `prairielearn.ts`, `schedule.ts`, `page-url.ts`, `core/campuswire.ts`, `month.ts`, `offscreen-client.ts`, `prairietest.ts`, `package.json`, `canvas.ts`, `observer-ui.ts`, `icon`, `Source`, `piazza.ts`, `manifest.test.ts`, `rows.ts`, `core/registry.ts`, `types.ts`, `ref_node_fs`, `gcal-auth.ts`, `names.ts`, `detect.ts`, `compat.ts`, `announce-real.test.ts`, `health.ts`, `table-grid.ts`, `gcal-client.ts`, `gradescope.ts`, `gate0.ts`, `gcal.ts`, `shell.ts`, `RawItem`, `scrub.ts`, `tokens.test.ts`, `popup-draw.test.ts`, `author.ts`, `Illini Dash ZIP UI acceptance handoff`, `ics.ts`, `piazza-real.test.ts`, `theme-panel.ts`, `suggest.ts`, `diagnostics.ts`, `skeleton.ts`, `provenance.test.ts`, `sync.ts`, `row-order.test.ts`, `announce.test.ts`?**
   _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Why does `validateRegistry()` connect `core/registry.ts` to `background.ts`, `Tier 0b: beta prerequisites that need Sushi`, `Roadmap ideas (88 ranked gaps)`, `validateAdapter`, `Adapter registry (bundled + daily GitHub refresh)`, `detect.test.ts`, `Chrome Web Store listing draft (§9 G5)`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+- **Why does `ParseError` connect `ParseError` to `prairielearn.ts`, `schedule.ts`, `Illini Dash — design as built`, `offscreen-client.ts`, `core/campuswire.ts`, `prairietest.ts`, `canvas.ts`, `site.ts`, `piazza.ts`, `announce.ts`, `core/registry.ts`, `types.ts`, `detect.ts`, `gradescope.ts`, `author.ts`, `needs_login detection`, `suggest.ts`, `skeleton.ts`, `sync.ts`, `announce.test.ts`, `ground`?**
+  _High betweenness centrality (0.046) - this node is a cross-community bridge._
+- **Why does `Item` connect `calendar.ts` to `store.ts`, `dedupe.ts`, `prairielearn.ts`, `Illini Dash — design as built`, `schedule.ts`, `options.ts`, `month.ts`, `core/campuswire.ts`, `Source`, `icon`, `piazza.ts`, `announce.ts`, `rows.ts`, `background.ts`, `types.ts`, `announce-real.test.ts`, `health.ts`, `screens/editor.ts`, `gcal-client.ts`, `gcal.ts`, `shell.ts`, `popup-draw.test.ts`, `ics.ts`, `piazza-real.test.ts`, `suggest.ts`, `sources.ts`, `provenance.test.ts`, `deadline.ts`, `row-order.test.ts`, `Sync loop runSync (§6)`, `announce.test.ts`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
 - **Are the 7 inferred relationships involving `ParseError` (e.g. with `House rules for parsers` and `House rules for the worker and the loop`) actually correct?**
   _`ParseError` has 7 INFERRED edges - model-reasoned connections that need verification._
