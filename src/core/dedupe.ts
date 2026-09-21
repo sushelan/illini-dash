@@ -709,6 +709,26 @@ export function isTickedDone(item: Item): boolean {
 
 export function isItemDone(item: Item): boolean {
   const done = (status: Status) => status === "submitted" || status === "graded";
+  /*
+   * `unknown` abstains. It is not a source saying the work is outstanding, it
+   * is a source with nothing to say, and `every` counted the two the same.
+   *
+   * A course-site row is *always* `unknown` (§4.5: a schedule page states a
+   * deadline and never a submission), so every Gradescope submission that
+   * merged with one was permanently unfinished — Sushi's CS 425 HW1, submitted
+   * on Gradescope, drawn in the Late band at 45m late (2026-09-21). It also
+   * silenced nothing: §7 goes on reminding about work that is handed in, and
+   * "hide submitted" could never hide it.
+   *
+   * What the comment above is guarding against still holds, and is unchanged:
+   * a member that *does* have an opinion and says the work is outstanding
+   * vetoes, whatever the merged `status` says. Canvas reporting `not_submitted`
+   * for work done in PrairieLearn is such an opinion, and is wrong, but it is
+   * not this function's business to overrule it — that is what the source
+   * ranking is for, one decision over.
+   */
+  const notDone = (status: Status) => status === "not_submitted" || status === "missing";
   if (item.members.length === 0) return done(item.status);
-  return item.members.every((member) => done(member.status));
+  if (item.members.some((member) => notDone(member.status))) return false;
+  return item.members.some((member) => done(member.status));
 }

@@ -15,6 +15,7 @@ import {
   contradictsDone,
   datesCompatible,
   dedupe,
+  isItemDone,
   isTickedDone,
   itemId,
   opensAt,
@@ -1005,5 +1006,54 @@ describe("withoutKeys", () => {
 
   it("hands back the same overrides when there is nothing to drop", () => {
     expect(withoutKeys(NO_OVERRIDES, [])).toBe(NO_OVERRIDES);
+  });
+});
+
+describe("isItemDone: a source with nothing to say does not vote", () => {
+  const merged = (...statuses: RawItem["status"][]): Item => ({
+    id: "hw1",
+    members: statuses.map((status, at) =>
+      raw({ source: at === 0 ? "gradescope" : "site", sourceId: `m${at}`, title: "HW1", status }),
+    ),
+    courseLabel: "CS425",
+    title: "HW1",
+    kind: "assignment",
+    dueAt: "2026-09-20T23:59:00-05:00",
+    url: "https://example.invalid/x",
+    status: "submitted",
+    hidden: false,
+    done: false,
+    notified: {},
+  });
+
+  it("counts work handed in on Gradescope as done when a course page merged into it", () => {
+    /*
+     * Sushi, 2026-09-21: CS 425 HW1, submitted on Gradescope, drawn in the Late
+     * band at "45m late". §4.5 emits `status: "unknown"` on every course-site
+     * row because a schedule page states a deadline and never a submission, and
+     * `every` read that abstention as dissent — so any Gradescope submission
+     * that merged with a course page was permanently unfinished.
+     */
+    expect(isItemDone(merged("submitted", "unknown"))).toBe(true);
+    expect(isItemDone(merged("graded", "unknown", "unknown"))).toBe(true);
+  });
+
+  it("still refuses when a source that does track submissions says otherwise", () => {
+    // The guarantee the `every` was written for, unchanged: one outstanding
+    // member keeps the group outstanding, whatever the merged status reads.
+    expect(isItemDone(merged("submitted", "not_submitted"))).toBe(false);
+    expect(isItemDone(merged("graded", "missing"))).toBe(false);
+  });
+
+  it("needs someone to actually claim it, not merely nobody to deny it", () => {
+    // Every member abstaining is not evidence of anything. A row nothing knows
+    // about is outstanding, or a course site alone would finish its own rows.
+    expect(isItemDone(merged("unknown", "unknown"))).toBe(false);
+  });
+
+  it("reads an unmerged row off its own status", () => {
+    const alone = { ...merged(), members: [], status: "submitted" as const };
+    expect(isItemDone(alone)).toBe(true);
+    expect(isItemDone({ ...alone, status: "not_submitted" })).toBe(false);
   });
 });
