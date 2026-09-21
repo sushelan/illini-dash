@@ -48,7 +48,11 @@ const HORIZON_DAYS = 60;
 
 /** Local midnight `days` after the day containing `when`. */
 function startOfDay(when: Date, days = 0): number {
-  const d = new Date(when.getFullYear(), when.getMonth(), when.getDate() + days);
+  const d = new Date(
+    when.getFullYear(),
+    when.getMonth(),
+    when.getDate() + days,
+  );
   return d.getTime();
 }
 
@@ -63,7 +67,6 @@ function endOfWeek(now: Date): number {
   const daysUntilSunday = (7 - now.getDay()) % 7;
   return startOfDay(now, daysUntilSunday + 1);
 }
-
 
 /**
  * §4.3: an assessment past its full-credit deadline has `dueAt` undefined and
@@ -134,7 +137,8 @@ export function liveDeadline(item: Item, now: Date): LiveDeadline | undefined {
   const finished = isItemDone(item) || isTickedDone(item);
 
   if (due !== undefined && due > now.getTime()) return { at: due, late: false };
-  if (!finished && late !== undefined && late > now.getTime()) return { at: late, late: true };
+  if (!finished && late !== undefined && late > now.getTime())
+    return { at: late, late: true };
   if (due !== undefined) return { at: due, late: false };
   if (late !== undefined) return { at: late, late: true };
   return undefined;
@@ -195,7 +199,11 @@ export function missedDeadline(item: Item): LiveDeadline | undefined {
  * One function because both banders ask it, and two spellings of one week is
  * the `resolveColumn` finding.
  */
-export function withinOverdueWindow(item: Item, missedAt: number, now: Date): boolean {
+export function withinOverdueWindow(
+  item: Item,
+  missedAt: number,
+  now: Date,
+): boolean {
   const live = liveDeadline(item, now);
   if (live !== undefined && live.at > now.getTime()) return true;
   return now.getTime() - missedAt <= OVERDUE_WINDOW_DAYS * 86_400_000;
@@ -268,8 +276,14 @@ export function sectionFor(item: Item, now: Date): SectionName | undefined {
  * `status` does not, so a booking merged with a graded row would otherwise
  * collapse to "done" and take §8.1's lead section with it.
  */
-export function groupItems(items: Item[], now: Date, settings: Settings): Section[] {
-  const buckets = new Map<SectionName, Item[]>(SECTION_ORDER.map((name) => [name, []]));
+export function groupItems(
+  items: Item[],
+  now: Date,
+  settings: Settings,
+): Section[] {
+  const buckets = new Map<SectionName, Item[]>(
+    SECTION_ORDER.map((name) => [name, []]),
+  );
 
   for (const item of items) {
     if (item.hidden) continue;
@@ -278,14 +292,16 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
     // report. It is overridden when a source says the work is missing, so the
     // tick cannot silently swallow a real deadline.
     if (item.kind !== "booking" && isTickedDone(item)) continue;
-    if (settings.hideSubmitted && item.kind !== "booking" && isItemDone(item)) continue;
+    if (settings.hideSubmitted && item.kind !== "booking" && isItemDone(item))
+      continue;
     const section = sectionFor(item, now);
     if (section) buckets.get(section)!.push(item);
   }
 
-  return SECTION_ORDER.map((name) => ({ name, items: buckets.get(name)! })).filter(
-    (section) => section.items.length > 0,
-  );
+  return SECTION_ORDER.map((name) => ({
+    name,
+    items: buckets.get(name)!,
+  })).filter((section) => section.items.length > 0);
 }
 
 /**
@@ -303,7 +319,9 @@ export function groupItems(items: Item[], now: Date, settings: Settings): Sectio
  */
 export function examDetail(item: Item): string | undefined {
   const read = (key: string) =>
-    item.members.map((member) => member.extra?.[key]).find((value) => value && value !== "");
+    item.members
+      .map((member) => member.extra?.[key])
+      .find((value) => value && value !== "");
 
   const location = read("location");
   const room = read("locationDetail");
@@ -349,7 +367,11 @@ export interface DueText {
 
 /** A short weekday-and-clock, the common case: `Thu 11:59 PM`. */
 function clockOf(due: Date): string {
-  return due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return due.toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /** `Sep 22`, for a date far enough out that a weekday alone is ambiguous. */
@@ -387,7 +409,9 @@ function relativeDays(delta: number): string {
  * So the heading carries the coarse date and the row carries only what the
  * heading leaves open.
  */
-function precisionFor(section: SectionName | undefined): "relative" | "time" | "weekday" | "date" {
+function precisionFor(
+  section: SectionName | undefined,
+): "relative" | "time" | "weekday" | "date" {
   switch (section) {
     case "Today":
       // The clock and how long is left; the day is the heading.
@@ -440,7 +464,8 @@ function creditPercentFor(item: Item, until: Date): string | undefined {
     }
     if (!Array.isArray(tiers)) continue;
     for (const tier of tiers as { credit?: unknown; end?: unknown }[]) {
-      if (typeof tier?.end !== "string" || typeof tier.credit !== "number") continue;
+      if (typeof tier?.end !== "string" || typeof tier.credit !== "number")
+        continue;
       if (!Number.isFinite(tier.credit)) continue;
       if (Date.parse(tier.end) === until.getTime()) return String(tier.credit);
     }
@@ -473,12 +498,25 @@ export function creditWindowText(item: Item, until: Date): string {
  * opened and one that needs half an hour, and without it the two read alike.
  */
 function scoreSoFar(item: Item): string | undefined {
-  // Not on a finished row. A closed assessment that ended at 40 also carries
-  // `scorePercent`, and "40% so far" on it reads as an invitation to go and
-  // earn the rest, which is the one thing that can no longer be done.
+  // A row finished at its *cap* says so, because nothing else on it would.
+  // Sushi's CS 357 lectures scored 80 in an 80% window: the row stops reading
+  // "6d late" and starts reading "done", and between those two the student has
+  // been given no reason to believe the second one. `extra.scoreCeiling` is set
+  // by `mapStatus` only where the cap is what finished the row, so this line
+  // appears on exactly those rows and never on a plain 100%.
+  const ceiling = extraOf(item, "scoreCeiling");
+  if (ceiling !== undefined) return `${ceiling}% was full marks`;
+  // Not on any other finished row. A closed assessment that ended at 40 also
+  // carries `scorePercent`, and "40% so far" on it reads as an invitation to go
+  // and earn the rest, which is the one thing that can no longer be done.
   if (isItemDone(item) || isTickedDone(item)) return undefined;
-  const percent = item.members.find((m) => m.extra?.["scorePercent"])?.extra?.["scorePercent"];
+  const percent = extraOf(item, "scorePercent");
   return percent === undefined ? undefined : `${percent}% so far`;
+}
+
+/** The first member that states `key`, since only one source ever sets these. */
+function extraOf(item: Item, key: string): string | undefined {
+  return item.members.find((member) => member.extra?.[key])?.extra?.[key];
 }
 
 /**
@@ -541,20 +579,32 @@ export function countdown(
     return `in ${hours}h`;
   }
   if (days === 1) return "in 1d";
-  if (days < 7) return new Date(at).toLocaleDateString(undefined, { weekday: "short" });
+  if (days < 7)
+    return new Date(at).toLocaleDateString(undefined, { weekday: "short" });
   // Past a week a weekday is two different days, and the one a reader assumes
   // is the near one.
   return dayOf(new Date(at));
 }
 
-export function formatDue(item: Item, now: Date, section?: SectionName): DueText {
+export function formatDue(
+  item: Item,
+  now: Date,
+  section?: SectionName,
+): DueText {
   const text = dueTextFor(item, now, section);
-  // Only where the row has nothing else to say. The credit wordings below are
-  // about the deadline, which is the more urgent of the two, and `detail` is a
-  // single line whose length already cost the title column its width once.
-  if (text.detail !== undefined) return text;
   const soFar = scoreSoFar(item);
-  return soFar === undefined ? text : { ...text, detail: soFar };
+  if (soFar === undefined) return text;
+  // A cap note *displaces* the credit wording rather than yielding to it. The
+  // wordings below are about a window that is still worth entering, and the one
+  // row that carries a cap note is the row where it is not: a cell-only
+  // PrairieLearn entry finished at its cap has no `dueAt`, so it would have read
+  // "80% credit remaining" on work with no credit remaining at all.
+  if (extraOf(item, "scoreCeiling") !== undefined)
+    return { ...text, detail: soFar };
+  // Otherwise only where the row has nothing else to say. The deadline is the
+  // more urgent of the two, and `detail` is a single line whose length already
+  // cost the title column its width once.
+  return text.detail === undefined ? { ...text, detail: soFar } : text;
 }
 
 function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
@@ -571,7 +621,10 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
           ? dayOf(at)
           : precisionFor(section) === "weekday"
             ? clockOf(at)
-            : at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+            : at.toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              });
       return { primary: `opens ${when}`, detail: "not open yet" };
     }
     return { primary: "no date" };
@@ -594,7 +647,8 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
     // whole thing §4.5's `timeAssumed` exists to keep apart. Four characters
     // does the same work as the sentence did.
     const day = dayOf(due);
-    const when = precisionFor(section) === "date" ? day : relativeDays(daysAway(due, now));
+    const when =
+      precisionFor(section) === "date" ? day : relativeDays(daysAway(due, now));
     return { primary: `${when} · no time` };
   }
 
@@ -615,9 +669,8 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
 
   // §4.3's own wording for a row whose full-credit deadline has passed.
   if (item.dueAt === undefined) {
-    const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.[
-      "creditRemaining"
-    ];
+    const credit = item.members.find((m) => m.extra?.["creditRemaining"])
+      ?.extra?.["creditRemaining"];
     return {
       primary: clockOf(due),
       detail: credit ? `${credit}% credit remaining` : "late deadline",
@@ -632,7 +685,10 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
   const minutes = Math.floor(abs / 60_000);
   const span = days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : `${minutes}m`;
 
-  const time = due.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = due.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
   switch (precisionFor(section)) {
     case "time":
       // Under Today, "in 4h" is the part that changes what you do next; under
@@ -649,6 +705,8 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
       // stopped mattering — how late it is, is the whole question — and the
       // date places it. Inside a day the clock is still the useful half.
       if (past && days >= 1) return { primary: `${dayOf(due)} · ${span} ago` };
-      return { primary: `${clockOf(due)} · ${past ? `${span} ago` : `in ${span}`}` };
+      return {
+        primary: `${clockOf(due)} · ${past ? `${span} ago` : `in ${span}`}`,
+      };
   }
 }

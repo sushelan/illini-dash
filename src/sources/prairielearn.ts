@@ -15,8 +15,18 @@ import {
   wallClockToIso,
 } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
-import { KeyGuard, looksLoggedOut, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
-import { ParseError, type PageCtx, type RawItem, type Status } from "./types.js";
+import {
+  KeyGuard,
+  looksLoggedOut,
+  sameOriginHttpsUrl,
+  textOf,
+} from "../core/parsing.js";
+import {
+  ParseError,
+  type PageCtx,
+  type RawItem,
+  type Status,
+} from "./types.js";
 
 export const PRAIRIELEARN_ORIGIN = "https://us.prairielearn.com";
 
@@ -29,10 +39,14 @@ export interface CreditTier {
   end?: string;
 }
 
-
-
-export function isLoginResponse(status: number, finalUrl: string, body: string): boolean {
-  return looksLoggedOut(status, finalUrl, body, { loginPath: /prairielearn\.com\/pl\/login/ });
+export function isLoginResponse(
+  status: number,
+  finalUrl: string,
+  body: string,
+): boolean {
+  return looksLoggedOut(status, finalUrl, body, {
+    loginPath: /prairielearn\.com\/pl\/login/,
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -50,7 +64,10 @@ export function isLoginResponse(status: number, finalUrl: string, body: string):
  * detached element. That is inert (no scripts, no loads) and, unlike a bare
  * `DOMParser`, works identically under linkedom.
  */
-export function parseCreditSchedule(doc: Document, attributeValue: string): CreditTier[] {
+export function parseCreditSchedule(
+  doc: Document,
+  attributeValue: string,
+): CreditTier[] {
   const holder = doc.createElement("div");
   holder.innerHTML = attributeValue;
 
@@ -71,7 +88,9 @@ export function parseCreditSchedule(doc: Document, attributeValue: string): Cred
     // tier and drag `dueAt` onto the 50% semester-long tail §4.3 rejects.
     // `1e3` and `0x10` slip through the same hole, so validate the shape.
     if (!/^\d+(?:\.\d+)?$/.test(creditText) || !Number.isFinite(credit)) {
-      throw new ParseError(`credit schedule: non-numeric credit ${JSON.stringify(creditText)}`);
+      throw new ParseError(
+        `credit schedule: non-numeric credit ${JSON.stringify(creditText)}`,
+      );
     }
 
     const startText = textOf(cells[1]);
@@ -79,8 +98,12 @@ export function parseCreditSchedule(doc: Document, attributeValue: string): Cred
     tiers.push({
       credit,
       // The 0-credit row's End is an em dash, not an empty cell.
-      start: isNoEndMarker(startText) ? undefined : parsePrairieLearnScheduleDate(startText),
-      end: isNoEndMarker(endText) ? undefined : parsePrairieLearnScheduleDate(endText),
+      start: isNoEndMarker(startText)
+        ? undefined
+        : parsePrairieLearnScheduleDate(startText),
+      end: isNoEndMarker(endText)
+        ? undefined
+        : parsePrairieLearnScheduleDate(endText),
     });
   }
 
@@ -111,7 +134,11 @@ export function deadlinesFromSchedule(tiers: CreditTier[]): {
     // A tie means two full-credit windows — an extension authored as a second
     // access rule. Take the later end, or the first would be reported as the
     // deadline and the second as a "reduced-credit" one while still full credit.
-    else if (tier.credit === best.credit && best.end && (!tier.end || tier.end > best.end)) {
+    else if (
+      tier.credit === best.credit &&
+      best.end &&
+      (!tier.end || tier.end > best.end)
+    ) {
       bestIndex = i;
     }
   }
@@ -121,7 +148,9 @@ export function deadlinesFromSchedule(tiers: CreditTier[]): {
     // Only a genuine drop is a late window: not a 0-credit close, and not
     // another tier at the same credit.
     lateDueAt:
-      next && next.credit > 0 && next.credit < tiers[bestIndex]!.credit ? next.end : undefined,
+      next && next.credit > 0 && next.credit < tiers[bestIndex]!.credit
+        ? next.end
+        : undefined,
   };
 }
 
@@ -182,12 +211,24 @@ function instantFromCell(
   return wallClockToIso({ ...parts, year }, COURSE_ZONE);
 }
 
-export function parseCreditCell(text: string, reference: string): CreditCell | undefined {
+export function parseCreditCell(
+  text: string,
+  reference: string,
+): CreditCell | undefined {
   const match = CREDIT_CELL.exec(text.trim());
   if (!match) return undefined;
   const [, credit, hour, minute, weekday, month, day] = match;
-  const instant = instantFromCell(hour!, minute!, weekday!, month!, day!, reference);
-  return instant === undefined ? undefined : { credit: Number(credit), instant };
+  const instant = instantFromCell(
+    hour!,
+    minute!,
+    weekday!,
+    month!,
+    day!,
+    reference,
+  );
+  return instant === undefined
+    ? undefined
+    : { credit: Number(credit), instant };
 }
 
 /**
@@ -201,7 +242,10 @@ export function parseCreditCell(text: string, reference: string): CreditCell | u
  * Nothing about it is unreadable. It simply answers a different question, and
  * a due date must never be invented from it (worker rule 3).
  */
-export function parseAvailableCell(text: string, reference: string): string | undefined {
+export function parseAvailableCell(
+  text: string,
+  reference: string,
+): string | undefined {
   const match = AVAILABLE_CELL.exec(text.trim());
   if (!match) return undefined;
   const [, hour, minute, weekday, month, day] = match;
@@ -213,34 +257,38 @@ export function parseAvailableCell(text: string, reference: string): string | un
 /* -------------------------------------------------------------------------- */
 
 /**
- * Is there still credit to be earned on this row at `now`?
+ * The highest score this row can still reach at `now` — its **ceiling** — or
+ * `undefined` when the page does not say.
  *
- * A tier counts as open when its credit is above 0 and `now` falls inside its
- * window; a tier with no End stays open. This is what separates a homework the
- * student can still resubmit to 100 from a quiz that ended at 40 (roadmap I37),
- * and it is decided here rather than in `dedupe.ts`, because it is a fact the
- * page states and not a fact about the merged item.
+ * A tier counts as open when `now` falls inside its window; a tier with no End
+ * stays open. PrairieLearn caps what a submission in a tier can earn at that
+ * tier's credit, so the best open tier *is* the ceiling: once the 100% window
+ * has passed and an 80% one is running, 80 is full marks.
  *
  * With no schedule the credit cell answers the same question one tier at a
  * time: `80% until 23:59, Tue, Sep 8` is an 80-credit tier open until that
- * instant. With neither, the answer is "not known to be open" — the old
- * behaviour, so a row we cannot read is never re-opened on a guess.
+ * instant. With neither, the answer is "not known" — and every caller below
+ * treats not-known as the old behaviour, so a row we cannot read is never
+ * re-opened, nor closed, on a guess.
+ *
+ * Tiers present but none open is a ceiling of **0**, which is a statement (the
+ * work is closed) and not the same answer as `undefined`.
  */
-export function creditStillOpen(
+export function creditCeiling(
   now: number,
   tiers: CreditTier[] | undefined,
   cell: CreditCell | undefined,
-): boolean {
+): number | undefined {
   if (tiers) {
-    return tiers.some(
+    const open = tiers.filter(
       (tier) =>
-        tier.credit > 0 &&
         (!tier.start || Date.parse(tier.start) <= now) &&
         (!tier.end || now < Date.parse(tier.end)),
     );
+    return open.length === 0 ? 0 : Math.max(...open.map((tier) => tier.credit));
   }
-  if (cell) return cell.credit > 0 && Date.parse(cell.instant) > now;
-  return false;
+  if (cell) return Date.parse(cell.instant) > now ? cell.credit : 0;
+  return undefined;
 }
 
 /** What the Score cell said, and what that means for the row's status. */
@@ -248,7 +296,26 @@ export interface ScoreReading {
   status: Status;
   /** The bar's percentage when it is a partial one, for `extra.scorePercent`. */
   scorePercent?: number;
+  /**
+   * The ceiling this score met, when it met one below 100 — `extra.scoreCeiling`.
+   *
+   * Only set on a row this function called finished *because* of the cap, so it
+   * doubles as the reason: without it a row flips from "10d late" to "done" with
+   * nothing on screen or in an export saying why.
+   */
+  scoreCeiling?: number;
 }
+
+/**
+ * Absorbs the rendering of a score, not a lost point.
+ *
+ * The bar's width is written into a style attribute and can come back as
+ * `79.99999999999999` for a score the page prints as 80. A hundredth of a
+ * percent cannot separate two scores a student would tell apart, and anything
+ * larger would start calling a genuinely short score full marks — which is the
+ * §11 failure this whole file is careful about, in its most quiet form.
+ */
+const SCORE_EPSILON = 0.01;
 
 /**
  * §4.3 as amended (docs/prairielearn-findings.md, Sushi 2026-09-18): a partial
@@ -265,10 +332,19 @@ export interface ScoreReading {
  *   so the popup can say "40% so far".
  * - `< 100` with no open tier → graded. The work is closed; a student can do
  *   nothing about it, and re-opening it would be a row that never clears.
+ *
+ * Amended again (Sushi, 2026-09-21): *"there needs to be a way for it to detect
+ * the max score on prairielearn and if the user has gotten that score … then it
+ * should still be marked as done"*. The rule above compares against 100, and
+ * 100 is only the ceiling while the full-credit window is open. Past it, a CS
+ * 357 lecture worth 80% that the student scored 80 on had nothing left to earn
+ * and sat in the Late band for ten days telling them to go and do it again. So
+ * the comparison is against `ceiling` — what `creditCeiling` says is on offer
+ * — and 100 is only the default for a row that does not say.
  */
 export function mapStatus(
   scoreCell: Element | null | undefined,
-  creditOpen = false,
+  ceiling?: number,
 ): ScoreReading {
   if (!scoreCell) return { status: "unknown" };
   const text = textOf(scoreCell);
@@ -277,21 +353,36 @@ export function mapStatus(
 
   const bar = scoreCell.querySelector(".progress-bar");
   if (bar) {
-    const width = /width:\s*([\d.]+)%/.exec(bar.getAttribute("style") ?? "")?.[1];
+    const width = /width:\s*([\d.]+)%/.exec(
+      bar.getAttribute("style") ?? "",
+    )?.[1];
     const percent = width === undefined ? Number.NaN : Number(width);
-    if (Number.isFinite(percent)) return readingFor(percent, creditOpen);
+    if (Number.isFinite(percent)) return readingFor(percent, ceiling);
   }
   const percentText = /(\d+(?:\.\d+)?)%/.exec(text)?.[1];
-  if (percentText !== undefined) return readingFor(Number(percentText), creditOpen);
+  if (percentText !== undefined)
+    return readingFor(Number(percentText), ceiling);
   return { status: "unknown" };
 }
 
-function readingFor(percent: number, creditOpen: boolean): ScoreReading {
+function readingFor(
+  percent: number,
+  ceiling: number | undefined,
+): ScoreReading {
+  // Full marks are done whatever the schedule says, and that stays ahead of the
+  // ceiling test on purpose: PrairieLearn writes credit above 100 for an
+  // early-submission bonus, and a student sitting on 100 with a 110% tier open
+  // should not be told their finished homework is unfinished.
   if (percent >= 100) return { status: "graded" };
   if (percent <= 0) return { status: "not_submitted" };
   // A partial score: the percentage is reported either way, because "40% so
   // far" is worth showing on a closed row too.
-  return { status: creditOpen ? "not_submitted" : "graded", scorePercent: percent };
+  if (ceiling === undefined || ceiling <= 0)
+    return { status: "graded", scorePercent: percent };
+  if (percent + SCORE_EPSILON >= ceiling) {
+    return { status: "graded", scorePercent: percent, scoreCeiling: ceiling };
+  }
+  return { status: "not_submitted", scorePercent: percent };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -303,7 +394,8 @@ const NOT_FOR_CREDIT = /\b(not for credit|will not count|extra credit)\b/i;
 
 function courseInstanceIdFrom(page: PageCtx): string {
   const id = /\/pl\/course_instance\/(\d+)/.exec(page.url)?.[1];
-  if (!id) throw new ParseError("assessments: cannot determine course instance id");
+  if (!id)
+    throw new ParseError("assessments: cannot determine course instance id");
   return id;
 }
 
@@ -319,7 +411,10 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
 
   // `Assessments — CS 357 |  PrairieLearn`
   const pageTitle = textOf(doc.querySelector("title"));
-  const courseRaw = pageTitle.replace(/^Assessments\s*[—-]\s*/, "").replace(/\|.*$/, "").trim();
+  const courseRaw = pageTitle
+    .replace(/^Assessments\s*[—-]\s*/, "")
+    .replace(/\|.*$/, "")
+    .trim();
   const codes = extractCourseCodes(courseRaw);
 
   const rows = Array.from(table.querySelectorAll("tr"));
@@ -331,10 +426,14 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
   // health dot. Gradescope avoids this by never indexing positionally; this
   // table has no per-cell hooks, so the header is the anchor.
   const headerCells = Array.from(
-    rows.find((row) => row.querySelector("th") && !row.querySelector("[data-testid]"))
+    rows
+      .find(
+        (row) => row.querySelector("th") && !row.querySelector("[data-testid]"),
+      )
       ?.querySelectorAll("th") ?? [],
   ).map(textOf);
-  const columnFor = (pattern: RegExp) => headerCells.findIndex((cell) => pattern.test(cell));
+  const columnFor = (pattern: RegExp) =>
+    headerCells.findIndex((cell) => pattern.test(cell));
   const titleColumn = columnFor(/title/i);
   const creditColumn = columnFor(/available credit/i);
   const scoreColumn = columnFor(/^score$/i);
@@ -353,7 +452,9 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
 
   for (const row of rows) {
     // Group heading rows are kept for display but produce no item (§4.3).
-    const heading = row.querySelector('[data-testid="assessment-group-heading"]');
+    const heading = row.querySelector(
+      '[data-testid="assessment-group-heading"]',
+    );
     if (heading) {
       group = textOf(heading);
       continue;
@@ -421,8 +522,12 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
     }
 
     // The cell text is the fallback, and also a cross-check when both exist.
-    const creditText = creditCell ? textOf(creditCell).replace(/\s*\?\s*$/, "") : "";
-    const cell = creditText ? parseCreditCell(creditText, page.fetchedAt) : undefined;
+    const creditText = creditCell
+      ? textOf(creditCell).replace(/\s*\?\s*$/, "")
+      : "";
+    const cell = creditText
+      ? parseCreditCell(creditText, page.fetchedAt)
+      : undefined;
     const now = Date.parse(page.fetchedAt);
 
     if (tiers && cell) {
@@ -437,7 +542,8 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
           (!tier.end || now < Date.parse(tier.end)),
       );
       if (active && active.credit !== cell.credit) {
-        extra["creditMismatch"] = `cell=${cell.credit} schedule=${active.credit}`;
+        extra["creditMismatch"] =
+          `cell=${cell.credit} schedule=${active.credit}`;
         console.warn(
           `[prairielearn] credit cell disagrees with schedule for ${badge}: ` +
             `cell=${cell.credit} schedule=${active.credit}`,
@@ -468,12 +574,17 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
         // is still emitted, undated, with the raw text kept.
         extra["unparsedCredit"] = creditText;
         // §4.3 requires the unreadable row to be logged with its raw text.
-        console.warn(`[prairielearn] unreadable credit cell for ${badge}: ${creditText}`);
+        console.warn(
+          `[prairielearn] unreadable credit cell for ${badge}: ${creditText}`,
+        );
       }
     }
 
-    const score = mapStatus(scoreCell, creditStillOpen(now, tiers, cell));
-    if (score.scorePercent !== undefined) extra["scorePercent"] = String(score.scorePercent);
+    const score = mapStatus(scoreCell, creditCeiling(now, tiers, cell));
+    if (score.scorePercent !== undefined)
+      extra["scorePercent"] = String(score.scorePercent);
+    if (score.scoreCeiling !== undefined)
+      extra["scoreCeiling"] = String(score.scoreCeiling);
 
     items.push({
       source: "prairielearn",
@@ -511,7 +622,9 @@ export function parseAssessments(doc: Document, page: PageCtx): RawItem[] {
   // Qualified on the outcome rather than on the failures alone: if the credit
   // cells supplied dates anyway, the page is not silently undated and the
   // fallback did exactly its job.
-  const anyDated = items.some((item) => item.dueAt !== undefined || item.lateDueAt !== undefined);
+  const anyDated = items.some(
+    (item) => item.dueAt !== undefined || item.lateDueAt !== undefined,
+  );
   if (popoversSeen > 0 && popoversFailed === popoversSeen && !anyDated) {
     throw new ParseError(
       `all ${popoversSeen} credit schedule(s) failed to parse and no date was recovered`,

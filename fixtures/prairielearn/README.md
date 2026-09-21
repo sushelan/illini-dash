@@ -17,7 +17,13 @@ a `>= 100 → graded, partial → depends on the credit window` rule are **indis
 because the capture contains no bar strictly between 0 and 100. A test over it alone
 would pass against the implementation the amendment replaces, so it would not be a test.
 
-The four rows are deliberately unrealistic in that no single real course page would
+PS5 and PS6 were added on 2026-09-21 for the second amendment (full marks is the open
+tier's credit, not 100) and the same argument applies twice over: the real capture has no
+bar between 0 and 100 at all, so nothing in it can tell a `>= 100` rule from a
+`>= ceiling` one. PS6 is the pair that matters — one point under the cap, where calling
+the row done would be the silent-wrong-state failure rather than a missing one.
+
+The six rows are deliberately unrealistic in that no single real course page would
 line them up this way. Read against `page.fetchedAt = 2026-09-03T05:34:00.000Z`:
 
 | Badge | Score bar | Credit window | Expected |
@@ -26,6 +32,8 @@ line them up this way. Read against `page.fetchedAt = 2026-09-03T05:34:00.000Z`:
 | PS2 | 40% | 100% closed Aug 27, then a 0-credit tier with no End | `graded`, `extra.scorePercent = "40"` |
 | PS3 | 100% | same open 80% tier as PS1 | `graded`, no `scorePercent` |
 | PS4 | 40% | no popover and an empty credit cell | `graded`, `extra.scorePercent = "40"` |
+| PS5 | 80% | same open 80% tier as PS1 | `graded`, `scorePercent = "80"`, `scoreCeiling = "80"` |
+| PS6 | 79% | same open 80% tier as PS1 | `not_submitted`, `scorePercent = "79"`, no `scoreCeiling` |
 
 PS3 is the row that kills a `> 0` mutation the other way round, and PS4 pins the
 "openness not stated → treat as closed" default, which keeps an unreadable row from

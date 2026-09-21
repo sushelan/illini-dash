@@ -83,10 +83,13 @@ Stable hooks exist and beat the colour classes:
 
 **What §4.3 said, and what it now says.** The status rule read: *"a percentage bar
 `> 0%` → `graded` (PrairieLearn grades on the spot, so this is 'done' for our
-purposes)"*. The line has been rewritten in place, not annotated: `>= 100` is done, `0`
-is not started, and anything in between is done **only when no credit tier with credit
-above 0 is still open at fetch time**. A still-open partial row is `not_submitted` and
-carries `extra.scorePercent`, which the popup renders as "40% so far".
+purposes)"*. The line has been rewritten in place, not annotated: **full marks** are
+done, `0` is not started, and anything in between is done **only when no credit tier
+with credit above 0 is still open at fetch time**. A still-open partial row is
+`not_submitted` and carries `extra.scorePercent`, which the popup renders as "40% so
+far". *("Full marks" read `>= 100` when this was written, which the 2026-09-21
+amendment below corrects: past the full-credit window, full marks is the open tier's
+credit.)*
 
 **The evidence.** PrairieLearn homework is resubmittable: the credit schedule on this
 very capture runs `100 → 80 → 50 → 0`, so a student sitting at 40% with the 80% tier
@@ -96,7 +99,7 @@ the window where it most needed to be on it. The closed case is the mirror image
 every tier with credit has ended, nothing the student does changes the score, and a row
 that can never be cleared is worse than one hidden a day early. Decision by Sushi.
 
-**Where it is decided.** At parse time, in `mapStatus`/`creditStillOpen`
+**Where it is decided.** At parse time, in `mapStatus`/`creditCeiling`
 (`src/sources/prairielearn.ts`) — not in `dedupe.ts`'s `isItemDone`, which I37's
 "Touches" line suggested. `isItemDone` sees a merged item and no clock; openness is a
 fact the page states, about one source's row, at the instant it was fetched.
@@ -120,3 +123,52 @@ are indistinguishable against it (house rule 10). The constructed
 `fixtures/prairielearn/assessments-partial-scores.html` supplies the missing rows —
 40% with an open 80% tier, 40% with everything closed, 100% with an open tier, and 40%
 with no access details at all — and its README says plainly that it is not a capture.
+
+## Amendment 2026-09-21 — full marks is the ceiling, not 100
+
+**What was wrong.** The amendment above compares the score against **100**, and 100 is
+only the ceiling while the full-credit window is open. PrairieLearn caps what a
+submission earns at the running tier's credit, so once the 100% window has passed and an
+80% one is running, **80 is full marks** — there is nothing left to earn, and the rule
+above called the row `not_submitted` anyway. Sushi's own CS 357 list, 2026-09-21: seven
+lectures and homeworks scored at their cap sat in the Late band for up to ten days
+("HW4b IEEE 754 Standard — 10d late"), each one telling him to go and redo finished
+work. *"there needs to be a way for it to detect the max score on prairielearn and if the
+user has gotten that score, like for example some max scores can only be 96%, etc. after
+a missed deadline, and if the user gets that number then it should still be marked as
+done."*
+
+**The rule now.** `creditCeiling(now, tiers, cell)` answers "what is the most this row
+can reach at `now`": the **highest-credit tier inside its window**, `0` when the page
+states a schedule and none is open, and `undefined` when the page states nothing.
+`mapStatus` takes that instead of a boolean and calls the row done at `percent >=
+ceiling`. The three answers stay distinct on purpose — `undefined` keeps the old
+behaviour (compare against 100), because a row we could not read must be neither closed
+nor re-opened on a guess (worker rule 3).
+
+Two deliberate asymmetries:
+
+- **100% is done before the ceiling is consulted.** PrairieLearn writes credit *above*
+  100 for an early-submission bonus, and a student sitting on a finished 100 with a 110%
+  tier open must not be told the work is unfinished.
+- **The tolerance is 0.01 points, not a rounding rule.** The score bar's width comes back
+  as `79.99999999999999` for a page that prints 80, and a hundredth of a percent cannot
+  separate two scores a student would tell apart. Anything larger would start calling a
+  genuinely short score full marks, which is §11's failure in its quietest form: 79.5
+  against an 80 cap stays open.
+
+**Saying why.** A row flipping from "10d late" to "done" with nothing on screen to
+justify it is the same silent-state problem one surface over. `mapStatus` sets
+`extra.scoreCeiling` **only** where the cap is what finished the row, so it doubles as
+the reason: the popup draws "80% was full marks", and it is in every export. Being set
+only on those rows is what makes it usable as a condition — a plain 100% never carries
+one, and neither does a closed row graded because nothing is open.
+
+That note also *displaces* the credit wording rather than yielding to it, which every
+other note does. A cell-only entry finished at its cap has no `dueAt`, so it took the
+"`${credit}% credit remaining`" branch and announced credit remaining on work with none.
+
+**What this does not change.** The known false positive above stands: a one-shot quiz
+scored 40% with an 80% tier open is still indistinguishable from a resubmittable
+homework, and still stays on the list. The ceiling only decides what *counts* as
+finished, never how many attempts remain.

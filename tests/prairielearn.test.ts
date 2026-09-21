@@ -8,7 +8,7 @@ import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import {
   PRAIRIELEARN_ORIGIN,
-  creditStillOpen,
+  creditCeiling,
   deadlinesFromSchedule,
   isLoginResponse,
   mapStatus,
@@ -48,7 +48,8 @@ const HEADER_ROW =
   `<th class="text-center">Available credit</th><th class="text-center">Score</th></tr>`;
 
 const items = parseAssessments(docFrom(fixtureHtml), page);
-const byBadge = (badge: string) => items.find((i) => i.extra?.["badge"] === badge)!;
+const byBadge = (badge: string) =>
+  items.find((i) => i.extra?.["badge"] === badge)!;
 
 describe("parseAssessments (real capture)", () => {
   it("returns one item per assessment row and no group-heading rows", () => {
@@ -98,10 +99,14 @@ describe("parseAssessments (real capture)", () => {
 
   it("stores the whole schedule and the release date", () => {
     const tiers = JSON.parse(byBadge("HW3").extra!["creditSchedule"]!);
-    expect(tiers.map((t: { credit: number }) => t.credit)).toEqual([100, 96, 50, 0]);
+    expect(tiers.map((t: { credit: number }) => t.credit)).toEqual([
+      100, 96, 50, 0,
+    ]);
     // The 0-credit tier's end is an em dash in the source, i.e. no end.
     expect(tiers[3].end).toBeUndefined();
-    expect(byBadge("HW3").extra?.["releasedAt"]).toBe("2026-08-27T08:00:01-05:00");
+    expect(byBadge("HW3").extra?.["releasedAt"]).toBe(
+      "2026-08-27T08:00:01-05:00",
+    );
   });
 
   it("leaves an assessment with no credit cell undated", () => {
@@ -151,20 +156,27 @@ describe("parseCreditSchedule", () => {
         `<tr><td>0</td><td>2026-12-09 23:59:59 (CST)</td><td>—</td></tr></table>`,
     );
     expect(tiers).toEqual([
-      { credit: 100, start: "2026-09-01T08:00:01-05:00", end: "2026-09-08T11:00:00-05:00" },
+      {
+        credit: 100,
+        start: "2026-09-01T08:00:01-05:00",
+        end: "2026-09-08T11:00:00-05:00",
+      },
       { credit: 0, start: "2026-12-09T23:59:59-06:00", end: undefined },
     ]);
   });
 
   it("throws when the popover holds no credit rows", () => {
-    expect(() => parseCreditSchedule(doc, `<table><tr><th>Credit</th></tr></table>`)).toThrow(
-      ParseError,
-    );
+    expect(() =>
+      parseCreditSchedule(doc, `<table><tr><th>Credit</th></tr></table>`),
+    ).toThrow(ParseError);
   });
 
   it("throws on an unparseable date rather than guessing", () => {
     expect(() =>
-      parseCreditSchedule(doc, `<table><tr><td>100</td><td>x</td><td>Sep 8 2026</td></tr></table>`),
+      parseCreditSchedule(
+        doc,
+        `<table><tr><td>100</td><td>x</td><td>Sep 8 2026</td></tr></table>`,
+      ),
     ).toThrow(ParseError);
   });
 });
@@ -181,7 +193,12 @@ describe("deadlinesFromSchedule", () => {
   });
 
   it("skips a 0-credit next tier", () => {
-    expect(deadlinesFromSchedule([{ credit: 100, end: "A" }, { credit: 0, end: "B" }])).toEqual({
+    expect(
+      deadlinesFromSchedule([
+        { credit: 100, end: "A" },
+        { credit: 0, end: "B" },
+      ]),
+    ).toEqual({
       dueAt: "A",
       lateDueAt: undefined,
     });
@@ -216,7 +233,8 @@ describe("parseAvailableCell — an assessment that has not opened", () => {
       "Available 09:00, Sat, Nov 7",
       "Available 09:00, Sat, Nov 28",
     ];
-    for (const text of real) expect(parseAvailableCell(text, reference), text).toBeDefined();
+    for (const text of real)
+      expect(parseAvailableCell(text, reference), text).toBeDefined();
   });
 
   it("crosses into standard time with the rest of the calendar", () => {
@@ -231,8 +249,12 @@ describe("parseAvailableCell — an assessment that has not opened", () => {
     // Both shapes end identically. Matching either loosely would let a
     // deadline be read as an opening time, which is the more dangerous
     // direction: the row would stop being due.
-    expect(parseAvailableCell("100% until 21:15, Mon, Sep 14", reference)).toBeUndefined();
-    expect(parseCreditCell("Available 09:00, Sat, Sep 12", reference)).toBeUndefined();
+    expect(
+      parseAvailableCell("100% until 21:15, Mon, Sep 14", reference),
+    ).toBeUndefined();
+    expect(
+      parseCreditCell("Available 09:00, Sat, Sep 12", reference),
+    ).toBeUndefined();
   });
 
   it("refuses a date that does not exist rather than inventing one", () => {
@@ -272,13 +294,18 @@ describe("parseCreditCell (§4.3 fallback)", () => {
 
   it("uses the weekday to correct a wrong year guess (§3.2)", () => {
     // 2026-09-08 is a Tuesday; 2027-09-08 is a Wednesday.
-    expect(parseCreditCell("100% until 23:59, Wed, Sep 8", reference)?.instant).toBe(
-      "2027-09-08T23:59:00-05:00",
-    );
+    expect(
+      parseCreditCell("100% until 23:59, Wed, Sep 8", reference)?.instant,
+    ).toBe("2027-09-08T23:59:00-05:00");
   });
 
   it("returns undefined for anything that does not match", () => {
-    for (const bad of ["", "100% until tomorrow", "Not started", "80% until 23:59, Sep 8"]) {
+    for (const bad of [
+      "",
+      "100% until tomorrow",
+      "Not started",
+      "80% until 23:59, Sep 8",
+    ]) {
       expect(parseCreditCell(bad, reference), bad).toBeUndefined();
     }
   });
@@ -365,7 +392,9 @@ describe("structural rules (§0 rule 3)", () => {
   };
 
   it("throws when the assessments table is missing", () => {
-    expect(() => parseAssessments(docFrom("<p>hello</p>"), bare)).toThrow(/no assessments table/);
+    expect(() => parseAssessments(docFrom("<p>hello</p>"), bare)).toThrow(
+      /no assessments table/,
+    );
   });
 
   it("throws when the table has rows but none carry a badge", () => {
@@ -373,15 +402,21 @@ describe("structural rules (§0 rule 3)", () => {
       `<table aria-label="Assessments">${HEADER_ROW}` +
         `<tr><td><span class="renamed">HW1</span></td><td>Thing</td><td></td><td></td></tr></table>`,
     );
-    expect(() => parseAssessments(doc, bare)).toThrow(/none carry an assessment badge/);
+    expect(() => parseAssessments(doc, bare)).toThrow(
+      /none carry an assessment badge/,
+    );
   });
 
   it("throws when two rows would share one badge key", () => {
     const row =
       `<tr><td><span data-testid="assessment-set-badge">HW1</span></td>` +
       `<td>x</td><td></td><td></td></tr>`;
-    const doc = docFrom(`<table aria-label="Assessments">${HEADER_ROW}${row}${row}</table>`);
-    expect(() => parseAssessments(doc, bare)).toThrow(/duplicate assessment badge/);
+    const doc = docFrom(
+      `<table aria-label="Assessments">${HEADER_ROW}${row}${row}</table>`,
+    );
+    expect(() => parseAssessments(doc, bare)).toThrow(
+      /duplicate assessment badge/,
+    );
   });
 
   it("throws when the header does not name the columns it needs", () => {
@@ -389,7 +424,9 @@ describe("structural rules (§0 rule 3)", () => {
       `<table aria-label="Assessments"><tr><th>Label</th><th>Title</th></tr>` +
         `<tr><td><span data-testid="assessment-set-badge">HW1</span></td><td>x</td></tr></table>`,
     );
-    expect(() => parseAssessments(doc, bare)).toThrow(/assessments table header is/);
+    expect(() => parseAssessments(doc, bare)).toThrow(
+      /assessments table header is/,
+    );
   });
 
   it("throws when a row's cell count disagrees with the header", () => {
@@ -397,7 +434,9 @@ describe("structural rules (§0 rule 3)", () => {
       `<table aria-label="Assessments">${HEADER_ROW}` +
         `<tr><td><span data-testid="assessment-set-badge">HW1</span></td><td>x</td></tr></table>`,
     );
-    expect(() => parseAssessments(doc, bare)).toThrow(/cells but the header declares/);
+    expect(() => parseAssessments(doc, bare)).toThrow(
+      /cells but the header declares/,
+    );
   });
 
   it("throws when the course instance id is not in the URL", () => {
@@ -449,7 +488,11 @@ describe("regressions found by the adversarial review", () => {
     // The fallback used to be gated on the popover being absent, so a row with
     // a broken popover could not use the perfectly good text in the same cell.
     const doc = table(
-      rowWith("HW1", GOOD.replace("(CDT)", "(EDT)"), "100% until 23:59, Tue, Sep 8"),
+      rowWith(
+        "HW1",
+        GOOD.replace("(CDT)", "(EDT)"),
+        "100% until 23:59, Tue, Sep 8",
+      ),
     );
     const [item] = parseAssessments(doc, bare);
     expect(item!.dueAt).toBe("2026-09-08T23:59:00-05:00");
@@ -459,8 +502,13 @@ describe("regressions found by the adversarial review", () => {
   it("still throws when every popover fails and nothing rescues a date", () => {
     const broken = GOOD.replace("(CDT)", "(EDT)");
     expect(() =>
-      parseAssessments(table(rowWith("HW1", broken) + rowWith("HW2", broken)), bare),
-    ).toThrow(/all 2 credit schedule\(s\) failed to parse and no date was recovered/);
+      parseAssessments(
+        table(rowWith("HW1", broken) + rowWith("HW2", broken)),
+        bare,
+      ),
+    ).toThrow(
+      /all 2 credit schedule\(s\) failed to parse and no date was recovered/,
+    );
   });
 
   it("flags a credit cell that disagrees with its schedule (§4.3 cross-check)", () => {
@@ -476,7 +524,9 @@ describe("regressions found by the adversarial review", () => {
 
   it("does not flag agreement", () => {
     const doc = table(rowWith("HW1", GOOD, "100% until 23:59, Tue, Sep 8"));
-    expect(parseAssessments(doc, bare)[0]!.extra?.["creditMismatch"]).toBeUndefined();
+    expect(
+      parseAssessments(doc, bare)[0]!.extra?.["creditMismatch"],
+    ).toBeUndefined();
   });
 
   it("rejects an empty Credit cell instead of reading it as 0", () => {
@@ -484,12 +534,13 @@ describe("regressions found by the adversarial review", () => {
     // tier and drag dueAt onto the 50% semester-long tail §4.3 rejects.
     const doc = docFrom("<div></div>");
     for (const credit of ["", " ", "1e3", "0x10"]) {
-      expect(() =>
-        parseCreditSchedule(
-          doc,
-          `<table><tr><td>${credit}</td><td>2026-09-01 08:00:01 (CDT)</td>` +
-            `<td>2026-09-08 11:00:00 (CDT)</td></tr></table>`,
-        ),
+      expect(
+        () =>
+          parseCreditSchedule(
+            doc,
+            `<table><tr><td>${credit}</td><td>2026-09-01 08:00:01 (CDT)</td>` +
+              `<td>2026-09-08 11:00:00 (CDT)</td></tr></table>`,
+          ),
         JSON.stringify(credit),
       ).toThrow(/non-numeric credit/);
     }
@@ -560,11 +611,17 @@ describe("regressions found by the adversarial review", () => {
   it("refuses a date whose weekday contradicts every candidate year", () => {
     // Sep 8 is Mon/Tue/Wed in 2025/2026/2027, so Fri matches nothing. Falling
     // through to the 6-month rule would return one of the rejected years.
-    expect(parseCreditCell("100% until 23:59, Fri, Sep 8", bare.fetchedAt)).toBeUndefined();
+    expect(
+      parseCreditCell("100% until 23:59, Fri, Sep 8", bare.fetchedAt),
+    ).toBeUndefined();
   });
 
   it("refuses an off-origin, non-https or malformed row link", () => {
-    for (const href of ["//evil.example/x", "http://evil.example/x", "javascript:alert(1)"]) {
+    for (const href of [
+      "//evil.example/x",
+      "http://evil.example/x",
+      "javascript:alert(1)",
+    ]) {
       const doc = table(
         `<tr><td><span data-testid="assessment-set-badge">HW1</span></td>` +
           `<td><a href="${href}">Thing</a></td><td></td><td>Not started</td></tr>`,
@@ -591,59 +648,78 @@ describe("the zone/DST path is pinned, not assumed", () => {
   it("resolves a winter date to CST, which a hardcoded -05:00 cannot", () => {
     // 2026-12-09 is a Wednesday. Every other credit-cell test uses September,
     // where CDT and a hardcoded -05:00 are indistinguishable.
-    expect(parseCreditCell("100% until 23:59, Wed, Dec 9", reference)?.instant).toBe(
-      "2026-12-09T23:59:00-06:00",
-    );
+    expect(
+      parseCreditCell("100% until 23:59, Wed, Dec 9", reference)?.instant,
+    ).toBe("2026-12-09T23:59:00-06:00");
   });
 
   it("needs the second offset pass to land on the right side of the fall-back", () => {
     // A single pass reads the offset at the UTC-interpreted instant and answers
     // -05:00 here; the correct answer after the 2am transition is -06:00.
     expect(
-      wallClockToIso({ year: 2026, month: 11, day: 1, hour: 4, minute: 0 }, "America/Chicago"),
+      wallClockToIso(
+        { year: 2026, month: 11, day: 1, hour: 4, minute: 0 },
+        "America/Chicago",
+      ),
     ).toBe("2026-11-01T04:00:00-06:00");
   });
 
   it("considers the previous year as a candidate", () => {
     // 2025-09-08 is a Monday; dropping referenceYear-1 from the candidates would
     // make this unresolvable.
-    expect(parseCreditCell("100% until 23:59, Mon, Sep 8", reference)?.instant).toBe(
-      "2025-09-08T23:59:00-05:00",
-    );
+    expect(
+      parseCreditCell("100% until 23:59, Mon, Sep 8", reference)?.instant,
+    ).toBe("2025-09-08T23:59:00-05:00");
   });
 
   it("throws on wall-clock parts that name no real date", () => {
     expect(() =>
-      wallClockToIso({ year: 2026, month: 2, day: 30, hour: 12, minute: 0 }, "America/Chicago"),
+      wallClockToIso(
+        { year: 2026, month: 2, day: 30, hour: 12, minute: 0 },
+        "America/Chicago",
+      ),
     ).toThrow(ParseError);
   });
 
   it("writes a whole-minute offset even where the zone's history is fractional", () => {
     // Chicago's local mean time before 1883 is -5:50:36; unrounded that came
     // out as "-05:50.60000000000002", which Date.parse rejects (R3 B3).
-    const iso = wallClockToIso({ year: 1880, month: 6, day: 1, hour: 12, minute: 0 }, "America/Chicago");
+    const iso = wallClockToIso(
+      { year: 1880, month: 6, day: 1, hour: 12, minute: 0 },
+      "America/Chicago",
+    );
     expect(iso).toMatch(/[+-]\d\d:\d\d$/);
     expect(Number.isFinite(Date.parse(iso))).toBe(true);
   });
 
   it("throws on a month that does not exist", () => {
     expect(() =>
-      wallClockToIso({ year: 2026, month: 13, day: 1, hour: 12, minute: 0 }, "America/Chicago"),
+      wallClockToIso(
+        { year: 2026, month: 13, day: 1, hour: 12, minute: 0 },
+        "America/Chicago",
+      ),
     ).toThrow(ParseError);
     // 2024 was a leap year, so Feb 29 is real.
     expect(
-      wallClockToIso({ year: 2024, month: 2, day: 29, hour: 12, minute: 0 }, "America/Chicago"),
+      wallClockToIso(
+        { year: 2024, month: 2, day: 29, hour: 12, minute: 0 },
+        "America/Chicago",
+      ),
     ).toBe("2024-02-29T12:00:00-06:00");
   });
 });
 
 describe("mapStatus (§4.3)", () => {
-  const cell = (html: string) => docFrom(`<td>${html}</td>`).querySelector("td");
-  const bar = (percent: string) => cell(`<div class="progress-bar" style="width:${percent}%"></div>`);
+  const cell = (html: string) =>
+    docFrom(`<td>${html}</td>`).querySelector("td");
+  const bar = (percent: string) =>
+    cell(`<div class="progress-bar" style="width:${percent}%"></div>`);
 
   it("reads the score bar and the textual states", () => {
     expect(mapStatus(cell("Not started")).status).toBe("not_submitted");
-    expect(mapStatus(cell("<button>New instance</button>")).status).toBe("not_submitted");
+    expect(mapStatus(cell("<button>New instance</button>")).status).toBe(
+      "not_submitted",
+    );
     expect(mapStatus(bar("0")).status).toBe("not_submitted");
     expect(mapStatus(bar("100")).status).toBe("graded");
     // A score above the maximum — extra credit — is still nothing left to earn.
@@ -656,40 +732,94 @@ describe("mapStatus (§4.3)", () => {
   // graded ... this is 'done' for our purposes" was wrong for a partial score
   // with credit still on offer. The old rule is what these two replace.
   it("calls a partial score done only once no credit is still open", () => {
-    expect(mapStatus(bar("40"), true)).toEqual({ status: "not_submitted", scorePercent: 40 });
-    expect(mapStatus(bar("40"), false)).toEqual({ status: "graded", scorePercent: 40 });
+    expect(mapStatus(bar("40"), 80)).toEqual({
+      status: "not_submitted",
+      scorePercent: 40,
+    });
+    expect(mapStatus(bar("40"), 0)).toEqual({
+      status: "graded",
+      scorePercent: 40,
+    });
     // Full marks are done whether or not a later tier is still open.
-    expect(mapStatus(bar("100"), true)).toEqual({ status: "graded" });
+    expect(mapStatus(bar("100"), 80)).toEqual({ status: "graded" });
     // And nothing earned is still nothing earned.
-    expect(mapStatus(bar("0"), true)).toEqual({ status: "not_submitted" });
+    expect(mapStatus(bar("0"), 80)).toEqual({ status: "not_submitted" });
     // The cell text is the same rule when there is no bar to read.
-    expect(mapStatus(cell("40%"), true)).toEqual({ status: "not_submitted", scorePercent: 40 });
+    expect(mapStatus(cell("40%"), 80)).toEqual({
+      status: "not_submitted",
+      scorePercent: 40,
+    });
   });
 
   it("defaults to closed when nothing says the credit window is open", () => {
     // The default matters: it is what an unreadable schedule falls back to, and
     // re-opening a row on a guess produces one that never clears.
-    expect(mapStatus(bar("40"))).toEqual({ status: "graded", scorePercent: 40 });
+    expect(mapStatus(bar("40"))).toEqual({
+      status: "graded",
+      scorePercent: 40,
+    });
+  });
+
+  // Sushi, 2026-09-21: "there needs to be a way for it to detect the max score
+  // on prairielearn and if the user has gotten that score … it should still be
+  // marked as done". Before this, the comparison was against 100 and a CS 357
+  // lecture scored 80 in an 80% window read "6d late" forever.
+  it("calls a score that met a sub-100 ceiling done, and says which ceiling", () => {
+    expect(mapStatus(bar("80"), 80)).toEqual({
+      status: "graded",
+      scorePercent: 80,
+      scoreCeiling: 80,
+    });
+    // Above the cap — an earlier full-credit submission kept — is done too.
+    expect(mapStatus(bar("90"), 80)).toEqual({
+      status: "graded",
+      scorePercent: 90,
+      scoreCeiling: 80,
+    });
+    // One point short is not the cap, and is exactly the row that must stay open.
+    expect(mapStatus(bar("79"), 80)).toEqual({
+      status: "not_submitted",
+      scorePercent: 79,
+    });
+    // The width attribute is a float: 79.99999999999999 is the page's 80.
+    expect(mapStatus(bar("79.99999999999999"), 80).status).toBe("graded");
+    // But the tolerance is a rendering artefact, not a rounding policy: half a
+    // point short stays short, or "silently done" becomes the failure mode.
+    expect(mapStatus(bar("79.5"), 80).status).toBe("not_submitted");
+    // `scoreCeiling` is the *reason*, so a plain 100% never carries one.
+    expect(mapStatus(bar("100"), 100).scoreCeiling).toBeUndefined();
+    expect(mapStatus(bar("40"), 0).scoreCeiling).toBeUndefined();
+  });
+
+  it("leaves 100% done while a bonus tier above 100 is open", () => {
+    // PrairieLearn writes credit above 100 for an early-submission bonus. A
+    // student sitting on a finished 100 must not be told it is unfinished.
+    expect(mapStatus(bar("100"), 110)).toEqual({ status: "graded" });
   });
 });
 
-describe("creditStillOpen (roadmap I37)", () => {
+describe("creditCeiling (roadmap I37, and the cap — 2026-09-21)", () => {
   const now = Date.parse("2026-09-03T05:34:00.000Z");
   const past = "2026-09-01T23:59:59-05:00";
   const future = "2026-09-10T23:59:59-05:00";
 
-  it("is true only while a tier worth something is inside its window", () => {
-    expect(creditStillOpen(now, [{ credit: 100, end: past }], undefined)).toBe(false);
-    expect(creditStillOpen(now, [{ credit: 80, end: future }], undefined)).toBe(true);
+  it("is the best tier inside its window, and 0 when none is", () => {
+    expect(creditCeiling(now, [{ credit: 100, end: past }], undefined)).toBe(0);
+    expect(creditCeiling(now, [{ credit: 80, end: future }], undefined)).toBe(
+      80,
+    );
     // The 0-credit tail of a closed assessment is open forever and worth nothing.
-    expect(creditStillOpen(now, [{ credit: 0 }], undefined)).toBe(false);
+    expect(creditCeiling(now, [{ credit: 0 }], undefined)).toBe(0);
     // A tier with no End is open indefinitely.
-    expect(creditStillOpen(now, [{ credit: 50 }], undefined)).toBe(true);
+    expect(creditCeiling(now, [{ credit: 50 }], undefined)).toBe(50);
     // Not started yet: the window has not opened.
-    expect(creditStillOpen(now, [{ credit: 100, start: future }], undefined)).toBe(false);
-    // Any open tier counts, not just the first.
     expect(
-      creditStillOpen(
+      creditCeiling(now, [{ credit: 100, start: future }], undefined),
+    ).toBe(0);
+    // Any open tier counts, not just the first — and the *best* open one is the
+    // ceiling, which is the whole point: past full credit, 80 is full marks.
+    expect(
+      creditCeiling(
         now,
         [
           { credit: 100, end: past },
@@ -697,14 +827,33 @@ describe("creditStillOpen (roadmap I37)", () => {
         ],
         undefined,
       ),
-    ).toBe(true);
+    ).toBe(80);
+    // Two windows open at once takes the higher, not the later.
+    expect(
+      creditCeiling(
+        now,
+        [
+          { credit: 80, end: future },
+          { credit: 100, end: future },
+        ],
+        undefined,
+      ),
+    ).toBe(100);
   });
 
-  it("falls back to the credit cell, and to closed with neither", () => {
-    expect(creditStillOpen(now, undefined, { credit: 80, instant: future })).toBe(true);
-    expect(creditStillOpen(now, undefined, { credit: 80, instant: past })).toBe(false);
-    expect(creditStillOpen(now, undefined, { credit: 0, instant: future })).toBe(false);
-    expect(creditStillOpen(now, undefined, undefined)).toBe(false);
+  it("falls back to the credit cell, and to not-known with neither", () => {
+    expect(creditCeiling(now, undefined, { credit: 80, instant: future })).toBe(
+      80,
+    );
+    expect(creditCeiling(now, undefined, { credit: 80, instant: past })).toBe(
+      0,
+    );
+    expect(creditCeiling(now, undefined, { credit: 0, instant: future })).toBe(
+      0,
+    );
+    // Not 0. A row that says nothing must not be read as a closed one, or every
+    // unreadable partial score is announced as final.
+    expect(creditCeiling(now, undefined, undefined)).toBeUndefined();
   });
 });
 
@@ -713,11 +862,15 @@ describe("partial scores over the constructed fixture", () => {
   // bars, so it cannot tell the amended rule from the one it replaces. See
   // fixtures/prairielearn/README.md.
   const partialHtml = readFileSync(
-    new URL("../fixtures/prairielearn/assessments-partial-scores.html", import.meta.url),
+    new URL(
+      "../fixtures/prairielearn/assessments-partial-scores.html",
+      import.meta.url,
+    ),
     "utf8",
   );
   const rows = parseAssessments(docFrom(partialHtml), page);
-  const row = (badge: string) => rows.find((i) => i.extra?.["badge"] === badge)!;
+  const row = (badge: string) =>
+    rows.find((i) => i.extra?.["badge"] === badge)!;
 
   it("keeps a 40% homework open while its 80%-credit tier is", () => {
     expect(row("PS1").status).toBe("not_submitted");
@@ -737,6 +890,20 @@ describe("partial scores over the constructed fixture", () => {
   it("treats a row that states no credit window as closed", () => {
     expect(row("PS4").status).toBe("graded");
     expect(row("PS4").extra?.["scorePercent"]).toBe("40");
+  });
+
+  it("calls a score that met the window's cap done, end to end", () => {
+    expect(row("PS5").status).toBe("graded");
+    expect(row("PS5").extra?.["scorePercent"]).toBe("80");
+    // The reason travels with the row, so an export explains a done it would
+    // otherwise have to be taken on trust.
+    expect(row("PS5").extra?.["scoreCeiling"]).toBe("80");
+  });
+
+  it("leaves a score one point under the cap open", () => {
+    expect(row("PS6").status).toBe("not_submitted");
+    expect(row("PS6").extra?.["scorePercent"]).toBe("79");
+    expect(row("PS6").extra?.["scoreCeiling"]).toBeUndefined();
   });
 });
 
@@ -779,15 +946,52 @@ describe("formatDue says how far a partial score got (roadmap I37)", () => {
 
   it("says nothing on a row that is finished or has no partial score", () => {
     expect(
-      formatDue(rowWith(member("graded", { scorePercent: "40" })), NOW, "This week").detail,
+      formatDue(
+        rowWith(member("graded", { scorePercent: "40" })),
+        NOW,
+        "This week",
+      ).detail,
     ).toBeUndefined();
-    expect(formatDue(rowWith(member("not_submitted")), NOW, "This week").detail).toBeUndefined();
+    expect(
+      formatDue(rowWith(member("not_submitted")), NOW, "This week").detail,
+    ).toBeUndefined();
+  });
+
+  // Sushi, 2026-09-21. Without this the row stops saying "6d late" and starts
+  // saying "done" with nothing in between to justify the change.
+  it("says which cap finished a row that was finished by one", () => {
+    const capped = rowWith(
+      member("graded", { scorePercent: "80", scoreCeiling: "80" }),
+    );
+    expect(formatDue(capped, NOW, "This week").detail).toBe(
+      "80% was full marks",
+    );
+  });
+
+  it("puts the cap note ahead of a credit wording about a spent window", () => {
+    // The cell-only shape: no `dueAt`, so the row would otherwise have read
+    // "80% credit remaining" on work with none remaining.
+    const capped = rowWith(
+      member("graded", {
+        scorePercent: "80",
+        scoreCeiling: "80",
+        creditRemaining: "80",
+      }),
+      {
+        dueAt: undefined,
+        lateDueAt: new Date(2026, 8, 22, 12, 0).toISOString(),
+      },
+    );
+    expect(formatDue(capped, NOW, "Later").detail).toBe("80% was full marks");
   });
 
   it("yields to the credit wording, which is about the deadline", () => {
     const late = rowWith(
       member("not_submitted", { scorePercent: "40", creditRemaining: "80" }),
-      { dueAt: undefined, lateDueAt: new Date(2026, 8, 22, 12, 0).toISOString() },
+      {
+        dueAt: undefined,
+        lateDueAt: new Date(2026, 8, 22, 12, 0).toISOString(),
+      },
     );
     expect(formatDue(late, NOW, "Later").detail).toBe("80% until Tue 12:00 PM");
   });
@@ -796,7 +1000,9 @@ describe("formatDue says how far a partial score got (roadmap I37)", () => {
 describe("isLoginResponse", () => {
   it("recognises an expired session and not the real page", () => {
     expect(isLoginResponse(401, page.url, "")).toBe(true);
-    expect(isLoginResponse(200, `${PRAIRIELEARN_ORIGIN}/pl/login`, "")).toBe(true);
+    expect(isLoginResponse(200, `${PRAIRIELEARN_ORIGIN}/pl/login`, "")).toBe(
+      true,
+    );
     expect(isLoginResponse(200, page.url, fixtureHtml)).toBe(false);
   });
 });

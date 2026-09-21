@@ -2,13 +2,52 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2593 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2599 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Full marks on PrairieLearn is the ceiling, not 100 — 2026-09-21
+
+"there needs to be a way for it to detect the max score on prairielearn and if the user
+has gotten that score, like for example some max scores can only be 96%, etc. after a
+missed deadline, and if the user gets that number then it should still be marked as done."
+
+Seven CS 357 rows in Sushi's own week sat in the Late band at their cap, up to "10d
+late", each telling him to redo finished work. §4.3's status rule compared the score
+against 100, and 100 is the ceiling only while the full-credit window is open.
+
+- `creditCeiling(now, tiers, cell)` replaces `creditStillOpen`: the highest-credit tier
+  inside its window, `0` when a schedule is stated and none is open, `undefined` when the
+  page states nothing. The predicate was derived from it for one commit and then deleted
+  — an exported window rule with only tests calling it is the second copy that mutation
+  house rule 3 is about.
+- `mapStatus` takes the ceiling instead of a boolean (a loud typecheck break at every
+  call site, which is what changing the meaning of a parameter should be) and calls a row
+  done at `percent >= ceiling`. `undefined` keeps the old comparison, so an unreadable row
+  is neither closed nor re-opened on a guess.
+- `extra.scoreCeiling` is set **only** where the cap is what finished the row, so it is
+  both the reason and a usable condition. The popup draws "80% was full marks", and that
+  note displaces the credit wording rather than yielding to it — a cell-only entry
+  finished at its cap has no `dueAt` and was announcing "80% credit remaining" on work
+  with none.
+- Two asymmetries recorded in `docs/prairielearn-findings.md`: 100% is done before the
+  ceiling is consulted (PrairieLearn writes credit above 100 for an early-submission
+  bonus), and the 0.01-point tolerance absorbs `79.99999999999999` from the bar's width
+  without letting 79.5 pass an 80 cap.
+- Fixture rows PS5 (80% at an 80% cap → done) and PS6 (79% at the same cap → open). PS6
+  is the one that matters: the dangerous direction here is a silent "done".
+- Nine mutations, count-asserted, all killed: min-for-max over the open tiers,
+  `undefined` → `0`, dropping the `ceiling <= 0` arm, negating the epsilon, widening it to
+  a full point, dropping the 100% short-circuit, dropping `extra.scoreCeiling`, dropping
+  the note, and dropping its precedence over the credit wording.
+
+The known false positive from 2026-09-18 stands unchanged: a one-shot quiz scored 40%
+with an 80% tier open is still indistinguishable from a resubmittable homework. The
+ceiling decides what counts as finished, never how many attempts remain.
 
 ## Course websites names itself once, and the switches share a column — 2026-09-21
 
