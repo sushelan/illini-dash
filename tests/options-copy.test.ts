@@ -98,3 +98,31 @@ describe("the Settings page's copy budget (2026-09-20)", () => {
     expect(before, "the privacy statement is inside a disclosure").toBeGreaterThan(closed);
   });
 });
+
+describe("a section names itself once", () => {
+  it("puts the course-website source's state beside the heading, not in a row under it", () => {
+    /*
+     * Sushi, 2026-09-21: "why does it say course websites and reading course
+     * websites again". Under an `<h3>Course websites</h3>` sat a row titled
+     * "Reading course websites" whose caption was "The last attempt at all of
+     * them." — the heading restated twice, and the only thing either of them
+     * carried that the heading did not was one state chip.
+     */
+    // Comments stripped: a note explaining what was taken out is not copy.
+    const shown = html.replace(/<!--[\s\S]*?-->/g, "");
+    expect(shown).not.toContain("Reading course websites");
+    // The chip's container is a sibling of the heading, inside one bar.
+    const head = /<div class="site-head">([\s\S]*?)<\/div>\s*<p class="lede">/.exec(html);
+    expect(head, "no .site-head wrapping the heading").not.toBeNull();
+    expect(head![1]).toContain('id="sec-sites"');
+    expect(head![1]).toContain('id="site-health"');
+  });
+
+  it("keeps the deep-link targets the popup uses", () => {
+    // `screens/setup.ts` and `screens/deadline.ts` open `options.html#sec-sites`,
+    // `#sec-courses` and `#sec-help`. Moving a heading must not drop its id.
+    for (const id of ["sec-sites", "sec-courses", "sec-help"]) {
+      expect(html, `#${id} is gone`).toContain(`id="${id}"`);
+    }
+  });
+});

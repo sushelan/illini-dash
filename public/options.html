@@ -53,9 +53,15 @@
                onto the heading that replaced it, because three places in the
                popup deep-link to them (`screens/setup.ts`, `screens/deadline.ts`)
                and this change is not the popup's to edit. -->
-          <h3 id="sec-sites">Course websites</h3>
+          <!-- The heading, and beside it the state of the one source that reads
+               every page under it. It used to be a row of its own saying
+               "Reading course websites", directly under a heading reading
+               "Course websites". -->
+          <div class="site-head">
+            <h3 id="sec-sites">Course websites</h3>
+            <div id="site-health"></div>
+          </div>
           <p class="lede">Some courses keep the real schedule on their own site.</p>
-          <div id="site-health" class="opt-note"></div>
           <!-- One `.crow` per course, with a switch along it per page: a course
                with several pages is one line, not a heading and a row each. -->
           <div id="adapters" class="rows"></div>

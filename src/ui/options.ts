@@ -1225,10 +1225,19 @@ async function renderOptions(): Promise<void> {
   if (siteStatus) {
     const shown = displayState(siteStatus);
     const facts = byState.get("site");
-    // A labelled row, not a floating chip. A state word with nothing beside it
-    // reads as a state of *the section*, and this is the state of one source.
-    const box = el("div", undefined, "rows");
-    const row = plainRow("Reading course websites", "The last attempt at all of them.");
+    /*
+     * Beside the heading, not in a row of its own under it.
+     *
+     * It *was* a labelled row — "Reading course websites · The last attempt at
+     * all of them." — on the reasoning that a state word with nothing beside it
+     * reads as a state of the section. But the section is called Course
+     * websites, so the row restated the heading directly beneath it and then
+     * said the same thing a third way ("the last attempt at all of them"),
+     * which is the reading Sushi gave it: "why does it say course websites and
+     * reading course websites again" (2026-09-21). The state *is* the section's
+     * here: one source reads every one of these pages.
+     */
+    const row = el("div", undefined, "site-health--bar");
     row.append(
       stateChip(shown, shown === "ok" ? facts?.lastRead : undefined, siteStatus.lastError),
     );
@@ -1249,8 +1258,7 @@ async function renderOptions(): Promise<void> {
       login.addEventListener("click", () => chrome.tabs.create({ url: siteAction.url }));
       row.append(login);
     }
-    box.append(row);
-    siteHealth.append(box);
+    siteHealth.append(row);
   }
 
   /* Courses (§8.2) */

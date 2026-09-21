@@ -757,7 +757,7 @@ body.page { padding: 0; }
    * `flex-wrap` was there for and could never do while the track it was in
    * refused to narrow.
    */
-  grid-template-columns: minmax(8rem, 1fr) minmax(0, auto);
+  grid-template-columns: minmax(8rem, 15rem) minmax(0, 1fr);
   align-items: center; gap: 2px 16px;
   padding: 10px 12px; border-top: 1px solid var(--line);
 }
@@ -772,21 +772,25 @@ label.crow--name { cursor: pointer; }
   overflow-wrap: anywhere;
 }
 /*
- * The pages, along the row.
+ * The pages, along the row, starting at one column on every row.
  *
- * `wrap`, because a three-page course in a narrow window is the one case where
- * a second line beats a scrollbar — and `justify-content: flex-end` so a
- * wrapped line stays under the switches rather than under the course's name.
+ * They were `justify-self: end` against an `auto` track, so each row's switches
+ * began wherever that row's own pages happened to end — three courses, three
+ * different left edges, and nothing to run an eye down ("the rows still look
+ * ugly", 2026-09-21). The name column is a fixed range now and the pages start
+ * at its right edge, so every first switch is at the same x whatever the row
+ * holds. `wrap` stays: a three-page course in a narrow window is the one case
+ * where a second line beats a scrollbar.
  */
 .crow--pages {
-  grid-column: 2; grid-row: 1 / span 2; justify-self: end; min-width: 0;
-  display: flex; flex-wrap: wrap; justify-content: flex-end;
+  grid-column: 2; grid-row: 1 / span 2; justify-self: start; min-width: 0;
+  display: flex; flex-wrap: wrap; justify-content: flex-start;
   align-items: center; gap: 6px 18px;
 }
 /* Wrapping too, so a page carrying "Permission missing" and "Allow" gives way
    before it pushes the course's name off its own row. */
 .crow--page {
-  display: inline-flex; flex-wrap: wrap; justify-content: flex-end;
+  display: inline-flex; flex-wrap: wrap;
   align-items: center; gap: 6px;
 }
 .crow--page-name {
@@ -814,6 +818,18 @@ label.crow--name { cursor: pointer; }
 .crow--remove:focus-visible { opacity: 1; }
 .crow--remove:hover { color: var(--err, #ff6b6b); }
 .crow--remove:disabled { opacity: 1; cursor: default; }
+/*
+ * The heading and the one source that reads every page under it.
+ *
+ * The state used to be a row saying "Reading course websites" under a heading
+ * saying "Course websites". One line now, and the chip sits with the name it
+ * belongs to.
+ */
+.site-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.site-head > h3 { margin-right: auto; }
+.site-health--bar { display: flex; align-items: center; gap: 8px; }
 /* Nothing to hover on a touch screen, so it is simply always there. */
 @media (hover: none) {
   .crow--remove { opacity: 1; }
