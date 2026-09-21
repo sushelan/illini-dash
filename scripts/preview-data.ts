@@ -127,6 +127,21 @@ const items = [
   item({ courseLabel: "CS357", title: "L4a Floating Point (scored, 80% tail)",
          dueAt: at(-3, 23, 59), lateDueAt: at(10, 23, 59), status: "graded",
          members: [member("prairielearn", { creditRemaining: "80" }, "graded")] }),
+  // **Sushi's own row, 2026-09-21**: a PrairieLearn MP whose 100% deadline went
+  // yesterday and whose 80% tier runs until tonight. It was drawn under "By end
+  // of day" in amber reading "late until Sun 11:59 PM", and it belongs under
+  // Late saying what it is still worth. The credit comes from the *ladder*
+  // rather than from `creditRemaining`, because that is the path a row with a
+  // credit popover takes and it is why his row printed no percentage at all —
+  // a fixture carrying the number the easy way could not reproduce it.
+  item({ courseLabel: "CS357", title: "MP1 Machine Problem 1 (100% gone, 80% until tonight)",
+         dueAt: at(-1, 23, 59), lateDueAt: at(0, 23, 59),
+         members: [member("prairielearn", {
+           creditSchedule: JSON.stringify([
+             { credit: 100, start: at(-8, 0, 1), end: at(-1, 23, 59) },
+             { credit: 80, start: at(-1, 23, 59), end: at(0, 23, 59) },
+           ]),
+         })] }),
   // Shapes his account does not currently have, kept so the layout is still
   // exercised against them: a still-open late window, a reduced-credit ladder,
   // an 8 AM smartPhysics checkpoint, a practice quiz, a moved deadline, and a
