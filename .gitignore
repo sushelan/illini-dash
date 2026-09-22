@@ -1,5 +1,10 @@
 node_modules/
 dist/
+
+# Local agent-tool config. `.codex/config.toml` holds a live GCP API key for the
+# Stitch MCP server; a `git add -A` swept it into a commit on 2026-09-22 and
+# GitHub's push protection caught it at the remote. It never left this machine.
+.codex/
 artifacts/ui-acceptance/
 *.log
 release/
