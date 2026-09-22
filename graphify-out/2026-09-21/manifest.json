@@ -90,8 +90,8 @@
     "semantic_hash": "7beddd9426b78454b48068e64ca40ee0"
   },
   "scripts/preview-data.ts": {
-    "mtime": 1789971829.864273,
-    "seen": 1789972111.179208,
+    "mtime": 1789972979.7232544,
+    "seen": 1790033580.206651,
     "ast_hash": "3284ade75ac0e95fc685e7d235017098",
     "semantic_hash": ""
   },
@@ -174,9 +174,9 @@
     "semantic_hash": "96bd4fbb5f3eb5255f8a8f430385695d"
   },
   "src/core/grouping.ts": {
-    "mtime": 1789970274.7990997,
-    "seen": 1789971112.919334,
-    "ast_hash": "af446a429b446bf467720a7e359ac33c",
+    "mtime": 1790033552.5157177,
+    "seen": 1790033580.206672,
+    "ast_hash": "f3ccd6d8e3e17a0cd874e1be5893f3d0",
     "semantic_hash": ""
   },
   "src/core/health.ts": {
@@ -252,9 +252,9 @@
     "semantic_hash": ""
   },
   "src/core/registry.ts": {
-    "mtime": 1789971742.6759603,
-    "seen": 1789972111.17924,
-    "ast_hash": "37f69ea469c1c64a3991845bd7921f05",
+    "mtime": 1789973193.8774893,
+    "seen": 1790033580.2066848,
+    "ast_hash": "85969c18c19e7713bdbdac5c78cd5406",
     "semantic_hash": ""
   },
   "src/core/schedule.ts": {
@@ -324,9 +324,9 @@
     "semantic_hash": "55a234788e3f16015efec7d354e9c00f"
   },
   "src/sources/prairielearn.ts": {
-    "mtime": 1789713315.6724691,
-    "seen": 1789777526.85923,
-    "ast_hash": "e8ca0331d42bbe8ee6aa15a33598f167",
+    "mtime": 1790033552.4791899,
+    "seen": 1790033580.206696,
+    "ast_hash": "0dc460d9335f45f9ff71d11189b7abe4",
     "semantic_hash": ""
   },
   "src/sources/prairietest.ts": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "src/ui/options.ts": {
-    "mtime": 1789971650.093119,
-    "seen": 1789972111.179258,
-    "ast_hash": "550524c840dd436c5c95ff76d9593dfa",
+    "mtime": 1790031746.0015514,
+    "seen": 1790033580.2067041,
+    "ast_hash": "b419d16eb59e4f1f00e537da3ba503fe",
     "semantic_hash": ""
   },
   "src/ui/popup.ts": {
@@ -510,9 +510,9 @@
     "semantic_hash": ""
   },
   "tests/prairielearn.test.ts": {
-    "mtime": 1789970274.801329,
-    "seen": 1789971112.9194,
-    "ast_hash": "8f7439c2637f6bdf940c4239be11ae02",
+    "mtime": 1790033552.5604377,
+    "seen": 1790033580.206741,
+    "ast_hash": "e7418b4da592352500af0a58a981f9f6",
     "semantic_hash": ""
   },
   "tests/prairietest.test.ts": {
@@ -564,9 +564,9 @@
     "semantic_hash": "93487f53d5bb7a93c17c17d79c5b90e3"
   },
   "tests/site.test.ts": {
-    "mtime": 1789971718.0189056,
-    "seen": 1789972111.179304,
-    "ast_hash": "b778a2927adddc3bc0aaa5ce29fd84b5",
+    "mtime": 1789973193.8793612,
+    "seen": 1790033580.20675,
+    "ast_hash": "3af0d3ad99c4ef1a4e742f97e9a26ff0",
     "semantic_hash": ""
   },
   "tests/smartphysics.test.ts": {
@@ -618,9 +618,9 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1789971184.4327664,
-    "seen": 1789972111.179334,
-    "ast_hash": "a3e6fb6400c2e14d83cf22a424f036c0",
+    "mtime": 1790033549.2456818,
+    "seen": 1790033580.206781,
+    "ast_hash": "a21c2566ced0675c5eda1a8281be5d6a",
     "semantic_hash": ""
   },
   "README.md": {
@@ -678,9 +678,9 @@
     "semantic_hash": "c4c44afcb7eec4e69d22cd936e6f8e33"
   },
   "docs/prairielearn-findings.md": {
-    "mtime": 1789713315.6706243,
-    "seen": 1789777526.8592799,
-    "ast_hash": "a77e5c90be0d0ef96273e7679e8a6c7b",
+    "mtime": 1790033529.8372164,
+    "seen": 1790033580.206804,
+    "ast_hash": "f7a0823b36c0cc004057569d5f13eae0",
     "semantic_hash": ""
   },
   "docs/prairietest-findings.md": {
@@ -768,9 +768,9 @@
     "semantic_hash": "9b1b6241b58af2fd04139db756735b24"
   },
   "public/options.html": {
-    "mtime": 1789971648.1067026,
-    "seen": 1789972111.179397,
-    "ast_hash": "eb39ad5aa1d44410ae2c3fc829c90d51",
+    "mtime": 1790031746.0007606,
+    "seen": 1790033580.206845,
+    "ast_hash": "20000dc08f1f2fe6973e083ede344976",
     "semantic_hash": ""
   },
   "public/popup.html": {
@@ -1092,9 +1092,9 @@
     "semantic_hash": ""
   },
   "fixtures/prairielearn/README.md": {
-    "mtime": 1789713315.6710277,
-    "seen": 1789777526.8593102,
-    "ast_hash": "94814d12176362ddd62423767a08d80c",
+    "mtime": 1790033532.3627543,
+    "seen": 1790033580.206828,
+    "ast_hash": "19776128b7e51032129758235e6c89f7",
     "semantic_hash": ""
   },
   "fixtures/prairielearn/assessments-cs357.html": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "fixtures/prairielearn/assessments-partial-scores.html": {
-    "mtime": 1789713315.6713212,
-    "seen": 1789777526.859312,
-    "ast_hash": "66a480f54d416af0717e4f230cffbb1f",
+    "mtime": 1790033455.8252156,
+    "seen": 1790033580.206829,
+    "ast_hash": "2ffa131adec7c28af5b7fb61c8d12770",
     "semantic_hash": ""
   },
   "fixtures/prairietest/home-booked-and-available.html": {
@@ -2580,9 +2580,9 @@
     "semantic_hash": ""
   },
   "tests/options-copy.test.ts": {
-    "mtime": 1789864043.0622106,
-    "seen": 1789897876.167914,
-    "ast_hash": "634bad558c9a67e1ec17716e1b428fb3",
+    "mtime": 1790031746.0021434,
+    "seen": 1790033580.2067351,
+    "ast_hash": "c339c0fae59805d2308a266b890bf12f",
     "semantic_hash": ""
   },
   "tests/table-grid.test.ts": {
@@ -2658,26 +2658,26 @@
     "semantic_hash": ""
   },
   "src/ui/options/course-sites.ts": {
-    "mtime": 1789971757.4487374,
-    "seen": 1789972111.1792588,
-    "ast_hash": "795904b73174207f2ed205ba027c7bd5",
+    "mtime": 1789973193.8779547,
+    "seen": 1790033580.2067049,
+    "ast_hash": "5ea1c2b437a64b83978c73e6c01ef5a5",
     "semantic_hash": ""
   },
   "src/ui/options/dom.ts": {
-    "mtime": 1789971567.0616286,
-    "seen": 1789972111.17926,
+    "mtime": 1789972979.7253654,
+    "seen": 1790033580.2067049,
     "ast_hash": "eba5436a5684f1744fd88cc655b53f7b",
     "semantic_hash": ""
   },
   "tests/options-dom.test.ts": {
-    "mtime": 1789971712.1624484,
-    "seen": 1789972111.17929,
-    "ast_hash": "71083f707a35594662586288589e6f95",
+    "mtime": 1789973193.8784027,
+    "seen": 1790033580.2067358,
+    "ast_hash": "c5eedf5a6ae8d8a55adc53360d666887",
     "semantic_hash": ""
   },
   "docs/ux/after/options-course-rows-dark.png": {
-    "mtime": 1789972084.1660492,
-    "seen": 1789972111.179413,
+    "mtime": 1789972979.69763,
+    "seen": 1790033580.206861,
     "ast_hash": "844ffa9732af3d9c3ba3fcd72c2d8772",
     "semantic_hash": ""
   }

@@ -218,6 +218,28 @@ describe("scrubHtml", () => {
       expect(scrubHtml(already).html).toBe(already);
     });
 
+    // The first fixed calendar capture still had two live ids in it: the key is
+    // in one attribute and the number in another, which the query-string
+    // pattern cannot see.
+    it("reads a hidden input, where the key and the number are different attributes", () => {
+      const { html, report } = scrubHtml(
+        `<a href="/Course?enrollmentID=151698">PHYS 214</a>` +
+          `<input type='hidden' id='EnrollmentID' value='151698' />` +
+          `<input type='hidden' name='enrollmentID' value='151698' />` +
+          `<input value="151698" type="hidden" name="enrollmentID" />`,
+      );
+      expect(html).not.toContain("151698");
+      // One counter across every spelling: the hidden field and the nav link
+      // are the same enrolment, and a fixture where they disagree describes a
+      // page that cannot exist.
+      expect(html.match(/100001/g)).toHaveLength(4);
+      expect(report.counts["smartPhysics enrolment id"]).toBe(4);
+      // Neither attribute order loses the rest of its tag.
+      expect(html).toContain(
+        `<input value="100001" type="hidden" name="enrollmentID" />`,
+      );
+    });
+
     it("reads the key, not the shape, in whatever spelling holds it", () => {
       const { html } = scrubHtml(
         `<script>var e={"enrollmentId": 151698, "unitItemID": 151698};</script>`,
@@ -227,6 +249,52 @@ describe("scrubHtml", () => {
       // is kept — matching by shape would have rewritten it too.
       expect(html).toContain('"unitItemID": 151698');
     });
+  });
+
+  // smartPhysics's calendar page posts to /Service/iCalendar with an enrolment
+  // id and a `publicID` uuid. That pair is fetched by a calendar client with no
+  // session, so anyone holding the uuid can read the student's whole calendar
+  // from anywhere, indefinitely.
+  it("removes a calendar feed token, which is a credential and not an identity", () => {
+    const { html, report } = scrubHtml(
+      `<form action="/Service/iCalendar" method="get">` +
+        `<input type='hidden' name='enrollmentID' value='151698' />` +
+        `<input type='hidden' name='publicID' value='201a727d-e0d4-654e-b5b4-0f2318913fcd' />` +
+        `</form><a href="/Service/iCalendar?enrollmentID=151698&publicID=201a727d-e0d4-654e-b5b4-0f2318913fcd">Subscribe</a>`,
+    );
+    expect(html).not.toContain("201a727d");
+    // A constant, not a counter: unlike an enrolment id there is nothing to
+    // keep distinct, and the shape is kept so the form still parses as a form.
+    expect(html).toContain("00000000-0000-4000-8000-000000000000");
+    expect(report.counts["smartPhysics calendar feed token"]).toBe(2);
+    // The action and the field names survive, so a parser reads what it read.
+    expect(html).toContain(`action="/Service/iCalendar"`);
+    expect(html).toContain(`name='publicID'`);
+  });
+
+  it("warns about a hidden field that looks like a token, whatever its shape", () => {
+    // A probe rather than a rule: the next host's token will not be a uuid, and
+    // guessing at its shape risks rewriting something a parser reads.
+    const { report } = scrubHtml(
+      `<input type="hidden" name="api_key" value="zzz" />`,
+    );
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /looks like a token or key/,
+    );
+    expect(report.warnings.some((w) => w.severity === "blocker")).toBe(true);
+  });
+
+  // `publicID` has its own dedicated rule above with a known shape. Pairing it
+  // with the name-only probe too would make a page the rule just cleaned fail
+  // this probe forever, on the exact field the rule exists for.
+  it("does not also flag publicID once its own rule has scrubbed it", () => {
+    const { html, report } = scrubHtml(
+      `<input type='hidden' name='publicID' value='201a727d-e0d4-654e-b5b4-0f2318913fcd' />`,
+    );
+    expect(html).not.toContain("201a727d");
+    expect(report.warnings.map((w) => w.message).join(" ")).not.toMatch(
+      /looks like a token or key/,
+    );
   });
 
   it("does not read 'nothing was recognized' as reassurance", () => {

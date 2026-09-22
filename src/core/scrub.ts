@@ -90,6 +90,28 @@ const BASE_RULES: Rule[] = [
     replacement: "$1SCRUBBED",
   },
   {
+    /*
+     * smartPhysics's iCalendar feed token.
+     *
+     * The calendar page carries a form to `/Service/iCalendar` holding an
+     * enrolment id and a `publicID` uuid. That pair *is* the credential: the
+     * endpoint is built to be fetched by a calendar client with no session, so
+     * anyone holding the uuid can read this student's whole course calendar
+     * from anywhere, indefinitely. It is unguessable and nothing else, which is
+     * the same category as Gradescope's presigned S3 URLs above and not the
+     * same as an enrolment id — there is no reason to keep two of them
+     * distinct, so this is a constant and not a mapping.
+     */
+    label: "smartPhysics calendar feed token",
+    // smartPhysics writes the attribute as `publicID` (camelCase), which
+    // `public_?id` without `i` cannot see — the first version of this rule
+    // passed against a hand-typed lowercase test fixture and missed the real
+    // capture entirely.
+    pattern:
+      /((?:public_?id["']?\s*[=:]\s*["']?)|(?:<input\b[^>]*\b(?:name|id)=["']public_?id["'][^>]*\bvalue=["']))[0-9a-fA-F][0-9a-fA-F-]{7,}/gi,
+    replacement: "$1" + "00000000-0000-4000-8000-000000000000",
+  },
+  {
     // Session/CSRF material. Not PII, but it should not be committed either.
     label: "csrf token (meta)",
     pattern:
@@ -126,18 +148,33 @@ const BASE_RULES: Rule[] = [
  */
 interface MappedRule {
   label: string;
-  /** Group 1 is kept verbatim; group 2 is the identifier to map. */
-  pattern: RegExp;
+  /**
+   * Group 1 is kept verbatim, group 2 is the identifier to map, and group 3 —
+   * where a spelling needs it — is a tail kept verbatim.
+   *
+   * Several patterns, **one counter**, because they are spellings of the same
+   * key: the calendar page writes the enrolment id into its nav links as a
+   * query parameter and into two hidden inputs as a form value, and if those
+   * disagreed the fixture would describe a page that cannot exist.
+   */
+  patterns: RegExp[];
   base: number;
 }
 
 const MAPPED_RULES: MappedRule[] = [
   {
     label: "smartPhysics enrolment id",
-    // `enrollmentID=151698`, `"enrollmentId": 151698` and `enrollmentId='151698'`
-    // are all the same key; the prefix is preserved so the markup a parser sees
-    // is unchanged.
-    pattern: /(enrollment_?id["']?\s*[=:]\s*["']?)(\d+)/gi,
+    patterns: [
+      // `enrollmentID=151698`, `"enrollmentId": 151698`, `enrollmentId='151698'`.
+      // The prefix is preserved so the markup a parser sees is unchanged.
+      /(enrollment_?id["']?\s*[=:]\s*["']?)(\d+)/gi,
+      // `<input type='hidden' id='EnrollmentID' value='151698' />` — the key is
+      // in one attribute and the number in another, in either order. Both
+      // appear on the calendar page, and the query-string pattern reads
+      // neither: they are the two the first capture left behind.
+      /(<input\b[^>]*\b(?:name|id)=["']enrollment_?id["'][^>]*\bvalue=["'])(\d+)/gi,
+      /(<input\b[^>]*\bvalue=["'])(\d+)(["'][^>]*\b(?:name|id)=["']enrollment_?id["'])/gi,
+    ],
     base: 100001,
   },
 ];
@@ -153,6 +190,22 @@ const WARNING_PROBES: { label: string; pattern: RegExp }[] = [
   {
     label: "a UIUC NetID-looking word next to 'netid'",
     pattern: /netid["'\s:=>]+[a-z][a-z0-9]{2,}/i,
+  },
+  {
+    // The next host's feed token, found by the report rather than by reading
+    // 205 KB of markup. Deliberately a probe, not a rule: the value's shape is
+    // unknown, and a wrong guess at it would rewrite something a parser reads.
+    //
+    // `publicid`/`public_id` are deliberately absent from this list: they have
+    // their own rule above with a known shape (a uuid), and this probe tests
+    // for the *field's name*, not whether its value already got scrubbed — so
+    // pairing it with a working rule would make every clean smartPhysics
+    // fixture fail forever on the field the rule just fixed. Mutation house
+    // rule 3: two copies of one decision, where the second stayed loose enough
+    // to mask what the first got right.
+    label: "a hidden field that looks like a token or key",
+    pattern:
+      /<input\b[^>]*\b(?:name|id)=["'][^"']*(?:token|secret|apikey|api_key)[^"']*["']/i,
   },
 ];
 
@@ -216,18 +269,27 @@ export function scrubHtml(
   for (const rule of MAPPED_RULES) {
     const assigned = new Map<string, number>();
     let hits = 0;
-    output = output.replace(
-      rule.pattern,
-      (_all, prefix: string, id: string) => {
-        hits += 1;
-        let mapped = assigned.get(id);
-        if (mapped === undefined) {
-          mapped = rule.base + assigned.size;
-          assigned.set(id, mapped);
-        }
-        return `${prefix}${mapped}`;
-      },
-    );
+    for (const pattern of rule.patterns) {
+      output = output.replace(
+        pattern,
+        (_all, prefix: string, id: string, third: unknown) => {
+          hits += 1;
+          // `String.replace` passes the match offset after the last capture
+          // group, so a two-group pattern hands a *number* where a three-group
+          // one hands the tail. Typing it `tail?: string` compiles and is wrong:
+          // the first run appended the offset to every id and turned `100001`
+          // into `10000117`. The fixed-point test caught it and nothing else
+          // would have — the output still looks exactly like an enrolment id.
+          const tail = typeof third === "string" ? third : "";
+          let mapped = assigned.get(id);
+          if (mapped === undefined) {
+            mapped = rule.base + assigned.size;
+            assigned.set(id, mapped);
+          }
+          return `${prefix}${mapped}${tail}`;
+        },
+      );
+    }
     if (hits > 0) counts[rule.label] = hits;
   }
 

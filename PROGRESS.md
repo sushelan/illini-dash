@@ -2,7 +2,7 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2599 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2609 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
@@ -29,6 +29,71 @@ contrast × Light/Dark. The six computed backgrounds are distinct (`#fdf9f1`, `#
 specificity mutation was killed by `theme.test.ts` and `course-colour.test.ts`. Scoped
 before/candidate evidence is under `artifacts/ui-acceptance/color-{baseline,candidate}/`;
 the full 43-journey acceptance gate remains pending and G4/G5 are unchanged.
+
+## smartPhysics calendar — the scrubber's blind spot, and a fake deadline the site itself invents — 2026-09-21
+
+"smartphysics calendar also needs to be parsed, for example this link:
+https://smart.physics.illinois.edu/Course/Calendar?enrollmentID=151698"
+
+Three rounds, two of them finding a real problem before any parser got written.
+
+**Round 1 — the capture tool's own report lied in the reassuring direction.**
+`isAllowedCaptureUrl` and the Fixture capture presets had no smartPhysics entries at all
+(three added: home, course, calendar). The first calendar capture came back reading
+*"replacements: none — nothing identifying was recognized"* over 205 KB carrying Sushi's
+real enrolment id in every nav link, because no scrub rule matched a smartPhysics
+enrolment id at all — the 2026-09-10 fixtures had theirs replaced **by hand**, and nothing
+recorded that as a step. `src/core/scrub.ts` now maps each distinct id to a stable counter
+(distinct ids stay distinct, or two courses merge and a fixture pins the wrong answer),
+and the "nothing was recognized" line now says it has two meanings rather than picking the
+comfortable one.
+
+**Round 2 — the scrubber missed two live spellings, and a case bug hid a real credential.**
+The re-fetched capture still carried the enrolment id raw in two hidden `<input>` tags
+(the query-string pattern doesn't see an id split across a `name=` attribute and a
+`value=` attribute) and, worse, a `publicID` uuid in a form posting to
+`/Service/iCalendar` — an unguessable token that lets anyone holding it read the student's
+whole calendar with no session, forever. Two more mapped patterns cover the hidden-input
+spellings (one shared counter across all three, so the same enrolment gets the same
+number everywhere on the page); the feed token gets a constant replacement, since unlike
+an enrolment id there is nothing to keep distinct. The first version of the feed-token
+rule used `public_?id` with no `i` flag and missed the real page's camelCase `publicID`
+entirely — caught only because a hand-check of the actual output, not the tool's own
+report, found the uuid still sitting in the file. A stray `String.replace` callback typing
+mistake (`tail?: string` where the third callback argument is a match offset for a
+two-group pattern) turned `100001` into `10000117` on the first attempt; the fixed-point
+test — re-scrubbing an already-clean file must change nothing — caught it, which is
+exactly the case for that test's existence and nothing else would have.
+
+The download Sushi sent was itself a **mixed-state artifact**: captured through the build
+that had the query-string fix but not yet the hidden-input/token fixes, so 33 occurrences
+were already `100001` and 2 were still raw `151698`. Re-scrubbing it fresh would have
+minted a second, bogus id (`100002`) for the still-raw pair — not a privacy leak, but an
+internally inconsistent fixture. Reconciled by hand (verified `151698` is the only real id
+anywhere in the 205 KB capture) rather than asking for a third round-trip, then run
+through the real, fixed `scrubHtml` as an audit pass and checked by hand against every
+probe in the file — no further round-trip needed.
+
+**Round 3 — the page itself plants a trap, and no round trip can settle it alone.**
+`fixtures/smartphysics/calendar.html` cross-checks 29-for-29 against `course.html`'s own
+`unitItemID`s: this is not a sixth source, it is the same 29 deadlines PrairieLearn-shaped
+— each carries one or two `id='deadline-N'` blocks with a real `event-DeadlineID` and a
+credit tier (100%, then 80% a week later on 13 of them), which is more than `course.html`'s
+single "Due: ... for X% credit" line states. But every one of the 29 also carries an
+identical, un-id'd `class='deadline-0'` block whose date is the page's own `CurrentDay` —
+literally "today," on every single event regardless of what it is — the calendar widget's
+own highlight marker, not a deadline. A parser keyed on class instead of id would report
+every assignment due today, silently, every sync: the CLAUDE.md failure mode by name.
+Recorded in `docs/smartphysics-calendar-findings.md` with the worked example. No parser
+written yet: this capture is a stale, inactive enrolment (`course.html`'s own title says
+"Physics 214 Fall 2025," every real tier date is in 2025), so nothing here can confirm
+whether the two-tier schedule's top tier matches `course.html`'s stated due date on an
+*open* window, or whether the fake "today" block is a fixture of every calendar or just a
+completed course rendered read-only. Both close with one more capture: the calendar page
+of whichever PHYS course is active this term, if any.
+
+Seven count-asserted mutations across this day's scrubber work, all killed (four on the
+enrolment-id mapping, three on the feed-token rule and the shared-counter dedup).
 
 ## Full marks on PrairieLearn is the ceiling, not 100 — 2026-09-21
 
