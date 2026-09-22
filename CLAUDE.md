@@ -488,6 +488,15 @@ in the preview document (Hide and a Merge candidate both reach their handlers an
   means a registry entry and no build at all. House rule 13.
 - **A course with no derivable code** still shows its raw name. The rename tool covers it;
   nothing else is needed unless it turns out to be common.
+- **smartPhysics calendar (`/Course/Calendar?enrollmentID=…`)** — parked 2026-09-22, same
+  shape as Coursera above. Sushi is not enrolled in a PHYS 211–214 course this term, so
+  there is no active enrolment to capture. `fixtures/smartphysics/calendar.html` and
+  `docs/smartphysics-calendar-findings.md` have the worked example: the page carries a real
+  two-tier credit schedule richer than `course.html`'s "Due:" line, and also an identical,
+  un-id'd `class='deadline-0'` block on every event whose date is just the page's own
+  "today" — a parser that reads it by class instead of id would report every assignment
+  due today, silently, on every sync. Closes the first time a 211–214 tester (or Sushi in
+  a future term) sends a calendar capture.
 
 ### The store submission
 
