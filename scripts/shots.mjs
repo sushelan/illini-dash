@@ -236,6 +236,19 @@ async function capture(chrome, port, { name, query, size, fixed }, dark) {
       `${designArg ? `&design=${designArg}` : ""}`,
   );
 
+  /*
+   * Delete the target first, so the check below is about *this* capture.
+   *
+   * It used to be `existsSync(file)` over whatever was already on disk, and a
+   * capture that never wrote was reported as a success as long as an older file
+   * was sitting there. That is how every `*-dark.png` in `docs/ux/after/` came
+   * to be a 1280x800 picture of the words "not found" — the harness's own 404
+   * body — including the five this project's store listing names as its
+   * screenshots. The run printed a filename for each one. (Found 2026-09-22,
+   * while preparing the unlisted submission.)
+   */
+  rmSync(file, { force: true });
+
   const child = spawn(chrome, args, { stdio: "ignore" });
   const done = new Promise((resolve) => child.on("exit", resolve));
   const deadline = new Promise((resolve) => setTimeout(resolve, 20_000));
