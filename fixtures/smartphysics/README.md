@@ -7,10 +7,20 @@
 
 ## Scrubbing
 
-Per Appendix A, the **enrolment ids were replaced** (`151698` → `100001`,
+Per Appendix A, the **enrolment ids are replaced** (`151698` → `100001`,
 `150666` → `100002`). An enrolment id names a (student, course) pair, so it is
 an identifier in the sense Appendix A means, unlike a Canvas course id or uuid
 which names only the course. `unitItemID` is per-assignment and is kept.
+
+That replacement was done **by hand** for these two files and nothing recorded
+it as a step, which cost a real capture: on 2026-09-21 the calendar page came
+back reading *"nothing identifying was recognized"* over markup carrying the
+real id in every nav link. `src/core/scrub.ts` does it now, mapping each
+distinct id to the next counter in first-seen order — distinct ids stay
+distinct, or two courses would merge and this fixture would pin
+`parseCourseList` to the wrong answer. Re-scrubbing either file is a fixed
+point and leaves it byte-identical, which is how the rule was checked against
+the hand-done mapping.
 
 The capture tool had already replaced the NetID, which appears on the home page
 in the Unique ID column. No email addresses, no name.

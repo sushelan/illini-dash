@@ -92,7 +92,8 @@ const BASE_RULES: Rule[] = [
   {
     // Session/CSRF material. Not PII, but it should not be committed either.
     label: "csrf token (meta)",
-    pattern: /(<meta[^>]*name=["']csrf-token["'][^>]*content=["'])[^"']*(["'])/gi,
+    pattern:
+      /(<meta[^>]*name=["']csrf-token["'][^>]*content=["'])[^"']*(["'])/gi,
     replacement: "$1SCRUBBED$2",
   },
   {
@@ -103,15 +104,62 @@ const BASE_RULES: Rule[] = [
   },
 ];
 
-/** Things worth a human's eye that this function will not touch on its own. */
-const WARNING_PROBES: { label: string; pattern: RegExp }[] = [
-  { label: "an Authorization or Bearer token", pattern: /\bBearer\s+[A-Za-z0-9._-]{16,}/ },
-  { label: "a session cookie assignment", pattern: /document\.cookie\s*=/ },
-  { label: "the word 'password'", pattern: /\bpassword\b/i },
-  { label: "a UIUC NetID-looking word next to 'netid'", pattern: /netid["'\s:=>]+[a-z][a-z0-9]{2,}/i },
+/**
+ * A key that names a (student, course) pair, replaced by a **stable counter**
+ * rather than a constant.
+ *
+ * smartPhysics addresses every page by an enrolment id (`/Course?enrollmentID=151698`),
+ * which is an identifier in Appendix A's sense — unlike a Canvas course id, it
+ * names *this student in* that course. It cannot be matched by shape: it is six
+ * digits, the same as half the other numbers on the page, so it is matched by
+ * the parameter that holds it.
+ *
+ * A constant is the wrong replacement, and it is the failure parser rule 14
+ * describes in another costume. The home page lists every enrolment, each
+ * linking to its own id; collapsing them all to one value would make two
+ * courses indistinguishable to `parseCourseList` and the fixture would then
+ * pin the wrong answer. So each distinct id gets the next number in first-seen
+ * order, which is exactly what was done **by hand** to the 2026-09-10 captures
+ * (`151698` → `100001`, `150666` → `100002`) and never written down as code.
+ * Re-scrubbing an already-scrubbed file is a fixed point: `100001` is still the
+ * first one seen.
+ */
+interface MappedRule {
+  label: string;
+  /** Group 1 is kept verbatim; group 2 is the identifier to map. */
+  pattern: RegExp;
+  base: number;
+}
+
+const MAPPED_RULES: MappedRule[] = [
+  {
+    label: "smartPhysics enrolment id",
+    // `enrollmentID=151698`, `"enrollmentId": 151698` and `enrollmentId='151698'`
+    // are all the same key; the prefix is preserved so the markup a parser sees
+    // is unchanged.
+    pattern: /(enrollment_?id["']?\s*[=:]\s*["']?)(\d+)/gi,
+    base: 100001,
+  },
 ];
 
-export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult {
+/** Things worth a human's eye that this function will not touch on its own. */
+const WARNING_PROBES: { label: string; pattern: RegExp }[] = [
+  {
+    label: "an Authorization or Bearer token",
+    pattern: /\bBearer\s+[A-Za-z0-9._-]{16,}/,
+  },
+  { label: "a session cookie assignment", pattern: /document\.cookie\s*=/ },
+  { label: "the word 'password'", pattern: /\bpassword\b/i },
+  {
+    label: "a UIUC NetID-looking word next to 'netid'",
+    pattern: /netid["'\s:=>]+[a-z][a-z0-9]{2,}/i,
+  },
+];
+
+export function scrubHtml(
+  html: string,
+  options: ScrubOptions = {},
+): ScrubResult {
   const counts: Record<string, number> = {};
   const warnings: ScrubWarning[] = [];
   let output = html;
@@ -135,7 +183,8 @@ export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult
     );
     for (const needle of needles) {
       rules.push({
-        label: needle === full ? "student name" : `student name part "${needle}"`,
+        label:
+          needle === full ? "student name" : `student name part "${needle}"`,
         pattern: new RegExp(`\\b${escapeRegex(needle)}\\b`, "gi"),
         replacement: "STUDENT",
       });
@@ -156,8 +205,29 @@ export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult
       hits += 1;
       // Re-apply capture groups for the rules that use them.
       const groups = args.slice(1, -2) as string[];
-      return rule.replacement.replace(/\$(\d)/g, (_, d: string) => groups[Number(d) - 1] ?? "");
+      return rule.replacement.replace(
+        /\$(\d)/g,
+        (_, d: string) => groups[Number(d) - 1] ?? "",
+      );
     });
+    if (hits > 0) counts[rule.label] = hits;
+  }
+
+  for (const rule of MAPPED_RULES) {
+    const assigned = new Map<string, number>();
+    let hits = 0;
+    output = output.replace(
+      rule.pattern,
+      (_all, prefix: string, id: string) => {
+        hits += 1;
+        let mapped = assigned.get(id);
+        if (mapped === undefined) {
+          mapped = rule.base + assigned.size;
+          assigned.set(id, mapped);
+        }
+        return `${prefix}${mapped}`;
+      },
+    );
     if (hits > 0) counts[rule.label] = hits;
   }
 
@@ -184,11 +254,30 @@ export function scrubHtml(html: string, options: ScrubOptions = {}): ScrubResult
         `probably the rest of your name. Re-run with your full name.`,
     });
   }
+  // "nothing identifying was recognized" is the sentence a reader takes as
+  // reassurance, and on 2026-09-21 it was printed over a smartPhysics calendar
+  // capture carrying a real enrolment id in every nav link — because no rule
+  // covered that host yet. Parser rule 14 in one line: a scrub that recognises
+  // nothing has two meanings and the report must not pick the comfortable one.
+  if (Object.keys(counts).length === 0) {
+    warnings.push({
+      severity: "note",
+      message:
+        "Nothing was recognized. That means either the page carries nothing identifying " +
+        "or no rule covers this host yet — read the file before committing it.",
+    });
+  }
   if (!options.netid?.trim()) {
-    warnings.push({ severity: "note", message: "No NetID given, so no NetID substitution ran." });
+    warnings.push({
+      severity: "note",
+      message: "No NetID given, so no NetID substitution ran.",
+    });
   }
   if (!options.name?.trim()) {
-    warnings.push({ severity: "note", message: "No name given, so no name substitution ran." });
+    warnings.push({
+      severity: "note",
+      message: "No name given, so no name substitution ran.",
+    });
   }
 
   return { html: output, report: { counts, warnings } };

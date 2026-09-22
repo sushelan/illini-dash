@@ -98,29 +98,45 @@ describe("scrubHtml", () => {
   it("does not let a name part rewrite the page's own use of the placeholder word", () => {
     // Passing "STUDENT" as a name part would otherwise turn PrairieLearn's
     // data-view-type="student" into data-view-type="STUDENT".
-    const { html } = scrubHtml(`<ul data-view-type="student"><a href="/student-guide/">g</a></ul>`, {
-      name: "Given STUDENT",
-    });
-    expect(html).toBe(`<ul data-view-type="student"><a href="/student-guide/">g</a></ul>`);
+    const { html } = scrubHtml(
+      `<ul data-view-type="student"><a href="/student-guide/">g</a></ul>`,
+      {
+        name: "Given STUDENT",
+      },
+    );
+    expect(html).toBe(
+      `<ul data-view-type="student"><a href="/student-guide/">g</a></ul>`,
+    );
   });
 
   it("marks leftover identity as a blocker and missing inputs as notes", () => {
-    const { report } = scrubHtml(`<a>Given Family</a>`, { name: "Family", netid: "x" });
+    const { report } = scrubHtml(`<a>Given Family</a>`, {
+      name: "Family",
+      netid: "x",
+    });
     expect(report.warnings.some((w) => w.severity === "blocker")).toBe(true);
     const clean = scrubHtml(`<p>nothing</p>`);
-    expect(clean.report.warnings.every((w) => w.severity === "note")).toBe(true);
+    expect(clean.report.warnings.every((w) => w.severity === "note")).toBe(
+      true,
+    );
   });
 
   it("warns when a capitalised word is left touching a replacement", () => {
     // The real failure: only the family name was supplied, so PrairieLearn's
     // navbar came out as "<given name> STUDENT" and was still identifying.
     const { report } = scrubHtml(`<a>Given Family</a>`, { name: "Family" });
-    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(/"Given STUDENT".*rest of your name/);
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /"Given STUDENT".*rest of your name/,
+    );
   });
 
   it("does not warn when the whole name was replaced", () => {
-    const { report } = scrubHtml(`<a>Given Family</a>`, { name: "Given Family" });
-    expect(report.warnings.map((w) => w.message).join(" ")).not.toMatch(/rest of your name/);
+    const { report } = scrubHtml(`<a>Given Family</a>`, {
+      name: "Given Family",
+    });
+    expect(report.warnings.map((w) => w.message).join(" ")).not.toMatch(
+      /rest of your name/,
+    );
   });
 
   it("ignores name parts shorter than three characters", () => {
@@ -149,18 +165,85 @@ describe("scrubHtml", () => {
     // Structure a parser might read is untouched.
     expect(html).toContain("X-Amz-Algorithm=AWS4-HMAC-SHA256");
     expect(html).toContain("X-Amz-Expires=10800");
-    expect(html).toContain('>HW2</a>');
+    expect(html).toContain(">HW2</a>");
     expect(report.counts["aws presigned url credential"]).toBe(3);
   });
 
   it("warns when no netid or name was supplied", () => {
     const { report } = scrubHtml(`<p>hi</p>`);
-    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(/No NetID given/);
-    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(/No name given/);
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /No NetID given/,
+    );
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /No name given/,
+    );
   });
 
   it("warns about a bearer token it deliberately did not remove", () => {
-    const { report } = scrubHtml(`<script>h="Bearer abcdefghijklmnopqrst"</script>`);
-    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(/Bearer token/);
+    const { report } = scrubHtml(
+      `<script>h="Bearer abcdefghijklmnopqrst"</script>`,
+    );
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /Bearer token/,
+    );
+  });
+
+  // The 2026-09-10 smartPhysics captures had their enrolment ids replaced by
+  // hand, and nothing recorded that as a step. On 2026-09-21 a calendar capture
+  // came back reading "nothing identifying was recognized" over a page carrying
+  // the real id in every nav link.
+  describe("enrolment ids, which name a (student, course) pair", () => {
+    it("maps each distinct id to a stable counter, keeping distinct ones distinct", () => {
+      const { html, report } = scrubHtml(
+        `<a href="/Course?enrollmentID=151698">PHYS 214</a>` +
+          `<a href="/Course?enrollmentID=150666">PHYS 213</a>` +
+          `<a href="/Course/Calendar?enrollmentID=151698">Calendar</a>`,
+      );
+      expect(html).not.toContain("151698");
+      expect(html).not.toContain("150666");
+      // Two courses stay two courses. A constant replacement would merge them,
+      // and the fixture would then pin `parseCourseList` to the wrong answer.
+      expect(html).toContain("/Course?enrollmentID=100001");
+      expect(html).toContain("/Course?enrollmentID=100002");
+      // The same course's two pages keep the same id, or its calendar would no
+      // longer belong to it.
+      expect(html).toContain("/Course/Calendar?enrollmentID=100001");
+      expect(report.counts["smartPhysics enrolment id"]).toBe(3);
+      // Structure a parser reads is untouched.
+      expect(html).toContain(">PHYS 214</a>");
+    });
+
+    it("is a fixed point, so re-scrubbing a committed fixture changes nothing", () => {
+      const already = `<a href="/Course?enrollmentID=100001">A</a><a href="/Course?enrollmentID=100002">B</a>`;
+      expect(scrubHtml(already).html).toBe(already);
+    });
+
+    it("reads the key, not the shape, in whatever spelling holds it", () => {
+      const { html } = scrubHtml(
+        `<script>var e={"enrollmentId": 151698, "unitItemID": 151698};</script>`,
+      );
+      expect(html).toContain('"enrollmentId": 100001');
+      // `unitItemID` is per-assignment, not per-student, and the README says it
+      // is kept — matching by shape would have rewritten it too.
+      expect(html).toContain('"unitItemID": 151698');
+    });
+  });
+
+  it("does not read 'nothing was recognized' as reassurance", () => {
+    const { report } = scrubHtml(`<p>nothing here</p>`, {
+      netid: "jdoe42",
+      name: "Given Family",
+    });
+    expect(report.warnings.map((w) => w.message).join(" ")).toMatch(
+      /no rule covers this host yet/,
+    );
+    // And it says nothing of the kind once a rule has fired.
+    const found = scrubHtml(`<a href="/Course?enrollmentID=151698">A</a>`, {
+      netid: "jdoe42",
+      name: "Given Family",
+    });
+    expect(found.report.warnings.map((w) => w.message).join(" ")).not.toMatch(
+      /Nothing was/,
+    );
   });
 });
