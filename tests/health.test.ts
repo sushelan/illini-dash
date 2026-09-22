@@ -26,7 +26,7 @@ import {
   gcalRow,
   staleNotice,
   statusAfterEnable,
-  statusLine,
+  sourceTrouble,
   summarize,
 } from "../src/core/health.js";
 import { DEFAULT_SETTINGS, emptyStore } from "../src/core/store.js";
@@ -132,58 +132,6 @@ describe("summarize (worker rule 2: n of m excludes what was never fetched)", ()
     );
     expect(summary.failing.sort()).toEqual(["gradescope", "prairielearn"]);
     expect(summary.needsLogin).toEqual(["gradescope"]);
-  });
-});
-
-describe("statusLine", () => {
-  it("never says everything is fine when a source failed", () => {
-    // The old line read `Synced 10:32` off lastSyncAt, which runSync sets
-    // unconditionally — so it read the same after four failures as after four
-    // successes. That is the sentence this replaces.
-    const line = statusLine(
-      sources({
-        canvas: status({ state: "ok" }),
-        gradescope: status({ state: "needs_login" }),
-        prairielearn: status({ state: "ok" }),
-        prairietest: status({ state: "ok" }),
-      }),
-      iso(0),
-      NOW,
-    );
-    expect(line).toContain("3 of 4 sources OK");
-    expect(line).not.toContain("Synced");
-  });
-
-  it("says all N OK only when every checkable source succeeded", () => {
-    expect(
-      statusLine(
-        sources({ canvas: status({ state: "ok" }), gradescope: status({ state: "ok" }) }),
-        iso(0),
-        NOW,
-      ),
-    ).toContain("all 2 sources OK");
-  });
-
-  it("counts a pending source against the ratio", () => {
-    const line = statusLine(
-      sources({
-        canvas: status({ state: "ok" }),
-        gradescope: status({ state: "pending", lastAttemptAt: undefined }),
-      }),
-      iso(0),
-      NOW,
-    );
-    expect(line).toContain("1 of 2 sources OK");
-  });
-
-  it("says not checked yet rather than a time when there has been no sync", () => {
-    expect(statusLine(sources({ canvas: status() }), undefined, NOW)).toBe("Not checked yet.");
-  });
-
-  it("says so when nothing is switched on, instead of a vacuous 0 of 0", () => {
-    expect(statusLine(sources({ canvas: status({ enabled: false }) }), iso(0), NOW)).toBe(
-      "No sources are switched on.",
-    );
   });
 });
 
@@ -903,6 +851,193 @@ describe("needsYouPill (brief D2)", () => {
   });
 });
 
+/**
+ * Naming the failure in the footer.
+ *
+ * SPEC.md §9, gate G4, passes when: "10 users across ≥ 3 majors for 1 week.
+ * Zero data-loss bugs, **every parse error surfaced in the UI (not silent)**,
+ * and ≥ 7 of 10 say they'd keep it installed."
+ *
+ * The strip's answer to that was `7 of 8 sources` on an amber wash — a ratio
+ * that names no source and offers no recovery, over a sentence still reading
+ * "synced 2m ago". `staleNotice` is the only surface that names one and it is
+ * gated on twelve hours, so a session that expired at breakfast is anonymous
+ * until the evening.
+ */
+describe("sourceTrouble", () => {
+  it("says nothing when every source answered", () => {
+    expect(sourceTrouble(sources({ canvas: status(), gradescope: status() }), NOW)).toBeUndefined();
+  });
+
+  it("says nothing about a cold install, where nothing has been attempted", () => {
+    // `pending` is a real state and it is not a failure: worker rule 2's
+    // "four green dots under the words Not synced yet", in reverse — a strip
+    // that announced a problem about a fetch that has not happened yet.
+    expect(sourceTrouble(emptyStore().sources, NOW)).toBeUndefined();
+  });
+
+  it("says nothing when nothing is switched on", () => {
+    expect(
+      sourceTrouble(sources({ canvas: status({ source: "canvas", enabled: false }) }), NOW),
+    ).toBeUndefined();
+  });
+
+  it("names the source, says how to fix it, and carries the action", () => {
+    const trouble = sourceTrouble(
+      sources({
+        canvas: status({ source: "canvas" }),
+        gradescope: status({ state: "needs_login", lastSuccessAt: iso(2 * 86_400_000) }),
+      }),
+      NOW,
+    )!;
+    expect(trouble.source).toBe("gradescope");
+    expect(trouble.name).toBe("Gradescope");
+    expect(trouble.lastRead).toBe("2d ago");
+    expect(trouble.sentence).toBe("Sign in to Gradescope \u00b7 2d ago");
+    expect(trouble.action).toEqual({
+      kind: "login",
+      source: "gradescope",
+      url: "https://www.gradescope.com/login",
+    });
+  });
+
+  it("says \"never read\", not \"unknown\", when a source has never once succeeded", () => {
+    const trouble = sourceTrouble(
+      sources({ gradescope: status({ state: "needs_login", lastSuccessAt: undefined }) }),
+      NOW,
+    )!;
+    expect(trouble.lastRead).toBe("never read");
+    expect(trouble.lastSuccessAt).toBeUndefined();
+    expect(trouble.sentence).toBe("Sign in to Gradescope \u00b7 never read");
+  });
+
+  it("refuses an unreadable stamp rather than printing NaN at the student", () => {
+    // Deliberately unrealistic (parser rule 10): no sync writes this. A store
+    // from another build might, and `compactAgo` would answer "NaNm ago" in
+    // the one place the strip is asking to be believed.
+    const trouble = sourceTrouble(
+      sources({ gradescope: status({ state: "network_error", lastSuccessAt: "last Tuesday" }) }),
+      NOW,
+    )!;
+    expect(trouble.lastRead).toBe("never read");
+    expect(trouble.sentence).not.toContain("NaN");
+  });
+
+  it("keeps the two verbs apart: didn't answer is a retry, looks different is a build", () => {
+    // `healthPill`'s wording, verbatim. §6 classifies into two branches and
+    // collapsing them sends someone to debug selectors that were fine.
+    const unreachable = sourceTrouble(
+      sources({ gradescope: status({ state: "network_error", lastSuccessAt: iso(3_600_000) }) }),
+      NOW,
+    )!;
+    expect(unreachable.sentence).toBe("Gradescope didn't answer \u00b7 1h ago");
+    expect(unreachable.action).toEqual({ kind: "retry", source: "gradescope" });
+
+    const unreadable = sourceTrouble(
+      sources({ gradescope: status({ state: "parse_error", lastSuccessAt: iso(3_600_000) }) }),
+      NOW,
+    )!;
+    expect(unreadable.sentence).toBe("Gradescope looks different");
+    expect(unreadable.action).toEqual({
+      kind: "open",
+      source: "gradescope",
+      url: "https://www.gradescope.com/",
+    });
+  });
+
+  it("drops the age clause for a changed page and keeps it for the other two", () => {
+    /*
+     * The tail is what the ellipsis eats — `.foot--when` has ~170px — so the
+     * clause is always last and the verb is never after it. A page that
+     * changed shape does not get better from knowing when it last worked;
+     * an expired session's age is how a student decides whether to trust the
+     * list in front of them.
+     */
+    const at = iso(6 * 86_400_000);
+    expect(
+      sourceTrouble(sources({ canvas: status({ source: "canvas", state: "parse_error", lastSuccessAt: at }) }), NOW)!
+        .sentence,
+    ).not.toContain("6d ago");
+    expect(
+      sourceTrouble(sources({ canvas: status({ source: "canvas", state: "network_error", lastSuccessAt: at }) }), NOW)!
+        .sentence,
+    ).toContain("6d ago");
+    expect(
+      sourceTrouble(sources({ canvas: status({ source: "canvas", state: "needs_login", lastSuccessAt: at }) }), NOW)!
+        .sentence,
+    ).toContain("6d ago");
+  });
+
+  it("ranks by what the student can finish, not by how bad it looks", () => {
+    // A parse error that broke a minute ago loses to a login that broke a
+    // week ago: one is ten seconds in another tab, the other needs a build.
+    const chosen = sourceTrouble(
+      sources({
+        canvas: status({ source: "canvas", state: "parse_error", lastSuccessAt: iso(60_000) }),
+        prairielearn: status({ source: "prairielearn", state: "network_error", lastSuccessAt: iso(60_000) }),
+        gradescope: status({ state: "needs_login", lastSuccessAt: iso(7 * 86_400_000) }),
+      }),
+      NOW,
+    )!;
+    expect(chosen.source).toBe("gradescope");
+
+    // And with the login gone, unreachable still beats unreadable.
+    const next = sourceTrouble(
+      sources({
+        canvas: status({ source: "canvas", state: "parse_error", lastSuccessAt: iso(60_000) }),
+        prairielearn: status({ source: "prairielearn", state: "network_error", lastSuccessAt: iso(60_000) }),
+      }),
+      NOW,
+    )!;
+    expect(next.source).toBe("prairielearn");
+  });
+
+  it("puts a source that has never succeeded ahead of one that has, at the same rank", () => {
+    const chosen = sourceTrouble(
+      sources({
+        canvas: status({ source: "canvas", state: "needs_login", lastSuccessAt: iso(9 * 86_400_000) }),
+        gradescope: status({ state: "needs_login", lastSuccessAt: undefined }),
+      }),
+      NOW,
+    )!;
+    expect(chosen.source).toBe("gradescope");
+  });
+
+  it("prefers the oldest success when rank and never-read are equal", () => {
+    const chosen = sourceTrouble(
+      sources({
+        canvas: status({ source: "canvas", state: "needs_login", lastSuccessAt: iso(60_000) }),
+        gradescope: status({ state: "needs_login", lastSuccessAt: iso(9 * 86_400_000) }),
+      }),
+      NOW,
+    )!;
+    expect(chosen.source).toBe("gradescope");
+  });
+
+  it("picks the same source whichever order the store happens to list them in", () => {
+    // Two identical failures, and the strip is redrawn on every minute tick,
+    // every store write and every open. Leaving the winner to `Object.keys`
+    // order would make the sentence flip between two sites while nothing
+    // changed — which reads as a second thing going wrong.
+    const at = iso(3 * 86_400_000);
+    const a = status({ source: "prairielearn", state: "needs_login", lastSuccessAt: at });
+    const b = status({ source: "canvas", state: "needs_login", lastSuccessAt: at });
+    expect(sourceTrouble({ prairielearn: a, canvas: b }, NOW)!.source).toBe("canvas");
+    expect(sourceTrouble({ canvas: b, prairielearn: a }, NOW)!.source).toBe("canvas");
+  });
+
+  it("is not gated on STALE_AFTER_MS, which is the gap it exists to close", () => {
+    // Ten minutes old: `staleNotice` says nothing for another 11h50m, and the
+    // calendar view carried no name anywhere in that window.
+    const recent = sources({
+      canvas: status({ source: "canvas" }),
+      gradescope: status({ state: "needs_login", lastSuccessAt: iso(600_000) }),
+    });
+    expect(staleNotice(recent, NOW)).toBeUndefined();
+    expect(sourceTrouble(recent, NOW)!.sentence).toBe("Sign in to Gradescope \u00b7 10m ago");
+  });
+});
+
 describe("footerLine (brief D10)", () => {
   it("says how many sources and when one of them last answered", () => {
     // Mock 1a's footer: "8 sources · synced 2m ago".
@@ -932,12 +1067,19 @@ describe("footerLine (brief D10)", () => {
     expect(line.tone).toBe("warn");
   });
 
-  it("never reads lastSyncAt, which is stamped whether or not anything worked", () => {
+  it("never claims a sync, because lastSyncAt is stamped whether or not anything worked", () => {
     /*
      * Worker house rule 2: "the status line read `Synced 10:32` off
      * `lastSyncAt`, which the loop sets whether or not anything succeeded."
      * Structurally impossible here — there is no parameter to pass it in — so
-     * this pins the consequence: four failed sources say "not synced yet".
+     * this pins the consequence.
+     *
+     * It used to assert the literal "not synced yet". That reading has been
+     * narrowed rather than dropped: the requirement was never that the strip
+     * say those three words, it was that **nothing on a strip with no
+     * successful read behind it may claim one**, which is the assertion below.
+     * The sentence is now the failure, by name, which says strictly more and
+     * claims strictly less.
      */
     const line = footerLine(
       sources({
@@ -947,8 +1089,66 @@ describe("footerLine (brief D10)", () => {
       false,
       NOW,
     );
-    expect(line.synced).toBe("not synced yet");
+    expect(line.synced.startsWith("synced ")).toBe(false);
+    expect(line.synced).not.toContain("just now");
     expect(line.sources).toBe("0 of 2 sources");
+    // And it says which one, and that it has never once been read.
+    expect(line.synced).toBe("Gradescope didn't answer · never read");
+  });
+
+  it("names the failing source instead of a clock that is true and useless", () => {
+    /*
+     * SPEC.md §9 G4: "every parse error surfaced in the UI (not silent)".
+     *
+     * Before this, the strip beside an expired Gradescope session read
+     * "1 of 2 sources · synced 2m ago" — both true, because Canvas answered
+     * 2m ago, and together they describe a healthy extension over a list that
+     * is missing a course.
+     */
+    const line = footerLine(
+      sources({
+        canvas: status({ source: "canvas", lastSuccessAt: iso(120_000) }),
+        gradescope: status({ state: "needs_login", lastSuccessAt: iso(2 * 86_400_000) }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line.synced).toBe("Sign in to Gradescope \u00b7 2d ago");
+    expect(line.sources).toBe("1 of 2 sources");
+    expect(line.dot).toBe("warn");
+  });
+
+  it("says syncing, not the failure, while a sync is in flight", () => {
+    // The sentence would be about an attempt that is being replaced as it is
+    // read, and an amber wash under "syncing\u2026" reads as a failure that has
+    // already happened (`tone`).
+    const line = footerLine(
+      sources({ gradescope: status({ state: "needs_login", lastSuccessAt: iso(60_000) }) }),
+      true,
+      NOW,
+    );
+    expect(line.synced).toBe("syncing\u2026");
+    expect(line.tone).toBe("pending");
+  });
+
+  it("keeps exactly four fields, because a fifth would have to be drawn", () => {
+    // `renderFooter` assigns `sources` and `synced` with `textContent` and
+    // reads `dot` and `tone` as class names — nothing parses either string.
+    // That is what makes naming the failure cost zero lines in `shell.ts`,
+    // and a new field would not.
+    const shape = ["dot", "sources", "synced", "tone"];
+    // Both sides of the branch. A healthy strip alone let a fifth field pass
+    // unnoticed, because the field a naming change would add is the one that
+    // only exists when something is wrong (mutation house rule 4: confirm the
+    // input reaches the mutated line).
+    expect(
+      Object.keys(footerLine(sources({ canvas: status({ source: "canvas" }) }), false, NOW)).sort(),
+    ).toEqual(shape);
+    expect(
+      Object.keys(
+        footerLine(sources({ gradescope: status({ state: "needs_login" }) }), false, NOW),
+      ).sort(),
+    ).toEqual(shape);
   });
 
   it("says nothing green about a cold install", () => {
@@ -1185,13 +1385,18 @@ describe("the manual source is excluded from every health surface", () => {
     expect(withIt.disabled).toEqual([]);
   });
 
-  it("does not change the status line", () => {
-    const line = statusLine(
+  it("does not change the footer strip", () => {
+    // The surface the deleted `statusLine` used to stand in for here. It is
+    // the live one, and it is the one that would draw "2 of 3 sources" over a
+    // row the student cannot act on.
+    const withoutIt = footerLine(sources({ canvas: status(), gradescope: status() }), false, NOW);
+    const withIt = footerLine(
       sources({ canvas: status(), gradescope: status(), manual }),
-      NOW.toISOString(),
+      false,
       NOW,
     );
-    expect(line).toContain("all 2 sources OK");
+    expect(withIt).toEqual(withoutIt);
+    expect(withIt.sources).toBe("2 sources");
   });
 
   it("gets no row in the sources panel", () => {
@@ -1202,6 +1407,55 @@ describe("the manual source is excluded from every health surface", () => {
   it("never becomes a stale banner", () => {
     // Nothing is fetched for it, so "hasn't been read since…" has no meaning.
     expect(staleNotice(sources({ manual }), NOW)).toBeUndefined();
+  });
+});
+
+/**
+ * An observer is not a source, and until now nothing said so.
+ *
+ * `ObserverId` is a separate type, `store.observers` is a sibling of
+ * `store.sources`, and Piazza and Campuswire produce *posts* for
+ * `core/suggest.ts` rather than a `RawItem` — so neither has a plan, a backoff
+ * ladder or a health dot the sync loop could ever fill in. The separation was
+ * real and entirely structural: `migrate` rebuilds `sources` from
+ * `ALL_SOURCES`, and one line in `tests/store.test.ts` is now what holds that.
+ *
+ * This is the other half, at the surface. The record is built by casting a
+ * literal rather than by widening `Source`, so it keeps testing the same thing
+ * on the day somebody adds an observer to that union by hand — and it is a
+ * `needs_login`, the state that would have painted the strip amber, pushed the
+ * badge to "!" and put "Sign in to…" over a site with no sign-in the
+ * extension performs.
+ */
+describe("a page observer is not a source on any health surface", () => {
+  const healthy = { canvas: status({ source: "canvas" }), gradescope: status() };
+  const withObserver = {
+    ...healthy,
+    piazza: status({ source: "piazza" as Source, state: "needs_login" }),
+  } as Partial<Record<Source, SourceStatus>>;
+
+  it("is on neither side of the ratio", () => {
+    expect(summarize(withObserver)).toEqual(summarize(healthy));
+  });
+
+  it("does not reach the footer strip", () => {
+    expect(footerLine(withObserver, false, NOW)).toEqual(footerLine(healthy, false, NOW));
+    expect(sourceTrouble(withObserver, NOW)).toBeUndefined();
+  });
+
+  it("does not put a \"!\" on the toolbar", () => {
+    expect(badgeFor([], withObserver, DEFAULT_SETTINGS, NOW)).toEqual(
+      badgeFor([], healthy, DEFAULT_SETTINGS, NOW),
+    );
+  });
+
+  it("is not counted as a source with something to press", () => {
+    expect(sourceAlertCount(withObserver)).toBe(0);
+    expect(sourceAlertCount(healthy)).toBe(0);
+  });
+
+  it("gets no row in the sources panel", () => {
+    expect(sourceRows(withObserver, NOW).map((row) => row.source)).toEqual(["canvas", "gradescope"]);
   });
 });
 

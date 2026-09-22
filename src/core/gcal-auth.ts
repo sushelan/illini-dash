@@ -256,7 +256,7 @@ export function describeGcal(
         chip: "Slowed down",
         sentence:
           "Google asked Illini Dash to slow down. It will try again on the next " +
-          "sync; Push now retries straight away.",
+          "sync — there is nothing to press.",
         action: "retry",
         tone: "warn",
       };
@@ -264,8 +264,8 @@ export function describeGcal(
       return {
         chip: "Calendar gone",
         sentence:
-          "The “Illini Dash” calendar is no longer in your Google account. " +
-          "Press Push now and it will be created again, or Disconnect to stop.",
+          "The “Illini Dash” calendar is no longer in your Google account. The " +
+          "next sync creates it again, or Disconnect to stop.",
         action: "retry",
         tone: "warn",
       };
@@ -277,7 +277,7 @@ export function describeGcal(
           chip: "Connected · nothing pushed yet",
           sentence:
             "Connected to Google Calendar. Nothing has been written yet — the next " +
-            "sync will do it, or press Push now.",
+            "sync will do it.",
           action: "retry",
           tone: "pending",
         };

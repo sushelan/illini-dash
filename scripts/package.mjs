@@ -65,7 +65,9 @@ To check it is working:
     hollow and "Checking..." before the first sync has finished.
   - Click the pill for the per-source list, with a Sign in button on any row
     that needs one.
-  - The build id is in Settings, under Developer.
+  - The build id is in Settings, but the Developer section is hidden until you
+    ask for it: open Settings, then add "#dev" to the end of the address in the
+    address bar and press Enter.
 
 To update when you get a new zip:
 
@@ -74,17 +76,16 @@ To update when you get a new zip:
      card. This step is easy to forget and matters: without it the pages update
      but the background stays on the old build, and you will see a warning that
      says STALE SERVICE WORKER.
-  3. Open Settings (the gear in the popup), open Developer, and check the build
-     id there matches the one in this file's name. If they differ, the page and
-     the background part are on different builds and a warning says so.
+  3. Open Settings (the gear in the popup), add "#dev" to the end of the
+     address and press Enter, and check the build id there matches the one in
+     this file's name. If they differ, the page and the background part are on
+     different builds and a warning says so.
 
 If something looks wrong:
 
-  Open Settings (the gear in the popup), go to Help, and press
-  "Copy diagnostics". That puts a summary on your clipboard - which sources
-  worked, how many items each course produced, and what failed. It contains no
-  assignment titles, no links and nothing that identifies you. Paste it into the
-  report.
+  Open the popup, click the pill at the top left for the per-source list, and
+  send a screenshot of it. It shows which sources answered and which need you,
+  which is what the report needs first. It has no assignment titles on it.
 
   If a deadline you can see on a site is missing from the list, right-click that
   page and choose "Report this page to Illini Dash". That opens Settings with

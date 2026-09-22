@@ -28,7 +28,7 @@ import {
   nameList,
   timeAgo,
 } from "./names.js";
-import { isFetchedSource } from "./store.js";
+import { ALL_SOURCES, isFetchedSource } from "./store.js";
 import { describeGcal, type GcalAction, type GcalFacts } from "./gcal-auth.js";
 import type { Item, Settings, Source, SourceState, SourceStatus } from "../sources/types.js";
 
@@ -51,6 +51,26 @@ const FAILING: ReadonlySet<SourceState> = new Set<SourceState>([
 
 export function isFailing(state: SourceState): boolean {
   return FAILING.has(state);
+}
+
+/**
+ * Whether a key in `store.sources` is a source this build reports health for.
+ *
+ * Two conditions, deliberately in one predicate rather than at each surface
+ * (which is the argument `isFetchedSource` already makes for its half).
+ *
+ * The second half is the new one. `isFetchedSource` is `source !== "manual"`,
+ * a denylist — so **any** key that reaches this record is reported as a source.
+ * `store.observers` is a sibling of `store.sources` and `ObserverId` is a
+ * separate type, so Piazza and Campuswire are structurally not sources; the
+ * only thing enforcing that today is `migrate`, which rebuilds `sources` from
+ * `ALL_SOURCES`. A store blob is data from another build (worker rule 8), and
+ * "this key is not `manual`" is `typeof x === "string"` one type over — parser
+ * rule 5. The allowlist is the positive form: a key this build does not know
+ * is not a dot, a ratio, a badge or a footer sentence.
+ */
+function isHealthSource(source: Source): boolean {
+  return ALL_SOURCES.includes(source) && isFetchedSource(source);
 }
 
 /**
@@ -222,7 +242,7 @@ export function summarize(sources: Partial<Record<Source, SourceStatus>>): Healt
     // belongs on neither side of the ratio — and not in `disabled` either, which
     // is read as "switched off or unconfigured", something a student could act
     // on. Worker rule 2 in the other direction: only report what was attempted.
-    if (!isFetchedSource(source)) continue;
+    if (!isHealthSource(source)) continue;
     const state = displayState(status);
     if (state === "disabled") {
       summary.disabled.push(source);
@@ -237,38 +257,6 @@ export function summarize(sources: Partial<Record<Source, SourceStatus>>): Healt
     }
   }
   return summary;
-}
-
-/**
- * §8.1's status line.
- *
- * The old line read `Synced 10:32 AM` off `lastSyncAt`, which `runSync` sets
- * unconditionally — so it said "Synced" just as loudly when all four sources
- * had failed. "Checked" is the honest verb for what the loop did, and the ratio
- * is what says whether it worked.
- */
-export function statusLine(
-  sources: Partial<Record<Source, SourceStatus>>,
-  lastSyncAt: string | undefined,
-  now: Date,
-): string {
-  const summary = summarize(sources);
-  const when = lastSyncAt === undefined ? undefined : new Date(lastSyncAt);
-  const clock =
-    when && !Number.isNaN(when.getTime())
-      ? when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-      : undefined;
-
-  if (summary.checkable.length === 0) return "No sources are switched on.";
-  if (clock === undefined) return "Not checked yet.";
-
-  const total = summary.checkable.length;
-  // Pending sits with the failures here rather than with the successes: it is
-  // "not known to be fine", which is the whole point of the line.
-  if (summary.ok.length === total) {
-    return `Checked ${clock} · all ${total} source${total === 1 ? "" : "s"} OK`;
-  }
-  return `Checked ${clock} · ${summary.ok.length} of ${total} sources OK`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -364,6 +352,10 @@ export interface HealthPill {
  * house rule 2's own example, and this function did it: §6 classifies into two
  * branches and the pill threw the distinction away.
  */
+// Unused by the UI since 2026-09-19, when the header pill was removed (see the
+// note on `needsYouPill`). Kept for the wording: it is the one place that names
+// *which* source is broken in four words, and `sourceTrouble` below reuses its
+// two verbs verbatim rather than inventing a third and a fourth.
 export function healthPill(
   sources: Partial<Record<Source, SourceStatus>>,
   lastSyncAt: string | undefined,
@@ -646,6 +638,149 @@ function compactAgo(at: number, now: Date): string {
   return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+export interface SourceTrouble {
+  source: Source;
+  /** `SOURCE_NAME`'s wording: "Gradescope", "the course website". */
+  name: string;
+  state: SourceState;
+  /** The stored stamp, so a caller can format it its own way. */
+  lastSuccessAt?: string;
+  /** "2d ago", or **"never read"** — never "unknown", which is not a fact. */
+  lastRead: string;
+  /** The footer's sentence, already named, already short. */
+  sentence: string;
+  /** The same `SourceAction` every other surface derives, or nothing. */
+  action?: SourceAction;
+}
+
+/**
+ * Actionability, not severity. See `sourceTrouble`.
+ *
+ * Only the three `FAILING` states have a rank, because only they can reach it.
+ */
+const TROUBLE_RANK: Partial<Record<SourceState, number>> = {
+  needs_login: 0,
+  network_error: 1,
+  parse_error: 2,
+};
+
+/**
+ * The one failing source worth naming in the footer, or nothing.
+ *
+ * **The footer was lossy in the exact way §9's G4 forbids.** G4 passes only
+ * with "every parse error surfaced in the UI (not silent)", and what the strip
+ * surfaced was `7 of 8 sources` — five causes with three different recoveries
+ * reduced to an amber dot and a ratio. The one surface that *did* name the
+ * source, `staleNotice`, is gated on `STALE_AFTER_MS` (12h), so a session that
+ * expired ten minutes ago put no name anywhere on the calendar view. **This is
+ * deliberately not gated on anything**: a failure is worth naming the moment it
+ * happens, and the age is a clause in the sentence rather than a threshold in
+ * front of it.
+ *
+ * The ranking is `staleNotice`'s and `healthPill`'s, said once more:
+ *
+ * 1. **`needs_login`** — ten seconds in another tab, and the only failure whose
+ *    fix the extension cannot perform or wait out.
+ * 2. **`network_error`** — one press of Sync now, and transient far more often
+ *    than not.
+ * 3. **`parse_error`** — a new build. Nothing the student can finish.
+ *
+ * Then never-succeeded before succeeded (there are no rows behind it at all),
+ * then oldest success first, then the source key so two identical failures do
+ * not swap places between renders.
+ *
+ * **The verbs are `healthPill`'s, character for character.** Its comment
+ * records that "couldn't be reached" truncated to "couldn't be rea…", losing
+ * the one word the whole distinction turns on, so they were shortened to
+ * "didn't answer" and "looks different". A third wording here would be a second
+ * copy of that decision, free to drift and free to be truncated again.
+ *
+ * **`parse_error` gets no age clause, and the other two do.** The strip has
+ * roughly 170px for this sentence (see `footerLine`), so the tail is what an
+ * ellipsis eats — which is why the clause is always last and never carries the
+ * verb. Knowing a changed page last worked on Tuesday does not change what to
+ * do about it; knowing an expired session last worked six days ago is exactly
+ * how a student decides whether the list in front of them is worth trusting.
+ */
+export function sourceTrouble(
+  sources: Partial<Record<Source, SourceStatus>>,
+  now: Date,
+): SourceTrouble | undefined {
+  // `summarize`, not a second walk of the record: it is what already excludes
+  // `manual`, a source that is off, and a key this build does not know
+  // (`isHealthSource`), and a footer that disagreed with the ratio beside it
+  // would be the "4 sources" defect one field over.
+  const summary = summarize(sources);
+
+  let best: SourceTrouble | undefined;
+  let bestKey: [number, number, number, string] | undefined;
+
+  for (const source of summary.failing) {
+    const status = sources[source]!;
+    const state = displayState(status);
+    const rank = TROUBLE_RANK[state];
+    /*
+     * Unreachable today: `summarize` puts a source in `failing` only for the
+     * three states `TROUBLE_RANK` lists, which is `FAILING` spelled once more.
+     *
+     * Kept, and not as a formality. The alternative is a non-null assertion
+     * that would rank a new `SourceState` as 0 — the most actionable slot —
+     * on the day one is added. It also overlaps the loop above by exactly
+     * `ok` and `pending`: swapping `summary.failing` for `summary.checkable`
+     * changes no output because this line rejects the difference (a recorded
+     * survivor, 2026-09-22). The two are not one decision to collapse —
+     * `failing` is what carries the `manual`, disabled and unknown-key
+     * exclusions, which a rank lookup cannot know about — so both stay, and
+     * this is the note rather than a test that could only pin the overlap.
+     */
+    if (rank === undefined) continue;
+
+    const parsed = status.lastSuccessAt === undefined ? Number.NaN : Date.parse(status.lastSuccessAt);
+    // `Number.isNaN`, not a truthiness test: `Date.parse("")` is NaN and
+    // `Date.parse` of a stamp written by another build may be too, and a NaN
+    // reaching `compactAgo` would print "NaNm ago" in the one place a student
+    // is being asked to trust a number (parser rule 5).
+    const succeeded = !Number.isNaN(parsed);
+    const lastRead = succeeded ? compactAgo(parsed, now) : "never read";
+    const name = SOURCE_NAME[source];
+    const action = actionFor(source, state, status.loginUrl);
+
+    const sentence =
+      state === "needs_login"
+        ? `Sign in to ${name} · ${lastRead}`
+        : state === "network_error"
+          ? `${name} didn't answer · ${lastRead}`
+          : `${name} looks different`;
+
+    const key: [number, number, number, string] = [
+      rank,
+      succeeded ? 1 : 0,
+      succeeded ? parsed : 0,
+      source,
+    ];
+    if (bestKey !== undefined && !(compareTrouble(key, bestKey) < 0)) continue;
+    bestKey = key;
+    best = {
+      source,
+      name,
+      state,
+      ...(status.lastSuccessAt !== undefined ? { lastSuccessAt: status.lastSuccessAt } : {}),
+      lastRead,
+      sentence,
+      ...(action ? { action } : {}),
+    };
+  }
+
+  return best;
+}
+
+function compareTrouble(
+  a: [number, number, number, string],
+  b: [number, number, number, string],
+): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3].localeCompare(b[3]);
+}
+
 /**
  * The always-present footer: `[dot] N sources · synced 2m ago · Sync now`.
  *
@@ -660,6 +795,19 @@ function compactAgo(at: number, now: Date): string {
  * behind it, is on neither side (`summarize`), and a pending source is not
  * quietly counted as answering. That makes a cold install read
  * "0 of 4 sources · not synced yet", which is exactly what has happened.
+ *
+ * **`synced` names the failure when there is one** (`sourceTrouble`). Four
+ * fields, exactly as before: a fifth would have to be drawn, and `.foot--when`
+ * is the one element on this strip that may shrink, so the sentence it already
+ * carries is the only place a name can go without a layout change.
+ *
+ * The width it has: 400px, less the strip's 24px of padding, less "Sync now"
+ * and its glyph (~74px), less the 6px gap, less `.foot--health`'s 8px padding,
+ * its 7px dot, its three 6px gaps and the nowrap "7 of 8 sources" (~87px) and
+ * separator (~4px) — about 170px, or ~30 characters at 11px. "Sign in to
+ * Gradescope · 2d ago" is 30; "Sign in to the course website" is 29 without
+ * its clause. Everything past that ellipsises off the end, which is why
+ * `sourceTrouble` puts the age last and the verb never after it.
  */
 export function footerLine(
   sources: Partial<Record<Source, SourceStatus>>,
@@ -669,6 +817,12 @@ export function footerLine(
   const summary = summarize(sources);
   const total = summary.checkable.length;
   const answering = summary.ok.length;
+  // Unconditional, and `synced` below is the only place `syncing` decides
+  // anything about this sentence. A `syncing ? undefined : …` here read as
+  // defence and was a second copy of that decision: mutating it away changed
+  // no output, because the ternary underneath already rejects exactly what it
+  // rejected (mutation house rule 2, "redundant — delete it").
+  const trouble = sourceTrouble(sources, now);
 
   const dot: HealthTone =
     total === 0
@@ -698,11 +852,25 @@ export function footerLine(
         : answering === total
           ? `${total} source${total === 1 ? "" : "s"}`
           : `${answering} of ${total} sources`,
+    /*
+     * The failure, by name, wins this slot.
+     *
+     * "synced 2m ago" is true and useless while Gradescope is signed out: at
+     * least one source answered 2m ago, and the student is looking at a list
+     * that is missing a course. §9's G4 wants "every parse error surfaced in
+     * the UI (not silent)", and a ratio is not a surfacing — `7 of 8 sources`
+     * names nothing and offers nothing. `sourceTrouble` picks the one worth
+     * naming; the `· 2d ago` inside its sentence is the clock, moved rather
+     * than dropped, and now attached to the source it is about instead of to
+     * the newest success across all of them.
+     *
+     * Not while syncing: the sentence would be about an attempt that is being
+     * replaced as it is read.
+     */
     synced: syncing
       ? "syncing…"
-      : newest === undefined
-        ? "not synced yet"
-        : `synced ${compactAgo(newest, now)}`,
+      : (trouble?.sentence ??
+        (newest === undefined ? "not synced yet" : `synced ${compactAgo(newest, now)}`)),
     tone: syncing ? "pending" : dot,
   };
 }
@@ -746,7 +914,7 @@ export function sourceRows(
     // No row for the student's own list: it has no last-read time, no error it
     // could ever report, and no action — a permanently grey "Off" line beside
     // five real ones, saying nothing and inviting a click that does nothing.
-    if (!isFetchedSource(source)) continue;
+    if (!isHealthSource(source)) continue;
     const state = displayState(status);
     const action = actionFor(source, state, status.loginUrl);
     rows.push({

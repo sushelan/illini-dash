@@ -8,7 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { migrate } from "../src/core/store.js";
+import { ALL_SOURCES, migrate } from "../src/core/store.js";
 
 const V1 = JSON.parse(
   readFileSync(new URL("../fixtures/store/v1.json", import.meta.url), "utf8"),
@@ -476,6 +476,27 @@ describe("page observers", () => {
   it("ignores an observer this build has never heard of", () => {
     const store = migrate({ observers: { edstem: { enabled: true } } }, NOW);
     expect(Object.keys(store.observers)).toEqual(["campuswire", "piazza"]);
+  });
+
+  it("ignores a source this build has never heard of — an observer most of all", () => {
+    /*
+     * The mirror of the line above, and the one line the whole
+     * observer/source separation rests on.
+     *
+     * `ObserverId` is a separate type and `store.observers` is a sibling of
+     * `store.sources`, but nothing in the *type system* stops a blob written
+     * by another build — or by a hand-edited store — from carrying `piazza`
+     * under `sources`. This loop is what does: `sources` is rebuilt from
+     * `ALL_SOURCES` rather than merged over whatever arrived. Without it a
+     * Piazza entry would be a sixth health dot, in "n of m sources", on the
+     * toolbar badge and in the footer strip, for a thing the sync loop never
+     * fetches and could never turn green (worker rule 2).
+     */
+    const store = migrate(
+      { sources: { piazza: { enabled: true, state: "needs_login" }, edstem: { enabled: true } } },
+      NOW,
+    );
+    expect(Object.keys(store.sources).sort()).toEqual([...ALL_SOURCES].sort());
   });
 
   /*

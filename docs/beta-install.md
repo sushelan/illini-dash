@@ -4,8 +4,10 @@ Illini Dash puts every deadline from Canvas, Gradescope, PrairieLearn, PrairieTe
 smartPhysics and some course websites into one list.
 
 It reads those sites using the logins already in your browser. It never sees a password,
-nothing is uploaded anywhere, and everything it knows is stored on your own machine.
-Uninstalling it deletes all of that.
+and everything it knows is stored on your own machine. Uninstalling it deletes all of
+that. Nothing is uploaded — with one exception you have to switch on yourself: if you
+connect Google Calendar, your own deadlines are written to a calendar in your own Google
+account. Nothing ever goes to whoever built this.
 
 This is a beta, so it is not in the Chrome Web Store yet and you install it by hand.
 That takes about two minutes.
@@ -15,7 +17,9 @@ That takes about two minutes.
 ## Install
 
 1. Unzip the file you were sent. You will get a folder called something like
-   `illini-dash-1.0.0-20260912T193354`.
+   `illini-dash-1.2.0-20260912T193354` — the version, then the exact build it was made
+   from. Whatever numbers the file you were sent has are the right ones; this is only the
+   shape.
    **Keep the folder somewhere you will not delete it** — Chrome loads the extension
    from that folder every time it starts, so it cannot go in the trash.
 2. Open Chrome and type `chrome://extensions` in the address bar. (Links to
@@ -39,17 +43,19 @@ Untick anything you do not take — a source you switched off stops being read a
 asking you to sign in. **You can change all of it later in Settings**, so nothing here is
 final.
 
-Rows tick themselves green as each site starts working. **Open all sign-in pages** opens a
-tab for each one you picked that is not signed in yet, which is faster than finding four
-sites by hand. **Show my calendar** is clickable the whole time — it never blocks you.
+Rows tick themselves green as each site starts working. **Open all 4 sign-in pages** — the
+button counts, so it says whatever number is actually waiting — opens a tab for each one
+you picked that is not signed in yet, which is faster than finding four sites by hand.
+**Show my calendar** is clickable the whole time — it never blocks you.
 
 This screen appears once. It does not come back when a session later expires; that shows
 as a yellow dot and a banner instead, because the deadlines already fetched are still
 worth seeing.
 
-To see it again, use **Choose again** in Settings under Sources. That reopens it with your
-answers still in it and changes nothing else. **Reset** is not the way to do this — it
-deletes every hide, merge and tick you have made.
+To see it again, open Settings → **Your data** → **Start over** → **Show it**. That
+reopens the first-run screen with your answers still in it and changes nothing else.
+**Reset**, directly below it, is not the way to do this — it deletes every hide, merge and
+tick you have made. They sit next to each other on purpose, with the gentle one first.
 
 ## Check it worked
 
@@ -90,11 +96,16 @@ None of these is needed to use the extension, and nothing is on until you turn i
   Sign-in happens on the Settings page, because a popup closes the moment Google's
   consent window takes focus.
 
-### Where the build id is
+### Which build you are on
 
-Not in the popup any more — it was a line no student could use, 800px below the thing it
-described. It is in **Settings**, at the top: `This page: build …. Service worker: build
-….` If those two disagree, press Reload on the extension card (see **Updating**).
+**You should not have to check.** The build id used to be a line in the popup, 800px below
+anything it described, and no student could use it. If the page and the background part
+ever fall out of step — which happens when you unzip a new version and forget to reload
+the card — Settings says so **at the top, by itself**, in a sentence that names both
+builds and tells you to press Reload. Nothing to go looking for.
+
+If you are asked for the id anyway, it is under Developer, which is deliberately not in
+the sidebar: open Settings and add `#dev` to the end of the address.
 
 ## What to expect in the first week
 
@@ -105,8 +116,14 @@ described. It is in **Settings**, at the top: `This page: build …. Service wor
   rather than inventing one, and you should check the course page for the real cutoff.
 - Rows marked **practice** are ones the source says do not count toward your grade.
 - Reminders arrive 24 hours and 2 hours before a deadline, with quiet hours from 11 PM
-  to 8 AM. Settings has a **Send a test reminder** button if you want to confirm they
-  reach you.
+  to 8 AM. Both are adjustable in Settings → Reminders, and you can switch them off.
+
+  **If reminders never appear at all**, it is almost always macOS rather than the
+  extension: macOS silently drops notifications for an app it was never asked about.
+  Check **System Settings → Notifications → Google Chrome** is allowed. (There used to be
+  a "Send a test reminder" button here to check this with; it was removed, and there is no
+  in-app way to test one now. If you think reminders are broken, say so and send the
+  screenshot below — do not wait for a deadline to prove it.)
 
 ## Updating
 
@@ -114,12 +131,12 @@ When you get a new zip:
 
 1. Unzip it over the old folder, or into a new one.
 2. Go to `chrome://extensions` and click the **reload icon** on the Illini Dash card.
-3. Open Settings and check the build id at the top matches the new zip's filename.
 
 Step 2 is the one people forget, and it matters: without it the pages update but the
-background stays on the old build. Settings shows both build ids at the top and says to
-reload when they disagree, and any button that talks to the background — Hide, Mark
-done, Merge — answers with the same sentence rather than doing nothing.
+background stays on the old build. You do not have to check — if it happens, Settings puts
+a sentence at the top naming both builds and telling you to reload, and any button that
+talks to the background — Hide, Mark done, Merge — answers with the same sentence rather
+than doing nothing.
 
 If you loaded the new zip into a *different* folder, remove the old entry from
 `chrome://extensions` so you are not running two copies.
@@ -131,17 +148,26 @@ If you loaded the new zip into a *different* folder, remove the old entry from
 **Anything at all — a red dot, an empty list, a deadline you know about that is not
 there:**
 
-Open Settings (the gear in the popup), scroll to **Data**, and press
-**Copy diagnostics**. That puts a summary on your clipboard: which sources worked, how
-many items each course produced, what failed and when. It contains **no assignment
-titles, no links and nothing that identifies you**, so it is safe to paste anywhere.
-Send that.
+Open the popup and **press the footer line** — the one that says something like
+`4 sources · synced just now`. That opens **Sources**: every site on its own row, with
+what each one last did and when. **Send a screenshot of that panel**, plus one sentence
+saying what you expected to see instead.
+
+That panel is the whole picture of which sources worked. It does not show how many items
+each course produced, which is the other half — there is no longer a button that reports
+that, so say in words which courses look short or empty.
+
+(There used to be a **Copy diagnostics** button in Settings that produced all of this as
+text with nothing identifying in it. It was removed. If a screenshot is awkward, say so
+— it is worth putting back.)
 
 **A deadline is on a site but missing from the list:**
 
 This is the most useful bug you can report, and there is a shortcut for it. Right-click
 the page that shows the deadline and choose **Report this page to Illini Dash**. That
-opens Settings with the address filled in. Press **Prepare report**, which fetches the
+opens Settings with the address filled in and the form already open. (By hand: Settings →
+**Your data** → **A deadline is missing** → **Prepare a report**.) Press **Prepare
+report**, which fetches the
 page, removes what it can recognise as yours, and hands you a file to attach. Nothing is
 sent automatically — you choose whether to send it.
 
@@ -164,3 +190,9 @@ measurement we need.
 
 `chrome://extensions` → Remove. That deletes everything it stored. There is nothing on a
 server to delete, because there is no server.
+
+**If you connected Google Calendar, press Disconnect first.** That deletes the Illini Dash
+calendar and its events from your Google account. Removing the extension without doing so
+leaves that calendar behind, because an extension that is gone cannot tidy up after
+itself; you can still delete it yourself in Google Calendar, and revoke the permission at
+https://myaccount.google.com/permissions.

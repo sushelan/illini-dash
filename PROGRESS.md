@@ -2,13 +2,107 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2609 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2646 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
 because the timeline rail is not drawn then; they pass again and still have no pinned
 clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Two interaction defects, and what the footer says — 2026-09-22
+
+From the 2026-09-22 readiness audit. No UI redesign: Sushi asked for functionality only,
+so nothing moved, nothing was restyled, and both fixes are behaviour.
+
+**The last Week row's menu could not be pressed.** At maximum scroll the ⋯ centre
+hit-tested to the floating +, and scrolling the other way put the row under the tab
+strip. Nothing in the popup is a scroll container (that is what once opened it at
+800x600), so `scroll-padding` cannot help — only real document height below the last row
+can. `.wrow:last-child` now carries **43px** in `design-classical-week.css` and the month
+agenda **55px** in `design-classical-month.css`; the numbers differ because Month's `#view`
+has no padding and its card's own 16px margin is replaced rather than added to. Both land
+at Day's shipped clearance of 16px of air, so all three views now clear the button by the
+same distance — `popup-views.css:211`'s "the same measurement is owed to the other two"
+is paid. Measured in a real Chrome, dark, 400x600, stress week, with a 120ms held press:
+without the rule the ⋯ bottom is 516 against a FAB top of 495 (−21px, `press()` throws
+"Control clipped or covered at pointer"); with it, 473 against 495 (+22px, the menu
+opens). A week of seven quiet cards measures 706px, so the extra height is scroll extent
+and never reaches Chrome's measurement — the `:has()` conditional was prepared and is not
+needed.
+
+`tests/popup-clearance.test.ts` resolves the real cascade — every rule in every linked
+sheet, in load order, specificity computed, highest wins — rather than grepping a
+declaration. One of its four killed mutations appends an equal-specificity
+`margin-bottom: 0` to a later-loading sheet, which is precisely the ZIP rule 5 defect
+that reached the screen in September.
+
+**The date navigator lost focus after one activation.** Enter on Month › advanced the
+month and left `document.activeElement` on `BODY`, so the second Enter did nothing. The
+cause was deeper than "unhandled": `#nav` is a sibling of `#view`, so `focusRequestFor`'s
+`if (!scope.view.contains(active)) return undefined` answered "not ours" before any
+branch could look — and the three click handlers never called `requestFocus` either, so
+both halves of the mechanism were missing. Both are now wired, the classes come from one
+`DATE_NAV_CLASS` map so a rename cannot leave the lookup dead (UI rule 7), and Today —
+which removes itself, so a request naming it is never satisfiable — falls back to ‹.
+Day is unaffected: `navFor` returns `step: 0` and no arrows are drawn. Verified with real
+Enter sequences in Chrome: September → October → November with focus on
+`.datenav--fwd` after each, including without re-focusing between presses, which is the
+student's actual sequence.
+
+One thing worth keeping about the test file: a failure before a test's `release` leaves
+`createPressHold`'s flag set for the rest of the file, so every later draw declines. That
+inflated a mutation run from 9 failures to 23 across unrelated describes. `afterEach`
+releases now.
+
+**The footer names the failure.** §9's G4 requires every parse error surfaced rather than
+swallowed; `5 of 6 sources · synced 2m ago` is two true sentences that together describe
+a healthy extension over a list missing a course. `sourceTrouble` (core/health.ts) picks
+the one failing source worth naming, ranked by what the student can do — needs_login,
+then network_error, then parse_error; never-succeeded before succeeded — and `synced`
+carries it: `Sign in to Gradescope · 2d ago`, `Canvas didn't answer · 12m ago`,
+`PrairieLearn looks different`. The age clause is always last and the verb never after
+it, so the ~30px slot truncates only the clause. It is **not** gated on `STALE_AFTER_MS`,
+which is what hid a failure that is ten minutes old. Signature and all four `FooterLine`
+fields unchanged, so this cost zero lines in `shell.ts`. Measured in the real document:
+202px of 202px, no ellipsis, on both failure states.
+
+`statusLine` is **deleted**. It had no caller outside its own tests and its sentence was
+in none of the eight bundles — and the readiness audit reported that sentence as the
+thing on screen, which is what a second copy of a live decision costs.
+
+**Observers were not as separate as they looked.** `isFetchedSource` is `source !==
+"manual"`, a denylist, so a `piazza` key reaching the sources record *was* counted as a
+failing source — amber dot, `!` badge, and "Sign in to…" offered for a site we never sign
+into. The separation rested entirely on `migrate`'s allowlist, one line, pinned by
+nothing. `isHealthSource` now asks positively (parser rule 5's form), and
+`tests/store.test.ts` pins the migrate allowlist that everything else rests on.
+
+**Canvas says what it does not cover.** The planner carries only dated work, so a green
+Canvas dot cannot mean complete coursework coverage — 66 of 67 assignments on the
+captured account. `SOURCE_HINT.canvas` says so, pinned by `tests/names.test.ts`.
+`docs/canvas-findings.md` now records that the original claim was wrong in **both**
+directions, not just the one that was corrected in September. The limit reaches the
+screen only in Settings → Sources; the popup's own Sources tab renders no per-source
+copy, so a student who never opens Settings never reads it. **That is a gap, not a solved
+problem.**
+
+**Release docs.** `pre-submit.md` unzipped `illini-dash-1.0.0-*.zip` against a 1.2.0
+manifest, and told a tester to press *Send a test reminder*, deleted in `5fc0357` while
+the worker handler survives. Step 8 now routes through that handler from the **Settings
+tab's** console — not the worker's, where its own `sendMessage` is not delivered to its
+own listener — with four outcomes that are distinguishable in the source. The store
+listing carried a second, stale copy of the data-disclosure answers claiming website
+content is "not transmitted", false since the Calendar sync and sitting beside the
+privacy form a reviewer reads; `description.txt` said "Nothing is uploaded anywhere",
+which contradicted it. Both rewritten. Three dead *Push now* sentences in
+`core/gcal-auth.ts` and two dead controls in the tester template
+(`scripts/package.mjs`) fixed with them.
+
+Six agents over disjoint files, none of them building; one build and one measurement at
+the end. Two lanes corrected the read-only recon that briefed them — the clearance
+number (52 ignored the 25px already there; 43 is the room owed) and the observer
+separation above — which is the argument for writing the test before believing the lead.
 
 ## Appearance choices paint what they promise — 2026-09-21
 
@@ -376,10 +470,22 @@ The count was the symptom; the shape was the cause. Ten sections covered four jo
   sections rather than being deleted.
 - **Five controls deleted**, each one doing by hand what already happens: Check for
   updates (the registry refreshes daily and on every reload; its status stays as text),
-  Push now (every sync pushes), Send a test reminder, Copy diagnostics (the broken-page
-  report carries the same facts and reaches a person), and three expanders — including
+  Push now (every sync pushes), Send a test reminder, Copy diagnostics, and three
+  expanders — including
   "Why not let me pick the colours?", which argued with the reader about a choice they
   had not made.
+- **Copy diagnostics was removed for a reason that was wrong when written.** The
+  entry above used to justify it with "the broken-page report carries the same facts
+  and reaches a person". It does not, and the two answer different questions: the
+  report is a scrubbed copy of **one HTML page**, while the diagnostics were **which
+  sources worked, how many items each course produced, and what failed** — the only
+  thing that answers a tester who says "it looks fine", and the number that catches a
+  silently-empty source. `buildDiagnostics` (`core/diagnostics.ts:98`) and the
+  `get-diagnostics` handler (`background.ts:2549`) both survive with no caller, so
+  restoring it is a button and a `send`. G4's beta has no diagnostics channel as
+  things stand; `docs/pre-submit.md` records the three options under "Open for Sushi".
+  Found 2026-09-22, while reconciling the release checklist. (Export JSON is not a
+  substitute — it carries titles and links.)
 - **Classical is the only design.** `DESIGNS` offered four and Appearance surfaced two of
   them; `resolveDesign` now reads every stored value, including the one that meant Plain,
   as Classical, and `applyStoredTheme` sets the attribute on every load. Three stub

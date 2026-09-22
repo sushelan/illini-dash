@@ -39,6 +39,13 @@ export type FocusRequest = (
   | { kind: "row"; title: string }
   /** The footer's source button, which the Needs-you screen returns to. */
   | { kind: "footer-health" }
+  /**
+   * A control in the date navigator, which `renderDateNav` rebuilds whole on
+   * every draw (2026-09-22). Named, not held by reference, for the same reason
+   * a row is: the element the student pressed no longer exists by the time
+   * this is honoured.
+   */
+  | { kind: "date-nav"; control: DateNavControl }
 ) & {
   /**
    * Derived from `document.activeElement` by a redraw nobody asked for, rather
@@ -61,6 +68,30 @@ export const ROW_RING_SELECTOR = "a.row, div.row, .mpill[role='button']";
 
 /** The class on the footer's source button; shell.ts re-exports it. */
 export const FOOT_HEALTH_CLASS = "foot--health";
+
+/** The three pressable things `renderDateNav` builds. */
+export type DateNavControl = "back" | "forward" | "today";
+
+/**
+ * The class each date-navigator control carries, in one place.
+ *
+ * `renderDateNav` adds these and this file looks them up, which is UI house
+ * rule 7's "one constant, so the wrong answer is unspellable" — three redraw
+ * guards were once dead because they asked for `.menu` while the element was
+ * `menu-surface`, and this is the same shape of lookup.
+ *
+ * The names are the ones the design sheets already style (`datenav--fwd`, not
+ * `datenav--forward`); the *request* spells the control out because
+ * `"forward"` is what the code around it reads as.
+ */
+export const DATE_NAV_CLASS: Record<DateNavControl, string> = {
+  back: "datenav--back",
+  forward: "datenav--fwd",
+  today: "datenav--today",
+};
+
+/** Every date-navigator control, in document order (‹, ›, Today). */
+export const DATE_NAV_SELECTOR = `.${DATE_NAV_CLASS.back}, .${DATE_NAV_CLASS.forward}, .${DATE_NAV_CLASS.today}`;
 
 export interface FocusScope {
   /** `#view`. */
@@ -108,6 +139,24 @@ export function findFocusTarget(
     }
     case "footer-health":
       return scope.doc.querySelector<HTMLElement>(`.${FOOT_HEALTH_CLASS}`) ?? undefined;
+    case "date-nav": {
+      const named = scope.doc.querySelector<HTMLElement>(`.${DATE_NAV_CLASS[request.control]}`);
+      if (named) return named;
+      /*
+       * The control the student pressed can be gone from the strip the draw
+       * built, and in one case it always is: pressing **Today** sets
+       * `dayOffset` to 0, and the pill only exists while the offset is not 0.
+       * So it removes itself under the finger, and a request that insisted on
+       * its own name would leave `<body>` focused — which is the defect this
+       * case was added for, one button over.
+       *
+       * Any remaining control in the strip, in document order, keeps the
+       * student in the navigator they were using: after Today that is ‹, which
+       * still steps. An empty strip — Day draws a label and no arrows — has
+       * nothing to offer, and focus is left where the browser put it.
+       */
+      return scope.doc.querySelector<HTMLElement>(DATE_NAV_SELECTOR) ?? undefined;
+    }
     default:
       return undefined;
   }
@@ -122,9 +171,16 @@ export function findFocusTarget(
  * focus to `<body>` on each of them. Read *before* the draw, from the element
  * that has focus, so the same request mechanism restores it afterwards.
  *
- * Only the four things the draw rebuilds. Focus anywhere else — the header's
+ * Only the things the draw rebuilds. Focus anywhere else — the header's
  * controls, a form field, a menu (which holds the draw anyway) — is left
  * alone, because those elements survive a redraw.
+ *
+ * The date navigator is one of them and was missing until 2026-09-22:
+ * `renderDateNav` calls `dateNavEl.replaceChildren()` on every draw, so ‹, ›
+ * and Today are destroyed exactly like a tab, and `#nav` sits outside both
+ * `#view` and `#tabs` — so the `scope.view.contains` test below answered "not
+ * ours" and every redraw left the navigator's user on `<body>`. Tested before
+ * that test, for that reason.
  */
 export function focusRequestFor(
   active: Element | null,
@@ -134,6 +190,17 @@ export function focusRequestFor(
   if (!active || !(active instanceof HTMLElement)) return undefined;
   if (scope.tabs.contains(active)) return { kind: "tab", view: selectedView };
   if (active.classList.contains(FOOT_HEALTH_CLASS)) return { kind: "footer-health" };
+  // `closest` rather than `matches`, to match the row branch below: focus
+  // lands on the button itself today, but a control that grows a wrapper
+  // should not silently stop being recognised. (The `<svg>` glyph inside
+  // `iconButton` never reaches here — it is an `SVGElement`, which the
+  // `instanceof HTMLElement` guard above already refuses.)
+  const nav = active.closest<HTMLElement>(DATE_NAV_SELECTOR);
+  if (nav) {
+    for (const control of ["back", "forward", "today"] as const) {
+      if (nav.classList.contains(DATE_NAV_CLASS[control])) return { kind: "date-nav", control };
+    }
+  }
   if (!scope.view.contains(active)) return undefined;
   if (active.matches(".screen-bar button")) return { kind: "screen-back" };
   const row = active.closest<HTMLElement>(ROW_RING_SELECTOR);

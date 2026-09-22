@@ -48,6 +48,60 @@ html[data-design="classical"] body[data-view="week"] #view {
   padding: 8px 16px 16px;
 }
 /*
+ * Room under the seventh card for the floating "+".
+ *
+ * The same defect `popup-views.css` fixed for Day, and the same sentence at the
+ * end of its note — "the same measurement is owed to the other two" — is what
+ * this is. Measured 2026-09-22, Classical dark, 400x600, the stress week,
+ * scrolled as far as the document goes
+ * (`artifacts/ui-acceptance/uiuc-readiness-20260922/interaction/bottom-menu-occlusion.json`):
+ * the last row's ⋯ is at x 359–379 y 488–516 and `document.elementFromPoint` at
+ * its centre answers **the `.qfab`**, not the button. Only a 7px strip of it was
+ * uncovered, so the menu on the last deadline of the week could not be opened at
+ * all; scrolling up does not help, it moves the row under the pinned strip
+ * instead (`bottom-menu-scrolled-up.json`, where the same probe hits the footer).
+ *
+ * The arithmetic, which needs no browser once two numbers are known:
+ *
+ *   - The "+" is 40px tall at `bottom: chromeHeight + QUICK_FLOOR` (`placeQuickFab`,
+ *     `shell.ts`; `.qfab` in `popup-screens.css`), so its **top sits 12 + 40 = 52px
+ *     above the top of the pinned chrome**, whatever that chrome measures. This is
+ *     why neither theme nor strip height enters: the content and the button are
+ *     anchored to the same edge.
+ *   - At maximum scroll the flow content ends exactly at that edge, so the space
+ *     below the last row's box is all that separates it from the button. Today
+ *     that is 8 (`.witems` block padding) + 1 (the card's border) + 16 (`#view`'s
+ *     padding-bottom, four lines up) = **25px**, i.e. 27px of overlap.
+ *
+ * Confirmed by the capture rather than assumed: 25px below the row box predicts a
+ * row bottom of 522 and `bottom: 65px` on the "+", and the JSON shows exactly
+ * that pair. So the room owed is 52 − 25 + the air we want under the card.
+ *
+ * **43 = 52 − 25 + 16.** The 16 is the air Day's shipped 58 actually produces
+ * (58 + its `#view`'s 10 = 68, less the 52), so the three views clear the button
+ * by the same distance rather than by three separately argued minima. Anything
+ * over 27 unblocks the press; 16px of air is what makes the card look clear of it.
+ *
+ * On the card, not on `#view`'s padding, for the reason Day gives: 43px of
+ * `#view` padding is 43px Chrome measures on every week, and height is this
+ * popup's recurring bug. It is unconditional anyway — Week always draws seven
+ * cards — so the only thing hanging it off `.wrow:last-child` buys is that the
+ * full view's `#view` gutter is left alone. The short-week question (does a week
+ * of seven quiet cards measure under 600, where these 43px would open the popup
+ * taller?) is answered in the report that accompanied this change: estimated
+ * ~609px, i.e. already scrolling, but it is 9px from the line and wants measuring.
+ * If it measures under 600, the swap is `:last-child:has(.row)` — safe *here*
+ * because every `.wrow` is a new element on every draw, unlike the
+ * `#view:has(…)` that went stale in `popup-views.css`.
+ *
+ * `body[data-view="week"] #view >` is (1,4,2): it beats every `.wrow` rule in
+ * this file and anything the shared sheets could later say short of an id, so a
+ * late rule elsewhere cannot quietly take the room back (ZIP rule 5).
+ */
+html[data-design="classical"] body[data-view="week"] #view > .wrow:last-child {
+  margin-bottom: 43px;
+}
+/*
  * The card's interior, symmetric: the inset moves from `.witems` onto `.wrow`.
  *
  * The card was `padding: 0` with the 8px living on `.witems`, so the two edges

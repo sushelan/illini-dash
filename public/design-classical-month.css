@@ -210,11 +210,41 @@ html[data-design="classical"]:not(.view-full) body[data-view="month"] .datenav >
  */
 html[data-design="classical"] .mday-list {
   box-sizing: border-box;
-  margin: 16px;
+  margin: 16px;                        /* …and 55 at the foot; the rule under this block */
   padding: 12px;                       /* mock: p-3 */
   border: 1px solid var(--card-line);  /* mock: border-outline-variant #c5c6ce */
   border-radius: 3px;
   background: var(--surface);          /* mock: bg-surface-container-low #f7f3eb */
+}
+/*
+ * …and 55 at the foot, which is the agenda's share of the same defect the
+ * week's last card has (see the long note in `design-classical-week.css`).
+ *
+ * Derived for this view rather than copied. The agenda is the last thing
+ * `renderDotMonth` appends to `#view` (`views/month.ts`) and `#view` has no
+ * padding of its own in Month, so the space between the last agenda row's box
+ * and the top of the pinned chrome is this card's own 12px padding + its 1px
+ * border + this margin. The "+" hangs with its top 52px above that chrome
+ * (12px floor + 40px button — `placeQuickFab`, `.qfab`), so at `margin: 16px`
+ * the last row sat **23px inside the button**: the same unpressable ⋯ the week
+ * was measured with. 12 + 1 + 55 = 68, less the 52, is the same 16px of air Day
+ * and Week clear it by.
+ *
+ * Unconditional, and deliberately **not** `:has(.row)`. `.mday-list` is created
+ * once per draw and `paintDayList` replaces its children in place when a day is
+ * tapped — which is exactly the shape of the stale `:has()` recorded in
+ * `popup-views.css`: the element survives the subtree swap, and Chrome kept the
+ * old answer. The week's cards are new elements every draw and could take that
+ * conditional; this one cannot.
+ *
+ * `.mday-list` only exists in the popup (`renderMonthView` branches on
+ * `isFullView` and the full view draws `.mhead`/`.mgrid`), so nothing here
+ * reaches a tab. Its own rule at (1,4,1) rather than a line in the block above,
+ * so a later `#view .mday-list` in a shared sheet cannot silently take the room
+ * back the way `design-classical.css` took the No Date badge's ink (ZIP rule 5).
+ */
+html[data-design="classical"] body[data-view="month"] #view > .mday-list {
+  margin-bottom: 55px;
 }
 html[data-design="classical"] .mday-list .section-head {
   align-items: center;                 /* mock: items-center — the badge centres on the 16px title */

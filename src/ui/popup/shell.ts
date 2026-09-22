@@ -43,7 +43,7 @@ import { appMark, bookMark, type IconName, icon, iconButton } from "../icons.js"
 import { renderThemePanel } from "../theme-panel.js";
 import { send, type OverrideAction, type Request } from "../../messages.js";
 import { type ActionOutcome, actionOutcome } from "../../core/outcome.js";
-import { FOOT_HEALTH_CLASS, ROW_RING_SELECTOR } from "./focus.js";
+import { DATE_NAV_CLASS, FOOT_HEALTH_CLASS, ROW_RING_SELECTOR } from "./focus.js";
 import type { Item, Source, SourceState, SourceStatus } from "../../sources/types.js";
 import type { ViewName } from "../../core/calendar.js";
 import {
@@ -1326,19 +1326,33 @@ export function renderDateNav(label: string, step: number): void {
     // stopped being the last child and silently lost both its `order` and its
     // rounded outer corners (measured radius 0px, square corners on the
     // outside of the pair). A class cannot be taken away by a sibling.
+    /*
+     * Each arrow asks for itself back before it asks for the redraw.
+     *
+     * This function `replaceChildren()`s the strip, so the arrow that was just
+     * pressed is destroyed by the draw it started: September advanced to
+     * October and `document.activeElement` became `BODY`, so a second Enter
+     * did nothing and the view sat on October (measured 2026-09-22 with real
+     * Chrome input, 400×600). Written *before* the refresh and consumed by the
+     * draw that actually rebuilt the document — never chained onto
+     * `refresh()`, which returns at once while a press holds the draw (ZIP
+     * house rule 1; popup/focus.ts).
+     */
     const back = iconButton("left", "Back");
-    back.classList.add("datenav--step", "datenav--back");
+    back.classList.add("datenav--step", DATE_NAV_CLASS.back);
     back.classList.add("btn-sm");
     back.addEventListener("click", () => {
       state.dayOffset -= step;
+      requestFocus({ kind: "date-nav", control: "back" });
       void app.refresh();
     });
 
     const forward = iconButton("right", "Forward");
-    forward.classList.add("datenav--step", "datenav--fwd");
+    forward.classList.add("datenav--step", DATE_NAV_CLASS.forward);
     forward.classList.add("btn-sm");
     forward.addEventListener("click", () => {
       state.dayOffset += step;
+      requestFocus({ kind: "date-nav", control: "forward" });
       void app.refresh();
     });
 
@@ -1348,10 +1362,17 @@ export function renderDateNav(label: string, step: number): void {
   if (state.dayOffset !== 0) {
     const today = document.createElement("button");
     today.type = "button";
-    today.className = "btn btn-quiet btn-sm datenav--today";
+    today.className = `btn btn-quiet btn-sm ${DATE_NAV_CLASS.today}`;
     today.textContent = "Today";
     today.addEventListener("click", () => {
       state.dayOffset = 0;
+      // The one control that removes itself: the pill exists only while the
+      // offset is not 0, so this request is always satisfied by the fallback
+      // in `findFocusTarget` — ‹, which is still a place in the navigator.
+      // Asked for anyway, rather than left to the implicit path, because the
+      // implicit path reads `document.activeElement` and a pointer press does
+      // not reliably put it on the button (2026-09-22).
+      requestFocus({ kind: "date-nav", control: "today" });
       void app.refresh();
     });
     dateNavEl.append(today);

@@ -24,7 +24,7 @@
  */
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
 import type { Item, Source, SourceStatus } from "../src/sources/types.js";
 import { referenceItems } from "../scripts/preview-reference.js";
@@ -45,8 +45,27 @@ let focused: Element | null = null;
   function (this: Element) {
     focused = this;
   };
+/*
+ * …and a node the draw removed is *not* focused, which is the whole defect.
+ *
+ * Chrome moves focus to `<body>` the moment the focused element leaves the
+ * document, so the stale node stops receiving keys — Month › advanced once and
+ * the second Enter went nowhere (2026-09-22). A harness that kept answering
+ * with the detached button would let a broken build pass every assertion here
+ * *and* let a second synthetic Enter "work" on a node no keyboard could reach.
+ * Mutating this back to `focused ?? body` **survives** the suite, because the
+ * assertions below compare against the *live* control (`toBe(fwd())`) and a
+ * stale node fails that on identity alone. It stays anyway, and this is why:
+ * without it a click dispatched at `document.activeElement` still runs the
+ * handler of a button the draw removed, so "the second activation advanced
+ * too" would be a statement about a node no keyboard could reach. The check
+ * makes the second press a real one rather than a fiction.
+ */
 Object.defineProperty(popup.document, "activeElement", {
-  get: () => focused ?? popup.document.body,
+  get: () =>
+    focused && popup.document.contains(focused as unknown as Node)
+      ? focused
+      : popup.document.body,
   configurable: true,
 });
 
@@ -766,6 +785,247 @@ describe("the date strip says what is being looked at", () => {
       expect(nav().hidden).toBe(true);
       expect(nav().children.length).toBe(0);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The date navigator's own focus (2026-09-22)                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * I01, one strip over.
+ *
+ * Measured on the real 400×600 popup with Chrome's own input pipeline: focus
+ * Month ›, press Enter — September becomes October and `document.activeElement`
+ * becomes `BODY`, so the second Enter does nothing and the view sits on
+ * October. Pointer activation stranded focus the same way.
+ * (`artifacts/ui-acceptance/uiuc-readiness-20260922/interaction/`
+ * `keyboard-date-navigation.json`, `month-next.json`.)
+ *
+ * `renderDateNav` `replaceChildren()`s `#nav` on every draw, so the arrow the
+ * student pressed is destroyed by the draw its own press started — and `#nav`
+ * is a sibling of `#view` and `#tabs`, so `focusRequestFor` never looked at it
+ * either. Both halves of the mechanism were missing, and both are wanted: the
+ * tests below are arranged so each one can only pass by the half it names.
+ */
+describe("the date navigator survives the draw its own press starts", () => {
+  const nav = () => document.getElementById("nav")!;
+  const fwd = () => nav().querySelector<HTMLElement>(".datenav--fwd");
+  const back = () => nav().querySelector<HTMLElement>(".datenav--back");
+  const todayPill = () => nav().querySelector<HTMLElement>(".datenav--today");
+  const addButton = () => document.querySelector<HTMLElement>("#actions button")!;
+
+  /**
+   * What Chrome does for Enter on a focused `<button>`: the keydown's default
+   * action is a `click`. Nothing in the popup listens for keydown on this
+   * strip, so the click handler is the whole keyboard path — and dispatching
+   * the keydown as well is what makes that claim checkable rather than assumed.
+   */
+  const enter = (el: Element) => {
+    keydown(el, "Enter");
+    click(el);
+  };
+
+  /** A pointer press that does not focus: `pointerdown`, `click`, `pointerup`. */
+  const tap = (el: Element) => {
+    press(el);
+    click(el);
+    release(el);
+  };
+
+  async function onMonth(): Promise<void> {
+    shell.selectTab("month");
+    await settle();
+    state.dayOffset = 0;
+    await app.refresh();
+  }
+
+  /*
+   * A press this block began and did not finish holds **every** later draw.
+   *
+   * Two of the tests below put a mouse button down on the list on purpose. If
+   * one of them fails before its `release`, `createPressHold`'s flag is left
+   * set for the rest of the file and `drawIsHeld` declines every redraw after
+   * it — which is how removing the fix turned nine failures into twenty-three,
+   * across five describes that have nothing to do with the navigator. The
+   * cascade is not a second defect; it is this file lying about the blast
+   * radius of the first one.
+   */
+  afterEach(() => {
+    release(document.body);
+  });
+
+  // Every test here leaves the calendar stepped off today on purpose, and the
+  // describes after this one read the *current* week. Put back, so a failure
+  // in this block is one failure rather than a cascade through five others.
+  afterAll(async () => {
+    state.dayOffset = 0;
+    shell.selectTab("week");
+    await settle();
+  });
+
+  it("advances twice in a row from the keyboard, and keeps › focused", async () => {
+    await onMonth();
+    const first = fwd()!;
+    first.focus();
+
+    enter(first);
+    await settle();
+    expect(state.dayOffset, "one step of whole weeks").toBe(28);
+    // The arrow was rebuilt, so this is a *different* element — and focus has
+    // to be on the new one. Before the fix it was on `first`, which the draw
+    // had removed, which Chrome reports as `<body>`.
+    expect(fwd()).not.toBe(first);
+    expect(document.activeElement).toBe(fwd());
+
+    // The second Enter goes wherever focus actually is — the whole defect is
+    // that a student's second press lands on `<body>` and does nothing.
+    enter(document.activeElement!);
+    await settle();
+    expect(state.dayOffset, "the second Enter advanced too").toBe(56);
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("advances twice in a row from the pointer, which never focused anything", async () => {
+    // This one can only pass by the **explicit** request: nothing calls
+    // `.focus()`, so `document.activeElement` is `<body>` when the draw reads
+    // it and `focusRequestFor` has nothing to derive from.
+    await onMonth();
+    const first = fwd()!;
+    tap(first);
+    await settle();
+    expect(state.dayOffset).toBe(28);
+    expect(document.activeElement).toBe(fwd());
+
+    tap(fwd()!);
+    await settle();
+    expect(state.dayOffset).toBe(56);
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("does the same for ‹ back, and on Week as well as Month", async () => {
+    // `renderDateNav(label, step)` is one function for both views and both
+    // arrows; the defect was never about one button.
+    shell.selectTab("week");
+    await settle();
+    state.dayOffset = 0;
+    await app.refresh();
+    const first = back()!;
+    first.focus();
+    enter(first);
+    await settle();
+    expect(state.dayOffset, "a week backwards").toBe(-7);
+    expect(back()).not.toBe(first);
+    expect(document.activeElement).toBe(back());
+    enter(document.activeElement!);
+    await settle();
+    expect(state.dayOffset).toBe(-14);
+  });
+
+  it("leaves focus in the strip when Today removes the pill under the finger", async () => {
+    await onMonth();
+    enter(fwd()!);
+    await settle();
+    const pill = todayPill();
+    expect(pill, "the pill appears once the offset is not 0").not.toBeNull();
+    pill!.focus();
+    enter(pill!);
+    await settle();
+    expect(state.dayOffset).toBe(0);
+    // The pill only exists while the offset is not 0, so it is gone — and the
+    // request falls back to the first control left rather than to `<body>`.
+    expect(todayPill()).toBeNull();
+    expect(document.activeElement).toBe(back());
+  });
+
+  it("puts focus back on the arrow after a redraw nobody asked for", async () => {
+    // The **implicit** half on its own: the minute tick, a store write and the
+    // popup's open-sync all rebuild this strip under a student who has just
+    // tabbed to it, and no control asked for anything.
+    await onMonth();
+    const stale = fwd()!;
+    stale.focus();
+    expect(state.focusAfterDraw).toBeUndefined();
+    await app.refresh();
+    expect(state.dayOffset, "a background redraw moves nothing").toBe(0);
+    expect(fwd()).not.toBe(stale);
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("honours the explicit request when focus was never on the strip", async () => {
+    // And the **explicit** half on its own, the way `selectTab`'s mutation M3
+    // had to be separated: with focus on a control the redraw does not rebuild,
+    // `focusRequestFor` returns undefined, so only the request the handler
+    // wrote can land focus on ›.
+    await onMonth();
+    addButton().focus();
+    click(fwd()!);
+    await settle();
+    expect(state.dayOffset).toBe(28);
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("keeps the request across a draw a held press deferred", async () => {
+    /*
+     * The ordering the suite had never reached (CLAUDE.md, mutation house rule
+     * 5): every other test here activates a control *before* anything holds
+     * the draw. Here a mouse button is already down inside the list — a
+     * scroll-drag, or the student steadying the popup — so `render` declines,
+     * and the draw that finally rebuilds the strip is the deferred one
+     * `endPress` runs a task later. It must honour a request it never saw
+     * made, which is the whole reason focus is a request and not a `.then`.
+     *
+     * Focus is left on the header's + so nothing implicit can mask it: the
+     * deferred draw has only the explicit request to work from.
+     */
+    await onMonth();
+    const row = view().querySelector<HTMLElement>("a.row, div.row, .mpill[role='button']")!;
+    addButton().focus();
+    press(row); // the draw is now held
+    click(fwd()!);
+    await settle();
+    expect(state.dayOffset, "the handler ran; only the draw waited").toBe(28);
+    expect(state.focusAfterDraw, "still owed").toEqual({ kind: "date-nav", control: "forward" });
+    expect(document.activeElement).toBe(addButton());
+
+    release(row); // `endPress` runs the owed draw
+    await settle();
+    expect(state.focusAfterDraw).toBeUndefined();
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("keeps the request when the press begins while the state is in flight", async () => {
+    // The other order, and the one a student reaches by accident: › is pressed,
+    // its refresh passes `drawIsHeld` and goes to the worker, and the button
+    // goes down on the list before the answer comes back. `render` is the
+    // second guard and a draw it declines must not consume the request.
+    await onMonth();
+    addButton().focus();
+    const row = view().querySelector<HTMLElement>("a.row, div.row, .mpill[role='button']")!;
+    click(fwd()!); // the refresh is away…
+    press(row); // …and the button goes down before the worker answers
+    await settle();
+    expect(state.focusAfterDraw, "render declined the held draw").toEqual({
+      kind: "date-nav",
+      control: "forward",
+    });
+    release(row);
+    await settle();
+    expect(document.activeElement).toBe(fwd());
+  });
+
+  it("drops a request the strip it drew cannot satisfy", async () => {
+    // Today has no arrows at all (`navFor` returns `step: 0`), so a request
+    // left over from Month names nothing. Focus stays where the browser put
+    // it rather than jumping somewhere invented.
+    shell.selectTab("day");
+    await settle();
+    addButton().focus();
+    state.focusAfterDraw = { kind: "date-nav", control: "forward" };
+    await app.refresh();
+    expect(nav().hidden, "no strip on the day view").toBe(true);
+    expect(state.focusAfterDraw, "the draw consumed it either way").toBeUndefined();
+    expect(document.activeElement).toBe(addButton());
   });
 });
 

@@ -32,15 +32,25 @@ WHAT IT DOES
 • Your own course websites. Plenty of courses keep the real schedule on their own page.
   Paste the address, see exactly what was found, and add it once it looks right.
 
-• Calendar export. Save everything as an .ics file from the toolbar, or send a single
-  deadline to Google Calendar.
+• Deadlines announced in a post. If you use Piazza or Campuswire, Illini Dash can offer
+  the dates instructors state there as suggestions you accept or ignore. Both are off
+  until you switch them on.
+
+• Calendar export. Save everything as an .ics file from the toolbar. Or connect Google
+  Calendar, and your deadlines are kept in step in a calendar Illini Dash creates in your
+  own account — it can see no other calendar in it, and disconnecting deletes the one it
+  made.
 
 NO ACCOUNT, NO PASSWORD, NO SERVER
 
 Illini Dash reads the pages you are already signed in to, the same way your browser would
 if you opened them yourself, and keeps everything on your own device. It never sees a
-password. Nothing is uploaded anywhere, because there is nowhere to upload it to — there
-is no server, no account and no analytics. Uninstalling it deletes everything it stored.
+password. There is no server, no account and no analytics, and nothing you do is reported
+to anyone. Uninstalling it deletes everything it stored.
+
+Nothing leaves your browser except in one case, and you start it: if you connect Google
+Calendar, your own deadlines go to your own Google account and nowhere else. They are
+never sent to us, because there is no us to send them to.
 
 Built for UIUC students. Not affiliated with, endorsed by or connected to the University
 of Illinois, Instructure, Gradescope or PrairieLearn.

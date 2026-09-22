@@ -77,6 +77,23 @@ day recall was measured*. It is no longer the expected outcome, and a Canvas sou
 reporting 0 items should now be treated the way any other empty source is: something to
 explain, not something already explained.
 
+### The claim was wrong in both directions
+
+The overreach above said Canvas contributes **zero**. The correction says it
+contributes **some**. Neither sentence says the thing a student needs, which is that
+Canvas contributes **only the dated part** — and that half was true the whole time,
+sitting in §4.1's own words: an assignment with no `due_at` "appear[s] nowhere in the
+planner window".
+
+So a healthy Canvas source is not evidence of complete coursework coverage, and a green
+dot over it cannot be read as one. On the captured account that gap is 66 of 67
+assignments. Under worker rule 2 — a green dot means "I fetched, and it was fine", never
+more — the limit has to be stated where a student reads about Canvas rather than left
+to be inferred from an empty list: `SOURCE_HINT.canvas` says it as of 2026-09-22, pinned
+by `tests/names.test.ts`. The only place that hint reaches the screen is Settings →
+Sources; the popup's own Sources tab renders no per-source copy, so a student who never
+opens Settings never reads it. That is a gap, not a solved problem.
+
 ### G1 consequence — now unblocked
 
 This *was* "there is no non-empty planner fixture to be had from this account, so the

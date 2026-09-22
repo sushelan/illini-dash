@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   LOGIN_URL,
   SOURCE_CODE,
+  SOURCE_HINT,
   SOURCE_HOME,
   SOURCE_NAME,
   SOURCE_TITLE,
@@ -170,5 +171,18 @@ describe("the manual source's words", () => {
     // Both maps are `Partial` precisely so a source with no page can say so.
     expect(LOGIN_URL.manual).toBeUndefined();
     expect(SOURCE_HOME.manual).toBeUndefined();
+  });
+});
+
+describe("what Canvas is honest about", () => {
+  it("says the planner only carries dated work", () => {
+    // This extension reads the Canvas planner, and §4.1 — quoted in
+    // docs/canvas-findings.md — records that an assignment with no `due_at`
+    // "appear[s] nowhere in the planner window". So a green Canvas dot means
+    // "the planner answered", never "all your coursework is here", and the one
+    // place a student reads about Canvas has to say which of the two it is.
+    // Worker rule 2, at the level of what a source claims to cover.
+    expect(SOURCE_HINT.canvas).toMatch(/planner/);
+    expect(SOURCE_HINT.canvas).toMatch(/due date/);
   });
 });

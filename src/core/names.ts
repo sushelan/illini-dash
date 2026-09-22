@@ -124,7 +124,16 @@ export const SOURCE_CODE: Record<Source, string> = {
  * without the information needed to answer it.
  */
 export const SOURCE_HINT: Record<Source, string> = {
-  canvas: "Every UIUC course",
+  // The caveat is the hint. This extension reads the Canvas *planner*, and
+  // §4.1 says an assignment with no `due_at` "appear[s] nowhere in the planner
+  // window" — so undated work is structurally absent, not missed. Without the
+  // second clause a green Canvas dot reads as "all your coursework is here",
+  // which is worker rule 2's failure in the student's head rather than in the
+  // store: the dot is honest about the fetch and the sentence beside it was
+  // not honest about what the fetch can contain.
+  // (`docs/canvas-findings.md`, which had inferred the opposite and was wrong
+  // in both directions — Canvas contributes more than zero, and less than all.)
+  canvas: "Every UIUC course — but only work with a due date; undated assignments never reach the planner",
   gradescope: "Most CS, ECE and Math courses",
   prairielearn: "CS and ECE homework and quizzes",
   prairietest: "Exams booked at the CBTF",
