@@ -9,10 +9,24 @@ Current state: `npm test` green, `npm run package` emits
 `public/manifest.json`, so never write it out by hand; the privacy policy is live at
 <https://sushelan.github.io/illini-dash/privacy.html>; and every permission and origin is
 justified in `docs/store/listing.md` and disclosed in `docs/store/privacy-policy.md`.
-`tests/manifest.test.ts` pins four things: that every fetched origin is granted, that
+`tests/manifest.test.ts` pins five things: that every fetched origin is granted, that
 every permission the manifest claims has a row in listing.md's justification table, that
-the policy names every granted host and permission, and that each block of
-`privacy-practices.txt` fits the character limit its own header states.
+the policy names every granted host and permission, that each block of
+`privacy-practices.txt` fits the character limit its own header states, and that the
+**published** page matches what `npm run site` generates today.
+
+That last one is new on 2026-09-22, because the published page had been ten days stale
+and was telling a reviewer that data is "never transmitted to the developer or any third
+party" — false since the Calendar export shipped. Publishing is by hand, so when the
+policy changes the step is:
+
+```bash
+npm run site && git checkout gh-pages && cp site/privacy.html site/index.html . && git add privacy.html index.html && git commit -m "…" && git push origin gh-pages
+```
+
+then `git checkout -` back. The test fails until that push happens, so the drift cannot
+reach a reviewer again — but it reads the local `gh-pages` ref, so run
+`git fetch origin gh-pages:gh-pages` if you have published from another machine.
 
 ---
 

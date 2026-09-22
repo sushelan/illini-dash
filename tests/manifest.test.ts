@@ -12,6 +12,7 @@
  * on, and the beta guide tells them to.
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CANVAS_ORIGIN } from "../src/sources/canvas.js";
@@ -539,5 +540,59 @@ describe("what the store asks for", () => {
     // pins the *bundle*. Two copies would drift the first time one was bumped.
     expect(build).toContain("__EXTENSION_VERSION__");
     expect(build).toContain('readFile("public/manifest.json"');
+  });
+});
+
+describe("the published privacy policy", () => {
+  /*
+   * The page is generated from `docs/store/privacy-policy.md` — the same file
+   * the tests above hold against the manifest — precisely so the published copy
+   * cannot say something different from the checked one. It drifted anyway, by
+   * ten days: publishing is `npm run site` plus a hand push to `gh-pages`, and
+   * nothing failed when the push did not happen. For that whole time the live
+   * page told a store reviewer that data is "never transmitted to the developer
+   * or any third party", which stopped being true when the Google Calendar
+   * export shipped on 2026-09-18, and it listed neither the Campuswire and
+   * Piazza origins nor the `cookies`, `identity`, `scripting` and
+   * `www.googleapis.com` permissions this build requests.
+   *
+   * A generated artefact that is published by hand is two copies again. This
+   * makes the second one fail here rather than in front of a reviewer.
+   */
+  const ref = ["gh-pages", "origin/gh-pages"].find((name) => {
+    try {
+      execFileSync("git", ["rev-parse", "--verify", `${name}^{commit}`], { stdio: "pipe" });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  it("has a branch to compare against", () => {
+    // Not skipped when the ref is missing: a skip would read as "published and
+    // fine" on the one run that could not check, which is the silent-empty
+    // failure in its release-process form. `git fetch origin gh-pages` fixes it.
+    expect(ref, "no local gh-pages ref — run `git fetch origin gh-pages:gh-pages`").toBeDefined();
+  });
+
+  it("is byte-identical to what `npm run site` generates today", () => {
+    if (ref === undefined) return;
+    execFileSync("node", ["scripts/site.mjs"], { stdio: "pipe" });
+    const generated = readFileSync("site/privacy.html", "utf8");
+    const published = execFileSync("git", ["show", `${ref}:privacy.html`], {
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    // The whole file, not just the date: a policy can gain a paragraph without
+    // its "Last updated" line moving, and that paragraph is the reason anyone
+    // rewrites a policy. Regenerate and push `gh-pages` when this fails.
+    expect(published).toBe(generated);
+  });
+
+  it("publishes the version of the claim that survived the Calendar export", () => {
+    // The specific sentence that was live and false for ten days, quoted so a
+    // future rewrite cannot reintroduce it without a red test.
+    const policy = readFileSync("docs/store/privacy-policy.md", "utf8");
+    expect(policy).not.toContain("never transmitted");
   });
 });
