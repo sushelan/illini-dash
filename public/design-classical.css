@@ -1,6 +1,6 @@
 /* Pinned Stitch design; see docs/design/ui-acceptance/reference-contract.md.
  * Popup html/body stay intrinsically sized. Dark is the same system adapted for low light. */
-html[data-design="classical"]:root {
+:where(html[data-design="classical"]:root) {
   --bg-parchment:  #fdf9f1;  
   --bg-card:       #f7f3eb;  
   --bg-card-tint:  #f1ede6;  
@@ -117,7 +117,7 @@ html[data-design="classical"]:root {
  * is what lets a near-white heading read as white ink rather than as grey.
  * Everything warm is then a signal: terracotta for now and overdue, amber for
  * warn, and nothing warm that is merely decoration. */
-html[data-design="classical"]:root.is-dark {
+:where(html[data-design="classical"]:root.is-dark) {
   /* --- surfaces: cool graphite --------------------------------------------- */
   --bg-parchment:  #141517;
   --bg-card:       #1e2023;

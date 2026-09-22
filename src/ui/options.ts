@@ -30,7 +30,11 @@ import {
   type ModelOutcome,
 } from "../core/author.js";
 import { repeatedStructures, skeletonise } from "../core/skeleton.js";
-import { currentTermCode, emptyCourseGroup, groupHasCourse } from "../core/registry.js";
+import {
+  currentTermCode,
+  emptyCourseGroup,
+  groupHasCourse,
+} from "../core/registry.js";
 import { el, stateChip } from "./options/dom.js";
 import {
   adapterPageName,
@@ -57,14 +61,24 @@ import {
 } from "../core/piazza.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { downloadFile, downloadIcs } from "./download.js";
-import { MAX_POLL_MINUTES, MIN_POLL_MINUTES, STORAGE_KEY } from "../core/store.js";
+import {
+  MAX_POLL_MINUTES,
+  MIN_POLL_MINUTES,
+  STORAGE_KEY,
+} from "../core/store.js";
 import {
   isGrantedUpFront,
   originPattern,
   reportUrlFromHash,
   type CaptureResult,
 } from "../capture.js";
-import { actionFor, displayState, healthPill, sourceRows, sourcesToRecheck } from "../core/health.js";
+import {
+  actionFor,
+  displayState,
+  healthPill,
+  sourceRows,
+  sourcesToRecheck,
+} from "../core/health.js";
 import { describeGcal, type GcalFacts } from "../core/gcal-auth.js";
 import { GCAL_MATCH } from "../core/gcal-config.js";
 import {
@@ -92,7 +106,9 @@ let lastResults: Gate0Result[] = [];
 
 /* Before the first paint. See src/ui/theme-panel.ts. */
 applyStoredTheme();
-document.getElementById("back")?.replaceChildren(icon("book"), document.createTextNode("Illini Dash"));
+document
+  .getElementById("back")
+  ?.replaceChildren(icon("book"), document.createTextNode("Illini Dash"));
 
 /* ---- Build identity -------------------------------------------------------
  * Chrome reloads this page from disk but keeps the old service worker until the
@@ -119,12 +135,14 @@ void (async () => {
         "The background part of Illini Dash answered something unexpected. Open " +
           "chrome://extensions and click Reload on the Illini Dash card.",
       );
-      if (devBuild) devBuild.textContent = `${mine} Worker answered: ${JSON.stringify(resp)}`;
+      if (devBuild)
+        devBuild.textContent = `${mine} Worker answered: ${JSON.stringify(resp)}`;
       return;
     }
     // Both branches written out, because "already fine" and "never ran" were
     // indistinguishable here (worker rule 5).
-    if (devBuild) devBuild.textContent = `${mine} Service worker: build ${resp.buildId}.`;
+    if (devBuild)
+      devBuild.textContent = `${mine} Service worker: build ${resp.buildId}.`;
     if (resp.buildId === BUILD_ID) {
       setWarning("build", undefined);
       return;
@@ -162,7 +180,10 @@ void (async () => {
  * one container rather than two loose elements, so neither can race the other
  * into invisibility and neither can escape the page's own margins.
  */
-function setWarning(key: "build" | "fields" | "draw", text: string | undefined): void {
+function setWarning(
+  key: "build" | "fields" | "draw",
+  text: string | undefined,
+): void {
   let line = buildInfo.querySelector<HTMLElement>(`[data-warning="${key}"]`);
   if (!text) {
     line?.remove();
@@ -179,7 +200,10 @@ function setWarning(key: "build" | "fields" | "draw", text: string | undefined):
 }
 
 function showMissingFields(missing: readonly string[]): void {
-  setWarning("fields", missing.length === 0 ? undefined : staleWorkerNotice(missing));
+  setWarning(
+    "fields",
+    missing.length === 0 ? undefined : staleWorkerNotice(missing),
+  );
 }
 
 function row(dl: HTMLElement, label: string, value: string): void {
@@ -206,11 +230,13 @@ function render(results: Gate0Result[]): void {
 
     const dl = document.createElement("dl");
     row(dl, "request", r.requestUrl);
-    if (r.status !== undefined) row(dl, "status", `${r.status} ${r.statusText ?? ""}`.trim());
+    if (r.status !== undefined)
+      row(dl, "status", `${r.status} ${r.statusText ?? ""}`.trim());
     if (r.finalUrl) row(dl, "final URL", r.finalUrl);
     if (r.redirected !== undefined) row(dl, "redirected", String(r.redirected));
     if (r.contentType) row(dl, "content-type", r.contentType);
-    if (r.bodyLength !== undefined) row(dl, "body length", String(r.bodyLength));
+    if (r.bodyLength !== undefined)
+      row(dl, "body length", String(r.bodyLength));
     row(dl, "took", `${r.durationMs} ms`);
     if (r.note) row(dl, "note", r.note);
     if (r.error) row(dl, "error", r.error);
@@ -235,7 +261,9 @@ runButton.addEventListener("click", async () => {
     const resp = await send({ type: "gate0" });
     if (resp.type !== "gate0") {
       statusEl.textContent =
-        resp.type === "error" ? `Worker error: ${resp.message}` : "Unexpected response.";
+        resp.type === "error"
+          ? `Worker error: ${resp.message}`
+          : "Unexpected response.";
       return;
     }
     lastResults = resp.results;
@@ -259,7 +287,9 @@ copyButton.addEventListener("click", async () => {
 
 /* ---- Offscreen round-trip (build step 3) ---------------------------------- */
 
-const selftestButton = document.getElementById("run-selftest") as HTMLButtonElement;
+const selftestButton = document.getElementById(
+  "run-selftest",
+) as HTMLButtonElement;
 const selftestStatus = document.getElementById("selftest-status")!;
 const selftestResults = document.getElementById("selftest-results")!;
 
@@ -271,7 +301,9 @@ selftestButton.addEventListener("click", async () => {
     const resp = await send({ type: "parse-selftest" });
     if (resp.type !== "parse-selftest") {
       selftestStatus.textContent =
-        resp.type === "error" ? `Worker error: ${resp.message}` : "Unexpected response.";
+        resp.type === "error"
+          ? `Worker error: ${resp.message}`
+          : "Unexpected response.";
       return;
     }
     for (const c of resp.cases) {
@@ -303,7 +335,9 @@ selftestButton.addEventListener("click", async () => {
 /* ---- Fixture capture (build step 4) --------------------------------------- */
 
 const captureUrl = document.getElementById("capture-url") as HTMLInputElement;
-const captureButton = document.getElementById("run-capture") as HTMLButtonElement;
+const captureButton = document.getElementById(
+  "run-capture",
+) as HTMLButtonElement;
 const captureStatus = document.getElementById("capture-status")!;
 const captureResult = document.getElementById("capture-result")!;
 const presets = document.getElementById("capture-presets")!;
@@ -349,12 +383,29 @@ const PRESETS: { label: string; url: string; note?: string }[] = [
     url: "https://canvas.illinois.edu/api/v1/courses//assignments?per_page=100",
     note: "insert a course id",
   },
+  // smartPhysics was missing from this list entirely, including the two pages
+  // it already has fixtures for. Every one of its pages is addressed by a
+  // per-student enrolment id (house rule 13), so the id is the note on two of
+  // the three and the home page is where you read it off.
+  { label: "smartPhysics home", url: "https://smart.physics.illinois.edu/" },
+  {
+    label: "smartPhysics course",
+    url: "https://smart.physics.illinois.edu/Course?enrollmentID=",
+    note: "append your enrolment id",
+  },
+  {
+    label: "smartPhysics calendar",
+    url: "https://smart.physics.illinois.edu/Course/Calendar?enrollmentID=",
+    note: "append your enrolment id",
+  },
 ];
 
 for (const preset of PRESETS) {
   const button = document.createElement("button");
   button.className = "btn btn-quiet btn-sm";
-  button.textContent = preset.note ? `${preset.label} (${preset.note})` : preset.label;
+  button.textContent = preset.note
+    ? `${preset.label} (${preset.note})`
+    : preset.label;
   button.addEventListener("click", () => {
     captureUrl.value = preset.url;
     captureUrl.focus();
@@ -367,7 +418,8 @@ function suggestFilename(url: string, contentType: string | undefined): string {
   const parsed = new URL(url);
   const host = parsed.hostname.replace(/^www\./, "").split(".")[0] ?? "capture";
   const path =
-    parsed.pathname.replace(/^\/|\/$/g, "").replace(/[^a-zA-Z0-9]+/g, "-") || "index";
+    parsed.pathname.replace(/^\/|\/$/g, "").replace(/[^a-zA-Z0-9]+/g, "-") ||
+    "index";
   const ext = contentType?.includes("json") ? "json" : "html";
   return `${host}-${path}.${ext}`;
 }
@@ -415,7 +467,8 @@ function renderCapture(result: CaptureResult): void {
   if (entries.length === 0) {
     row(scrubList, "replacements", "none — nothing identifying was recognized");
   } else {
-    for (const [label, count] of entries) row(scrubList, label, `${count} replaced`);
+    for (const [label, count] of entries)
+      row(scrubList, label, `${count} replaced`);
   }
   for (const warning of report.warnings) {
     const dt = document.createElement("dt");
@@ -452,13 +505,17 @@ function renderCapture(result: CaptureResult): void {
   box.append(preview);
 
   const filename = suggestFilename(result.finalUrl, result.contentType);
-  const mime = result.contentType?.includes("json") ? "application/json" : "text/html";
+  const mime = result.contentType?.includes("json")
+    ? "application/json"
+    : "text/html";
 
   const saveScrubbed = document.createElement("button");
   saveScrubbed.textContent = blockers.length
     ? `Download anyway (${blockers.length} unresolved — do not commit)`
     : `Download scrubbed (${filename})`;
-  saveScrubbed.addEventListener("click", () => downloadFile(filename, scrubbed, mime));
+  saveScrubbed.addEventListener("click", () =>
+    downloadFile(filename, scrubbed, mime),
+  );
 
   const saveRaw = document.createElement("button");
   saveRaw.textContent = "Download raw (do not commit)";
@@ -513,12 +570,12 @@ captureButton.addEventListener("click", async () => {
       ? "That fetch landed on a login page — log in to the site and retry."
       : `Fetched ${resp.result.bytes} bytes.`;
   } catch (err) {
-    captureStatus.textContent = err instanceof Error ? err.message : String(err);
+    captureStatus.textContent =
+      err instanceof Error ? err.message : String(err);
   } finally {
     captureButton.disabled = false;
   }
 });
-
 
 /* ---- §8.2 options ---------------------------------------------------------
  * All source-derived text goes in with textContent (§8.1's rendering rule);
@@ -618,7 +675,8 @@ const OBSERVERS: readonly ObserverSpec[] = [
     // The row says what it reads; `title` keeps the longer sentence for a hover
     // (2026-09-20, "make the settings less text heavy").
     hint: "Reads the class feeds you open. Nothing is sent, and no post is stored.",
-    title: "Illini Dash reads a Campuswire class feed only while you have it open.",
+    title:
+      "Illini Dash reads a Campuswire class feed only while you have it open.",
   },
   {
     id: "piazza",
@@ -626,7 +684,8 @@ const OBSERVERS: readonly ObserverSpec[] = [
     match: PIAZZA_MATCH,
     loginUrl: PIAZZA_LOGIN_URL,
     hint: "Reads your classes' announcements on each sync. Nothing is posted or stored.",
-    title: "Illini Dash reads your Piazza class feeds in the background, on each sync.",
+    title:
+      "Illini Dash reads your Piazza class feeds in the background, on each sync.",
   },
 ];
 
@@ -667,11 +726,14 @@ function observerState(
 ): string {
   if (facts?.enabled !== true) return "disabled";
   if (!granted) return "needs_permission";
-  if (spec.id === "campuswire") return facts.lastObservedAt === undefined ? "pending" : "ok";
+  if (spec.id === "campuswire")
+    return facts.lastObservedAt === undefined ? "pending" : "ok";
   const piazza = facts as PiazzaFacts;
   if (piazza.state === "needs_login") return "needs_login";
   if (piazza.state === "error") return "parse_error";
-  return piazza.state === "ok" && piazza.lastAttemptAt !== undefined ? "ok" : "pending";
+  return piazza.state === "ok" && piazza.lastAttemptAt !== undefined
+    ? "ok"
+    : "pending";
 }
 
 /** The "On · …" tail of a describe line — the facts, without its own state word. */
@@ -716,9 +778,14 @@ function observerChipText(
    * 11:14 AM · 3 posts" — a state word and a detail that contradict each
    * other, and the half a student believes is the cheerful one.
    */
-  const detail = shown === "ok" || shown === "pending" ? observerDetail(spec, facts, now) : undefined;
+  const detail =
+    shown === "ok" || shown === "pending"
+      ? observerDetail(spec, facts, now)
+      : undefined;
   // "nothing read yet" is what both pending words already say.
-  return detail === undefined || detail === "nothing read yet" ? word : `${word} \u00b7 ${detail}`;
+  return detail === undefined || detail === "nothing read yet"
+    ? word
+    : `${word} \u00b7 ${detail}`;
 }
 
 /**
@@ -735,7 +802,8 @@ async function observerRow(
   missing: readonly string[],
   now: Date,
 ): Promise<HTMLElement> {
-  const unavailable = missing.includes("observers") || missing.includes(`observers.${spec.id}`);
+  const unavailable =
+    missing.includes("observers") || missing.includes(`observers.${spec.id}`);
   const granted = await hasOrigin(spec.match);
   const shown = unavailable ? "pending" : observerState(spec, facts, granted);
 
@@ -788,19 +856,24 @@ async function observerRow(
             restore(`Permission denied, so ${spec.name} stays off.`);
             return undefined;
           }
-          return send({ type: "set-observer-enabled", observer: spec.id, enabled }).then(
-            (response) => {
-              if (response.type === "error") restore(response.message);
-              else void refreshOptions();
-            },
-          );
+          return send({
+            type: "set-observer-enabled",
+            observer: spec.id,
+            enabled,
+          }).then((response) => {
+            if (response.type === "error") restore(response.message);
+            else void refreshOptions();
+          });
         })
         // Every send from a page gets one (UI rule 2): without it a stale
         // worker rejects into nothing at all and the switch just springs back.
-        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) =>
+          restore(err instanceof Error ? err.message : String(err)),
+        );
     },
   });
-  const hint = row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  const hint =
+    row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
   row.append(chip);
 
   if (unavailable) {
@@ -838,7 +911,9 @@ async function observerRow(
           if (!ok) back(`Permission denied, so ${spec.name} cannot be read.`);
           else void refreshOptions();
         })
-        .catch((err: unknown) => back(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) =>
+          back(err instanceof Error ? err.message : String(err)),
+        );
     });
     row.append(allow);
   } else if (shown === "needs_login" && spec.loginUrl !== undefined) {
@@ -898,7 +973,8 @@ function noteRemoval(adapter: AdapterEntry): void {
    * store on every undo.
    */
   const rest = { ...(adapter as unknown as Record<string, unknown>) };
-  for (const key of ["enabled", "granted", "local", "currentTerm"]) delete rest[key];
+  for (const key of ["enabled", "granted", "local", "currentTerm"])
+    delete rest[key];
   removal = {
     id: adapter.id,
     courseCode: adapter.courseCode,
@@ -1015,14 +1091,16 @@ const courseSiteActions: CourseSiteActions = {
           note("Permission denied, so that site stays off.");
           return;
         }
-        return send({ type: "set-adapter-enabled", adapterId: adapter.id, enabled }).then(
-          (response) => {
-            if (response.type === "error") {
-              control.checked = !enabled;
-              note(response.message);
-            } else void refreshOptions();
-          },
-        );
+        return send({
+          type: "set-adapter-enabled",
+          adapterId: adapter.id,
+          enabled,
+        }).then((response) => {
+          if (response.type === "error") {
+            control.checked = !enabled;
+            note(response.message);
+          } else void refreshOptions();
+        });
       })
       .catch((err: unknown) => {
         // Every `send` and every `chrome.*` promise from a page needs this
@@ -1040,7 +1118,9 @@ const courseSiteActions: CourseSiteActions = {
         note("Permission denied, so that site stays off.");
         return undefined;
       })
-      .catch((err: unknown) => note(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) =>
+        note(err instanceof Error ? err.message : String(err)),
+      );
   },
   remove(adapter, note, button) {
     const restore = (text: string): void => {
@@ -1057,13 +1137,17 @@ const courseSiteActions: CourseSiteActions = {
         noteRemoval(adapter);
         return refreshOptions();
       })
-      .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) =>
+        restore(err instanceof Error ? err.message : String(err)),
+      );
   },
   undoLine(group) {
     const pending = pendingUndo();
     // `groupHasCourse` and not a string compare: the removal remembers
     // `CS425` and the row now reads `CS 425 / ECE 428`.
-    return pending && groupHasCourse(group, pending.courseCode) ? undoLine(pending) : undefined;
+    return pending && groupHasCourse(group, pending.courseCode)
+      ? undoLine(pending)
+      : undefined;
   },
 };
 
@@ -1077,7 +1161,9 @@ function renderPageNav(): void {
   const nav = document.getElementById("pagenav");
   if (!nav) return;
   nav.replaceChildren();
-  const sections = [...document.querySelectorAll<HTMLElement>("section[data-nav]")];
+  const sections = [
+    ...document.querySelectorAll<HTMLElement>("section[data-nav]"),
+  ];
   for (const section of sections) {
     const link = el("a", section.dataset["nav"] ?? section.id);
     link.href = `#${section.id}`;
@@ -1157,7 +1243,9 @@ async function renderOptions(): Promise<void> {
   /* Sources */
   const sources = document.getElementById("sources")!;
   sources.replaceChildren();
-  const byState = new Map(sourceRows(state.sources, now).map((row) => [row.source, row]));
+  const byState = new Map(
+    sourceRows(state.sources, now).map((row) => [row.source, row]),
+  );
   for (const [key, status] of Object.entries(state.sources)) {
     // §4.5 owns this source through the adapter list below, and a second
     // control with the same name is what sent the first live sync into a green
@@ -1175,9 +1263,11 @@ async function renderOptions(): Promise<void> {
       hint: SOURCE_HINT[source],
       checked: status.enabled,
       onChange: (enabled) => {
-        void send({ type: "set-source-enabled", source: source as never, enabled }).then(
-          refreshOptions,
-        );
+        void send({
+          type: "set-source-enabled",
+          source: source as never,
+          enabled,
+        }).then(refreshOptions);
       },
     });
 
@@ -1190,7 +1280,10 @@ async function renderOptions(): Promise<void> {
       stateChip(
         shown,
         shown === "ok" ? facts?.lastRead : undefined,
-        [status.lastError, facts?.lastReadExact && `last read ${facts.lastReadExact}`]
+        [
+          status.lastError,
+          facts?.lastReadExact && `last read ${facts.lastReadExact}`,
+        ]
           .filter(Boolean)
           .join("\n") || undefined,
       ),
@@ -1198,7 +1291,9 @@ async function renderOptions(): Promise<void> {
     const signIn = actionFor(source as never, shown, status.loginUrl);
     if (signIn?.kind === "login") {
       const login = el("button", "Sign in", "btn btn-secondary btn-sm");
-      login.addEventListener("click", () => chrome.tabs.create({ url: signIn.url }));
+      login.addEventListener("click", () =>
+        chrome.tabs.create({ url: signIn.url }),
+      );
       row.append(login);
     }
     sources.append(row);
@@ -1212,7 +1307,10 @@ async function renderOptions(): Promise<void> {
    * decides what each row says is in `observerRow` and its three helpers above;
    * this loop only decides the order.
    */
-  const observers = (state.observers ?? {}) as Record<string, ObserverFacts | undefined>;
+  const observers = (state.observers ?? {}) as Record<
+    string,
+    ObserverFacts | undefined
+  >;
   for (const spec of OBSERVERS) {
     sources.append(await observerRow(spec, observers[spec.id], missing, now));
   }
@@ -1239,7 +1337,11 @@ async function renderOptions(): Promise<void> {
      */
     const row = el("div", undefined, "site-health--bar");
     row.append(
-      stateChip(shown, shown === "ok" ? facts?.lastRead : undefined, siteStatus.lastError),
+      stateChip(
+        shown,
+        shown === "ok" ? facts?.lastRead : undefined,
+        siteStatus.lastError,
+      ),
     );
     /*
      * The button this row never had.
@@ -1255,7 +1357,9 @@ async function renderOptions(): Promise<void> {
     if (siteAction?.kind === "login") {
       const login = el("button", "Sign in", "btn btn-secondary btn-sm");
       login.title = `Opens ${new URL(siteAction.url).hostname}, which signs you in and lands on the page`;
-      login.addEventListener("click", () => chrome.tabs.create({ url: siteAction.url }));
+      login.addEventListener("click", () =>
+        chrome.tabs.create({ url: siteAction.url }),
+      );
       row.append(login);
     }
     siteHealth.append(row);
@@ -1265,26 +1369,28 @@ async function renderOptions(): Promise<void> {
   const courses = document.getElementById("courses")!;
   courses.replaceChildren();
   if (state.courses.length === 0) {
-    courses.append(plainRow("No courses yet", "Nothing has been read from a source yet."));
+    courses.append(
+      plainRow("No courses yet", "Nothing has been read from a source yet."),
+    );
   }
   for (const course of state.courses) {
     const row = switchRow({
-        name: courseLabel(course.label, state.courseNames ?? {}),
-        // Names, not source keys: `prairielearn, canvas` under a course code is
-        // the storage layer leaking onto the one screen a student comes to in
-        // order to recognise their own courses.
-        hint: `${course.itemCount} item${course.itemCount === 1 ? "" : "s"} · ${course.sources
-          .map((source) => SOURCE_TITLE[source as never] ?? source)
-          .join(", ")}`,
-        checked: !course.disabled,
-        onChange: (enabled) => {
-          void send({
-            type: "set-course-disabled",
-            course: course.key,
-            disabled: !enabled,
-          }).then(refreshOptions);
-        },
-      });
+      name: courseLabel(course.label, state.courseNames ?? {}),
+      // Names, not source keys: `prairielearn, canvas` under a course code is
+      // the storage layer leaking onto the one screen a student comes to in
+      // order to recognise their own courses.
+      hint: `${course.itemCount} item${course.itemCount === 1 ? "" : "s"} · ${course.sources
+        .map((source) => SOURCE_TITLE[source as never] ?? source)
+        .join(", ")}`,
+      checked: !course.disabled,
+      onChange: (enabled) => {
+        void send({
+          type: "set-course-disabled",
+          course: course.key,
+          disabled: !enabled,
+        }).then(refreshOptions);
+      },
+    });
 
     /*
      * Renaming, for the names no rule can derive.
@@ -1306,7 +1412,10 @@ async function renderOptions(): Promise<void> {
     rename.placeholder = displayCourseLabel(course.label);
     rename.value = (state.courseNames ?? {})[course.label] ?? "";
     rename.title = `Rename ${displayCourseLabel(course.label)}. Clear the box to go back to this name.`;
-    rename.setAttribute("aria-label", `Name for ${displayCourseLabel(course.label)}`);
+    rename.setAttribute(
+      "aria-label",
+      `Name for ${displayCourseLabel(course.label)}`,
+    );
     rename.addEventListener("change", () => {
       void send({
         type: "set-course-name",
@@ -1328,7 +1437,9 @@ async function renderOptions(): Promise<void> {
     // question whose real answer is "recently". The exact stamp moves to the
     // tooltip, where it is still there for anyone debugging.
     const fetched = timeAgo(adapterState.fetchedAt, now);
-    registryStatus.textContent = fetched ? `Updated ${fetched}` : "Not fetched yet";
+    registryStatus.textContent = fetched
+      ? `Updated ${fetched}`
+      : "Not fetched yet";
     registryStatus.title = fullStamp(adapterState.fetchedAt) ?? "";
     // §4.5: adapters carry a term and expire; stale ones are hidden.
     const current = adapterState.adapters.filter((a) => a.currentTerm);
@@ -1381,7 +1492,10 @@ async function renderOptions(): Promise<void> {
     const pending = pendingUndo();
     if (pending && !courseIsDrawn(yours, pending.courseCode)) {
       adaptersEl.append(
-        courseRow(emptyCourseGroup<AdapterEntry>(pending.courseCode), courseSiteActions),
+        courseRow(
+          emptyCourseGroup<AdapterEntry>(pending.courseCode),
+          courseSiteActions,
+        ),
       );
     }
   }
@@ -1390,13 +1504,20 @@ async function renderOptions(): Promise<void> {
   const setAside = document.getElementById("set-aside")!;
   setAside.replaceChildren();
   if (state.setAsideCourses.length === 0) {
-    setAside.append(plainRow("None", "Every Canvas course is in the current term."));
+    setAside.append(
+      plainRow("None", "Every Canvas course is in the current term."),
+    );
   }
   for (const course of state.setAsideCourses) {
-    const row = plainRow(`${course.courseCode ?? ""} ${course.name}`.trim(), course.reason);
+    const row = plainRow(
+      `${course.courseCode ?? ""} ${course.name}`.trim(),
+      course.reason,
+    );
     const keep = el("button", "Put back", "btn btn-secondary btn-sm");
     keep.addEventListener("click", () => {
-      void send({ type: "keep-course", courseId: course.id, keep: true }).then(refreshOptions);
+      void send({ type: "keep-course", courseId: course.id, keep: true }).then(
+        refreshOptions,
+      );
     });
     row.append(keep);
     setAside.append(row);
@@ -1429,12 +1550,18 @@ async function renderOptions(): Promise<void> {
   /* When. Two lead times, because §7 has two and a third cannot exist. */
   const leads = el("div", undefined, "srow2");
   leads.append(el("span"), el("span", "When to remind me", "srow2--name"));
-  leads.append(el("span", "Before the deadline the source states.", "srow2--hint"));
+  leads.append(
+    el("span", "Before the deadline the source states.", "srow2--hint"),
+  );
   const leadBox = el("span", undefined, "row-actions");
   leadBox.style.margin = "0";
   for (const lead of ["24h", "2h"] as const) {
     const on = state.settings.leadTimes.includes(lead);
-    const chip = el("button", lead === "24h" ? "24 hours" : "2 hours", "chip-base");
+    const chip = el(
+      "button",
+      lead === "24h" ? "24 hours" : "2 hours",
+      "chip-base",
+    );
     chip.setAttribute("aria-pressed", String(on));
     if (on) {
       chip.style.background = "var(--accent-wash)";
@@ -1446,7 +1573,9 @@ async function renderOptions(): Promise<void> {
       const leadTimes = on
         ? state.settings.leadTimes.filter((l) => l !== lead)
         : [...new Set([...state.settings.leadTimes, lead])];
-      void send({ type: "update-settings", settings: { leadTimes } }).then(refreshOptions);
+      void send({ type: "update-settings", settings: { leadTimes } }).then(
+        refreshOptions,
+      );
     });
     leadBox.append(chip);
   }
@@ -1459,9 +1588,10 @@ async function renderOptions(): Promise<void> {
       hint: "They stay in the list either way — this is only about interrupting you.",
       checked: state.settings.remindNotForCredit,
       onChange: (remindNotForCredit) => {
-        void send({ type: "update-settings", settings: { remindNotForCredit } }).then(
-          refreshOptions,
-        );
+        void send({
+          type: "update-settings",
+          settings: { remindNotForCredit },
+        }).then(refreshOptions);
       },
     }),
   );
@@ -1471,7 +1601,10 @@ async function renderOptions(): Promise<void> {
       hint: "Days already past still show what you finished.",
       checked: state.settings.hideSubmitted,
       onChange: (hideSubmitted) => {
-        void send({ type: "update-settings", settings: { hideSubmitted } }).then(refreshOptions);
+        void send({
+          type: "update-settings",
+          settings: { hideSubmitted },
+        }).then(refreshOptions);
       },
     }),
   );
@@ -1518,13 +1651,19 @@ async function renderOptions(): Promise<void> {
         void refreshOptions();
         return;
       }
-      void send({ type: "update-settings", settings: { quietHours: { start, end } } }).then(
-        refreshOptions,
-      );
+      void send({
+        type: "update-settings",
+        settings: { quietHours: { start, end } },
+      }).then(refreshOptions);
     };
     from.addEventListener("change", push);
     to.addEventListener("change", push);
-    times.append(el("span", "from", "opt-note"), from, el("span", "to", "opt-note"), to);
+    times.append(
+      el("span", "from", "opt-note"),
+      from,
+      el("span", "to", "opt-note"),
+      to,
+    );
     quietRow.append(times);
   }
   remindRows.append(quietRow);
@@ -1534,14 +1673,21 @@ async function renderOptions(): Promise<void> {
   const pollRow = el("div", undefined, "srow2");
   pollRow.append(el("span"), el("span", "Check for changes", "srow2--name"));
   pollRow.append(
-    el("span", "Opening the popup also checks, at most once every five minutes.", "srow2--hint"),
+    el(
+      "span",
+      "Opening the popup also checks, at most once every five minutes.",
+      "srow2--hint",
+    ),
   );
   const poll = el("select", undefined, "field") as HTMLSelectElement;
   for (const minutes of [15, 30, 60, 120]) {
     if (minutes < MIN_POLL_MINUTES || minutes > MAX_POLL_MINUTES) continue;
     const option = document.createElement("option");
     option.value = String(minutes);
-    option.textContent = minutes < 60 ? `Every ${minutes} minutes` : `Every ${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+    option.textContent =
+      minutes < 60
+        ? `Every ${minutes} minutes`
+        : `Every ${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
     option.selected = minutes === state.settings.pollMinutes;
     poll.append(option);
   }
@@ -1574,7 +1720,6 @@ async function renderOptions(): Promise<void> {
   renderPageNav();
 }
 
-
 /* ---- Hidden and ticked off ------------------------------------------------
  *
  * One line inside Your data, not a nav section of its own.
@@ -1601,7 +1746,13 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
 
   const count = (n: number, word: string): string => `${n} ${word}`;
   const details = el("details", undefined, "why");
-  const summary = el("summary", [count(hiddenItems.length, "hidden"), count(doneItems.length, "ticked off")].join(", "));
+  const summary = el(
+    "summary",
+    [
+      count(hiddenItems.length, "hidden"),
+      count(doneItems.length, "ticked off"),
+    ].join(", "),
+  );
   details.append(summary);
 
   const list = (
@@ -1634,7 +1785,9 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
       const row = plainRow(item.title, item.courseLabel);
       const undo = el("button", button, "btn btn-secondary btn-sm");
       undo.addEventListener("click", () => {
-        void send({ type: "override", action: { kind, itemId: item.id } }).then(refreshOptions);
+        void send({ type: "override", action: { kind, itemId: item.id } }).then(
+          refreshOptions,
+        );
       });
       row.append(undo);
       const ids = trashable(item.members);
@@ -1676,7 +1829,11 @@ function trashButton(item: TidyItem, sourceIds: string[]): HTMLElement {
       const hint = button.parentElement?.querySelector(".srow2--hint");
       if (hint) hint.textContent = text;
     };
-    void Promise.all(sourceIds.map((sourceId) => send({ type: "delete-manual-item", sourceId })))
+    void Promise.all(
+      sourceIds.map((sourceId) =>
+        send({ type: "delete-manual-item", sourceId }),
+      ),
+    )
       .then((responses) => {
         const failed = responses.find((response) => response.type === "error");
         if (failed !== undefined && failed.type === "error") {
@@ -1685,7 +1842,9 @@ function trashButton(item: TidyItem, sourceIds: string[]): HTMLElement {
         }
         return refreshOptions();
       })
-      .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) =>
+        restore(err instanceof Error ? err.message : String(err)),
+      );
   });
   return button;
 }
@@ -1736,8 +1895,10 @@ function renderGcal(facts: GcalFacts | undefined): void {
   const chip = stateChip("disabled", undefined, described.sentence);
   chip.textContent = described.chip;
   if (described.tone === "ok") chip.className = "chip-base chip-state is-ok";
-  else if (described.tone === "warn") chip.className = "chip-base chip-state is-warn";
-  else if (described.tone === "err") chip.className = "chip-base chip-state is-err";
+  else if (described.tone === "warn")
+    chip.className = "chip-base chip-state is-warn";
+  else if (described.tone === "err")
+    chip.className = "chip-base chip-state is-err";
 
   const row = switchRow({
     name: "Sync to Google Calendar",
@@ -1773,19 +1934,26 @@ function renderGcal(facts: GcalFacts | undefined): void {
             restore("Permission denied, so Google Calendar stays off.");
             return undefined;
           }
-          return send({ type: enabled ? "gcal-connect" : "gcal-disconnect" }).then((response) => {
+          return send({
+            type: enabled ? "gcal-connect" : "gcal-disconnect",
+          }).then((response) => {
             if (response.type === "error") restore(response.message);
             else if (response.type === "permission") {
-              restore("Chrome did not grant access to the Google Calendar API.");
+              restore(
+                "Chrome did not grant access to the Google Calendar API.",
+              );
             } else void refreshOptions();
           });
         })
         // Every send from a page gets one (UI rule 2): without it a stale worker
         // rejects into nothing at all and the switch just springs back.
-        .catch((err: unknown) => restore(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) =>
+          restore(err instanceof Error ? err.message : String(err)),
+        );
     },
   });
-  const hint = row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
+  const hint =
+    row.querySelector(".srow2--hint") ?? el("span", undefined, "srow2--hint");
   row.append(chip);
 
   // No "Push now": every sync pushes, so the button's only effect was to do
@@ -1857,29 +2025,33 @@ document.getElementById("export")!.addEventListener("click", async () => {
  * every hide, merge and tick. So it moved to the section a student never sees
  * rather than off the page.
  */
-document.getElementById("restart-setup")!.addEventListener("click", async () => {
-  const status = document.getElementById("restart-setup-status")!;
-  status.textContent = "Reopening…";
-  const response = await send({ type: "restart-setup" });
-  if (response.type === "error") {
-    status.textContent = response.message;
-    return;
-  }
-  // Straight there rather than leaving a note telling them to go and look:
-  // this button has exactly one outcome and it is a page.
-  location.href = chrome.runtime.getURL("popup.html?view=full");
-});
+document
+  .getElementById("restart-setup")!
+  .addEventListener("click", async () => {
+    const status = document.getElementById("restart-setup-status")!;
+    status.textContent = "Reopening…";
+    const response = await send({ type: "restart-setup" });
+    if (response.type === "error") {
+      status.textContent = response.message;
+      return;
+    }
+    // Straight there rather than leaving a note telling them to go and look:
+    // this button has exactly one outcome and it is a page.
+    location.href = chrome.runtime.getURL("popup.html?view=full");
+  });
 
 document.getElementById("reset")!.addEventListener("click", async () => {
   // Irreversible and it takes the user's overrides with it, so it asks.
-  if (!confirm("Delete all stored data, including your hide/merge corrections?")) return;
+  if (
+    !confirm("Delete all stored data, including your hide/merge corrections?")
+  )
+    return;
   await send({ type: "reset" });
   dataStatus().textContent = "Everything reset.";
   await refreshOptions();
 });
 
 void refreshOptions();
-
 
 /* ---- §8.2's "report a broken page" ---------------------------------------
  * The same capture + scrub path the fixture tool uses, packaged for someone who
@@ -1893,9 +2065,12 @@ const reportStatus = () => document.getElementById("report-status")!;
 const reportResult = () => document.getElementById("report-result")!;
 
 document.getElementById("report-fetch")!.addEventListener("click", async () => {
-  const typed = (document.getElementById("report-url") as HTMLInputElement).value.trim();
+  const typed = (
+    document.getElementById("report-url") as HTMLInputElement
+  ).value.trim();
   if (!typed) {
-    reportStatus().textContent = "Paste the URL of the page that is not working.";
+    reportStatus().textContent =
+      "Paste the URL of the page that is not working.";
     return;
   }
   // I04, as in the capture tool above: a string that is not an address is this
@@ -1907,8 +2082,7 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   }
   const url = address.url;
   if (!(await ensureHostPermission(url))) {
-    reportStatus().textContent =
-      `Chrome did not grant access to ${url}, so that page cannot be read.`;
+    reportStatus().textContent = `Chrome did not grant access to ${url}, so that page cannot be read.`;
     return;
   }
   reportStatus().textContent = "Fetching…";
@@ -1959,8 +2133,12 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
       : ["  unavailable"]),
     "",
     "scrubbing applied:",
-    ...Object.entries(report.counts).map(([label, count]) => `  ${label}: ${count}`),
-    ...report.warnings.map((w) => `  ${w.severity.toUpperCase()}: ${w.message}`),
+    ...Object.entries(report.counts).map(
+      ([label, count]) => `  ${label}: ${count}`,
+    ),
+    ...report.warnings.map(
+      (w) => `  ${w.severity.toUpperCase()}: ${w.message}`,
+    ),
     "",
     "The HTML below was fetched from the page above and scrubbed in the browser.",
     "Read it before attaching it to a public issue.",
@@ -1977,7 +2155,8 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   const dl = document.createElement("dl");
   row(dl, "page", captured.result.finalUrl);
   row(dl, "status", String(captured.result.status));
-  for (const [label, count] of Object.entries(report.counts)) row(dl, label, `${count} replaced`);
+  for (const [label, count] of Object.entries(report.counts))
+    row(dl, label, `${count} replaced`);
   for (const warning of report.warnings) {
     const dt = document.createElement("dt");
     dt.textContent = warning.severity === "blocker" ? "MUST FIX" : "note";
@@ -2021,12 +2200,16 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
 void (() => {
   const target = reportUrlFromHash(location.hash);
   if (!target) return;
-  const field = document.getElementById("report-url") as HTMLInputElement | null;
+  const field = document.getElementById(
+    "report-url",
+  ) as HTMLInputElement | null;
   if (!field) return;
   field.value = target;
   // The whole report form is behind a disclosure now, so filling it in without
   // opening it would put the URL somewhere nobody can see.
-  (document.getElementById("report-box") as HTMLDetailsElement | null)?.setAttribute("open", "");
+  (
+    document.getElementById("report-box") as HTMLDetailsElement | null
+  )?.setAttribute("open", "");
   field.scrollIntoView({ block: "center" });
   field.focus();
   const status = document.getElementById("report-status");
@@ -2119,7 +2302,11 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
      * refused, or never existed (worker rule 2: what the UI asserts has to come
      * from an attempt that happened).
      */
-    const outcome = await proposeWithModel(response, response.url, response.courseCodeGuess);
+    const outcome = await proposeWithModel(
+      response,
+      response.url,
+      response.courseCodeGuess,
+    );
     // This page's console, not the worker's (UI rule 1): the one line that says
     // which branch ran, with the validator's reason when there was one.
     console.info("[author] on-device model:", outcome);
@@ -2276,7 +2463,10 @@ async function proposeWithModel(
           // one path whose whole job is to explain a throw. Numbered, because
           // "which attempt overflowed the window" is the question this answers
           // and an unnumbered line cannot.
-          if (typeof session.inputUsage === "number" && typeof session.inputQuota === "number") {
+          if (
+            typeof session.inputUsage === "number" &&
+            typeof session.inputQuota === "number"
+          ) {
             console.info(
               `[author] attempt ${attempt} input usage ${session.inputUsage}/${session.inputQuota} tokens`,
             );
@@ -2305,13 +2495,20 @@ async function proposeWithModel(
     // UI rule 2: a rejection with no catch is invisible in the page *and* in
     // the worker's console, and this branch is the one nobody will have devtools
     // open for.
-    return { state: "failed", message: err instanceof Error ? err.message : String(err) };
+    return {
+      state: "failed",
+      message: err instanceof Error ? err.message : String(err),
+    };
   } finally {
     pristine?.destroy();
   }
 }
 
-function renderCandidates(candidates: Candidate[], url: string, codeGuess?: string): void {
+function renderCandidates(
+  candidates: Candidate[],
+  url: string,
+  codeGuess?: string,
+): void {
   addSiteResult.replaceChildren();
 
   const code = el("input") as HTMLInputElement;
@@ -2378,7 +2575,11 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     const [selector, count, ...rest] = candidateNotes(candidate);
     box.append(el("p", selector, "muted"));
     box.append(
-      el("p", count, candidate.dated === candidate.total ? "muted" : "verdict-needs_login"),
+      el(
+        "p",
+        count,
+        candidate.dated === candidate.total ? "muted" : "verdict-needs_login",
+      ),
     );
     for (const note of rest) box.append(el("p", note, "muted"));
 
@@ -2433,9 +2634,14 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     share.addEventListener("click", async () => {
       const courseCode = code.value.trim().toUpperCase() || "COURSE";
       await navigator.clipboard.writeText(
-        JSON.stringify(buildAdapter(candidate, url, courseCode, kind.value), null, 2),
+        JSON.stringify(
+          buildAdapter(candidate, url, courseCode, kind.value),
+          null,
+          2,
+        ),
       );
-      status.textContent = "Copied. Send it over and everyone in the course gets it.";
+      status.textContent =
+        "Copied. Send it over and everyone in the course gets it.";
     });
 
     const actions = el("p");
@@ -2452,7 +2658,8 @@ function renderCandidates(candidates: Candidate[], url: string, codeGuess?: stri
     const more = el("button", showMoreLabel(hidden.length));
     more.addEventListener("click", () => {
       more.remove();
-      for (const candidate of hidden) addSiteResult.append(candidateBox(candidate));
+      for (const candidate of hidden)
+        addSiteResult.append(candidateBox(candidate));
     });
     addSiteResult.append(more);
   }
@@ -2472,9 +2679,14 @@ function buildAdapter(
   courseCode: string,
   kind = "assignment",
 ): Record<string, unknown> & { id: string } {
-  return adapterFromCandidate(candidate, url, courseCode, currentTermCode(new Date()), kind);
+  return adapterFromCandidate(
+    candidate,
+    url,
+    courseCode,
+    currentTermCode(new Date()),
+    kind,
+  );
 }
-
 
 renderThemePanel();
 
@@ -2494,7 +2706,11 @@ renderThemePanel();
 chrome.storage?.onChanged?.addListener((changes, area) => {
   if (area !== "local" || !(STORAGE_KEY in changes)) return;
   const focused = document.activeElement;
-  if (focused && focused !== document.body && document.querySelector(".rows")?.contains(focused)) {
+  if (
+    focused &&
+    focused !== document.body &&
+    document.querySelector(".rows")?.contains(focused)
+  ) {
     return;
   }
   void refreshOptions();
@@ -2520,7 +2736,9 @@ document.addEventListener("visibilitychange", () => {
       if (response.type !== "state") return;
       const due = sourcesToRecheck(response.sources ?? {}, Date.now());
       if (due.length === 0) return;
-      console.log(`[illini-dash] back in Settings — re-checking ${due.join(", ")}`);
+      console.log(
+        `[illini-dash] back in Settings — re-checking ${due.join(", ")}`,
+      );
       await send({ type: "sync", trigger: "manual" });
       await refreshOptions();
     } finally {

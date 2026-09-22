@@ -1,4 +1,4 @@
-:root {
+:where(:root) {
   /*
    * Stated, not inherited.
    *
@@ -142,7 +142,7 @@
 
 :root.is-dark { color-scheme: dark; }
 
-:root.is-dark {
+:where(:root.is-dark) {
   /*
    * Deep navy rather than near-black. The mockup's surfaces are all the same
    * hue family as the brand, which is why the header stops looking bolted on.
@@ -224,22 +224,42 @@
   --course-24: #ffa1b2; --course-24-bg: #35191e;
 }
 
+/* The picker previews identity, not an arbitrary course slot.  A course hue
+   made Illini read brown and High contrast read green even though neither hue
+   describes the palette. */
+.swatches.theme-illini {
+  --preview-brand: #b83d0f;
+  --preview-accent: #13294b;
+  --preview-canvas: #ffffff;
+}
+.swatches.theme-illini.is-dark {
+  --preview-brand: #ff7a4d;
+  --preview-accent: #8db4f2;
+  --preview-canvas: #141517;
+}
+
 /* ---- Neutral: no brand hue anywhere ---- */
 .theme-neutral {
+  --fg: #1f1f1f; --muted: #595959; --bg: #f4f4f2; --surface: #e9e9e6; --line: #b9b9b4;
   --brand: transparent; --brand-ink: var(--fg); --accent: var(--muted);
   --now: #b42318;
   /* No brand hue anywhere, so the one filled button is ink on paper — and the
      wordmark is ink too, for the same reason. */
-  --primary: #10264d; --primary-ink: #ffffff;
+  --primary: #1f1f1f; --primary-ink: #ffffff;
   --brand-mark: var(--fg);
   --accent-ink: #ffffff;
   --accent-wash: rgba(127, 127, 127, .14);
   --surface-raised: #ffffff;
-  --tint: rgba(127, 127, 127, .06); --tint-strong: rgba(127, 127, 127, .11);
+  --tint: #e9e9e6; --tint-strong: #dcdcd8;
   --hover: rgba(127, 127, 127, .10); --today-tint: rgba(127, 127, 127, .09);
   /* Neutral has no hue to spend, so the card edge is the rule itself. */
   --card-line: var(--line);
   --card-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  --bg-subbar: var(--surface); --bg-active-tab: var(--tint-strong); --bg-hover: var(--hover);
+  --border-subtle: color-mix(in srgb, var(--line) 40%, transparent);
+  --illini-orange: var(--accent); --terracotta: var(--err);
+  --terracotta-bg: var(--err-wash); --terracotta-border: color-mix(in srgb, var(--err) 28%, transparent);
+  --preview-brand: #1f1f1f; --preview-accent: #767676; --preview-canvas: #ffffff;
 }
 .theme-neutral.is-dark {
   --bg: #1c1c1c; --surface: #232323; --line: #3a3a3a;
@@ -253,6 +273,11 @@
   --surface-raised: #2a2a2a;
   --card-line: #3f3f3f;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  --bg-subbar: var(--surface); --bg-active-tab: var(--tint-strong); --bg-hover: var(--hover);
+  --border-subtle: color-mix(in srgb, var(--line) 55%, transparent);
+  --illini-orange: var(--accent); --terracotta: var(--err);
+  --terracotta-bg: var(--err-wash); --terracotta-border: color-mix(in srgb, var(--err) 40%, transparent);
+  --preview-brand: #ffffff; --preview-accent: #8a8a8a; --preview-canvas: #1c1c1c;
 }
 
 /* ---- High contrast: built for telling things apart ---- */
@@ -280,6 +305,10 @@
   --course-5: #a3004c; --course-5-bg: #fce2ec;
   --course-6: #3b49a8; --course-6-bg: #e6e9fa;
   --course-7: #5c4f00; --course-7-bg: #f4f0d8;
+  --bg-subbar: var(--surface); --bg-active-tab: var(--tint-strong); --bg-hover: var(--hover);
+  --border-subtle: var(--line); --illini-orange: var(--accent); --terracotta: var(--err);
+  --terracotta-bg: var(--err-wash); --terracotta-border: var(--err);
+  --preview-brand: #000000; --preview-accent: #c24500; --preview-canvas: #ffffff;
 }
 .theme-contrast.is-dark {
   --fg: #fff; --muted: #c8c8c8; --bg: #000; --surface: #101010; --line: #6e6e6e;
@@ -301,6 +330,10 @@
   --course-5: #ff92b8; --course-5-bg: #331522;
   --course-6: #a3b0ff; --course-6-bg: #1a1f3d;
   --course-7: #e8d47a; --course-7-bg: #2b2612;
+  --bg-subbar: var(--surface); --bg-active-tab: var(--tint-strong); --bg-hover: var(--hover);
+  --border-subtle: var(--line); --illini-orange: var(--accent); --terracotta: var(--err);
+  --terracotta-bg: var(--err-wash); --terracotta-border: var(--err);
+  --preview-brand: #ffffff; --preview-accent: #ff9b52; --preview-canvas: #000000;
 }
 
 

@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { parseHTML } from "linkedom";
+import { readFileSync } from "node:fs";
 import {
   DARK_CLASS,
   DEFAULT_MODE,
@@ -90,6 +91,24 @@ describe("classes", () => {
   it("uses one storage key, because two pages share one origin", () => {
     // The popup reads it and the options page writes it.
     expect(THEME_KEY).toBe("illini-dash.theme");
+  });
+});
+
+describe("the palette cascade", () => {
+  const designCss = readFileSync(new URL("../public/design-classical.css", import.meta.url), "utf8");
+
+  it("lets an explicit palette beat Classical's default tokens", () => {
+    /*
+     * The Classical sheet loads last. Its old `html[data-design]:root`
+     * selector outranked `.theme-neutral` and `.theme-contrast`, so all six
+     * radio/mode combinations computed to the Illini palette. `:where()`
+     * keeps the later default for Illini while giving an explicit theme class
+     * the higher specificity.
+     */
+    expect(designCss).toContain(':where(html[data-design="classical"]:root) {');
+    expect(designCss).toContain(':where(html[data-design="classical"]:root.is-dark) {');
+    expect(designCss).not.toContain('html[data-design="classical"]:root {');
+    expect(designCss).not.toContain('html[data-design="classical"]:root.is-dark {');
   });
 });
 
@@ -272,5 +291,18 @@ describe("the one design (2026-09-21)", () => {
     // deletion of one group, not of the panel.
     expect(host.querySelectorAll("input[name='theme']").length).toBe(THEMES.length);
     expect(host.querySelectorAll("input[name='mode']").length).toBe(MODES.length);
+  });
+
+  it("previews palette identity instead of an arbitrary course colour", () => {
+    panelStore.clear();
+    const host = panelDom.document.getElementById("themes") as unknown as HTMLElement;
+    panel.renderThemePanel(host);
+    for (const swatches of host.querySelectorAll<HTMLElement>(".swatches")) {
+      expect([...swatches.children].map((chip) => chip.getAttribute("style"))).toEqual([
+        "background:var(--preview-brand)",
+        "background:var(--preview-accent)",
+        "background:var(--preview-canvas)",
+      ]);
+    }
   });
 });

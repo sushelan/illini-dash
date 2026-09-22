@@ -44,7 +44,7 @@ interface Block {
  * dependency to read one stylesheet is the kind of thing SPEC.md's
  * no-runtime-dependency rule exists to discourage.
  */
-const PALETTE_SELECTOR = /^(:root|\.theme-[a-z]+)(\.is-dark)?\s*\{/;
+const PALETTE_SELECTOR = /^(?::where\()?(:root|\.theme-[a-z]+)(\.is-dark)?\)?\s*\{/;
 
 function blocks(): Block[] {
   const found: Block[] = [];

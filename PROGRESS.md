@@ -10,6 +10,26 @@ clock.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Appearance choices paint what they promise — 2026-09-21
+
+All six palette/mode combinations were visually selectable but only the radio changed:
+the later `html[data-design="classical"]:root` token block outranked Neutral and High
+contrast, so every page still computed to Illini. The Classical palette now uses a
+zero-specificity `:where(...)` default; an explicit theme class wins without duplicating
+the palette or changing fresh-install Classical/light.
+
+Neutral light is now genuinely grayscale instead of inheriting parchment/orange aliases,
+and both alternative palettes restate the Classical aliases used by the shell. The
+Appearance swatches preview identity rather than `--course-1`: Illini is orange/blue with
+white in light and black in dark, rather than orange/brown or green.
+
+Verified on the real popup/options documents, dark first, across Illini/Neutral/High
+contrast × Light/Dark. The six computed backgrounds are distinct (`#fdf9f1`, `#141517`,
+`#f4f4f2`, `#1c1c1c`, `#fff`, `#000`). Full suite: 2,601 tests. One count-asserted
+specificity mutation was killed by `theme.test.ts` and `course-colour.test.ts`. Scoped
+before/candidate evidence is under `artifacts/ui-acceptance/color-{baseline,candidate}/`;
+the full 43-journey acceptance gate remains pending and G4/G5 are unchanged.
+
 ## Full marks on PrairieLearn is the ceiling, not 100 — 2026-09-21
 
 "there needs to be a way for it to detect the max score on prairielearn and if the user

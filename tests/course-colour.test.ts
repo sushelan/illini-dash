@@ -16,13 +16,13 @@ const UI = readFileSync(new URL("../public/ui.css", import.meta.url), "utf8");
 
 /** Every slot a course can be given. There are no families: see `calendar.ts`. */
 const USED = Array.from({ length: COURSE_COLOURS }, (_, i) => i);
-/** The two `:root` blocks in the Classical sheet: light, then dark. */
-const BLOCKS = CLASSICAL.split("html[data-design=\"classical\"]:root").slice(1);
+/** The two deliberately low-specificity palette blocks: light, then dark. */
+const BLOCKS = CLASSICAL.split(':where(html[data-design="classical"]:root').slice(1);
 
 describe("course colour slots and the stylesheets that draw them", () => {
   it("has a light and a dark block to look in", () => {
     expect(BLOCKS).toHaveLength(2);
-    expect(BLOCKS[1]!.startsWith(".is-dark")).toBe(true);
+    expect(BLOCKS[1]!.startsWith(".is-dark)")).toBe(true);
   });
 
   for (const [theme, index] of [

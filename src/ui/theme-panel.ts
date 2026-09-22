@@ -208,19 +208,19 @@ export function renderThemePanel(host: HTMLElement = document.getElementById("th
     hint.textContent = theme.hint;
 
     /*
-     * Three swatches per row: the page, the accent, and a course colour.
+     * Three swatches per row: the palette's identity and its canvas.
      *
-     * A list of names is not a colour picker. "High contrast" and "Neutral" do
-     * not say what they look like, and the whole reason this panel exists is
-     * that the choice is visual — so the row shows the thing it is offering.
-     * Rendered in the theme's own class, so each row paints itself.
+     * A course colour is data, not identity. Using `--course-1` here made the
+     * Illini preview brown and High contrast green, even though neither hue
+     * described the choice. These preview roles live with the palette values
+     * in ui.css and stay independent of whichever theme paints the page.
      */
     const swatches = document.createElement("span");
     swatches.className = `swatches ${themeClass(theme.name)}`;
     if (document.documentElement.classList.contains(DARK_CLASS)) {
       swatches.classList.add(DARK_CLASS);
     }
-    for (const token of ["--bg", "--accent", "--course-1"]) {
+    for (const token of ["--preview-brand", "--preview-accent", "--preview-canvas"]) {
       const chip = document.createElement("i");
       chip.style.background = `var(${token})`;
       swatches.append(chip);
