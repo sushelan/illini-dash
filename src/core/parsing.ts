@@ -96,6 +96,11 @@ export function looksLoggedOut(
   options: LoggedOutOptions = {},
 ): boolean {
   if (status === 401 || status === 403) return true;
+  // A 5xx is the server failing, never a sign-in page — and the body tests
+  // below cannot tell: Canvas reads any HTML on an API path as signed out, and
+  // smartPhysics reads any page without its Log Off link as signed out, so a
+  // gateway's error page sent the student to sign in to a site that was down.
+  if (status >= 500) return false;
   const url = finalUrl.toLowerCase();
   if (url.includes("shibboleth") || url.includes("login.illinois.edu")) return true;
   if (options.loginPath?.test(url)) return true;

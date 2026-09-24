@@ -295,6 +295,75 @@ describe("syncOneSource against the real fixtures", () => {
     );
     expect(outcome.state).toBe("network_error");
   });
+
+  describe("an error status is classified before any parser sees it (option C)", () => {
+    /** The real pages, except `url` answers `status` with an error body. */
+    const failingAt = (
+      match: string,
+      status: number,
+      body = "<html><title>Bad Gateway</title></html>",
+    ) =>
+      deps({
+        async fetchPage(url) {
+          if (url.includes(match)) return { url, finalUrl: url, status, body };
+          const page = PAGES[url];
+          if (page === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body: page };
+        },
+      });
+
+    it("calls a PrairieLearn course page answering 502 a network error, not a changed page", async () => {
+      // The defect: nothing checked the status, the parser ran on the gateway's
+      // error page, found no assessment table, and threw ParseError — a red
+      // "the page changed" dot and §6's backoff for a maintenance window.
+      const outcome = await syncOneSource("prairielearn", failingAt("/assessments", 502));
+      expect(outcome.state).toBe("network_error");
+      expect(outcome.error).toMatch(/502/);
+    });
+
+    it("calls a PrairieLearn course page answering 404 a changed page", async () => {
+      // The URL itself is wrong — the one status that says something structural.
+      const outcome = await syncOneSource("prairielearn", failingAt("/assessments", 404));
+      expect(outcome.state).toBe("parse_error");
+      expect(outcome.error).toMatch(/404/);
+    });
+
+    it("calls a Canvas planner answering 500 a network error", async () => {
+      // Canvas's API reports its own errors as JSON. (An HTML error page on an
+      // /api/v1 path reads as signed out — a separate question, not this one.)
+      const outcome = await syncOneSource(
+        "canvas",
+        failingAt("/planner/items", 500, '{"errors":[{"message":"An error occurred."}]}'),
+      );
+      expect(outcome.state).toBe("network_error");
+      expect(outcome.error).toMatch(/500/);
+    });
+
+    it("does not read a Canvas outage page as a sign-out", async () => {
+      // Canvas calls any HTML on an /api/v1 path "signed out", which is right
+      // for a 200 and wrong for a 502 from the load balancer: the student is
+      // sent to sign in to a site that is down. A 5xx is never a login page.
+      // 500 is the boundary: `> 500` passes every other test in this file.
+      for (const status of [500, 502]) {
+        const outcome = await syncOneSource("canvas", failingAt("/planner/items", status));
+        expect(outcome.state, `HTML ${status}`).toBe("network_error");
+      }
+    });
+
+    // Each source's first page is fetched on its own path rather than through
+    // `fetchAll`, so each needs the same refusal. smartPhysics has no fixture
+    // here: its home fails before anything else is asked for, which is the point.
+    it.each([
+      ["gradescope", "https://www.gradescope.com/"],
+      ["prairielearn", "https://us.prairielearn.com/pl/"],
+      ["prairietest", "https://us.prairietest.com/pt/"],
+      ["smartphysics", "https://smart.physics.illinois.edu/"],
+    ] as const)("calls %s's home page answering 503 a network error", async (source, home) => {
+      const outcome = await syncOneSource(source, failingAt(home, 503));
+      expect(outcome.state).toBe("network_error");
+      expect(outcome.error).toMatch(/503/);
+    });
+  });
 });
 
 describe("runSync (§6)", () => {
@@ -769,7 +838,11 @@ describe("course-site adapters in the loop (§4.5)", () => {
       expect(result.outcomes.find((o) => o.source === "site")!.state).toBe("parse_error");
     });
 
-    it("treats a 4xx as structural and a 5xx as the site's problem", async () => {
+    it("treats only 'no such page' as structural; every other status is transient", async () => {
+      // Decided 2026-09-24 (option C): a 404 or 410 proves the URL is wrong.
+      // A 429 or 408 proves nothing about the page — it was pinned as "parse"
+      // under the old any-4xx rule, which put a red "the page changed" dot and
+      // §6's backoff on a site that had only asked us to slow down.
       const withStatus = (status: number) =>
         deps({
           async enabledAdapters() {
@@ -779,10 +852,15 @@ describe("course-site adapters in the loop (§4.5)", () => {
             return { url, finalUrl: url, status, body: "" };
           },
         });
-      const gone = await runSync(enableSite(emptyStore()), "manual", withStatus(404));
-      expect(gone.outcomes.find((o) => o.source === "site")!.state).toBe("parse_error");
-      const down = await runSync(enableSite(emptyStore()), "manual", withStatus(503));
-      expect(down.outcomes.find((o) => o.source === "site")!.state).toBe("network_error");
+      const stateFor = async (status: number) =>
+        (await runSync(enableSite(emptyStore()), "manual", withStatus(status))).outcomes.find(
+          (o) => o.source === "site",
+        )!.state;
+      expect(await stateFor(404)).toBe("parse_error");
+      expect(await stateFor(410)).toBe("parse_error");
+      expect(await stateFor(429)).toBe("network_error");
+      expect(await stateFor(408)).toBe("network_error");
+      expect(await stateFor(503)).toBe("network_error");
     });
   });
 

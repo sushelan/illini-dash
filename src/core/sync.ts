@@ -168,32 +168,47 @@ class HttpStatusError extends Error {
  * someone to debug selectors that were fine, and it is the wrong half of §6's
  * own distinction: a parse error is not retried hopefully, a network error is.
  *
- * A 4xx is treated as structural because the adapter is asking for a URL the
- * site will not serve — gone, moved, or never right. A 5xx is the site's
- * problem, not the adapter's.
+ * Only 404 and 410 are structural: they say the URL is gone, moved, or was
+ * never right. Every other status says nothing about the page — a 5xx is the
+ * site's afternoon, and a 429 or 408 is the site asking us to slow down or
+ * try again. The old rule called every 4xx structural, which put a red "the
+ * page changed" dot and §6's backoff on a rate limit (decided 2026-09-24).
  */
 export function adapterFailureKind(err: unknown): "parse" | "network" {
   if (err instanceof ParseError) return "parse";
-  if (err instanceof HttpStatusError) return err.status >= 400 && err.status < 500 ? "parse" : "network";
+  if (err instanceof HttpStatusError) return err.status === 404 || err.status === 410 ? "parse" : "network";
   return "network";
+}
+
+type LoginTest = (status: number, finalUrl: string, body: string) => boolean;
+
+/**
+ * One GET, refused before any parser sees it when it is not a page to parse.
+ *
+ * The login test comes first — a 401 is a sign-in, not a broken page (§0 rule
+ * 2) — and the status second: an error page has none of a parser's hooks, so
+ * handed on it throws ParseError and reports a 502 as "the page changed".
+ * `adapterFailureKind` decides what the status means.
+ */
+async function fetchChecked(url: string, deps: SyncDeps, isLoginResponse: LoginTest): Promise<FetchedPage> {
+  const page = await deps.fetchPage(url);
+  if (isLoginResponse(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
+  if (page.status >= 400) throw new HttpStatusError(page.status, page.url);
+  return page;
 }
 
 /** §4: at most 4 concurrent requests per host. */
 async function fetchAll(
   urls: string[],
   deps: SyncDeps,
-  isLoginResponse: (status: number, finalUrl: string, body: string) => boolean,
+  isLoginResponse: LoginTest,
 ): Promise<FetchedPage[]> {
   const results: FetchedPage[] = [];
   for (let i = 0; i < urls.length; i += MAX_CONCURRENT_PER_HOST) {
     const batch = urls.slice(i, i + MAX_CONCURRENT_PER_HOST);
-    const pages = await Promise.all(batch.map((url) => deps.fetchPage(url)));
-    for (const page of pages) {
-      // Checked before parsing, or a session expiry surfaces as parse_error and
-      // §6 backs off instead of telling the student to log in (§0 rule 2).
-      if (isLoginResponse(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
-      results.push(page);
-    }
+    results.push(
+      ...(await Promise.all(batch.map((url) => fetchChecked(url, deps, isLoginResponse)))),
+    );
   }
   return results;
 }
@@ -204,10 +219,7 @@ async function fetchAll(
 
 async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
-  const coursesPage = await deps.fetchPage(canvas.coursesUrl());
-  if (canvas.isLoginResponse(coursesPage.status, coursesPage.finalUrl, coursesPage.body)) {
-    throw new NeedsLogin(coursesPage);
-  }
+  const coursesPage = await fetchChecked(canvas.coursesUrl(), deps, canvas.isLoginResponse);
 
   // §4.1's concluded-course filter. The map keeps *every* course, so a planner
   // row for a held-back course still resolves its name rather than becoming an
@@ -238,10 +250,11 @@ async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
   }
   const courses = canvas.courseMap(all);
 
-  const plannerPage = await deps.fetchPage(canvas.plannerUrl(new Date(fetchedAt)));
-  if (canvas.isLoginResponse(plannerPage.status, plannerPage.finalUrl, plannerPage.body)) {
-    throw new NeedsLogin(plannerPage);
-  }
+  const plannerPage = await fetchChecked(
+    canvas.plannerUrl(new Date(fetchedAt)),
+    deps,
+    canvas.isLoginResponse,
+  );
   const items = canvas.parsePlannerItems(plannerPage.body, courses, {
     url: plannerPage.finalUrl,
     fetchedAt,
@@ -255,10 +268,11 @@ async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
 
 async function syncGradescope(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
-  const dashboard = await deps.fetchPage(`${gradescope.GRADESCOPE_ORIGIN}/`);
-  if (gradescope.isLoginResponse(dashboard.status, dashboard.finalUrl, dashboard.body)) {
-    throw new NeedsLogin(dashboard);
-  }
+  const dashboard = await fetchChecked(
+    `${gradescope.GRADESCOPE_ORIGIN}/`,
+    deps,
+    gradescope.isLoginResponse,
+  );
 
   // Parsed in the offscreen document like any other HTML, but it yields courses
   // rather than items, so it goes through its own call.
@@ -284,10 +298,11 @@ async function syncGradescope(deps: SyncDeps): Promise<RawItem[]> {
 
 async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
-  const home = await deps.fetchPage(`${prairielearn.PRAIRIELEARN_ORIGIN}/pl/`);
-  if (prairielearn.isLoginResponse(home.status, home.finalUrl, home.body)) {
-    throw new NeedsLogin(home);
-  }
+  const home = await fetchChecked(
+    `${prairielearn.PRAIRIELEARN_ORIGIN}/pl/`,
+    deps,
+    prairielearn.isLoginResponse,
+  );
 
   // §4.3 step 1: the student home lists course instances.
   const instanceIds = [...home.body.matchAll(/\/pl\/course_instance\/(\d+)/g)]
@@ -313,10 +328,11 @@ async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
 
 async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
-  const home = await deps.fetchPage(`${prairietest.PRAIRIETEST_ORIGIN}/pt/`);
-  if (prairietest.isLoginResponse(home.status, home.finalUrl, home.body)) {
-    throw new NeedsLogin(home);
-  }
+  const home = await fetchChecked(
+    `${prairietest.PRAIRIETEST_ORIGIN}/pt/`,
+    deps,
+    prairietest.isLoginResponse,
+  );
   return deps.parseHtml("prairietest", home.body, { url: home.finalUrl, fetchedAt });
 }
 
@@ -329,10 +345,11 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
  */
 async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
   const fetchedAt = deps.now();
-  const home = await deps.fetchPage(`${smartphysics.SMARTPHYSICS_ORIGIN}/`);
-  if (smartphysics.isLoginResponse(home.status, home.finalUrl, home.body)) {
-    throw new NeedsLogin(home);
-  }
+  const home = await fetchChecked(
+    `${smartphysics.SMARTPHYSICS_ORIGIN}/`,
+    deps,
+    smartphysics.isLoginResponse,
+  );
 
   const courses = await deps.parseSmartPhysicsCourses(home.body);
   const active = courses.filter((course) => course.active);
@@ -486,13 +503,14 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
         ms: ms(),
       };
     }
-    // §6 distinguishes these: a ParseError means the page changed and the user
-    // should see a red dot; anything else is treated as a network problem, which
-    // is the recoverable one.
+    // §6 distinguishes these: a ParseError or a 404 means the page changed and
+    // the user should see a red dot; anything else is treated as a network
+    // problem, which is the recoverable one. One rule for every source and every
+    // adapter (`adapterFailureKind`), so the two cannot drift apart again.
     const message = err instanceof Error ? err.message : String(err);
     return {
       source,
-      state: err instanceof ParseError ? "parse_error" : "network_error",
+      state: adapterFailureKind(err) === "parse" ? "parse_error" : "network_error",
       items: [],
       error: message,
       requests,
