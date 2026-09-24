@@ -512,6 +512,33 @@ describe("reminders for a late window (§4.2, §4.3)", () => {
     expect(content.title).not.toMatch(/— due /);
   });
 
+  it("counts down to the late window, not the full-credit deadline already passed", () => {
+    // The defect: content read `dueAt ?? lateDueAt`, so with `dueAt` present a
+    // late lead counted down to Sep 9 — "late window closes now", a day early.
+    // The window closes at 11 PM, not the full-credit 5 PM, so the two instants
+    // cannot be mistaken for each other by weekday or clock either.
+    const item0 = item({
+      dueAt: new Date(2026, 8, 9, 17).toISOString(),
+      lateDueAt: new Date(2026, 8, 16, 23).toISOString(),
+    });
+    const content = notificationContent(item0, "late24h", new Date(2026, 8, 15, 23));
+    expect(content.title).toBe("HW3 Errors and Big-O — late window closes tomorrow");
+    expect(content.message).toContain("in 1d");
+    expect(content.message).not.toContain("now");
+  });
+
+  it("counts a full-credit lead down to the full-credit deadline, not the late one", () => {
+    // The other half of the rule above: while full credit is still ahead, the
+    // 24h lead is about `dueAt`, and a late window behind it must not stretch it.
+    const item0 = item({
+      dueAt: new Date(2026, 8, 9, 17).toISOString(),
+      lateDueAt: new Date(2026, 8, 16, 23).toISOString(),
+    });
+    const content = notificationContent(item0, "24h", new Date(2026, 8, 8, 17));
+    expect(content.title).toBe("HW3 Errors and Big-O — due tomorrow");
+    expect(content.message).toContain("in 1d");
+  });
+
   it("names the credit at stake when PrairieLearn stated one", () => {
     const pl = item({
       dueAt: new Date(2026, 8, 8, 11).toISOString(),

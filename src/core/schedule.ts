@@ -413,7 +413,13 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
     };
   }
 
-  const instant = item.dueAt ?? item.lateDueAt;
+  // §4.3: a reduced-credit window is not a due date, and must not be worded as
+  // one — the same care §4.4 takes with a booking. A late lead is by definition
+  // about that window, whether or not `dueAt` survived — and so is its clock:
+  // `dueAt` has already passed by the time a late lead fires, and counting down
+  // to it said "late window closes now" a day early.
+  const isLate = lead === "late24h" || lead === "late2h";
+  const instant = isLate ? (item.lateDueAt ?? item.dueAt) : (item.dueAt ?? item.lateDueAt);
   const due = instant ? new Date(instant) : undefined;
 
   // An assumed time must not appear in a toast at all, in any form: not as a
@@ -435,10 +441,6 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
   const when = due
     ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
     : "";
-  // §4.3: a reduced-credit window is not a due date, and must not be worded as
-  // one — the same care §4.4 takes with a booking. A late lead is by definition
-  // about that window, whether or not `dueAt` survived.
-  const isLate = lead === "late24h" || lead === "late2h";
   const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.["creditRemaining"];
   const kindWord = isLate
     ? credit
