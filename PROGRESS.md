@@ -2,13 +2,68 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2646 tests) all pass. Three tests in
-`popup-draw.test.ts` read `Date.now()` and failed on the Sunday evening of 2026-09-20
-because the timeline rail is not drawn then; they pass again and still have no pinned
-clock.
+`npm run build`, `npm run typecheck`, `npm test` (2669 tests) all pass. Three tests in
+`popup-draw.test.ts` read `Date.now()` and fail whenever the timeline rail is not drawn —
+the Sunday evening of 2026-09-20, and again at 23:43 on 2026-09-23 (on clean `main` too).
+They still have no pinned clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Exams: a Canvas quiz, a typed exam, and a PrairieTest with nothing booked — 2026-09-23
+
+*"some other bugs, if prairietest doesnt show an exam cuz a student takes an exam, it says
+unable to connect instead of connected. also if a student wants to add something, they
+should be able to click on an option saying if its an assignment or exam cuz the exam
+should show up in the section that i guess only parses from prairietest. quizzes/exams on
+canvas should also show up in the exam section, but they shouldnt be practice quizzes."*
+
+**Canvas quizzes on the Exams tab.** `examBoard` took `exam` and `booking` only, on
+purpose, to keep PrairieLearn's quizzes out. It now also takes a Canvas row whose
+**title** says quiz, exam, midterm or final exam, as long as the title does not say
+practice (`canvasExam`, `src/core/calendar.ts`). It goes by the title, not the
+`plannable_type`, because of what the fixtures show. The only real `quiz` row in
+`fixtures/canvas/planner-items.json` is CS 424's **"Homework 1"**, so going by type would
+put homework on the board. New Quizzes reach the planner as `assignment`, so going by
+type would miss a midterm given in one. The planner response has no `quiz_type`, so
+"practice" can only be read from the title. Other sources' quizzes stay off.
+
+**Assignment / Exam on the quick add.** The editor already had a Kind `<select>` with
+Exam, but the quick panel (the floating "+" and the day "+") had dropped it: *"everything
+typed there is a Deadline"*. That panel now shows an Assignment / Exam switch
+(`KIND_PICK_SELECTOR`) that writes through to the same `<select>`, so `read()` stays the
+single source of truth. Event is still only on the full form. Checked with a real click in
+`preview-popup.html`: the panel grows by one 31px row, and Exam selects.
+
+**PrairieTest "unable to connect" after the exam is taken — the loop, not the parser.**
+No state reads "unable to connect"; the nearest is "Couldn't read" (`parse_error`). A
+capture Sushi took of the post-exam page (200, not redirected, both headings present,
+*both* empty sentences present) pointed away from `parseHome`. The cause is `applySync`'s
+N→0 guard: a source that held items and now reports none is marked `parse_error` ("0 items
+where it previously had some"). PrairieTest's page lists only *upcoming* reservations and
+*open* windows, so one booked exam, sat, gone from the page is 1→0 by design. The state
+also never cleared: a failed sync keeps the old rows, so every later sync was 1→0 again.
+
+The guard is now `vanishedUnexpectedly` (`src/core/sync.ts`). For a source in
+`LISTS_ONLY_UPCOMING` (PrairieTest only), 0 is accepted once every row it held is past its
+time. An exam is judged by its start. A booking is judged by `windowEnd`, because its
+`dueAt` is the window's start and an opened window is still listed. A row still ahead, or
+one with no time to judge by, still trips the guard. Gradescope and the rest keep past
+work on their pages, so any N→0 there still trips it; a test pins that at a date long
+after everything it held. A store stuck in this state repairs itself on the next sync: the
+held exam is past, so the zero is accepted.
+
+Still open: the capture also counted two `data-testid="exam"` rows with dates and
+locations, but no `/pt/student/reservation/` link. Neither existing fixture has rows like
+that. The scrubbed file was not saved (the scrub flagged a hidden field as MUST FIX), so
+`fixtures/prairietest/` has no post-exam capture yet. What those rows are, and which card
+holds them, is unverified.
+
+Mutation pass: 12 count-asserted mutations over `canvasExam`, the board's filter and the
+switch, and 9 over `vanishedUnexpectedly` and its call site. All 21 were killed. One survived at first (dropping the radios' shared
+`name`) because linkedom answers `undefined` for `.name`, which `not.toBe("")` let
+through. The test now reads the attribute. Typecheck passes, and 2666 of 2669 tests pass;
+the 3 failures are the clock-dependent ones above. G4/G5 unchanged.
 
 ## Two interaction defects, and what the footer says — 2026-09-22
 

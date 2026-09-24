@@ -416,7 +416,7 @@ export function openAddEditor(request: Partial<EditorRequest> = {}): void {
 /**
  * The header's "+": the complete form, as a screen.
  *
- * What the quick panel drops is Kind (everything typed there is a Deadline),
+ * What the quick panel drops is Event (it offers only Assignment and Exam),
  * the end time, the link, and "No date yet" — and this is where they still
  * are. It is on the bar rather than on the list, so it is the one add that
  * Alerts and Exams also have; removing it would leave those two tabs with no

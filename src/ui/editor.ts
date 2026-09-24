@@ -52,8 +52,9 @@ export interface EditorOptions {
    * The five-field shape (Sushi, 2026-09-19: "it should just be a small popup
    * for date, time, name, course, and add/cancel").
    *
-   * Date, Time, Title and Course, and nothing else: no Kind, no end time, no
-   * link, no "No date yet". The controls those four would need are still
+   * Date, Time, Title, Course and an Assignment / Exam switch (added
+   * 2026-09-23), and nothing else: no Event, no end time, no link, no "No date
+   * yet". The controls those four would need are still
    * *built* — `read()` and `setTimes` are one implementation for both shapes,
    * and a second copy of `read()` is how this file's rules go stale — but they
    * are not appended, so nothing unappended can be typed into. What that costs
@@ -127,6 +128,16 @@ const KIND_OPTIONS: readonly { value: Kind; label: string }[] = [
   { value: "event", label: "Event" },
   { value: "exam", label: "Exam" },
 ];
+
+/** The quick panel's two, in the words Sushi used for them. */
+const QUICK_KINDS: readonly { value: Kind; label: string }[] = [
+  { value: "assignment", label: "Assignment" },
+  { value: "exam", label: "Exam" },
+];
+
+/** The quick panel's Assignment / Exam switch. One constant (UI house rule 7). */
+export const KIND_PICK_SELECTOR = ".editor--kindpick";
+const KIND_PICK_CLASS = KIND_PICK_SELECTOR.slice(1);
 
 /** The kinds that occupy a span rather than a moment, so an end time is offered. */
 const SPANNING: ReadonlySet<Kind> = new Set<Kind>(["event", "exam"]);
@@ -364,6 +375,44 @@ export function createEditor(options: EditorOptions): Editor {
   moreGrid.append(endField.wrap, urlField.wrap);
   more.append(moreSummary, moreGrid);
 
+  /*
+   * Assignment or Exam, for the quick panel (Sushi, 2026-09-23): *"if a
+   * student wants to add something, they should be able to click on an option
+   * saying if its an assignment or exam cuz the exam should show up in the
+   * section"*. The quick panel had dropped Kind, so a typed exam was a Deadline
+   * and never reached the Exams tab.
+   *
+   * Two radios rather than the full form's `<select>`: two choices, one press,
+   * both visible. They write through to `kind` and fire its `change`, so
+   * `read()` and `syncKind` keep one source of truth. Event is left to the full
+   * form — it was not asked for here, and every pixel of this panel is height
+   * the popup has to find room for.
+   */
+  const kindPick = document.createElement("fieldset");
+  kindPick.className = `${KIND_PICK_CLASS} editor--field-wide`;
+  const kindLegend = document.createElement("legend");
+  kindLegend.className = "editor--label";
+  kindLegend.textContent = "Kind";
+  kindPick.append(kindLegend);
+  const pickName = `kind-${Math.random().toString(36).slice(2)}`;
+  for (const option of QUICK_KINDS) {
+    const label = document.createElement("label");
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = pickName;
+    radio.value = option.value;
+    radio.checked = kind.value === option.value;
+    radio.addEventListener("change", () => {
+      if (!radio.checked) return;
+      kind.value = option.value;
+      kind.dispatchEvent(new Event("change"));
+    });
+    const text = document.createElement("span");
+    text.textContent = option.label;
+    label.append(radio, text);
+    kindPick.append(label);
+  }
+
   if (compact) {
     // The order Sushi named them in — "date, time, name, course" — which is
     // also the order they are decided in: the day is what the "+" was pressed
@@ -371,7 +420,7 @@ export function createEditor(options: EditorOptions): Editor {
     // Course takes the width in this shape: Date and Time share the first row,
     // and a course name beside half a row of nothing reads as a missing field.
     courseField.wrap.classList.add("editor--field-wide");
-    grid.append(dateField.wrap, timeField.wrap, titleField.wrap, courseField.wrap);
+    grid.append(dateField.wrap, timeField.wrap, titleField.wrap, courseField.wrap, kindPick);
   } else {
     // Mock 2b's order: Title across the top, then Course / Kind and Date / Time
     // in two columns, the toggle under them, and everything rarer behind "More".

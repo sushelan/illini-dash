@@ -598,6 +598,55 @@ export interface SyncPlan {
  * about *that* source, and the commonest reason a failing source is worth
  * asking again. Neither an alarm nor a popup opening is a person asking.
  */
+/**
+ * Sources whose page lists only what is still ahead. PrairieTest's home page
+ * shows *upcoming* reservations and *open* booking windows — its own empty
+ * sentence is "You don't have any upcoming reservations" — so an exam leaves it
+ * once it has been sat, and a window leaves it once it has closed.
+ */
+const LISTS_ONLY_UPCOMING: ReadonlySet<Source> = new Set<Source>(["prairietest"]);
+
+/** When a held item stops being something its page would still list. */
+function heldUntil(item: RawItem): number | undefined {
+  const raw = item.kind === "booking" ? item.extra?.["windowEnd"] : item.dueAt;
+  if (raw === undefined) return undefined;
+  const at = Date.parse(raw);
+  return Number.isNaN(at) ? undefined : at;
+}
+
+/**
+ * Whether a source going from N items to 0 is the short-circuit the N→0 guard
+ * exists for, rather than the page emptying the way it is meant to.
+ *
+ * Sushi, 2026-09-23: *"if prairietest doesnt show an exam cuz a student takes
+ * an exam, it says unable to connect instead of connected."* One booked exam,
+ * sat, gone from the page: 1→0, and the guard called it `parse_error`. It never
+ * cleared either, because a failed sync keeps the old rows, so every later sync
+ * was 1→0 again.
+ *
+ * So for a source that lists only upcoming things, 0 is expected once every
+ * row it held is past its time. One row still ahead, or one with no time to
+ * judge by, and the guard still fires — that row should still be on the page,
+ * and a parser returning nothing is the likelier story. Every other source
+ * keeps past work on its page, so for them any N→0 still trips it.
+ */
+export function vanishedUnexpectedly(
+  source: Source,
+  raw: Record<string, RawItem>,
+  now: string,
+): boolean {
+  const held = Object.entries(raw)
+    .filter(([key]) => key.startsWith(`${source}:`))
+    .map(([, item]) => item);
+  if (held.length === 0) return false;
+  if (!LISTS_ONLY_UPCOMING.has(source)) return true;
+  const at = Date.parse(now);
+  return held.some((item) => {
+    const until = heldUntil(item);
+    return until === undefined || until > at;
+  });
+}
+
 function overridesBackoff(trigger: SyncTrigger): boolean {
   return trigger === "manual" || trigger === "recheck";
 }
@@ -741,7 +790,7 @@ export function applySync(
     const result: SourceOutcome =
       outcome.state === "ok" &&
       outcome.items.length === 0 &&
-      Object.keys(raw).some((key) => key.startsWith(`${source}:`))
+      vanishedUnexpectedly(source, raw, now)
         ? {
             ...outcome,
             state: "parse_error",

@@ -1404,12 +1404,11 @@ describe("minutesInto", () => {
 
 describe("examBoard — the things you have to turn up to", () => {
   /*
-   * `exam` and `booking` and nothing else, which is the line the sources
-   * already draw: §4.4 maps a PrairieTest reservation to `exam` and an unbooked
-   * window to `booking`, and §4.1 promotes a Canvas event whose title says
-   * exam, midterm or final. Everything else a student calls a quiz is work done
-   * from a laptop whenever, and including it would refill this tab with most of
-   * PrairieLearn.
+   * `exam` and `booking`, plus a Canvas quiz or exam by title (`canvasExam`).
+   * §4.4 maps a PrairieTest reservation to `exam` and an unbooked window to
+   * `booking`, and §4.1 promotes a Canvas event whose title says exam, midterm
+   * or final. Every other source's quiz is work done from a laptop whenever,
+   * and including it would refill this tab with most of PrairieLearn.
    */
   const booking = (windowEnd: string, title = "Book a slot") =>
     item({ title, kind: "booking", members: [member({ windowEnd })] });
@@ -1425,6 +1424,57 @@ describe("examBoard — the things you have to turn up to", () => {
       NOW,
     );
     expect(board.upcoming.map((p) => p.item.title)).toEqual(["Midterm 1"]);
+  });
+
+  describe("a Canvas quiz or exam", () => {
+    // Sushi, 2026-09-23: "quizzes/exams on canvas should also show up in the
+    // exam section, but they shouldnt be practice quizzes."
+    const canvas = (title: string, kind: RawItem["kind"] = "quiz") =>
+      item({
+        title,
+        kind,
+        dueAt: at(2026, 8, 20, 23, 59),
+        members: [{ ...member(), source: "canvas", title, kind }],
+      });
+    const board = (...items: Item[]) =>
+      examBoard(items, NOW).upcoming.map((p) => p.item.title);
+
+    it("is on the board when the title says quiz", () => {
+      expect(board(canvas("Quiz 3: Monte Carlo"))).toEqual(["Quiz 3: Monte Carlo"]);
+    });
+
+    it("is on the board as a New Quiz, which the planner calls an assignment", () => {
+      expect(board(canvas("Midterm 1", "assignment"))).toEqual(["Midterm 1"]);
+    });
+
+    it("stays off when the title says practice", () => {
+      expect(board(canvas("Practice Quiz 3"), canvas("Midterm Practice", "assignment"))).toEqual(
+        [],
+      );
+    });
+
+    it("stays off when Canvas's quiz is really homework", () => {
+      // The one real `quiz` row in fixtures/canvas/planner-items.json: CS 424
+      // posts its homework as a Canvas quiz. The type alone would put it here.
+      expect(board(canvas("Homework 1"))).toEqual([]);
+    });
+
+    it("is Canvas only — a PrairieLearn quiz stays off", () => {
+      const pl = item({
+        title: "Quiz 2",
+        kind: "quiz",
+        dueAt: at(2026, 8, 20, 23, 59),
+        members: [{ ...member(), title: "Quiz 2", kind: "quiz" }],
+      });
+      expect(board(pl)).toEqual([]);
+    });
+
+    it("matches the word, not a substring", () => {
+      // "Examples" contains "exam"; "Quizlet" contains "quiz".
+      expect(board(canvas("Examples worksheet", "assignment"), canvas("Quizlet deck"))).toEqual(
+        [],
+      );
+    });
   });
 
   it("has no horizon, because a final is further out than sixty days", () => {

@@ -1053,13 +1053,13 @@ export function overdueItems(items: Item[], now: Date): Item[] {
 /**
  * Everything you have to turn up to, on one screen.
  *
- * `exam` and `booking` and nothing else. That is not a stylistic line — it is
- * the one the sources already draw: §4.4 maps a PrairieTest reservation to
- * `exam` and an unbooked window to `booking`, and §4.1 promotes a Canvas
- * calendar event whose title says exam, midterm or final. Everything else a
- * student calls a quiz is work done from a laptop whenever, and including it
- * would refill this tab with most of PrairieLearn — the same dilution that made
- * Attention read 11 when one thing was late.
+ * `exam` and `booking`, plus a Canvas quiz or exam (`canvasExam`). §4.4 maps a
+ * PrairieTest reservation to `exam` and an unbooked window to `booking`, §4.1
+ * promotes a Canvas calendar event whose title says exam, midterm or final, and
+ * a student typing a row can pick Exam. What stays out is every other source's
+ * idea of a quiz: PrairieLearn's are work done from a laptop whenever, and
+ * including them would refill this tab with most of it — the same dilution that
+ * made Attention read 11 when one thing was late.
  *
  * **No horizon.** Every other view stops at 60 days, which is right for
  * homework and wrong for the one thing that is always further out than that: in
@@ -1093,6 +1093,33 @@ function bookingWindowEnd(item: Item): number | undefined {
   return undefined;
 }
 
+/**
+ * A Canvas quiz or exam the student sits, for the Exams board.
+ *
+ * Sushi, 2026-09-23: *"quizzes/exams on canvas should also show up in the exam
+ * section, but they shouldnt be practice quizzes."*
+ *
+ * Decided on the **title**, not on `plannable_type`, for two reasons the
+ * fixtures show. CS 424 posts its homework as a Canvas quiz — the one real
+ * `quiz` row in `planner-items.json` is titled "Homework 1" — so the type alone
+ * would put homework on this board. And New Quizzes reach the planner as
+ * `assignment`, so the type alone would miss a midterm given in one. Canvas's
+ * `quiz_type` (which would say `practice_quiz`) is not in the planner response,
+ * so "practice" is read from the title too.
+ */
+const CANVAS_EXAM_TITLE = /\b(?:quiz(?:zes)?|exam|midterm|final exam)\b/i;
+const PRACTICE_TITLE = /\bpractice\b/i;
+
+export function canvasExam(item: Item): boolean {
+  return item.members.some(
+    (member) =>
+      member.source === "canvas" &&
+      (member.kind === "quiz" || member.kind === "assignment") &&
+      CANVAS_EXAM_TITLE.test(member.title) &&
+      !PRACTICE_TITLE.test(member.title),
+  );
+}
+
 export function examBoard(items: Item[], now: Date): ExamBoard {
   const unbooked: Item[] = [];
   const upcoming: PlacedItem[] = [];
@@ -1109,7 +1136,7 @@ export function examBoard(items: Item[], now: Date): ExamBoard {
       if (end === undefined || end > now.getTime()) unbooked.push(item);
       continue;
     }
-    if (item.kind !== "exam") continue;
+    if (item.kind !== "exam" && !canvasExam(item)) continue;
 
     const anchor = anchorOf(item, now);
     if (anchor === undefined) continue;

@@ -31,6 +31,7 @@ import {
   syncOnce,
   withoutRows,
   syncOneSource,
+  vanishedUnexpectedly,
   type SyncDeps,
 } from "../src/core/sync.js";
 import { currentTermCourses, parseCoursePage } from "../src/sources/gradescope.js";
@@ -511,6 +512,107 @@ describe("runSync (§6)", () => {
     expect(second.store.sources.gradescope.state).toBe("parse_error");
     expect(second.store.sources.gradescope.lastError).toMatch(/0 items where it previously had/);
     for (const key of before) expect(Object.keys(second.store.raw)).toContain(key);
+  });
+
+  describe("PrairieTest going to 0 once its exams are over", () => {
+    // Sushi, 2026-09-23: "if prairietest doesnt show an exam cuz a student
+    // takes an exam, it says unable to connect instead of connected." Its home
+    // page lists only upcoming reservations and open windows, so 1→0 after the
+    // exam is the page working. It never cleared, either: a failed sync keeps
+    // the old rows, so every later sync was 1→0 again.
+    const LATER = "2026-12-31T18:00:00.000Z";
+    const emptyPrairieTest = (now: string) =>
+      deps({
+        now: () => now,
+        async parseHtml(source: Source, html: string, page: PageCtx) {
+          if (source === "prairietest") return [];
+          return deps().parseHtml(source, html, page);
+        },
+      });
+
+    it("is ok once every exam and window it held has passed", async () => {
+      const first = await runSync(emptyStore(), "alarm", deps());
+      const held = Object.values(first.store.raw).filter((i) => i.source === "prairietest");
+      // Both shapes are in the fixture, so both clocks are exercised.
+      expect(held.map((i) => i.kind).sort()).toEqual(["booking", "exam"]);
+      for (const item of held) {
+        const at = item.kind === "booking" ? item.extra?.["windowEnd"] : item.dueAt;
+        expect(Date.parse(at!)).toBeLessThan(Date.parse(LATER));
+      }
+
+      const second = await runSync(first.store, "manual", emptyPrairieTest(LATER));
+      expect(second.store.sources.prairietest.state).toBe("ok");
+      expect(Object.keys(second.store.raw).some((k) => k.startsWith("prairietest:"))).toBe(false);
+    });
+
+    it("is still a parse error while an exam it held is still ahead", async () => {
+      const first = await runSync(emptyStore(), "alarm", deps());
+      const second = await runSync(first.store, "manual", emptyPrairieTest(NOW));
+      expect(second.store.sources.prairietest.state).toBe("parse_error");
+    });
+
+    it("is still a parse error for Gradescope, which keeps past work on its page", async () => {
+      const first = await runSync(emptyStore(), "alarm", deps());
+      const second = await runSync(
+        first.store,
+        "manual",
+        deps({
+          now: () => "2027-06-01T18:00:00.000Z",
+          async parseGradescopeDashboard() {
+            return [];
+          },
+        }),
+      );
+      expect(second.store.sources.gradescope.state).toBe("parse_error");
+    });
+  });
+
+  describe("vanishedUnexpectedly", () => {
+    const pt = (partial: Partial<RawItem>): RawItem => ({
+      source: "prairietest",
+      sourceId: `k${Math.random()}`,
+      courseRaw: "CS 357",
+      title: "Quiz",
+      kind: "exam",
+      url: "https://us.prairietest.com/pt/",
+      status: "unknown",
+      fetchedAt: NOW,
+      ...partial,
+    });
+    const raw = (...items: RawItem[]) =>
+      Object.fromEntries(items.map((i) => [`${i.source}:${i.sourceId}`, i]));
+    const PAST = "2026-09-09T18:00:00.000Z";
+    const AHEAD = "2026-09-11T18:00:00.000Z";
+
+    it("is false when the source held nothing", () => {
+      expect(vanishedUnexpectedly("prairietest", {}, NOW)).toBe(false);
+    });
+
+    it("is true when one held exam is still ahead, even beside a past one", () => {
+      expect(
+        vanishedUnexpectedly("prairietest", raw(pt({ dueAt: PAST }), pt({ dueAt: AHEAD })), NOW),
+      ).toBe(true);
+    });
+
+    it("is true for a held exam with no time to judge by", () => {
+      expect(vanishedUnexpectedly("prairietest", raw(pt({})), NOW)).toBe(true);
+    });
+
+    it("judges a booking by its window's end, not its start", () => {
+      // `dueAt` is the window's *start* (§4.4), so a window that has opened but
+      // not closed is still on the page.
+      const open = pt({ kind: "booking", dueAt: PAST, extra: { windowEnd: AHEAD } });
+      const closed = pt({ kind: "booking", dueAt: PAST, extra: { windowEnd: PAST } });
+      expect(vanishedUnexpectedly("prairietest", raw(open), NOW)).toBe(true);
+      expect(vanishedUnexpectedly("prairietest", raw(closed), NOW)).toBe(false);
+    });
+
+    it("ignores another source's rows", () => {
+      const other = { ...pt({ dueAt: AHEAD }), source: "gradescope" as const };
+      expect(vanishedUnexpectedly("prairietest", raw(pt({ dueAt: PAST }), other), NOW)).toBe(
+        false,
+      );
+    });
   });
 
   it("leaves a legitimately empty source green, rather than crying wolf", async () => {
