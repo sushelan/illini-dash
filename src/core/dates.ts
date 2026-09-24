@@ -212,6 +212,10 @@ export function inferYear(
   if (weekday) {
     const wanted = WEEKDAYS.indexOf(weekday.slice(0, 3));
     for (const year of candidates) {
+      // A candidate the date does not exist in is not a match — but not a
+      // verdict either: Feb 29 is absent from 2027 and present in 2028, and
+      // letting `wallClockToIso` throw here ended the search before 2028.
+      if (!isRealWallClock({ ...parts, year })) continue;
       const iso = wallClockToIso({ ...parts, year }, timeZone);
       const actual = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" })
         .format(new Date(iso));

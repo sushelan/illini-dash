@@ -2,13 +2,54 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2669 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2680 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and fail whenever the timeline rail is not drawn —
 the Sunday evening of 2026-09-20, and again at 23:43 on 2026-09-23 (on clean `main` too).
 They still have no pinned clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Three defects from a review of `src/core/` — 2026-09-24
+
+A `/code-review high src/core/` pass (sync loop, dedupe, dates, parsing, queue,
+schedule; the large UI-support modules were not read) reported ten findings. Three are
+fixed test-first, every fix mutation-checked:
+
+**A late-window reminder counted down to the deadline it had already missed.**
+`notificationContent` read `dueAt ?? lateDueAt`, so a `late24h` toast on Sep 15 for a
+window closing Sep 16 said *"late window closes now"* and printed Sep 9's time. The same
+expression had been fixed in `planNotifications` and not here; the old tests matched only
+the words "late window closes". A late lead now reads `lateDueAt`, a full-credit lead
+`dueAt` (both directions pinned: `tests/schedule.test.ts`).
+
+**An error status is classified before any parser sees it — Sushi's option C.** No
+source except `site` checked the HTTP status, so a PrairieLearn 502 reached the parser,
+threw ParseError, and showed "the page changed" with §6's backoff. `fetchChecked` now does
+fetch → login test → status for every page in `sync.ts`, and `adapterFailureKind` is the
+one rule for sources and adapters alike: **only 404 and 410 are `parse_error`**; every
+other status (5xx, 429, 408) is `network_error`. This replaced the old any-4xx rule, which
+put a red dot on a rate limit, and rewrote the test that pinned it (worker rule 6).
+Found on the way: `looksLoggedOut` read a 5xx as signed out for Canvas (any HTML on an
+API path) and smartPhysics (no Log Off link), sending a student to sign in to a site that
+was down. A 5xx is now never a sign-in (`src/core/parsing.ts`), boundary at 500 pinned.
+
+**`inferYear` threw on a leap day** instead of trying the next candidate year: "Tue Feb
+29" read in Dec 2027 lost its date rather than resolving to 2028. `tests/dates.test.ts` is
+new; nothing had tested `inferYear` at its own seam.
+
+**Open from the same review, not fixed:**
+- **Canvas goes red over a term break, and stays red.** The planner covers now−7d..+60d,
+  so it honestly returns 0; `vanishedUnexpectedly` calls that `parse_error`, and the
+  failure branch keeps old undated rows "seen", so it never clears. Needs a decision on
+  what "unexpectedly empty" means per source — sync loop, full review.
+- **§3.2's year rule never subtracts.** "Dec 15" with no weekday, read on Jan 3, lands a
+  year ahead. A spec amendment, so Sushi's call.
+- **`lastAttemptAt` is stamped at apply, not at attempt start**, so a sign-in finishing
+  during the fetches is not re-checked. `plan.at` holds the right instant.
+- Course-site adapters fetch strictly one at a time; `dates.ts` repeats `isInstant`'s
+  regex; `vanishedUnexpectedly` spells `sourcePrefix` by hand; an orphaned JSDoc in
+  `dedupe.ts`.
 
 ## Exams: a Canvas quiz, a typed exam, and a PrairieTest with nothing booked — 2026-09-23
 
