@@ -5,6 +5,27 @@ passed (see PROGRESS.md); this document answers "what tools are extremely helpfu
 that aren't implemented already", and turns the answer into the checklist for getting to a
 trustworthy G4 beta and past it.
 
+## Status — checked against the code, 2026-09-25
+
+The ideas below were written on 2026-09-10. Each entry's **In the code today** field, the
+checklist marks and the appendix's status column now say what the code does as of
+2026-09-25 (1.3.1), judged feature by feature. Only I37 was ever cited by id in PROGRESS.md.
+
+| Tier | Done | Partial | Not done |
+|---|---|---|---|
+| 0a (20 ideas) | 20 | – | – |
+| 0b (6 ideas) | 3, plus the registry URL and the course-site adapters | – | 3: I82, I44, I46 |
+| 1 (40) | 4 | 14 | 22 |
+| 2 (20) | 2 | 2 | 16 |
+
+G4 has not run.
+
+Shipped, and on none of these lists: Piazza as a polled announcement feed; the Campuswire
+observer (a content script, opt-in); deadlines proposed from posts, with accept and reject;
+the on-device model adapter author; the Exams tab (PrairieTest bookings, Canvas quizzes,
+typed exams); the popup redesign with Today/Week/Month/Alerts/Exams tabs, themes and a light
+mode; the full view in its own tab; and the published Chrome Web Store listing (unlisted).
+
 ## How this list was made
 
 Ten idea-finders, each with one lens (other UIUC systems, daily workflow, trust, notifications,
@@ -23,22 +44,25 @@ Three ideas that finders proposed were pure restatements of gaps already listed 
 
 ## What the gaps have in common
 
-1. **The parsers already capture far more than the UI shows.** Exam room and duration, release
-   times, the PrairieLearn credit ladder, the not-for-credit flag, Canvas late/excused flags and
-   the assumed-time flag are all in `RawItem.extra` and read by nothing but tests. The cheapest
-   wins in this document are display-only.
-2. **Health is honest only inside the popup, and not even there at first.** A fresh store seeds
-   every enabled source as `ok` before any fetch (`store.ts` `defaultStatus`), the status line
-   says "Synced" when every source failed (`sync.ts` sets `lastSyncAt` unconditionally), and no
-   signal exists outside an extension page. Worker house rule 2, one level up again.
-3. **The system has no notion of change over time.** No diff between syncs, no "moved" or
-   "new" marker, and a reminder that already fired is never re-armed when the deadline moves.
-4. **Two sources can never say "done".** Course-site rows are `status: "unknown"` forever and
-   Canvas paper items stay `not_submitted` until graded, so finished work sits red in Needs
-   attention for seven days with Hide as the only escape.
-5. **Growth is gated on captures from a logged-in browser.** Adapters two and three, the Canvas
-   term filter, the non-PrairieLearn student's home page and every new source in Tier 2 each
-   start with a fixture only Sushi (or a tester) can produce.
+On 2026-09-10 there were five common threads. Tier 0a closed four of them.
+
+1. **The parsers captured far more than the UI showed.** Exam room and duration, release
+   times, the PrairieLearn credit ladder, the not-for-credit flag and the assumed-time flag now
+   reach the row, the detail screen or the toast (I02, I07, I36, I62, I06). What is still
+   captured and unused is narrower: exam location in the .ics (I02) and the late window in the
+   calendar export (I66).
+2. **Health was honest only inside the popup.** Closed by I17, I16 and I03: grey until a
+   source has succeeded, a status line derived from attempts (`core/health.ts`), and a toolbar
+   badge. Worker house rule 2 records how.
+3. **The system had no notion of change over time.** Closed by I01: moved and new markers,
+   and fired reminders re-armed when the stated instant moves. A per-sync change log (I19) is
+   still missing.
+4. **Two sources could never say "done".** Closed by I08, the local Done check-off. I37's
+   partial-score rule is only partly done.
+5. **Growth is gated on captures from a logged-in browser.** Still true. Public course pages
+   no longer need one, because the proposer and the registry take any https URL, but every
+   new signed-in source in Tier 2 still starts with a fixture only Sushi or a tester can
+   produce.
 
 ## The checklist, in priority order
 
@@ -85,13 +109,15 @@ tester. Tier 1 is after the beta. Tier 2 needs a §0/§1 decision or a new permi
 
 14. **Git remote and registry URL** — push the repo and point `src/core/registry.ts` at it, or
     the daily adapter refresh stays dead. (not an idea id; from `docs/store/listing.md`)
+    **Done 2026-09-10.**
 15. **Beta install kit** — `npm run package` zip plus a one-page tester guide with the
-    reload-and-check-build-id step. (I55)
+    reload-and-check-build-id step. (I55) **Done.**
 16. **Adapters two and three** — from captures of course sites the testers are actually in.
     Public course pages can be fetched without a login; Shibboleth-protected ones need the
-    options-page capture tool.
+    options-page capture tool. **Done**: the registry ships CS 424, ECE 310, ECE 391, ECE 411,
+    CS 425, CS 374 A and CS 341.
 17. **Canvas concluded-course filter** via `include[]=term`, with an "Older courses" group.
-    Needs one capture. (I45)
+    Needs one capture. (I45) **Done.**
 18. **Non-CS tester's first look** — name the publisher host behind undated external-tool rows
     ("MCB 150 · 14 items in McGraw Hill Connect"), then a collapsed Canvas "No date" section
     with the LTI-shell explanation. (I82 stage 1, I44)
@@ -99,7 +125,8 @@ tester. Tier 1 is after the beta. Tier 2 needs a §0/§1 decision or a new permi
     one-click turn-off); the positive empty marker waits for a capture from a student without
     PL courses. (I46)
 20. **First-run page, minimal** — open Settings on install with per-source login state; the
-    per-course "what I found" table can wait for beta feedback. (I05)
+    per-course "what I found" table can wait for beta feedback. (I05) **Done**: install opens
+    the setup screen in the full view.
 21. **Run G4** — ten testers across three or more majors for a week; collect broken-page
     reports; this is also what measures the §5.3 badge-token trade G3 could not.
 
@@ -108,43 +135,43 @@ Ordered by skeptic value, then how many lenses proposed it, then effort. Full en
 
 
 - I13 · Reminder toasts with Open / Snooze / Done buttons, requireInteraction for the 2h lead (M)
-- I21 · Manual deadlines as a sixth 'manual' source (M)
+- I21 · Manual deadlines as a sixth 'manual' source (M) — **done**
 - I24 · Registrar deadlines (drop, CR/NC, refund) as shipped campus rows (M)
 - I60 · Page-aware popup: this course first, focus existing tab, auto-resync after login (M)
 - I25 · Final exam time and room from Course Explorer (L)
-- I02 · Exam-day card on PrairieTest rows (room, duration, format) in row, toast and calendar (M)
-- I09 · Per-course coverage table with 'request an adapter' flow (M)
+- I02 · Exam-day card on PrairieTest rows (room, duration, format) in row, toast and calendar (M) — **done**
+- I09 · Per-course coverage table with 'request an adapter' flow (M) — **partial**
 - I10 · Side panel view of the same list (S)
 - I11 · Search box and click-a-chip course filter (S)
-- I14 · Done / Graded-recently section with score chips and per-source confirmation (L)
+- I14 · Done / Graded-recently section with score chips and per-source confirmation (L) — **partial**
 - I34 · Calendar dates past this week and day headings inside Later (S)
 - I66 · Calendar export carries late and reduced-credit deadlines (S)
 - I67 · 'Add to Outlook' deep link (S)
-- I18 · Custom lead times, per-kind leads, per-course mute (M)
+- I18 · Custom lead times, per-kind leads, per-course mute (M) — **partial**
 - I19 · Per-sync change log strip ('2 new · 1 moved · 1 gone') (M)
 - I26 · Morning digest at the end of quiet hours (M)
-- I32 · Show when merged members disagree on due date or status (M)
+- I32 · Show when merged members disagree on due date or status (M) — **partial**
 - I33 · Snooze / 'not today' defer on a row (M)
-- I35 · Keyboard shortcut, arrow navigation, real links (M)
-- I36 · 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind on open (M)
-- I37 · A partial PrairieLearn score is not 'done' (M)
-- I40 · CBTF reservation-window escalation and missed-reservation notice (M)
+- I35 · Keyboard shortcut, arrow navigation, real links (M) — **done**
+- I36 · 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind on open (M) — **partial**
+- I37 · A partial PrairieLearn score is not 'done' (M) — **partial**
+- I40 · CBTF reservation-window escalation and missed-reservation notice (M) — **partial**
 - I47 · Per-adapter health state and N->0 guard per course site (M)
-- I48 · Header-anchored adapter columns and 'Due'-header autodetect (M)
-- I51 · In-options adapter workbench with 'Propose this adapter' bundle (M)
+- I48 · Header-anchored adapter columns and 'Due'-header autodetect (M) — **done**
+- I51 · In-options adapter workbench with 'Propose this adapter' bundle (M) — **partial**
 - I64 · This-week workload strip per course (M)
 - I71 · 'Why is this here / why isn't X here' merge-reason explainer (M)
 - I73 · 30-minute 'last call' only when the source still says not submitted (M)
-- I50 · Adapter row-context fields (rowspan carry-forward, ancestor title, per-column kind, recurring rules) (L)
-- I12 · Per-row Details panel: provenance and what each parser extracted (S)
+- I50 · Adapter row-context fields (rowspan carry-forward, ancestor title, per-column kind, recurring rules) (L) — **partial**
+- I12 · Per-row Details panel: provenance and what each parser extracted (S) — **partial**
 - I20 · Collapsible sections that remember their state (S)
-- I56 · Adapter linting and golden tests in CI (S)
+- I56 · Adapter linting and golden tests in CI (S) — **partial**
 - I68 · Copy this week as Markdown / plain text (S)
-- I23 · Stable .ics UID across merges plus SEQUENCE (M)
+- I23 · Stable .ics UID across merges plus SEQUENCE (M) — **partial**
 - I28 · Keep reminders working past Chrome's 500-alarm cap (M)
 - I29 · Import JSON (restore corrections / load a snapshot) (M)
-- I57 · Term rollover: term dates in the registry, Expired section, fa26->sp27 carry-over (M)
-- I72 · Override audit with loss notices (M)
+- I57 · Term rollover: term dates in the registry, Expired section, fa26->sp27 carry-over (M) — **partial**
+- I72 · Override audit with loss notices (M) — **partial**
 - I78 · Recent Canvas announcements panel, deliberately unparsed (M)
 - I84 · University Housing and dining deadlines from the public campus .ics feed (M)
 
@@ -153,7 +180,7 @@ Ordered by skeptic value, then how many lenses proposed it, then effort. Full en
 See "Decisions only Sushi can make" below. Compact entries further down.
 
 
-- I42 · Google Calendar sync via chrome.identity (v1.1 row, brought forward as opt-in beta) (L)
+- I42 · Google Calendar sync via chrome.identity (v1.1 row, brought forward as opt-in beta) (L) — **done**
 - I53 · Sync settings and overrides across Chrome profiles via storage.sync (items stay local) (M)
 - I70 · Subscribable .ics feed published to the student's own Google Drive (L)
 - I76 · Content script writing real due dates onto Canvas's dateless LTI rows (L)
@@ -161,13 +188,13 @@ See "Decisions only Sushi can make" below. Compact entries further down.
 - I52 · Point-and-click selector picker on the live course page (L)
 - I87 · renders:'client' flag plus visit-time content-script fallback (L)
 - I83 · Moodle (learn.illinois.edu): enrolment probe, then a timeline adapter if testers hit it (M)
-- I81 · smartPhysics prelectures and checkpoints (PHYS 211-214) (M)
+- I81 · smartPhysics prelectures and checkpoints (PHYS 211-214) (M) — **done**
 - I85 · Queue @ Illinois: 'office hours open now' on the course row (M)
 - I80 · Section seat-status watch for registration season (M)
 - I79 · Spring 2027 registration dates and personal time ticket (L)
 - I65 · Canvas current score on the course chip (M)
-- I58 · Course colours on the chip from the student's Canvas colours (M)
-- I15 · Week grid in the full view, with a printable week (L)
+- I58 · Course colours on the chip from the student's Canvas colours (M) — **partial**
+- I15 · Week grid in the full view, with a printable week (L) — **partial**
 - I63 · Credit-at-stake ordering within a day (M)
 - I69 · Per-course .ics files with a calendar name (S)
 - I74 · Hold catch-up reminders while the screen is locked (S)
@@ -182,18 +209,18 @@ confirm the registry URL, submit. Permission justifications are already written 
 
 ## Decisions only Sushi can make
 
-1. **Google Calendar OAuth sync (I42)** — keep it at v1.1 as §1 plans, or start now as an
-   opt-in beta button? It needs an OAuth client, the `identity` permission, and a rewording of
-   "nothing leaves the browser".
+1. **Google Calendar OAuth sync (I42)** — **decided: shipped as opt-in**, live 2026-09-18,
+   under the `calendar.app.created` scope. The privacy policy was rewritten for it.
 2. **Is §0 decision 1 negotiable in wording?** Settings and overrides via `chrome.storage.sync`
    (I53) and a subscribable feed on the student's own Drive (I70) both work technically and
    both break "nothing leaves the browser" as written.
 3. **Content scripts on host pages, yes or no in principle?** Writing real dates onto Canvas's
    dateless LTI rows (I76), an upcoming strip on the four home pages (I77), a selector picker
    (I52), a client-rendered-site fallback (I87). All add `scripting`/`activeTab` and change the
-   privacy story from "reads" to "modifies".
-4. **Manual deadline entry (I21)** — is this an aggregator or a planner? It also removes the
-   pressure that produces broken-page reports and adapters.
+   privacy story from "reads" to "modifies". **Half decided:** `scripting` shipped for the
+   opt-in Campuswire observer, which reads a page and modifies nothing. None of these four is
+   built, and "modifies" is still open.
+4. **Manual deadline entry (I21)** — **decided: shipped** (quick add and the editor).
 5. **Campus rows without a course** — registrar deadlines (I24) and final exam times (I25) are
    public and verified live, but a course-less row is a scope expansion from "course deadlines".
 6. **Snooze (I33)** amends §7's "booking nag fires daily until the item disappears".
@@ -202,22 +229,18 @@ confirm the registry URL, submit. Permission justifications are already written 
 
 Each item is one browser action or one decision; the literal thing to report is in brackets.
 
-1. **Say go on Tier 0a** (or reorder it). Nothing else is needed to start items 1–13.
-2. **Create the GitHub remote and push** — then give the repo URL so the registry refresh
-   target can be set. **Done 2026-09-10:** https://github.com/sushelan/illini-dash
-3. **Capture Canvas courses with the term included** using the options-page capture tool:
-   `https://canvas.illinois.edu/api/v1/courses?enrollment_state=active&include[]=term&per_page=100`
-   → save as `fixtures/canvas/courses-active-term.json`. [whether each course's `term` carries
-   `start_at`/`end_at` or nulls — decides the filter vs the modal-term fallback]
-4. **Name the courses your first testers are in**, so adapters two and three target pages
-   someone will actually use. Public schedule pages can be fetched from here; Shibboleth pages
-   need a capture from a logged-in browser. [course list; for protected pages, the scrubbed
-   HTML from the capture tool]
-5. **Load each Tier 0a build and report the worker console**, one change at a time, as they
-   land — the first live run found four defects the suite could not. [the `[sync]` lines and
-   anything red]
-6. **Decide the six questions above** — 1 and 3 change the manifest and the listing text, so
-   they are worth deciding before G5 work starts.
+Items 1–5 are done; 6 is half done; 7 is still waiting on testers.
+
+1. ~~Say go on Tier 0a.~~ **Done**: all of Tier 0a landed 2026-09-10.
+2. ~~Create the GitHub remote and push.~~ **Done 2026-09-10:** https://github.com/sushelan/illini-dash
+3. ~~Capture Canvas courses with the term included.~~ **Done**: the concluded-course filter
+   (I45) shipped on it.
+4. ~~Name the courses your first testers are in.~~ **Done**: nine registry entries across
+   seven courses.
+5. ~~Load each Tier 0a build and report the worker console.~~ **Done**, and superseded by the
+   beta and the store build.
+6. **Decide the open questions above**: 2, 5 and 6 are still open; 1 and 4 are decided; 3 is
+   half decided.
 7. **Later, when testers exist:** a PrairieLearn home page from a student with no PL courses
    and a PrairieTest home from a student with no CBTF exams (PROGRESS.md's open VERIFY); one
    graded Gradescope course page (for score chips, Tier 1); a check that the Outlook deep link
@@ -229,7 +252,7 @@ Each item is one browser action or one decision; the literal thing to report is 
 
 
 ### I17 · Health-aware popup empty state; no green dot before a source has succeeded
-**Effort** S · **In the code today** partial · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 When the list is empty, the popup says why: 'Gradescope and PrairieLearn need you to log in' with buttons, or 'Canvas found 3 courses but none of their assignments has a due date', or 'Still fetching…' during the first sync. Separately, a source whose `lastSuccessAt` is unset renders grey ('not checked yet'), not green, and 'Sync now' shows progress instead of leaving 'Not synced yet.' on screen for 20 seconds.
 
@@ -240,7 +263,7 @@ When the list is empty, the popup says why: 'Gradescope and PrairieLearn need yo
 - *Strongest objection:* The popup fires a sync on open, so the green-before-fetch window is seconds unless a source fails; after that the dots are real.
 
 ### I16 · Honest status line and stale-data banner
-**Effort** S · **In the code today** partial · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Replace the popup's status line — which today reads "Synced 10:32 AM" whenever the loop ran, even if all four sources failed — with "Checked 10:32 AM · 3 of 4 sources OK". When any enabled source's lastSuccessAt is older than N hours (or never), show a banner: "Gradescope hasn't been read successfully since Tue 9:14 AM (2d). Its 5 rows may be out of date. [Log in]". Rows from that source get a muted 'stale' glyph.
 
@@ -250,7 +273,7 @@ Replace the popup's status line — which today reads "Synced 10:32 AM" whenever
 - *Strongest objection:* Dots already encode state and click through to login (spec §8.1); a banner spends popup height on the same fact.
 
 ### I03 · Toolbar badge: today's count, red '!' when a source is broken
-**Effort** S · **In the code today** missing · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 3
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 3
 
 The Illini Dash icon shows a number (items in Needs attention + Today) and turns red with '!' the moment any enabled source is needs_login / parse_error / network_error, with the tooltip carrying the lastError. The student sees 'PT needs login' or '3 due today' from the toolbar without opening anything; today every health dot only exists inside the popup.
 
@@ -262,7 +285,7 @@ The Illini Dash icon shows a number (items in Needs attention + Today) and turns
 - *Proposed by:* beta-onboarding, chrome-platform, daily-workflow
 
 ### I27 · 'Can reminders reach you?' check and send-test-reminder button
-**Effort** S · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Options → Reminders (and the popup status line) shows a red 'Reminders are blocked in Chrome' when the extension's notification level is denied, updates live if it changes, and offers a 'Send a test reminder' button that walks the real fireNotification path. Turns a silent no-op into a visible state.
 
@@ -273,7 +296,7 @@ Options → Reminders (and the popup status line) shows a red 'Reminders are blo
 - *Strongest objection:* getPermissionLevel reflects only Chrome's per-extension flag; the common campus case is macOS Focus or Chrome lacking System Settings permission, which it cannot see.
 
 ### I38 · Coalesce catch-up reminder bursts and word them by real remaining time
-**Effort** M · **In the code today** missing · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 When Chrome starts after being closed, or right after install, collapse all overdue leads for one item into a single toast worded from the actual time left ("due in 40 min", not "due tomorrow"), and when more than three items are overdue at once send one list toast ("5 reminders you missed while Chrome was closed") instead of five individual ones.
 
@@ -284,7 +307,7 @@ When Chrome starts after being closed, or right after install, collapse all over
 - *Strongest objection:* Install burst is bounded by items due in the next 24h (typically 1-4, not 6-10), and macOS stacks Chrome toasts anyway.
 
 ### I01 · Deadline moved / new item markers, notification, and reminder re-arm
-**Effort** M · **In the code today** missing · **Skeptic** value 4/5, feasibility 4/5, keep, before_beta · **Lenses** 3
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 4/5, keep, before_beta · **Lenses** 3
 
 Each sync diffs items against the previous store. A new item carries a NEW dot for 24 hours; a moved deadline shows "moved Thu → Sat" for a few days and fires one notification ("CS 424 HW1 moved to Sat 11:59 PM"); a moved deadline also clears the already-fired 24h/2h record so both reminders fire again for the new instant. An Options toggle turns the change notification off.
 
@@ -296,7 +319,7 @@ Each sync diffs items against the previous store. A new item carries a NEW dot f
 - *Proposed by:* notifications, prior-art, trust-transparency
 
 ### I04 · Late / reduced-credit window stays live after dueAt, with reminders on lateDueAt
-**Effort** M · **In the code today** partial · **Skeptic** value 4/5, feasibility 4/5, keep, before_beta · **Lenses** 3
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 4/5, keep, before_beta · **Lenses** 3
 
 When the full-credit deadline has passed but a late / reduced-credit deadline is still ahead, the row turns amber instead of red and reads "late until Wed 5:00 PM · 6d left" (Gradescope) or "80% until Sep 22" (PrairieLearn), stays in the list until lateDueAt rather than falling out 7 days after dueAt, and gets its own 24h/2h reminder: "PHYS435 — late window closes in 2 hours".
 
@@ -307,7 +330,7 @@ When the full-credit deadline has passed but a late / reduced-credit deadline is
 - *Proposed by:* grades-workload, notifications, prior-art
 
 ### I07 · Reduced-credit ladder and late window shown before the deadline passes
-**Effort** S · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, defer, v1.1 · **Lenses** 2
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, defer, v1.1 · **Lenses** 2
 
 A PrairieLearn row's due cell shows the next step of its credit schedule, not just one instant: "100% until Tue 11:00 AM · then 80% until Sep 22", with the full ladder (100 → 80 → 50 → 0, each with its end) in the row tooltip. Once the 100% step has passed the row reads "80% until Sep 22 · 12d left" instead of "Tue 11:00 AM · 2d ago".
 
@@ -318,7 +341,7 @@ A PrairieLearn row's due cell shows the next step of its credit schedule, not ju
 - *Proposed by:* daily-workflow, grades-workload
 
 ### I06 · Show runner-assumed 23:59 times as assumed (popup, sort order, calendar export)
-**Effort** S · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 2
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 2
 
 When the member whose dueAt won carries `extra.timeAssumed === "true"`, render "Fri Sep 18 · by end of day (no time given on the course site)" instead of "Fri 11:59 PM", sort it after stated times on the same day, and in the .ics / Google Calendar link emit an all-day event (DTSTART;VALUE=DATE) or a description note rather than a hard 23:59 event.
 
@@ -330,7 +353,7 @@ When the member whose dueAt won carries `extra.timeAssumed === "true"`, render "
 - *Proposed by:* daily-workflow, trust-transparency
 
 ### I22 · Honest .ics / calendar link (all-day for invented times, hideSubmitted, VALARM, footer button)
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 The .ics and the per-row 'Add to Google Calendar' link should export what the popup shows, the way the popup will soon show it: an item whose 23:59 the runner invented (`extra.timeAssumed`) becomes an all-day event (`DTSTART;VALUE=DATE`, and `dates=YYYYMMDD/YYYYMMDD+1` in the TEMPLATE link) with 'time not stated by the course site' in the description; graded/submitted rows are skipped when hideSubmitted is on…
 
@@ -341,7 +364,7 @@ The .ics and the per-row 'Add to Google Calendar' link should export what the po
 - *Strongest objection:* The .ics is a low-use, one-shot export; Google ignores VALARM and applies its own defaults, and most testers will never re-import.
 
 ### I41 · Morning toast instead of '2h' lead for runner-invented times
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 For items whose only instant carries `extra.timeAssumed` (course-site rows with a bare date, e.g. every CS 424 row), replace the 2h lead with a morning toast at quiet-hours end: "CS 424 HW2 is due today — the course page gives no time; check it" — and never phrase an assumed 23:59 as a countdown. The 24h lead is reworded the same way.
 
@@ -352,7 +375,7 @@ For items whose only instant carries `extra.timeAssumed` (course-site rows with 
 - *Strongest objection:* Affects only members whose sole source is a site adapter (one adapter today); when Canvas or Gradescope also lists the item, dedupe.ts:230 already prefers the stated time.
 
 ### I08 · Local 'Done' check-off, separate from Hide
-**Effort** M · **In the code today** missing · **Skeptic** value 5/5, feasibility 5/5, keep, before_beta · **Lenses** 2
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 5/5, feasibility 5/5, keep, before_beta · **Lenses** 2
 
 A checkbox (or ⋯ → "Mark done") on every row that the student controls, independent of what the source reports. A done row drops out of Today/This week exactly as a source-reported `submitted` row does today, stops its 24h/2h reminders, and is reachable under a collapsed "Done" section or an "undo" in the row menu rather than being buried in the options page's Hidden items.
 
@@ -364,7 +387,7 @@ A checkbox (or ⋯ → "Mark done") on every row that the student controls, inde
 - *Proposed by:* daily-workflow, prior-art
 
 ### I62 · Practice / not-for-credit tagging and demotion
-**Effort** S · **In the code today** partial · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Rows whose PrairieLearn title says NOT FOR CREDIT, WILL NOT COUNT or extra credit get a small "practice" chip next to the course chip, sort last within their section, and a Reminders checkbox "Remind me about not-for-credit work" (default off) suppresses their 24h/2h notifications. The chip stays visible so a required-but-ungraded survey is not lost.
 
@@ -375,7 +398,7 @@ Rows whose PrairieLearn title says NOT FOR CREDIT, WILL NOT COUNT or extra credi
 - *Strongest objection:* Default-off reminders for not-for-credit rows contradict §4.3's own warning that some such surveys are required — S1 'Select your group' is exactly that.
 
 ### I31 · Surface parser data-quality flags instead of dropping unreadable rows
-**Effort** M · **In the code today** missing · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 The parsers record `unparsedDueDate`, `unparsedLateDate`, `unparsedSchedule`, `unparsedCredit`, `unparsedDate`, `unparsedDateRange`, `creditMismatch`, `unknownStatus` and `idFallback` in `extra`, and console.warn in the offscreen document. Nothing reads them.
 
@@ -386,7 +409,7 @@ The parsers record `unparsedDueDate`, `unparsedLateDate`, `unparsedSchedule`, `u
 - *Strongest objection:* Flags fire only on rows fixtures had to be made deliberately unrealistic to trigger; a 'Couldn't read' section is a mostly-empty bucket in a 600px popup…
 
 ### I43 · Split Options into Settings and a hidden Developer panel; fix the 'debug' title and duplicate 'Course websites' label
-**Effort** S · **In the code today** partial · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 The gear icon opens a page titled 'Illini Dash — debug' whose lower half asks for the student's NetID and full name and offers Gate 0, an offscreen round-trip and fixture capture.
 
@@ -397,7 +420,7 @@ The gear icon opens a page titled 'Illini Dash — debug' whose lower half asks 
 - *Strongest objection:* §0 rule 6 says ship ugly, and the title/heading is cosmetic. Testers who never open ⚙ never see it, and the debug tools are inert unless clicked.
 
 ### I59 · Lift backoff and resync immediately on extension update
-**Effort** S · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 After Chrome installs a new version, the worker clears the §6 backoff for any source sitting in parse_error/network_error and syncs at once, logging 'update 0.1.0→0.1.1: cleared backoff for gradescope'. The student who saw a red dot yesterday sees it turn green the moment the fix arrives, not up to four hours later.
 
@@ -408,7 +431,7 @@ After Chrome installs a new version, the worker clears the §6 backoff for any s
 - *Strongest objection:* Only felt the day after a parser breaks, and Sync now already bypasses backoff (sync.ts:356). Worst case is a red dot for ≤4h.
 
 ### I49 · Adapter date grammar matching real fa26 pages (weekday prefix, at/@, 24h, split columns)
-**Effort** M · **In the code today** partial · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Grow the closed set of `dateFormat` tokens so real strings parse and, crucially, so a time the page *states* is not recorded as `timeAssumed`. Concretely: tolerate an optional weekday prefix (`Tue Sep 08`, `Tue, Sep 01`, `Friday, September 4`), accept `@` and `at` between date and time, accept 24-hour `18:00`/`23:59` without am/pm, ignore trailing zone text (`US Central time`)…
 
@@ -419,7 +442,7 @@ Grow the closed set of `dateFormat` tokens so real strings parse and, crucially,
 - *Strongest objection:* With one adapter nobody in the beta feels any of this; the two half-parsing live examples (ECE 310 '@ 11:59pm', CS 341 'at 23:59') land on the right instant by coincidence because the invented time…
 
 ### I54 · Versioned store migrations with memberKey remapping and a load-old-store test
-**Effort** M · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 2/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Replace the single merge-style `migrate` with a version switch (`schemaVersion` 1→2→…), validate `raw` and `items` instead of casting them, and give each migration a hook to remap `memberKey`s in `overrides.hiddenKeys/splitKeys/mergeGroups` and in `items[].notified` when a source's `sourceId` derivation changes.
 
@@ -430,7 +453,7 @@ Replace the single merge-style `migrate` with a version switch (`schemaVersion` 
 - *Strongest objection:* dedupe.ts already carries `notified` by memberKey and schedule.ts never fires past a deadline, so a key change re-fires only rows inside a lead window, not 14.
 
 ### I30 · One-click scrubbed diagnostics bundle
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 A 'Copy diagnostics' button in Settings that assembles: build id and manifest version, Chrome version, per-source state / lastAttempt / lastSuccess / consecutiveFailures / request counts, the last error per source with any page-body snippet scrubbed, held permissions (`chrome.permissions.getAll`), the alarm list, the registry state, settings, course codes with per-source item counts, and section counts…
 
@@ -441,7 +464,7 @@ A 'Copy diagnostics' button in Settings that assembles: build id and manifest ve
 - *Strongest objection:* Ten testers are a trusted group: 'send me your Export JSON' over DM already works, and the health dot tooltip (popup.ts:69) already shows state+lastError to the tester.
 
 ### I61 · Right-click 'Report this page to Illini Dash'
-**Effort** S · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (Tier 0a, 2026-09-10) · **Skeptic** value 2/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 On a Gradescope, PrairieLearn, PrairieTest, Canvas or enabled course-site page, the context menu gets one item. It opens Options with the Report-a-broken-page URL prefilled to the page you are looking at, so the student who notices 'Quiz 4 is on this page but not in my list' can report it in two clicks while still looking at it.
 
@@ -452,7 +475,7 @@ On a Gradescope, PrairieLearn, PrairieTest, Canvas or enabled course-site page, 
 - *Strongest objection:* Students never feel this; only the maintainer does. The flow still ends in a downloaded scrubbed file the tester must email (no backend, §0-1), so two clicks become three-plus-an-email.
 
 ### I55 · Beta install kit: packaged zip, install guide, unlisted-store decision
-**Effort** S · **In the code today** missing · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** done (`npm run package`, docs/beta-install.md) · **Skeptic** value 4/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Add `npm run package` that zips `dist/` with a `INSTALL.txt`, and write a tester-facing guide with screenshots: enable Developer mode, Load unpacked, pin the icon, expect the 'Disable developer mode extensions' bubble on Chrome start, how to update when a new zip arrives (Reload on the card, then check the build id line).
 
@@ -464,7 +487,7 @@ Add `npm run package` that zips `dist/` with a `INSTALL.txt`, and write a tester
 - *Spec tension:* Load-unpacked path: none. Unlisted-store path: touches §9's gate order (a listing, privacy-policy URL and permission justifications would precede G4).
 
 ### I45 · Canvas concluded-course filter via include[]=term with an 'Older courses' group
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, keep, before_beta · **Lenses** 1
+**Effort** M · **In the code today** done (`include[]=term` in src/sources/canvas.ts; "Older courses" in Settings) · **Skeptic** value 3/5, feasibility 4/5, keep, before_beta · **Lenses** 1
 
 Add `include[]=term` to the courses request, keep only courses whose term contains today (fallback: the modal `enrollment_term_id`), and list anything filtered as a collapsed 'Older courses (3)' group in Options so a student who really is enrolled across terms can re-enable one. The onboarding page shows the decision ('kept 5 courses, set aside 2 from FA25').
 
@@ -487,7 +510,7 @@ Stage 1 (small): call /api/v1/courses/{id}/assignments?per_page=100 (already an 
 - *Spec tension:* Stage 1: none. Stage 2: every publisher host is off illinois.edu, so it is a manifest host_permissions change plus a hand-written parser per platform (code, like Gradescope — fine under rule 4).
 
 ### I46 · 'Not used by you' source state for PrairieLearn / PrairieTest
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** missing (the "Not used" chip shows only for a source the student switched off) · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
 
 A student with no PrairieLearn course instances, or a PrairieTest home with no exam cards, gets a grey 'You do not seem to use PrairieLearn this term' state with a one-click 'turn it off' instead of a red parse_error dot and a 30-minute backoff ladder.
 
@@ -510,7 +533,7 @@ Fetch `/api/v1/courses/{id}/assignments` per active course, and show undated, un
 - *Strongest objection:* On the CS-heavy beta the section is 66 PrairieLearn LTI shells that §5.3 cannot merge (dated vs undated), behind a default-off toggle nobody flips…
 
 ### I05 · First-run onboarding page (pin, per-source login check, per-course what-I-found)
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 2
+**Effort** M · **In the code today** done (`onInstalled` opens the setup screen in the full view) · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 2
 
 On `onInstalled` (reason `install`) open a `welcome.html` tab instead of silently syncing. It runs the existing Gate 0 probe against all four hosts and shows one row per source: Logged in / Log in here (button opens the login page, and the row re-checks when that tab closes) / Not something you use.
 
@@ -538,7 +561,7 @@ Each reminder carries two Chrome notification buttons: "Snooze 1h" (or 'until 6 
 - *Proposed by:* chrome-platform, notifications
 
 ### I21 · Manual deadlines as a sixth 'manual' source
-**Effort** M · **In the code today** missing · **Skeptic** value 4/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** done (src/core/manual.ts, quick add and the editor) · **Skeptic** value 4/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
 
 A "+ Add" control in the popup header opens a three-field form (course, title, due date/time, optional weekly repeat). The row then appears in the list like any other, labelled ME, gets the 24h/2h reminders, goes into the .ics, and can be edited or deleted from its row menu. Nothing is fetched for it; it is the escape hatch for anything the four sources and the one seed adapter do not cover.
 
@@ -560,7 +583,7 @@ Ship `adapters/campus-fa26.json` next to registry.json — same GitHub daily-ref
 - *Strongest objection:* Scope drift from course deadlines to a campus calendar: a course-less row breaks RawItem.courseRaw and the popup chip. The registrar states no clock time, so these are timeAssumed rows too.
 
 ### I60 · Page-aware popup: this course first, focus existing tab, auto-resync after login
-**Effort** M · **In the code today** missing · **Skeptic** value 4/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** missing (only the full view reuses its tab) · **Skeptic** value 4/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
 
 Open the popup while on us.prairielearn.com/pl/course_instance/… for CS 357 and CS 357's rows are pinned at the top with the row for the page you are on marked 'this page'. Clicking a row focuses the Gradescope/PL tab that is already open instead of opening a ninth copy. And when a source is yellow and the student logs in on that site's tab, the worker notices the navigation and resyncs, so the dot clears itself.
 
@@ -582,7 +605,7 @@ A new source fetches https://courses.illinois.edu/ajax/finalexam/{year}/{fall|sp
 - *Strongest objection:* No current source tells the extension the student's section, so multi-section courses either show several candidate finals (one wrong building, the exact risk it cites) or guess.
 
 ### I02 · Exam-day card on PrairieTest rows (room, duration, format) in row, toast and calendar
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 4
+**Effort** M · **In the code today** done (`examDetail` in row, detail screen and toast; the .ics still has no LOCATION) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 4
 
 A PrairieTest exam row reads "Thu 9:00 PM · Grainger Library 057 · 50 min", with the grey detail line ("Room 057 in the basement of Grainger Library"), format and accommodations in the tooltip. The 24h/2h notification says "CS357 — Quiz 1 starts in 2 hours / 9:00 PM · Grainger Library 057 (basement) · 50 min · In-person" instead of "CS357 — due in 2 hours".
 
@@ -593,7 +616,7 @@ A PrairieTest exam row reads "Thu 9:00 PM · Grainger Library 057 · 50 min", wi
 - *Proposed by:* daily-workflow, grades-workload, notifications, uiuc-systems
 
 ### I09 · Per-course coverage table with 'request an adapter' flow
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 3
+**Effort** M · **In the code today** partial (per-course item counts in Settings; no "request an adapter" flow) · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 3
 
 In the onboarding page and Settings, each course shows a coverage line: 'CS 225 — Canvas (0 dated), PrairieLearn (8). Course website: not configured.' A 'This course uses a website for deadlines' button asks for the schedule URL, requests that host's permission, runs the existing capture+scrub…
 
@@ -618,7 +641,7 @@ A "⇥ open in side panel" link (next to the existing ⤢ full view) docks the s
 - *Proposed by:* chrome-platform, daily-workflow
 
 ### I11 · Search box and click-a-chip course filter
-**Effort** S · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 2
+**Effort** S · **In the code today** missing (no search box in the popup) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 2
 
 A search input under the header bar filters rows live by title and course label; clicking a course chip toggles a transient filter to that course (chip highlighted, "× clear" in the status line). `/` focuses the box.
 
@@ -629,7 +652,7 @@ A search input under the header bar filters rows live by title and course label;
 - *Proposed by:* daily-workflow, prior-art
 
 ### I14 · Done / Graded-recently section with score chips and per-source confirmation
-**Effort** L · **In the code today** partial · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 2
+**Effort** L · **In the code today** partial ("40% so far" on a row; no Graded-recently section) · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 2
 
 A graded row shows its score chip — Gradescope "87 / 100", PrairieLearn "100%" (or "103%" for GA 1) — and a collapsed "Graded recently" section lists items whose status flipped to graded since the popup was last opened.
 
@@ -641,7 +664,7 @@ A graded row shows its score chip — Gradescope "87 / 100", PrairieLearn "100%"
 - *Proposed by:* grades-workload, prior-art
 
 ### I34 · Calendar dates past this week and day headings inside Later
-**Effort** S · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
+**Effort** S · **In the code today** missing (a Month view exists; no day headings inside Later) · **Skeptic** value 3/5, feasibility 5/5, keep, before_beta · **Lenses** 1
 
 Rows beyond Sunday show "Thu Sep 24 11:59 PM · in 9d" instead of "Thu 11:59 PM · in 9d", and the Later section is broken up with small date sub-headings ("Mon Sep 21", "Wed Sep 23", …) so the 60-day tail reads like a calendar, not a pile.
 
@@ -652,7 +675,7 @@ Rows beyond Sunday show "Thu Sep 24 11:59 PM · in 9d" instead of "Thu 11:59 PM 
 - *Strongest objection:* 'in 9d' vs 'in 16d' already tells the two Thursdays apart with no date arithmetic, and day sub-headings spend vertical space in a 600px popup on the section students scroll past least.
 
 ### I66 · Calendar export carries late and reduced-credit deadlines
-**Effort** S · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
+**Effort** S · **In the code today** missing (the .ics exports one instant per item) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
 
 The .ics download and the per-row Google Calendar link include the late window: for a Gradescope item a second event at the late due ("PHYS435: Homework 2 — late deadline"), for a PrairieLearn item the ladder in the description ("100% until Sep 8 11:00, 80% until Sep 22, 50% until Dec 9") and an event at the next credit drop.
 
@@ -672,7 +695,7 @@ Add a second row-menu item, 'Add to Outlook', that opens `https://outlook.office
 - *Strongest objection:* UIUC does give every student Outlook (Tech Services confirms), but ACM and CS wikis document students rerouting to Gmail, and phone calendars are mostly Google/Apple.
 
 ### I18 · Custom lead times, per-kind leads, per-course mute
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (fixed 24h/2h toggles and a not-for-credit switch only) · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
 
 Options → Reminders becomes: Assignments & quizzes: [24h] [2h] [+ add: N hours/days]; Exams (CBTF/PrairieTest): [7d] [24h] [2h]; and a per-course "remind me" checkbox next to the existing course list so a student can keep a course visible but silent. The 7-day exam lead reads "CS 357 Quiz 2 is one week out — Thu Oct 1, 9 PM, Grainger 057".
 
@@ -683,7 +706,7 @@ Options → Reminders becomes: Assignments & quizzes: [24h] [2h] [+ add: N hours
 - *Strongest objection:* Three features bundled, none requested by a user yet. A booked CBTF exam is one the student already chose a slot for, and it is visible in This week regardless…
 
 ### I19 · Per-sync change log strip ('2 new · 1 moved · 1 gone')
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** missing (only the per-row "moved" note) · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
 
 After every sync, diff each source's new raw set against what it replaced (by memberKey, then dueAt/lateDueAt/status) and keep the last ~20 deltas in a `syncLog` ring buffer in the store. The popup gets a one-line strip under the header — "Since 9:32 AM: 2 new · 1 moved · 1 gone" — that expands to titles with before/after times.
 
@@ -694,7 +717,7 @@ After every sync, diff each source's new raw set against what it replaced (by me
 - *Strongest objection:* Churn will swamp signal: Canvas's now-7d..now+60d window slides daily (boundary new/gone), PL lateDueAt moves at every credit tier…
 
 ### I26 · Morning digest at the end of quiet hours
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** missing (quiet hours exist; no digest) · **Skeptic** value 3/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
 
 One list-style toast at quiet-hours end (08:00 by default, or a user-set time): "Today: CS 357 HW3 11:59 PM · PHYS 435 Lab 2 5:00 PM · Tomorrow: 2 more · 1 CBTF exam not booked". Click opens the full-view tab. Nothing fires when the day is empty.
 
@@ -705,7 +728,7 @@ One list-style toast at quiet-hours end (08:00 by default, or a user-set time): 
 - *Strongest objection:* macOS native notifications show only the first list item, so on the campus-majority platform the toast reads 'Today: CS 357 HW3' and drops the rest.
 
 ### I32 · Show when merged members disagree on due date or status
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial ("X says …" on the detail screen only) · **Skeptic** value 3/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
 
 When two members of one Item have dueAt values more than a few minutes apart (the merge window is 24h) or conflicting statuses, render both: "Fri 5:00 PM (GS) · Canvas says Fri 11:59 PM" with a small disagreement icon; the Details panel explains which §5.3 rule picked the winner and offers 'use this one', stored as a per-item preference.
 
@@ -728,7 +751,7 @@ When two members of one Item have dueAt values more than a few minutes apart (th
 - *Spec tension:* §7 says the booking nag fires daily "until the item disappears"; pausing it for a user-chosen snooze is a deliberate amendment to that line. Otherwise none.
 
 ### I35 · Keyboard shortcut, arrow navigation, real links
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** done (Alt+Shift+D, arrow navigation, real `<a href>` rows) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
 
 Alt+Shift+D (user-rebindable at chrome://extensions/shortcuts) opens the popup; Up/Down move a focus ring through rows, Enter opens the item, `m` opens its menu, `/` focuses search. Rows become `<a href>` so Ctrl/Cmd-click and middle-click open in a background tab like every other link.
 
@@ -739,7 +762,7 @@ Alt+Shift+D (user-rebindable at chrome://extensions/shortcuts) opens the popup; 
 - *Strongest objection:* Extension popups are mouse-driven and rarely receive keyboard focus reliably; screen-reader users are a tiny slice of beta. The '/ focuses search' part is void — the popup has no search field.
 
 ### I36 · 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind on open
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial ("opens …" on the row; no reminder at opening) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
 
 A row whose `extra.releasedAt` is in the future renders dimmed with "opens Thu 9:00 AM ·" prefixed to its due text, and the row menu offers "Remind me when it opens". PrairieTest booking rows already do the equivalent with their window; assignments do not.
 
@@ -750,7 +773,7 @@ A row whose `extra.releasedAt` is in the future renders dimmed with "opens Thu 9
 - *Strongest objection:* Gradescope hides assignments from students until release, so its releasedAt is almost always past; only PL rows whose first tier starts in the future ever qualify.
 
 ### I37 · A partial PrairieLearn score is not 'done'
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (decided in the parser; any score counts as graded when no credit ceiling is stated) · **Skeptic** value 3/5, feasibility 4/5, keep, v1.1 · **Lenses** 1
 
 A PL homework showing 40% while its 100% (or 80%) tier is still open stays in the list as "40% so far · 100% until Tue 11:59 PM" and keeps its 24h/2h reminders; only 100% (or a score at or above the current credit cap) counts as finished. Today any bar above 0% is mapped to graded, so with the default "hide submitted and graded work" the row disappears and its reminders are silenced.
 
@@ -762,7 +785,7 @@ A PL homework showing 40% while its 100% (or 80%) tier is still open stays in th
 - *Spec tension:* Amends SPEC.md §4.3's line "a percentage bar > 0% → graded (PrairieLearn grades on the spot, so this is 'done' for our purposes)". §0 is untouched.
 
 ### I40 · CBTF reservation-window escalation and missed-reservation notice
-**Effort** M · **In the code today** partial · **Skeptic** value 3/5, feasibility 3/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (the daily 10:00 booking nag only) · **Skeptic** value 3/5, feasibility 3/5, keep, v1.1 · **Lenses** 1
 
 The daily 10:00 booking nag stays, but when the session window ends within 24h (or today) a second, sticky toast fires in the evening: "Last day to book CS 357 Quiz 1 — sessions end Wed Sep 23. Reserve a seat now." If the window passes with no reservation, one final toast says so and the popup keeps a "Missed reservation — contact course staff" row in Needs attention for 3 days, as §4.4 already promises.
 
@@ -784,7 +807,7 @@ The daily 10:00 booking nag stays, but when the session window ends within 24h (
 - *Strongest objection:* There is one seed adapter. With one adapter every failure already throws (failures.length === adapters.length) and the WEB dot goes red…
 
 ### I48 · Header-anchored adapter columns and 'Due'-header autodetect
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** done (`columns` by header name, src/core/table-grid.ts) · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
 
 Let an adapter name columns by header text instead of positional CSS: `columns: { title: "Exercises|Assignment", due: "Due Date|Deadline|Due" }`, resolved once per table from its own `<th>` row (with a colspan/rowspan grid expansion so the CS 424 rowspan problem cannot recur).
 
@@ -795,7 +818,7 @@ Let an adapter name columns by header text instead of positional CSS: `columns: 
 - *Strongest objection:* Live TAM 212 (fetched today): header is 'Week|Day|Date|Lecture|Quiz|Assignment Due Dates|Discussion' — the /due/i autodetect would pick the title column as the date column.
 
 ### I51 · In-options adapter workbench with 'Propose this adapter' bundle
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (the search proposer and "Copy for sharing"; no free-form workbench) · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
 
 A new Options -> Course websites -> "Try an adapter" panel: a textarea prefilled with the cs424-fa26 entry as a template, a Fetch-and-run button. It shows validateAdapter's verdict, the fetch outcome (401 -> "log in to that site first", using the same looksLoggedOut path as sync), rows matched / rows with a title / rows kept after filter, then one line per item: title, raw date text, parsed instant…
 
@@ -838,7 +861,7 @@ A third, opt-in lead at T-30m that fires only if every member with a known statu
 - *Strongest objection:* deferPastQuietHours applies to every lead and default quiet hours start 23:00, so T-30m for an 11:59 PM deadline (the dominant UIUC time) is deferred to 08:00 and skipped as past-due.
 
 ### I50 · Adapter row-context fields (rowspan carry-forward, ancestor title, per-column kind, recurring rules)
-**Effort** L · **In the code today** missing · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
+**Effort** L · **In the code today** partial (rowspan and colspan through table-grid.ts, `titleFrom`; no carry-forward or recurring rules) · **Skeptic** value 3/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
 
 Four small declarative fields that cover the page shapes the first adapter did not: `dueInherit: true` (a row whose date cell is absent — which is what a `rowspan` date column looks like in the DOM of every row after the first — takes the last date seen above it); `titleContext: "h3"` (prefix each row's title with the nearest preceding heading or ancestor, so ECE 391's list items become `MP 2…
 
@@ -849,7 +872,7 @@ Four small declarative fields that cover the page shapes the first adapter did n
 - *Strongest objection:* Half the evidence is wrong: CS 341 lists explicit yyyy-MM-dd times (recurring unneeded); TAM 212 has no rowspan and its Quiz/HW rows are PL/PT-served anyway; `kind` changes nothing in popup/schedule.
 
 ### I12 · Per-row Details panel: provenance and what each parser extracted
-**Effort** S · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 2
+**Effort** S · **In the code today** partial (sources and facts on the detail screen; no per-member age) · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 2
 
 Add a 'Details' entry to the row menu that lists every member: source, its own title, its own due/late time, status, 'seen 12 min ago' from `fetchedAt`, and an open-in-that-source link. If a member's source is currently failing, say so inline: "GS · last seen 2d ago — Gradescope needs login".
 
@@ -870,7 +893,7 @@ Each section heading ("This week (7)") toggles its rows, and the collapsed set i
 - *Strongest objection:* Empty sections are already hidden and Later is last, so it pushes nothing off-screen; the student scrolls. Overdue rows are capped at 7 days.
 
 ### I56 · Adapter linting and golden tests in CI
-**Effort** S · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
+**Effort** S · **In the code today** partial (fixture tests for every shipped entry; no CI, no `adapters:check`) · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
 
 A GitHub Actions workflow running build, typecheck and the suite on every PR, plus `npm run adapters:check`: validateRegistry on adapters/registry.json; for every adapter with `fixtures/sites/<id>.html` + `<id>.expected.json`, run `runAdapter` and diff; fail an adapter that has no fixture (so proposals must ship one), one whose `rows`/`title`/`due` are not parseable CSS (try `querySelector` in linkedom)…
 
@@ -891,7 +914,7 @@ A 'Copy' control in the popup header (and a small copy icon on each section head
 - *Strongest objection:* A screenshot is one keystroke and already what group chats use. A pasted list reflects one student's hides, merges and course toggles, so it is not a trustworthy 'what is due' post for others.
 
 ### I23 · Stable .ics UID across merges plus SEQUENCE
-**Effort** M · **In the code today** partial · **Skeptic** value 2/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (stable `UID`; no SEQUENCE) · **Skeptic** value 2/5, feasibility 4/5, defer, v1.1 · **Lenses** 1
 
 Today a student who downloads the .ics in week 2 and again in week 6 gets duplicate events for any deadline whose member set changed in between — the moment Gradescope starts mirroring a Canvas-only assignment, or the student clicks Split/Merge, the row's id (and therefore its UID) changes.
 
@@ -924,7 +947,7 @@ Next to 'Export JSON' add 'Import…' (file picker) with two modes: 'Restore my 
 - *Strongest objection:* Resets and laptop swaps are rare inside one semester, and the maintainer's G4 case is already covered: dedupe() is pure over RawItem[]+Overrides (dedupe.ts:271)…
 
 ### I57 · Term rollover: term dates in the registry, Expired section, fa26->sp27 carry-over
-**Effort** M · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (the Canvas term filter only) · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
 
 The registry gains a `terms` table (`{ fa26: { start: "2026-08-24", end: "2026-12-18" }, sp27: {...} }`) or per-adapter `activeFrom`/`activeUntil`. Options shows next-term adapters about two weeks before the term starts, shows the current term's end date on each row, and lists last term's under "Expired" instead of making them vanish.
 
@@ -935,7 +958,7 @@ The registry gains a `terms` table (`{ fa26: { start: "2026-08-24", end: "2026-1
 - *Strongest objection:* Registry has ONE adapter (cs424-fa26). Canvas/GS/PL/PT ignore term entirely, so on Jan 1 only the WEB source greys out — and that course is over.
 
 ### I72 · Override audit with loss notices
-**Effort** M · **In the code today** partial · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial (hidden and ticked-off items listed with Unhide; splits, merges and set-aside courses not) · **Skeptic** value 2/5, feasibility 5/5, defer, v1.1 · **Lenses** 1
 
 Options shows hidden items only. Add an audit of every correction the student has made — splits and forced merges with the titles they bind (resolved from `raw` via memberKey), disabled courses with their row counts, hidden rows — each with one-click undo.
 
@@ -1002,94 +1025,94 @@ calendars.illinois.edu publishes a public .ics per calendar. https://calendars.i
 
 ## Appendix — every idea at a glance
 
-| id | title | tier | effort | value | feas. | skeptic: when | spec tension |
-|---|---|---|---|---|---|---|---|
+| id | title | tier | status | effort | value | feas. | skeptic: when | spec tension |
+|---|---|---|---|---|---|---|---|---|
 
-| I17 | Health-aware popup empty state; no green dot before a source has succe | 0a | S | 4 | 5 | before_beta |  |
-| I16 | Honest status line and stale-data banner | 0a | S | 4 | 5 | before_beta |  |
-| I03 | Toolbar badge: today's count, red '!' when a source is broken | 0a | S | 4 | 5 | before_beta |  |
-| I27 | 'Can reminders reach you?' check and send-test-reminder button | 0a | S | 3 | 5 | before_beta |  |
-| I38 | Coalesce catch-up reminder bursts and word them by real remaining time | 0a | M | 4 | 5 | before_beta |  |
-| I01 | Deadline moved / new item markers, notification, and reminder re-arm | 0a | M | 4 | 4 | before_beta |  |
-| I04 | Late / reduced-credit window stays live after dueAt, with reminders on | 0a | M | 4 | 4 | before_beta |  |
-| I07 | Reduced-credit ladder and late window shown before the deadline passes | 0a | S | 3 | 5 | v1.1 |  |
-| I06 | Show runner-assumed 23:59 times as assumed (popup, sort order, calenda | 0a | S | 3 | 5 | before_beta |  |
-| I22 | Honest .ics / calendar link (all-day for invented times, hideSubmitted | 0a | M | 3 | 5 | before_beta |  |
-| I41 | Morning toast instead of '2h' lead for runner-invented times | 0a | M | 3 | 5 | before_beta |  |
-| I08 | Local 'Done' check-off, separate from Hide | 0a | M | 5 | 5 | before_beta |  |
-| I62 | Practice / not-for-credit tagging and demotion | 0a | S | 4 | 5 | before_beta |  |
-| I31 | Surface parser data-quality flags instead of dropping unreadable rows | 0a | M | 4 | 5 | before_beta |  |
-| I43 | Split Options into Settings and a hidden Developer panel; fix the 'deb | 0a | S | 4 | 5 | before_beta |  |
-| I59 | Lift backoff and resync immediately on extension update | 0a | S | 3 | 5 | before_beta |  |
-| I49 | Adapter date grammar matching real fa26 pages (weekday prefix, at/@, 2 | 0a | M | 4 | 5 | before_beta |  |
-| I54 | Versioned store migrations with memberKey remapping and a load-old-sto | 0a | M | 2 | 5 | before_beta |  |
-| I30 | One-click scrubbed diagnostics bundle | 0a | M | 3 | 5 | before_beta |  |
-| I61 | Right-click 'Report this page to Illini Dash' | 0a | S | 2 | 5 | before_beta |  |
-| I55 | Beta install kit: packaged zip, install guide, unlisted-store decision | 0b | S | 4 | 5 | before_beta | yes |
-| I45 | Canvas concluded-course filter via include[]=term with an 'Older cours | 0b | M | 3 | 4 | before_beta |  |
-| I82 | Publisher-tool deadlines (Connect, Mastering, WebAssign, zyBooks): nam | 0b | M | 3 | 4 | before_beta | yes |
-| I46 | 'Not used by you' source state for PrairieLearn / PrairieTest | 0b | M | 3 | 3 | v1.1 | yes |
-| I44 | Canvas 'No date' section with an LTI-shell explanation | 0b | M | 3 | 4 | v1.1 |  |
-| I05 | First-run onboarding page (pin, per-source login check, per-course wha | 0b | M | 3 | 4 | v1.1 |  |
-| I13 | Reminder toasts with Open / Snooze / Done buttons, requireInteraction  | 1 | M | 4 | 3 | v1.1 |  |
-| I21 | Manual deadlines as a sixth 'manual' source | 1 | M | 4 | 3 | v1.1 |  |
-| I24 | Registrar deadlines (drop, CR/NC, refund) as shipped campus rows | 1 | M | 4 | 4 | v1.1 |  |
-| I60 | Page-aware popup: this course first, focus existing tab, auto-resync a | 1 | M | 4 | 4 | v1.1 |  |
-| I25 | Final exam time and room from Course Explorer | 1 | L | 4 | 3 | v1.1 |  |
-| I02 | Exam-day card on PrairieTest rows (room, duration, format) in row, toa | 1 | M | 3 | 5 | v1.1 |  |
-| I09 | Per-course coverage table with 'request an adapter' flow | 1 | M | 3 | 4 | v1.1 | yes |
-| I10 | Side panel view of the same list | 1 | S | 3 | 5 | v1.1 |  |
-| I11 | Search box and click-a-chip course filter | 1 | S | 3 | 5 | v1.1 |  |
-| I14 | Done / Graded-recently section with score chips and per-source confirm | 1 | L | 3 | 3 | v1.1 |  |
-| I34 | Calendar dates past this week and day headings inside Later | 1 | S | 3 | 5 | before_beta |  |
-| I66 | Calendar export carries late and reduced-credit deadlines | 1 | S | 3 | 5 | v1.1 |  |
-| I67 | 'Add to Outlook' deep link | 1 | S | 3 | 4 | v1.1 |  |
-| I18 | Custom lead times, per-kind leads, per-course mute | 1 | M | 3 | 4 | v1.1 |  |
-| I19 | Per-sync change log strip ('2 new · 1 moved · 1 gone') | 1 | M | 3 | 4 | v1.1 |  |
-| I26 | Morning digest at the end of quiet hours | 1 | M | 3 | 4 | v1.1 |  |
-| I32 | Show when merged members disagree on due date or status | 1 | M | 3 | 5 | v1.1 |  |
-| I33 | Snooze / 'not today' defer on a row | 1 | M | 3 | 5 | v1.1 | yes |
-| I35 | Keyboard shortcut, arrow navigation, real links | 1 | M | 3 | 5 | v1.1 |  |
-| I36 | 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind | 1 | M | 3 | 5 | v1.1 |  |
-| I37 | A partial PrairieLearn score is not 'done' | 1 | M | 3 | 4 | v1.1 | yes |
-| I40 | CBTF reservation-window escalation and missed-reservation notice | 1 | M | 3 | 3 | v1.1 |  |
-| I47 | Per-adapter health state and N->0 guard per course site | 1 | M | 3 | 5 | v1.1 |  |
-| I48 | Header-anchored adapter columns and 'Due'-header autodetect | 1 | M | 3 | 3 | v1.1 |  |
-| I51 | In-options adapter workbench with 'Propose this adapter' bundle | 1 | M | 3 | 5 | v1.1 |  |
-| I64 | This-week workload strip per course | 1 | M | 3 | 5 | v1.1 |  |
-| I71 | 'Why is this here / why isn't X here' merge-reason explainer | 1 | M | 3 | 4 | v1.1 |  |
-| I73 | 30-minute 'last call' only when the source still says not submitted | 1 | M | 3 | 3 | v1.1 |  |
-| I50 | Adapter row-context fields (rowspan carry-forward, ancestor title, per | 1 | L | 3 | 4 | v1.1 |  |
-| I12 | Per-row Details panel: provenance and what each parser extracted | 1 | S | 2 | 5 | v1.1 |  |
-| I20 | Collapsible sections that remember their state | 1 | S | 2 | 5 | v1.1 |  |
-| I56 | Adapter linting and golden tests in CI | 1 | S | 2 | 5 | v1.1 |  |
-| I68 | Copy this week as Markdown / plain text | 1 | S | 2 | 5 | v1.1 |  |
-| I23 | Stable .ics UID across merges plus SEQUENCE | 1 | M | 2 | 4 | v1.1 |  |
-| I28 | Keep reminders working past Chrome's 500-alarm cap | 1 | M | 2 | 5 | v1.1 |  |
-| I29 | Import JSON (restore corrections / load a snapshot) | 1 | M | 2 | 5 | v1.1 |  |
-| I57 | Term rollover: term dates in the registry, Expired section, fa26->sp27 | 1 | M | 2 | 5 | v1.1 |  |
-| I72 | Override audit with loss notices | 1 | M | 2 | 5 | v1.1 |  |
-| I78 | Recent Canvas announcements panel, deliberately unparsed | 1 | M | 2 | 4 | v1.1 |  |
-| I84 | University Housing and dining deadlines from the public campus .ics fe | 1 | M | 2 | 4 | v1.1 |  |
-| I42 | Google Calendar sync via chrome.identity (v1.1 row, brought forward as | 2 | L | 4 | 3 | v1.1 | yes |
-| I53 | Sync settings and overrides across Chrome profiles via storage.sync (i | 2 | M | 2 | 4 | v2 | yes |
-| I70 | Subscribable .ics feed published to the student's own Google Drive | 2 | L | 3 | 2 | v2 | yes |
-| I76 | Content script writing real due dates onto Canvas's dateless LTI rows | 2 | L | 3 | 3 | v2 |  |
-| I77 | On-page 'Upcoming across everything' strip on the four sites' home pag | 2 | M | 3 | 4 | v1.1 |  |
-| I52 | Point-and-click selector picker on the live course page | 2 | L | 2 | 3 | v2 | yes |
-| I87 | renders:'client' flag plus visit-time content-script fallback | 2 | L | 2 | 3 | v2 | yes |
-| I83 | Moodle (learn.illinois.edu): enrolment probe, then a timeline adapter  | 2 | M | 2 | 3 | v2 | yes |
-| I81 | smartPhysics prelectures and checkpoints (PHYS 211-214) | 2 | M | 3 | 3 | v1.1 |  |
-| I85 | Queue @ Illinois: 'office hours open now' on the course row | 2 | M | 3 | 3 | v2 |  |
-| I80 | Section seat-status watch for registration season | 2 | M | 3 | 3 | v1.1 | yes |
-| I79 | Spring 2027 registration dates and personal time ticket | 2 | L | 3 | 3 | v1.1 | yes |
-| I65 | Canvas current score on the course chip | 2 | M | 3 | 4 | v2 |  |
-| I58 | Course colours on the chip from the student's Canvas colours | 2 | M | 3 | 4 | v1.1 | yes |
-| I15 | Week grid in the full view, with a printable week | 2 | L | 2 | 4 | v2 | yes |
-| I63 | Credit-at-stake ordering within a day | 2 | M | 2 | 3 | v2 |  |
-| I69 | Per-course .ics files with a calendar name | 2 | S | 2 | 5 | v2 |  |
-| I74 | Hold catch-up reminders while the screen is locked | 2 | S | 2 | 3 | v2 |  |
-| I75 | Omnibox keyword 'due <course>' | 2 | M | 2 | 5 | v2 |  |
-| I39 | Reminder inbox with missed reminders and unread badge | 2 | M | 2 | 5 | v2 |  |
-| I86 | Library loan due dates (Primo VE) | rejected | L | 1 | 2 | never | yes |
-| I88 | Day-7 beta check-in card opening a prefilled GitHub issue | rejected | S | 1 | 5 | never |  |
+| I17 | Health-aware popup empty state; no green dot before a source has succe | 0a | done | S | 4 | 5 | before_beta |  |
+| I16 | Honest status line and stale-data banner | 0a | done | S | 4 | 5 | before_beta |  |
+| I03 | Toolbar badge: today's count, red '!' when a source is broken | 0a | done | S | 4 | 5 | before_beta |  |
+| I27 | 'Can reminders reach you?' check and send-test-reminder button | 0a | done | S | 3 | 5 | before_beta |  |
+| I38 | Coalesce catch-up reminder bursts and word them by real remaining time | 0a | done | M | 4 | 5 | before_beta |  |
+| I01 | Deadline moved / new item markers, notification, and reminder re-arm | 0a | done | M | 4 | 4 | before_beta |  |
+| I04 | Late / reduced-credit window stays live after dueAt, with reminders on | 0a | done | M | 4 | 4 | before_beta |  |
+| I07 | Reduced-credit ladder and late window shown before the deadline passes | 0a | done | S | 3 | 5 | v1.1 |  |
+| I06 | Show runner-assumed 23:59 times as assumed (popup, sort order, calenda | 0a | done | S | 3 | 5 | before_beta |  |
+| I22 | Honest .ics / calendar link (all-day for invented times, hideSubmitted | 0a | done | M | 3 | 5 | before_beta |  |
+| I41 | Morning toast instead of '2h' lead for runner-invented times | 0a | done | M | 3 | 5 | before_beta |  |
+| I08 | Local 'Done' check-off, separate from Hide | 0a | done | M | 5 | 5 | before_beta |  |
+| I62 | Practice / not-for-credit tagging and demotion | 0a | done | S | 4 | 5 | before_beta |  |
+| I31 | Surface parser data-quality flags instead of dropping unreadable rows | 0a | done | M | 4 | 5 | before_beta |  |
+| I43 | Split Options into Settings and a hidden Developer panel; fix the 'deb | 0a | done | S | 4 | 5 | before_beta |  |
+| I59 | Lift backoff and resync immediately on extension update | 0a | done | S | 3 | 5 | before_beta |  |
+| I49 | Adapter date grammar matching real fa26 pages (weekday prefix, at/@, 2 | 0a | done | M | 4 | 5 | before_beta |  |
+| I54 | Versioned store migrations with memberKey remapping and a load-old-sto | 0a | done | M | 2 | 5 | before_beta |  |
+| I30 | One-click scrubbed diagnostics bundle | 0a | done | M | 3 | 5 | before_beta |  |
+| I61 | Right-click 'Report this page to Illini Dash' | 0a | done | S | 2 | 5 | before_beta |  |
+| I55 | Beta install kit: packaged zip, install guide, unlisted-store decision | 0b | done | S | 4 | 5 | before_beta | yes |
+| I45 | Canvas concluded-course filter via include[]=term with an 'Older cours | 0b | done | M | 3 | 4 | before_beta |  |
+| I82 | Publisher-tool deadlines (Connect, Mastering, WebAssign, zyBooks): nam | 0b | missing | M | 3 | 4 | before_beta | yes |
+| I46 | 'Not used by you' source state for PrairieLearn / PrairieTest | 0b | missing | M | 3 | 3 | v1.1 | yes |
+| I44 | Canvas 'No date' section with an LTI-shell explanation | 0b | missing | M | 3 | 4 | v1.1 |  |
+| I05 | First-run onboarding page (pin, per-source login check, per-course wha | 0b | done | M | 3 | 4 | v1.1 |  |
+| I13 | Reminder toasts with Open / Snooze / Done buttons, requireInteraction  | 1 | missing | M | 4 | 3 | v1.1 |  |
+| I21 | Manual deadlines as a sixth 'manual' source | 1 | done | M | 4 | 3 | v1.1 |  |
+| I24 | Registrar deadlines (drop, CR/NC, refund) as shipped campus rows | 1 | missing | M | 4 | 4 | v1.1 |  |
+| I60 | Page-aware popup: this course first, focus existing tab, auto-resync a | 1 | missing | M | 4 | 4 | v1.1 |  |
+| I25 | Final exam time and room from Course Explorer | 1 | missing | L | 4 | 3 | v1.1 |  |
+| I02 | Exam-day card on PrairieTest rows (room, duration, format) in row, toa | 1 | done | M | 3 | 5 | v1.1 |  |
+| I09 | Per-course coverage table with 'request an adapter' flow | 1 | partial | M | 3 | 4 | v1.1 | yes |
+| I10 | Side panel view of the same list | 1 | missing | S | 3 | 5 | v1.1 |  |
+| I11 | Search box and click-a-chip course filter | 1 | missing | S | 3 | 5 | v1.1 |  |
+| I14 | Done / Graded-recently section with score chips and per-source confirm | 1 | partial | L | 3 | 3 | v1.1 |  |
+| I34 | Calendar dates past this week and day headings inside Later | 1 | missing | S | 3 | 5 | before_beta |  |
+| I66 | Calendar export carries late and reduced-credit deadlines | 1 | missing | S | 3 | 5 | v1.1 |  |
+| I67 | 'Add to Outlook' deep link | 1 | missing | S | 3 | 4 | v1.1 |  |
+| I18 | Custom lead times, per-kind leads, per-course mute | 1 | partial | M | 3 | 4 | v1.1 |  |
+| I19 | Per-sync change log strip ('2 new · 1 moved · 1 gone') | 1 | missing | M | 3 | 4 | v1.1 |  |
+| I26 | Morning digest at the end of quiet hours | 1 | missing | M | 3 | 4 | v1.1 |  |
+| I32 | Show when merged members disagree on due date or status | 1 | partial | M | 3 | 5 | v1.1 |  |
+| I33 | Snooze / 'not today' defer on a row | 1 | missing | M | 3 | 5 | v1.1 | yes |
+| I35 | Keyboard shortcut, arrow navigation, real links | 1 | done | M | 3 | 5 | v1.1 |  |
+| I36 | 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind | 1 | partial | M | 3 | 5 | v1.1 |  |
+| I37 | A partial PrairieLearn score is not 'done' | 1 | partial | M | 3 | 4 | v1.1 | yes |
+| I40 | CBTF reservation-window escalation and missed-reservation notice | 1 | partial | M | 3 | 3 | v1.1 |  |
+| I47 | Per-adapter health state and N->0 guard per course site | 1 | missing | M | 3 | 5 | v1.1 |  |
+| I48 | Header-anchored adapter columns and 'Due'-header autodetect | 1 | done | M | 3 | 3 | v1.1 |  |
+| I51 | In-options adapter workbench with 'Propose this adapter' bundle | 1 | partial | M | 3 | 5 | v1.1 |  |
+| I64 | This-week workload strip per course | 1 | missing | M | 3 | 5 | v1.1 |  |
+| I71 | 'Why is this here / why isn't X here' merge-reason explainer | 1 | missing | M | 3 | 4 | v1.1 |  |
+| I73 | 30-minute 'last call' only when the source still says not submitted | 1 | missing | M | 3 | 3 | v1.1 |  |
+| I50 | Adapter row-context fields (rowspan carry-forward, ancestor title, per | 1 | partial | L | 3 | 4 | v1.1 |  |
+| I12 | Per-row Details panel: provenance and what each parser extracted | 1 | partial | S | 2 | 5 | v1.1 |  |
+| I20 | Collapsible sections that remember their state | 1 | missing | S | 2 | 5 | v1.1 |  |
+| I56 | Adapter linting and golden tests in CI | 1 | partial | S | 2 | 5 | v1.1 |  |
+| I68 | Copy this week as Markdown / plain text | 1 | missing | S | 2 | 5 | v1.1 |  |
+| I23 | Stable .ics UID across merges plus SEQUENCE | 1 | partial | M | 2 | 4 | v1.1 |  |
+| I28 | Keep reminders working past Chrome's 500-alarm cap | 1 | missing | M | 2 | 5 | v1.1 |  |
+| I29 | Import JSON (restore corrections / load a snapshot) | 1 | missing | M | 2 | 5 | v1.1 |  |
+| I57 | Term rollover: term dates in the registry, Expired section, fa26->sp27 | 1 | partial | M | 2 | 5 | v1.1 |  |
+| I72 | Override audit with loss notices | 1 | partial | M | 2 | 5 | v1.1 |  |
+| I78 | Recent Canvas announcements panel, deliberately unparsed | 1 | missing | M | 2 | 4 | v1.1 |  |
+| I84 | University Housing and dining deadlines from the public campus .ics fe | 1 | missing | M | 2 | 4 | v1.1 |  |
+| I42 | Google Calendar sync via chrome.identity (v1.1 row, brought forward as | 2 | done | L | 4 | 3 | v1.1 | yes |
+| I53 | Sync settings and overrides across Chrome profiles via storage.sync (i | 2 | missing | M | 2 | 4 | v2 | yes |
+| I70 | Subscribable .ics feed published to the student's own Google Drive | 2 | missing | L | 3 | 2 | v2 | yes |
+| I76 | Content script writing real due dates onto Canvas's dateless LTI rows | 2 | missing | L | 3 | 3 | v2 |  |
+| I77 | On-page 'Upcoming across everything' strip on the four sites' home pag | 2 | missing | M | 3 | 4 | v1.1 |  |
+| I52 | Point-and-click selector picker on the live course page | 2 | missing | L | 2 | 3 | v2 | yes |
+| I87 | renders:'client' flag plus visit-time content-script fallback | 2 | missing | L | 2 | 3 | v2 | yes |
+| I83 | Moodle (learn.illinois.edu): enrolment probe, then a timeline adapter  | 2 | missing | M | 2 | 3 | v2 | yes |
+| I81 | smartPhysics prelectures and checkpoints (PHYS 211-214) | 2 | done | M | 3 | 3 | v1.1 |  |
+| I85 | Queue @ Illinois: 'office hours open now' on the course row | 2 | missing | M | 3 | 3 | v2 |  |
+| I80 | Section seat-status watch for registration season | 2 | missing | M | 3 | 3 | v1.1 | yes |
+| I79 | Spring 2027 registration dates and personal time ticket | 2 | missing | L | 3 | 3 | v1.1 | yes |
+| I65 | Canvas current score on the course chip | 2 | missing | M | 3 | 4 | v2 |  |
+| I58 | Course colours on the chip from the student's Canvas colours | 2 | partial | M | 3 | 4 | v1.1 | yes |
+| I15 | Week grid in the full view, with a printable week | 2 | partial | L | 2 | 4 | v2 | yes |
+| I63 | Credit-at-stake ordering within a day | 2 | missing | M | 2 | 3 | v2 |  |
+| I69 | Per-course .ics files with a calendar name | 2 | missing | S | 2 | 5 | v2 |  |
+| I74 | Hold catch-up reminders while the screen is locked | 2 | missing | S | 2 | 3 | v2 |  |
+| I75 | Omnibox keyword 'due <course>' | 2 | missing | M | 2 | 5 | v2 |  |
+| I39 | Reminder inbox with missed reminders and unread badge | 2 | missing | M | 2 | 5 | v2 |  |
+| I86 | Library loan due dates (Primo VE) | rejected | rejected | L | 1 | 2 | never | yes |
+| I88 | Day-7 beta check-in card opening a prefilled GitHub issue | rejected | rejected | S | 1 | 5 | never |  |
