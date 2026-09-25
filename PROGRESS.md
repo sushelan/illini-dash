@@ -10,6 +10,19 @@ They still have no pinned clock.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## CS 341 course site, and a date behind "Week 8 ·" — 2026-09-24, 1.3.1
+
+CS 341's home page writes `Due: Week 8 · 2026-10-12 23:59`, and the start-anchored date
+formats read nothing behind the week, so the page proposed no schedule. `WEEK_FIRST` in
+`src/sources/site.ts` now takes an optional `Week <n>` plus a **required** separator in
+front of all three formats. With the separator optional, `Week 12/1` reads as February 1st,
+and the test pins that. Three count-asserted mutations all died. The `cs341-fa26`
+registry entry reads the home page's two "Latest Assignments" (the current MP and lab
+only) and needs `minExtensionVersion: "1.3.1"`, so the version is 1.3.1. **It reaches
+nobody until 1.3.1 is uploaded to the store.** `/assignments` states only week numbers,
+and its progress bar carries last spring's dates, so a trap is recorded in
+`docs/cs341-findings.md`.
+
 ## Three defects from a review of `src/core/` — 2026-09-24
 
 A `/code-review high src/core/` pass (sync loop, dedupe, dates, parsing, queue,

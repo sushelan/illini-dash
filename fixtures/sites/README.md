@@ -44,6 +44,7 @@ forgotten.
 | `cs425-fa2026-lectures.html` | `…/cs425/fa2026/lectures.html` | 2026-09-20 | a lecture table: a column of lecture dates beside cells reading `MP1 due 11.59 PM 9/13 (Sun)`. **One edit**: `</head><body>` inserted after `</title>`, because the page has neither and linkedom keeps every table under `<head>` while Chrome implies a body; the banner in the file says so. Fixture only — its deadlines repeat `assignments.html`'s |
 | `cs374a-fa2026-homeworks.html` | `…/cs374al1/fa2026/homeworks.html` | 2026-09-18 | `<dl class="calendar">`; the date is the `<dt>` **before** each `<dd>` |
 | `cs374a-fa2026-gps.html` | `…/cs374al1/fa2026/gps.html` | 2026-09-18 | same shape, every link off-origin |
+| `cs341-fa2026-home.html` | `cs341.cs.illinois.edu/` | 2026-09-24 | two "Latest Assignments" cards; the date sits behind the course week, `Due: Week 8 · 2026-10-12 23:59` |
 | `cs374a-fa2026-calendar.html` | `…/cs374al1/fa2026/calendar.html` | 2026-09-18 | fifteen `<dl>`s, 93 pairs — **fixture only, no registry entry** |
 
 `fixtures/site/ece391-schedule.html` (singular `site/`) is a separate older directory

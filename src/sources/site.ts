@@ -271,6 +271,19 @@ export const TIME =
 const TIME_BEFORE = TIME.replace(/\(\?<([a-z0-9]+)>/g, "(?<$1Before>");
 const CLOCK_FIRST = `(?:${TIME_BEFORE}[\\s,]*(?:on|@)?[\\s,]*)?`;
 
+/**
+ * The course week a page prints in front of the date: `Week 8 · 2026-10-12 23:59`.
+ *
+ * CS 341's home page writes every deadline that way, and the formats are
+ * start-anchored, so the date behind it read as nothing and the page proposed
+ * no schedule at all. Only a whole word `Week`, a number, and a separator — the
+ * separator is required, so a bare "Week 8" can never be taken for a prefix and
+ * leave its number to be read as a day. The week number itself is discarded:
+ * the date beside it is the stated value, and turning a week into a date would
+ * mean inventing a term start (worker rule 3).
+ */
+const WEEK_FIRST = `(?:week\\s+\\d{1,2}\\s*[·•|,:–—-]\\s*)?`;
+
 /** One wall-clock reading: what a page stated, or what an adapter defaults to. */
 export interface Clock {
   hour: number;
@@ -365,19 +378,19 @@ export function clockGroups(g: Record<string, string | undefined>): ClockGroups 
 const DATE_FORMATS: Record<string, RegExp> = {
   // 2026-09-11 · 2026-09-11 23:59 · Fri, 2026-09-11 at 18:00
   "yyyy-MM-dd": new RegExp(
-    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
+    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
   "MMM d, h:mm a": new RegExp(
-    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
+    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM · 11.59 PM 9/13
   "M/d": new RegExp(
-    `^(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),

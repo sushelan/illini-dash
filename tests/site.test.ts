@@ -700,11 +700,14 @@ describe("the bundled registry", () => {
       "cs425-fa26",
       "cs374a-fa26-hw",
       "cs374a-fa26-gps",
+      "cs341-fa26",
     ]);
     // Each says which version to update to, and CS 425 is the one that says
-    // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field.
+    // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field. CS 341
+    // says 1.3.1, which learned to read a date behind "Week 8 ·".
     expect(rejected[0]).toContain("needs extension 1.2.0, this is 1.0.0");
-    for (const line of rejected.slice(1)) {
+    expect(rejected[3]).toContain("needs extension 1.3.1, this is 1.0.0");
+    for (const line of rejected.slice(1, 3)) {
       expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
     }
     expect(adapters.map((a) => a.id)).toEqual([
@@ -3134,3 +3137,59 @@ describe("groupHasCourse: the undo line lands under the right heading", () => {
   });
 });
 
+
+describe("CS 341: a date behind the course week", () => {
+  const TZ = "America/Chicago";
+  const REF = "2026-09-24T18:00:00.000Z";
+  const parse = (raw: string, format: string) => parseAdapterDateParts(raw, format, TZ, REF);
+
+  it("reads the date and clock behind 'Week 8 ·'", () => {
+    // The page's own spelling. Start-anchored formats read nothing here before.
+    const at = parse("Week 8 · 2026-10-12 23:59", "yyyy-MM-dd")!;
+    expect(at.iso).toBe("2026-10-12T23:59:00-05:00");
+    expect(at.timeAssumed).toBe(false);
+  });
+
+  it("takes the prefix in front of every format", () => {
+    expect(parse("Week 3, Sep 8 at 5pm", "MMM d, h:mm a")!.iso).toBe("2026-09-08T17:00:00-05:00");
+    expect(parse("Week 3 - Tue 9/8", "M/d")!.iso).toBe("2026-09-08T23:59:00-05:00");
+  });
+
+  it("never reads the week number as a date", () => {
+    // "Week 12/1" is deliberately unrealistic (parser rule 10): it is the input
+    // that separates a required separator from an optional one. Optional, the
+    // prefix backtracks to take "Week 1" and reads "2/1" as February 1st.
+    expect(parse("Week 8", "M/d")).toBeUndefined();
+    expect(parse("Week 12/1", "M/d")).toBeUndefined();
+    expect(parse("Weekly 8 · 2026-10-12", "yyyy-MM-dd")).toBeUndefined();
+  });
+
+  describe("the shipped entry, against the real home page", () => {
+    const registryText = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
+    const entry = (JSON.parse(registryText).adapters as { id: string }[]).find(
+      (a) => a.id === "cs341-fa26",
+    )!;
+    const page = doc(
+      readFileSync(new URL("../fixtures/sites/cs341-fa2026-home.html", import.meta.url), "utf8"),
+    );
+    const ctx: PageCtx = { url: "https://cs341.cs.illinois.edu/", fetchedAt: REF };
+
+    it("is accepted by this build and refused by 1.3.0, which cannot read the date", () => {
+      expect(validateAdapter(entry).adapter).toBeDefined();
+      expect(validateAdapter(entry, "1.3.0").reason).toContain("needs extension 1.3.1");
+    });
+
+    it("reads exactly the two assignments the page lists, with stated times", () => {
+      const items = runAdapter(validateAdapter(entry).adapter!, page, ctx);
+      expect(items.map((i) => [i.title, i.dueAt, i.url])).toEqual([
+        ["Malloc", "2026-10-12T23:59:00-05:00", "https://cs341.cs.illinois.edu/assignments/malloc"],
+        [
+          "Teaching Threads",
+          "2026-09-30T23:59:00-05:00",
+          "https://cs341.cs.illinois.edu/assignments/teaching_threads",
+        ],
+      ]);
+      for (const item of items) expect(item.extra?.["timeAssumed"]).toBeUndefined();
+    });
+  });
+});

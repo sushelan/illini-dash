@@ -151,6 +151,23 @@
       "dateFormat": "MMM d, h:mm a",
       "timezone": "America/Chicago",
       "minExtensionVersion": "1.1.0"
+    },
+    {
+      "$comment": "CS 341's home page lists only the current MP and lab, as 'Due: Week 8 \u00b7 2026-10-12 23:59'. The /assignments table states only week numbers, and its progress bar carries last spring's dates in title attributes, so neither is read. See docs/cs341-findings.md.",
+      "id": "cs341-fa26",
+      "label": "CS 341 course site",
+      "courseCode": "CS341",
+      "term": "fa26",
+      "url": "https://cs341.cs.illinois.edu/",
+      "hostPattern": "https://cs341.cs.illinois.edu/*",
+      "rows": "section.latest-assignments section.flexbox-item",
+      "title": "h3 a",
+      "due": "p",
+      "dueLabel": "Due",
+      "link": "h3 a@href",
+      "dateFormat": "yyyy-MM-dd",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.3.1"
     }
   ]
 }
