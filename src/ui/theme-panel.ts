@@ -272,7 +272,9 @@ function renderTweakPanel(): HTMLElement {
   const switches: { key: keyof Tweaks; label: string; hint: string }[] = [
     {
       key: "urgencyEdge",
-      label: "Urgency edge",
+      // Named for what it draws: the bar is the course's colour and says
+      // nothing about urgency (renamed 2026-09-26).
+      label: "Class colour",
       hint: "A colour bar down the left of each row, in the course's colour",
     },
     {
