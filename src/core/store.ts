@@ -263,13 +263,29 @@ function migrateGcal(stored: unknown): GcalStore {
     (value["lastPushCount"] as number) >= 0
       ? { lastPushCount: value["lastPushCount"] as number }
       : {}),
-    // `pushing` is transient: a worker torn down mid-push leaves it on disk, and
-    // restoring it would draw "Working…" forever over nothing happening.
-    state: isGcalState(value["state"]) && value["state"] !== "pushing"
-      ? value["state"]
-      : "never",
+    // `pushing` is kept. Every read of the store comes through here, including
+    // the ones made *during* a push, and mapping it to `never` on read meant no
+    // reader ever saw it: Settings redrew mid-Connect and drew "Off" beside a
+    // switch that was on, and the worker's own `push-started` read `never` and
+    // stayed there (2026-09-25). A push a torn-down worker left behind is
+    // cleared once, at worker start: `settleInterruptedPush`.
+    state: isGcalState(value["state"]) ? value["state"] : "never",
     ...(text("lastError") ? { lastError: value["lastError"] as string } : {}),
   };
+}
+
+/**
+ * A `pushing` left on disk by a worker that was torn down mid-push.
+ *
+ * Applied once when the service worker starts, which is the one moment no push
+ * can be running: pushes live in the worker's memory, so a new worker has none.
+ * Restoring `pushing` then would draw "Working…" forever over nothing
+ * happening. A calendar that exists means the connection did; no calendar
+ * means the first push never finished, and there is nothing to be connected to.
+ */
+export function settleInterruptedPush(gcal: GcalStore): GcalStore {
+  if (gcal.state !== "pushing") return gcal;
+  return { ...gcal, state: gcal.calendarId === undefined ? "never" : "connected" };
 }
 
 export function emptyGcal(): GcalStore {

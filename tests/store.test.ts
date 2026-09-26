@@ -8,7 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ALL_SOURCES, migrate } from "../src/core/store.js";
+import { ALL_SOURCES, migrate, settleInterruptedPush } from "../src/core/store.js";
 
 const V1 = JSON.parse(
   readFileSync(new URL("../fixtures/store/v1.json", import.meta.url), "utf8"),
@@ -636,13 +636,40 @@ describe("Google Calendar's stored block", () => {
     expect(store.gcal.lastPushAt).toBeUndefined();
   });
 
-  it("does not restore 'pushing', which a torn-down worker leaves behind", () => {
-    // Restoring it would draw "Working…" forever over nothing happening.
+  it("keeps 'pushing', because the store is read during a push", () => {
+    /*
+     * Worker rule 6: this test used to assert the opposite — that a load maps
+     * `pushing` to `never` — and so pinned the defect. Every read comes through
+     * `migrate`, the ones made mid-push included: Settings redrew during Connect
+     * and drew "Off" beside a switch that was on (2026-09-25).
+     */
     const store = migrate({
       schemaVersion: 2,
       gcal: { enabled: true, byItemId: {}, state: "pushing" },
     });
-    expect(store.gcal.state).toBe("never");
+    expect(store.gcal.state).toBe("pushing");
+  });
+
+  describe("a push a torn-down worker left behind", () => {
+    it("settles to connected when the calendar exists", () => {
+      expect(
+        settleInterruptedPush({ enabled: true, byItemId: {}, state: "pushing", calendarId: "cal-1" })
+          .state,
+      ).toBe("connected");
+    });
+
+    it("settles to never when the first push never made a calendar", () => {
+      expect(settleInterruptedPush({ enabled: true, byItemId: {}, state: "pushing" }).state).toBe(
+        "never",
+      );
+    });
+
+    it("leaves every other state alone", () => {
+      for (const state of ["connected", "expired", "rate_limited", "never"] as const) {
+        const gcal = { enabled: true, byItemId: {}, state, calendarId: "cal-1" };
+        expect(settleInterruptedPush(gcal).state).toBe(state);
+      }
+    });
   });
 
   it("falls back to 'never' for a state this build has no sentence for", () => {

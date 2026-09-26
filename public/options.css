@@ -60,5 +60,11 @@ html[data-design="classical"] .page pre, html[data-design="classical"] .page cod
   .page--split { grid-template-columns: minmax(0,1fr); gap: 12px; padding-inline: 16px; }
   .pagenav { position: static; display: flex; flex-wrap: wrap; padding-top: 0; }
   .srow2 { grid-template-columns: auto minmax(0,1fr); }
-  .srow2 > .chip-base, .srow2 > .btn { grid-column: 2; justify-self: start; }
+  /* Row 3, under the hint. Only the column was moved here, so the chip kept
+     ui.css's `grid-row: 1 / span 2` and was drawn over the hint's first words
+     ("Off" over "Creates", 2026-09-25). */
+  .srow2 > .chip-base, .srow2 > .btn { grid-column: 2; grid-row: 3; justify-self: start; }
+  /* A row with both shares row 3: the state on the left, the thing to press on
+     the right, rather than one drawn over the other. */
+  .srow2 > .chip-base ~ .btn, .srow2 > .btn:has(~ .chip-base) { justify-self: end; }
 }

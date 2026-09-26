@@ -117,6 +117,7 @@ import {
   loadStore,
   normalizeQuietHours,
   saveStore,
+  settleInterruptedPush,
   sourcesToRetryAfterUpdate,
   withLocalAdapter,
   withoutLocalAdapter,
@@ -2647,6 +2648,18 @@ chrome.runtime.onMessage.addListener(
 );
 
 console.log(`[illini-dash] service worker loaded (build ${BUILD_ID})`);
+
+// A new worker has no push running, so a `pushing` on disk is one the last
+// worker was torn down in the middle of (`settleInterruptedPush`). Queued first,
+// so it lands before anything this worker pushes.
+void withStore(async () => {
+  const store = await loadStore();
+  const settled = settleInterruptedPush(store.gcal);
+  if (settled === store.gcal) return;
+  console.log(`[gcal] a push was interrupted by the last worker; now ${settled.state}`);
+  store.gcal = settled;
+  await saveStore(store);
+}, "settle interrupted push");
 
 
 /**

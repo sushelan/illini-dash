@@ -39,6 +39,18 @@ Disconnect in Sushi's worker console showed a fourth defect.
    being deleted. `core/gcal-lane.ts` now runs pushes and Disconnect one at a time, and a
    push that has not started yet answers further push requests.
 
+**5. Settings drew "Off" during Connect.** `migrateGcal` mapped a stored `pushing` to
+`never` on every read, meant for a worker torn down mid-push. But every read goes through
+it, including the ones made during a push, so Settings redrew mid-Connect and showed "Off"
+beside a switch that was on. The worker's own `push-started` read `never` too, so
+"Working…" could never appear. The load now keeps `pushing`, and `settleInterruptedPush`
+clears a leftover one once, at worker start. The store test "does not restore 'pushing'"
+had pinned the defect and is rewritten; three mutations died. The same screenshot showed
+the chip drawn over the row's hint below 720px: `options.css` moved it to column 2 and left
+`grid-row: 1 / span 2`. It now takes row 3, and a button sharing that row goes to the
+right. Measured in the real Settings page, dark, in a 600px frame: no row with a chip has
+overlapping children.
+
 Also: the token retry reused the store loaded before the first attempt, so an attempt
 that created the calendar and then met a 401 left a retry that created a **second**
 calendar. That likely explains the 9 inserts against 1 delete. The attempt now reads the
