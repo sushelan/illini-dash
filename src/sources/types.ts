@@ -109,7 +109,17 @@ export interface Item {
   members: RawItem[];
   courseCode?: string;
   courseLabel: string;
+  /** What the row shows: the student's rename when there is one (`titleNames`). */
   title: string;
+  /**
+   * The title the sources gave, present only when the student renamed the row.
+   *
+   * Kept because two things must go on reading the *course's* name for an
+   * assignment rather than the student's: matching a post to a known row
+   * (`announce.ts` — an instructor writes "MP2", not "the distributed one"),
+   * and the rename box's "Use the original name".
+   */
+  sourceTitle?: string;
   /**
    * A literal separator that splits one cell into several deadlines (§4.5:
    * "extend the schema with a new declarative field rather than embedding
@@ -274,6 +284,19 @@ export interface Overrides {
    * the other number.
    */
   courseNames: Record<string, string>;
+  /**
+   * A name the student gave one assignment, keyed by memberKey and written to
+   * every member of the row, for `hiddenKeys`'s reason: an `Item.id`-keyed
+   * rename would be lost the moment a second source mirrored the row.
+   *
+   * Display only. It is applied in `buildItem`, *after* grouping, so it can
+   * never change what merges with what — renaming "MP2 Specification Document"
+   * must not stop it merging with Canvas's "MP2".
+   *
+   * Optional because every stored `Overrides` before 1.3.2 lacks it; the store
+   * migration fills it in.
+   */
+  titleNames?: Record<string, string>;
   /**
    * Canvas course ids (as strings) the student forced back in after §4.1's term
    * filter held them aside.

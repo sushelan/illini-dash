@@ -33,7 +33,8 @@ import {
   staleNotice,
   summarize,
 } from "../../core/health.js";
-import { courseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
+import { courseLabel, displayCourseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
+import { TITLE_NAME_MAX } from "../../core/overrides.js";
 import { coursesIn, weekContents } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
@@ -1659,6 +1660,9 @@ export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
   };
 
   menu.addEventListener("keydown", (event) => {
+    // A text box in the menu (a rename) keeps Home, End and the arrows for its
+    // caret; only leaving it with Tab or Escape is the menu's business.
+    if (event.target instanceof HTMLInputElement && event.target.type === "text") return;
     const all = items();
     const here = all.findIndex((item) => item === document.activeElement);
     switch (event.key) {
@@ -1920,6 +1924,96 @@ export function applyOverrideAction(action: OverrideAction, entry?: HTMLElement)
 }
 
 /**
+ * One rename, in place: the menu becomes a text box and two buttons.
+ *
+ * In the menu rather than on a screen or in Settings. "Rename course…" used to
+ * open Settings in a full tab, and there was no way to rename an assignment at
+ * all (2026-09-26): a student renames something they are looking at, in the row
+ * they are looking at it in. Enter saves; Escape and a click elsewhere close it
+ * as they close any menu. Clearing the box, or "Use the original name", puts the
+ * sources' name back — the worker stores nothing for a name equal to it.
+ */
+function openRenameForm(
+  menu: HTMLElement,
+  form: {
+    heading: string;
+    value: string;
+    original: string;
+    max: number;
+    save: (value: string, control: HTMLElement) => void;
+  },
+): void {
+  menu.replaceChildren();
+  const heading = document.createElement("div");
+  heading.className = "menu-heading";
+  heading.textContent = form.heading;
+  const box = document.createElement("div");
+  box.className = "menu-form";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "menu-input";
+  input.maxLength = form.max;
+  input.value = form.value;
+  input.placeholder = form.original;
+  input.setAttribute("aria-label", form.heading);
+  box.append(input);
+  menu.append(heading, box);
+
+  const save = menuItem("Save", "check", (entry) => form.save(input.value, entry));
+  menu.append(save);
+  if (form.value !== form.original) {
+    menu.append(
+      menuItem(`Use the original name`, "close", (entry) => form.save("", entry)),
+    );
+  }
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    form.save(input.value, save);
+  });
+  input.focus();
+  input.select();
+}
+
+/**
+ * "Rename…" and "Rename course…", for both row menus.
+ *
+ * One function because there are two menus — every list's rows, and the
+ * deadline screen's — and a second copy of this is how one of them would end up
+ * without it (mutation rule 3).
+ */
+export function addRenameEntries(
+  menu: HTMLElement,
+  item: Item,
+  add: (label: string, glyph: IconName, onClick: (entry: HTMLElement) => void) => void,
+): void {
+  add("Rename…", "history-edu", () => {
+    openRenameForm(menu, {
+      heading: "Rename this deadline",
+      value: item.title,
+      original: item.sourceTitle ?? item.title,
+      max: TITLE_NAME_MAX,
+      save: (title, control) =>
+        applyOverrideAction({ kind: "rename", itemId: item.id, title }, control),
+    });
+  });
+  if (item.courseLabel) {
+    const shown = courseLabel(item.courseLabel, state.courseNames);
+    add(`Rename ${shown}…`, "settings", () => {
+      openRenameForm(menu, {
+        heading: `Rename ${shown} everywhere`,
+        value: shown,
+        original: displayCourseLabel(item.courseLabel),
+        // `renameCourse`'s own cap.
+        max: 60,
+        save: (name, control) =>
+          applySuggestionRequest({ type: "set-course-name", course: item.courseLabel, name }, control),
+      });
+    });
+  }
+}
+
+/**
  * §8.1's row menu: Hide, Split (if merged), Merge with…, Add to Google Calendar.
  *
  * §5.3 leans on this: a false merge is visible because the row shows two source
@@ -2038,6 +2132,8 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
       menu.querySelector<HTMLElement>(".menu-item")?.focus();
     });
   }
+
+  addRenameEntries(menu, item, add);
 
   const calendar = googleCalendarUrl(item);
   if (calendar) {

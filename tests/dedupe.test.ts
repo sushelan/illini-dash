@@ -1029,6 +1029,14 @@ describe("withoutKeys", () => {
   it("hands back the same overrides when there is nothing to drop", () => {
     expect(withoutKeys(NO_OVERRIDES, [])).toBe(NO_OVERRIDES);
   });
+
+  it("drops a rename with its row, so it cannot name a future row that reuses the key", () => {
+    const after = withoutKeys(
+      { ...NO_OVERRIDES, titleNames: { "manual:uuid-1": "Mine", "gradescope:1": "Kept" } },
+      ["manual:uuid-1"],
+    );
+    expect(after.titleNames).toEqual({ "gradescope:1": "Kept" });
+  });
 });
 
 describe("isItemDone: a source with nothing to say does not vote", () => {

@@ -15,6 +15,7 @@ import {
   markNotDone,
   memberKeysOf,
   mergeItems,
+  renameItem,
   setCourseDisabled,
   splitItem,
   studentDueOverride,
@@ -59,6 +60,51 @@ const DUE = "2026-09-11T22:00:00.000Z";
 function itemOf(members: RawItem[]): Item {
   return dedupe(members, NO_OVERRIDES)[0]!;
 }
+
+describe("rename a deadline", () => {
+  const canvas = raw("canvas", "c1", "MP2 Specification Document", DUE);
+  const gradescope = raw("gradescope", "g1", "MP2", DUE);
+
+  it("shows the student's name, keeps the sources' name, and keys every member", () => {
+    const row = itemOf([canvas, gradescope]);
+    const o = renameItem(NO_OVERRIDES, row, "  Distributed   MP2 ");
+    expect(o.titleNames).toEqual({ "canvas:c1": "Distributed MP2", "gradescope:g1": "Distributed MP2" });
+    const renamed = dedupe([canvas, gradescope], o)[0]!;
+    expect(renamed.title).toBe("Distributed MP2");
+    expect(renamed.sourceTitle).toBe("MP2 Specification Document");
+  });
+
+  it("never changes what merges", () => {
+    // Applied after grouping: a rename that reached §5.3's title match would
+    // split this row from the Canvas copy of the same assignment.
+    const o = renameItem(NO_OVERRIDES, itemOf([gradescope]), "Something else entirely");
+    const rows = dedupe([canvas, gradescope], o);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toBe("Something else entirely");
+  });
+
+  it("is undone by an empty box or by the original name, and stores nothing then", () => {
+    const row = itemOf([canvas]);
+    const named = renameItem(NO_OVERRIDES, row, "Mine");
+    const renamed = dedupe([canvas], named)[0]!;
+    expect(renameItem(named, renamed, "   ").titleNames).toEqual({});
+    expect(renameItem(named, renamed, "MP2 Specification Document").titleNames).toEqual({});
+    expect(dedupe([canvas], renameItem(named, renamed, ""))[0]!.sourceTitle).toBeUndefined();
+  });
+
+  it("takes the smallest key's name when a merge brings two renamed rows together", () => {
+    const o = {
+      ...NO_OVERRIDES,
+      titleNames: { "gradescope:g1": "From Gradescope", "canvas:c1": "From Canvas" },
+    };
+    expect(dedupe([gradescope, canvas], o)[0]!.title).toBe("From Canvas");
+  });
+
+  it("caps a name at a length a row can show", () => {
+    const o = renameItem(NO_OVERRIDES, itemOf([canvas]), "x".repeat(500));
+    expect(o.titleNames!["canvas:c1"]).toHaveLength(120);
+  });
+});
 
 describe("hide (§8.1)", () => {
   const single = itemOf([raw("gradescope", "1", "HW3", DUE)]);

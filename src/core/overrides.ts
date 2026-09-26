@@ -319,6 +319,28 @@ export function renameCourse(overrides: Overrides, key: string, name: string): O
   return { ...overrides, courseNames: next };
 }
 
+/**
+ * Give one assignment a name, or take the name away.
+ *
+ * Written to every member key, like `hideItem`. Empty, or the same as the
+ * title the sources give, **removes** the rename rather than storing one — so
+ * clearing the box or typing the original back is how a student undoes it, and
+ * a rename that says what the source already says is never stored.
+ */
+export function renameItem(overrides: Overrides, item: Item, title: string): Overrides {
+  const trimmed = title.replace(/\s+/g, " ").trim().slice(0, TITLE_NAME_MAX);
+  const original = item.sourceTitle ?? item.title;
+  const next = { ...(overrides.titleNames ?? {}) };
+  for (const key of memberKeysOf(item)) {
+    if (trimmed && trimmed !== original) next[key] = trimmed;
+    else delete next[key];
+  }
+  return { ...overrides, titleNames: next };
+}
+
+/** Long enough for a real assignment name, short enough to fit a row. */
+export const TITLE_NAME_MAX = 120;
+
 export interface CourseSummary {
   /** The value stored in `disabledCourses` — a code when there is one. */
   key: string;

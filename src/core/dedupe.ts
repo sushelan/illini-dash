@@ -313,16 +313,29 @@ function dueOverrideFor(
   return best;
 }
 
+/**
+ * The student's name for this row, if any member carries one.
+ *
+ * The smallest key wins, so the same store always yields the same title when a
+ * merge has brought two renamed rows together.
+ */
+function titleNameFor(keys: readonly string[], titleNames: Record<string, string>): string | undefined {
+  const named = keys.filter((key) => titleNames[key] !== undefined).sort();
+  return named.length > 0 ? titleNames[named[0]!] : undefined;
+}
+
 function buildItem(
   members: RawItem[],
   hiddenKeys: Set<string>,
   doneKeys: Set<string>,
   dueOverrides: Record<string, DueOverride> = {},
+  titleNames: Record<string, string> = {},
 ): Item {
   const ranked = byPrecedence(members);
   const keys = members.map((item) => memberKey(item.source, item.sourceId));
   const id = itemId(keys);
   const moved = dueOverrideFor(keys, dueOverrides);
+  const renamed = titleNameFor(keys, titleNames);
 
   // §5.3: the submission system owns its own deadline, so dueAt and url follow
   // the same precedence rather than being picked independently.
@@ -346,7 +359,9 @@ function buildItem(
     members,
     courseCode: ranked.find((item) => item.courseCode)?.courseCode,
     courseLabel: canonicalCourseLabel(ranked),
-    title: longestTitle.title,
+    // After grouping, so a rename can never change what merges (`titleNames`).
+    title: renamed ?? longestTitle.title,
+    ...(renamed !== undefined ? { sourceTitle: longestTitle.title } : {}),
     // A booking pseudo-item must keep its kind even when merged, since §7 keys
     // the daily nag off it; otherwise the most specific kind wins.
     kind: members.find((item) => item.kind === "booking")?.kind ?? ranked[0]!.kind,
@@ -493,7 +508,7 @@ export function dedupe(
   }
 
   const built = [...groups.values()].map((members) => {
-    const item = buildItem(members, hidden, done, overrides.dueOverrides);
+    const item = buildItem(members, hidden, done, overrides.dueOverrides, overrides.titleNames);
     // An unchanged group keeps its id, and with it what it has already fired —
     // otherwise every sync would re-notify every item (§5.3, §7).
     const before = previousById.get(item.id);
@@ -672,6 +687,11 @@ export function withoutKeys(overrides: Overrides, keys: readonly string[]): Over
     // would win over the source outright.
     dueOverrides: Object.fromEntries(
       Object.entries(overrides.dueOverrides).filter(([key]) => survives(key)),
+    ),
+    // A rename goes with its row for the same reason: left behind, it would
+    // name whatever future row happens to reuse the key.
+    titleNames: Object.fromEntries(
+      Object.entries(overrides.titleNames ?? {}).filter(([key]) => survives(key)),
     ),
     // A group that loses a member down to one is not a merge any more, so it is
     // dropped rather than left as a one-key group nothing can match.

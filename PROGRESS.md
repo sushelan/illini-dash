@@ -10,6 +10,30 @@ They still have no pinned clock.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Rename a deadline, and rename its course, from the row menu — 2026-09-26
+
+There was no way to rename an assignment, and the row menu's "Rename course…" opened
+Settings › Courses in a full tab. Sushi: renaming should work from the Week view itself.
+
+Both are now in every row menu (Today, Week, Month, Alerts) and in the deadline screen's
+menu, through one helper, `addRenameEntries` in `src/ui/popup/shell.ts`. The menu turns into
+a text box in place; Enter or Save applies it, and "Use the original name" takes a rename
+back off. The course entry sends the existing `set-course-name`, so a rename made here and
+one made in Settings are the same record.
+
+The assignment rename is `Overrides.titleNames`, keyed by memberKey on every member like
+`hiddenKeys`. `buildItem` applies it **after** grouping, so a rename can never change what
+merges. It keeps the sources' name as `Item.sourceTitle`, which `announce.ts` matches posts
+against: an instructor writes "MP3", whatever the student called it. An empty box, or the
+original name, stores nothing. §5.4's `withoutKeys` prunes renames with their rows, and the
+store migration validates each entry (non-empty, at most 120 characters). Eight
+count-asserted mutations over the core all died.
+
+Pressed with real clicks and typing in the real popup document (dark, `?dataset=reference`):
+rename, course rename, and "Use the original name" all redraw the row. Home stays inside the
+box: `trapMenuKeys` no longer takes the arrows, Home and End from a text input. The preview
+harness now applies both renames instead of answering "ok" and changing nothing.
+
 ## Google Calendar: four defects from the Cloud console and one live log — 2026-09-25
 
 The Calendar API's metrics page showed `events.delete` failing 44.72% of the time,

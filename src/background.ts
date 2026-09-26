@@ -47,6 +47,7 @@ import {
   markNotDone,
   mergeItems,
   renameCourse,
+  renameItem,
   setCourseDisabled,
   splitItem,
   applyDueOverride,
@@ -915,6 +916,9 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
     else if (action.kind === "split" && item) store.overrides = splitItem(store.overrides, item);
     else if (action.kind === "done" && item) store.overrides = markDone(store.overrides, item);
     else if (action.kind === "undone" && item) store.overrides = markNotDone(store.overrides, item);
+    else if (action.kind === "rename" && item) {
+      store.overrides = renameItem(store.overrides, item, action.title);
+    }
     // Pure wiring: `studentDueOverride` builds the entry (and refuses a date
     // nobody could have meant), `applyDueOverride` keys it to every member.
     else if (action.kind === "set-due" && item) {
@@ -935,6 +939,9 @@ async function applyOverride(action: import("./messages.js").OverrideAction): Pr
       `${action.kind} ${JSON.stringify(item.title.slice(0, 40))} ` +
       `keys=[${memberKeysOf(item).join(", ")}] ` +
       `hidden=${store.overrides.hiddenKeys.length} done=${store.overrides.doneKeys.length}` +
+      (action.kind === "rename"
+        ? ` title=${JSON.stringify(action.title.slice(0, 40))} titleNames=${Object.keys(store.overrides.titleNames ?? {}).length}`
+        : "") +
       (action.kind === "set-due"
         ? ` due=${JSON.stringify(action.date)}${action.time ? " " + action.time : ""} dueOverrides=${Object.keys(store.overrides.dueOverrides ?? {}).length}`
         : "");

@@ -626,6 +626,21 @@ describe("Google Calendar's stored block", () => {
     expect(Object.keys(store.gcal.byItemId)).toEqual(["good"]);
   });
 
+  it("keeps a usable rename and drops an empty or overlong one", () => {
+    // Text the student typed, drawn into every row, toast and calendar event.
+    const store = migrate({
+      schemaVersion: 2,
+      overrides: {
+        titleNames: { "canvas:1": "Mine", "canvas:2": "   ", "canvas:3": "x".repeat(121), "canvas:4": 7 },
+      },
+    });
+    expect(store.overrides.titleNames).toEqual({ "canvas:1": "Mine" });
+  });
+
+  it("gives a store from before renames an empty map", () => {
+    expect(migrate({ schemaVersion: 2, overrides: {} }).overrides.titleNames).toEqual({});
+  });
+
   it("refuses a lastPushAt that is not an instant", () => {
     // The chip prints this. A half-written value would render
     // "Pushed 14 events · Invalid Date".

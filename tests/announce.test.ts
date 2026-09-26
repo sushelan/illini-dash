@@ -339,6 +339,27 @@ describe("resolveMentions", () => {
     });
   });
 
+  it("matches a renamed row by the course's name for it, not the student's", () => {
+    // An instructor writes "MP3", whatever the student called it. Matching the
+    // student's name instead would turn the extension into "a new deadline,
+    // MP3" beside the row it should have moved.
+    const renamed = [
+      item({
+        id: "i-mine",
+        title: "the distributed one",
+        sourceTitle: "MP 3: Machine Problem 3",
+        courseCode: "CS225",
+        dueAt: "2026-10-01T23:59:00-05:00",
+      }),
+    ];
+    const suggestions = resolveMentions(
+      extractDeadlineMentions("MP3 is now due Thursday at noon.", POSTED),
+      renamed,
+      "CS225",
+    );
+    expect(suggestions[0]).toMatchObject({ kind: "move", itemId: "i-mine" });
+  });
+
   it("matches the synonym forms §5.2 already knows (HW 2 ↔ Homework 2)", () => {
     const suggestions = resolveMentions(
       extractDeadlineMentions("HW 2 is extended to Oct 10.", POSTED),

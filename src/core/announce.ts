@@ -1444,7 +1444,9 @@ export function resolveMentions(
     let best: { item: Item; score: number } | undefined;
     if (subjectTokens.size > 0) {
       for (const item of pool) {
-        const titleTokens = normalizeTitle(item.title);
+        // The sources' name, not the student's: an instructor's post says what
+        // the course calls it (`Item.sourceTitle`).
+        const titleTokens = normalizeTitle(item.sourceTitle ?? item.title);
         if (!isSubsetOf(subjectTokens, titleTokens)) continue;
         const score = jaccard(subjectTokens, titleTokens);
         if (

@@ -128,7 +128,9 @@ export type OverrideAction =
    * a student is allowed to type, and a refusal arrives as the same sentence
    * the editor shows.
    */
-  | { kind: "set-due"; itemId: string; date: string; time?: string };
+  | { kind: "set-due"; itemId: string; date: string; time?: string }
+  /** The student's own name for one row; `""` puts the sources' name back. */
+  | { kind: "rename"; itemId: string; title: string };
 
 export type Response =
   | { type: "pong"; at: string; buildId: string }

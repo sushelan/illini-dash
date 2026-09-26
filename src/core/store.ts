@@ -25,6 +25,7 @@ import { isGcalState, type GcalState } from "./gcal-auth.js";
 // `backoffMinutes` from here, and a value import back would be a cycle.
 import type { PiazzaClass, PiazzaHealth } from "./piazza.js";
 import { validateAdapter } from "./registry.js";
+import { TITLE_NAME_MAX } from "./overrides.js";
 
 /**
  * 2 since the first-run screen landed.
@@ -568,7 +569,7 @@ export function emptyStore(): StoreV1Plus {
       Source,
       SourceStatus
     >,
-    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [], courseNames: {}, dueOverrides: {} },
+    overrides: { mergeGroups: [], splitKeys: [], hiddenKeys: [], disabledCourses: [], doneKeys: [], keptCourses: [], courseNames: {}, titleNames: {}, dueOverrides: {} },
     settings: { ...DEFAULT_SETTINGS },
     registry: { adapters: [] },
     misses: {},
@@ -799,6 +800,7 @@ function migrateOverrides(stored: unknown): Overrides {
     doneKeys: [],
     keptCourses: [],
     courseNames: {},
+    titleNames: {},
     dueOverrides: {},
   };
   if (!stored || typeof stored !== "object") return base;
@@ -834,6 +836,19 @@ function migrateOverrides(stored: unknown): Overrides {
               typeof entry[1] === "string" &&
               entry[1].trim().length > 0 &&
               entry[1].length <= 60 &&
+              entry[0].length <= 200,
+          ),
+        )
+      : {},
+    // Text the student typed, rendered into every row, notification and calendar
+    // event: validated like `courseNames`, with a cap long enough for a title.
+    titleNames: isRecord(value["titleNames"])
+      ? Object.fromEntries(
+          Object.entries(value["titleNames"]).filter(
+            (entry): entry is [string, string] =>
+              typeof entry[1] === "string" &&
+              entry[1].trim().length > 0 &&
+              entry[1].length <= TITLE_NAME_MAX &&
               entry[0].length <= 200,
           ),
         )

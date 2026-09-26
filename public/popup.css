@@ -483,6 +483,14 @@ h2.section {
   border-bottom: 1px solid var(--line); margin-bottom: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* The rename box a row menu turns into (`openRenameForm`). */
+.menu-form { padding: 2px 12px 6px; }
+.menu-input {
+  box-sizing: border-box; width: 100%; min-width: 220px;
+  padding: 5px 7px; font: inherit; font-size: 12px; color: inherit;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+}
+.menu-input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 /* ==========================================================================
  * Calendar views

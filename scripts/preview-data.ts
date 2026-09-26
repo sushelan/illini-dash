@@ -39,6 +39,9 @@ const item = (o: Record<string, unknown>) => ({
   status: "not_submitted", hidden: false, done: false, notified: {}, ...o,
 });
 
+/** The harness's course renames; `set-course-name` writes here. */
+const previewCourseNames: Record<string, string> = { CS424: "Real-Time Systems" };
+
 const items = [
   // Real titles and shapes from Sushi's account, 2026-09-11. Invented titles
   // were consistently shorter than the ones UIUC courses actually use, which
@@ -515,7 +518,33 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
        * nobody able to see it. `?slow=` sets the delay; the default is enough to
        * notice and short enough not to make the preview annoying.
        */
+      /*
+       * Both renames, applied, so pressing Save in the harness shows the new name
+       * rather than a row that did not change — which reads as a broken control.
+       * The title follows `renameItem`: empty, or the sources' own name, clears it.
+       */
       if (req.type === "set-course-name") {
+        const { course, name } = req as unknown as { course: string; name: string };
+        if (name.trim()) previewCourseNames[course] = name.trim().slice(0, 60);
+        else delete previewCourseNames[course];
+        return { type: "ok" };
+      }
+      if (req.type === "override") {
+        const { action } = req as unknown as { action: { kind: string; itemId: string; title?: string } };
+        const target = items.find((candidate) => candidate.id === action.itemId) as
+          | { title: string; sourceTitle?: string }
+          | undefined;
+        if (action.kind === "rename" && target) {
+          const original = target.sourceTitle ?? target.title;
+          const title = (action.title ?? "").replace(/\s+/g, " ").trim();
+          if (title && title !== original) {
+            target.title = title;
+            target.sourceTitle = original;
+          } else {
+            target.title = original;
+            delete target.sourceTitle;
+          }
+        }
         return { type: "ok" };
       }
       /*
@@ -758,7 +787,7 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
         return { type: "state",
           observers: { piazza: { enabled: false, state: "pending" }, campuswire: { enabled: false } }, items, sources, notificationsBlocked: false,
                  suggestions: PREVIEW_SUGGESTIONS,
-                 courseNames: stale ? undefined : { CS424: "Real-Time Systems" },
+                 courseNames: stale ? undefined : previewCourseNames,
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
                              hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
                  lastSyncAt: new Date().toISOString() };

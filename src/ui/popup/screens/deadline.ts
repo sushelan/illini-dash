@@ -43,6 +43,7 @@ import {
   writeStored,
 } from "../state.js";
 import {
+  addRenameEntries,
   applyOverrideAction,
   applySuggestionRequest,
   closeMenus,
@@ -610,12 +611,10 @@ function openScreenMenu(item: Item, anchor: HTMLElement): void {
    * place for. The entry exists here because this screen is where a student is
    * standing when they decide a row is wrong (inventory §W).
    */
-  // Renaming lives in Settings › Courses with the rest of the course tools
-  // (brief D8 lists it here; the rename itself is `renameCourse` in Options).
-  add("Rename course…", "settings", () => {
-    closeMenus();
-    void chrome.tabs.create({ url: chrome.runtime.getURL("options.html#sec-courses") });
-  });
+  // In place, like every list's row menu (`addRenameEntries`). It used to open
+  // Settings › Courses in a full tab, which is not where anyone renames the
+  // thing they are looking at (2026-09-26).
+  addRenameEntries(menu, item, add);
 
   add("Report this page…", "warning", () => {
     closeMenus();
