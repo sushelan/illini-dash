@@ -90,7 +90,7 @@ state with its own sentence, not an error.
 
 | File | What it owns |
 |---|---|
-| `src/core/gcal-config.ts` | The scope, the placeholders, the calendar's name and colour, and `isGcalConfigured` |
+| `src/core/gcal-config.ts` | The scope, the placeholders, the calendar's name, and `isGcalConfigured` |
 | `src/core/gcal.ts` | **What goes on the calendar.** `projectEvents`, `diffEvents`, `eventBody`. Pure |
 | `src/core/gcal-auth.ts` | **What every failure is called**, and the sentence a student reads. Pure |
 | `src/core/gcal-client.ts` | The HTTP calls over an injected `fetch`, plus `pushEvents` and `purgeCalendar` |

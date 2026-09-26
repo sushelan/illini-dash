@@ -14,7 +14,6 @@
  */
 
 import {
-  GCAL_CALENDAR_COLOR,
   GCAL_CALENDAR_DESCRIPTION,
   GCAL_CALENDAR_NAME,
   GCAL_TIMEZONE,
@@ -135,23 +134,16 @@ export async function createCalendar(http: GcalHttp): Promise<string> {
   return created.id;
 }
 
-/**
- * The accent colour, so the calendar is findable among a list of grey ones.
- *
- * Its own call because `calendars.insert` has no colour field — the colour is a
- * property of the *entry in this user's list*, not of the calendar. Failures
- * are the caller's to swallow: a calendar in the wrong colour still works, and
- * nothing here is worth failing a push over.
+/*
+ * No calendar colour. `calendarList.patch` is the only place Google keeps one —
+ * it belongs to the entry in the student's list, not to the calendar — and
+ * `calendar.app.created` does not reach the list: every call failed, 9 of 9 in
+ * the Cloud console, and the live answer was `401 Invalid Credentials` from the
+ * same token that had just created the calendar (2026-09-25). A 401 that is not
+ * about the token is also exactly what `classifyStatus` would misread as one.
+ * Asking for the colour would mean asking for a wider scope; the calendar is
+ * named "Illini Dash", which is enough to find it.
  */
-export async function setCalendarColor(http: GcalHttp, calendarId: string): Promise<void> {
-  await call(
-    http,
-    "PATCH",
-    `/users/me/calendarList/${encodeURIComponent(calendarId)}?colorRgbFormat=true`,
-    "calendar",
-    { backgroundColor: GCAL_CALENDAR_COLOR, foregroundColor: "#ffffff" },
-  );
-}
 
 /**
  * Every event this extension has on the calendar, keyed the way it keys them.
@@ -325,13 +317,27 @@ export async function withRetry<T>(
 
 /** What one push did, for the log line and for the chip. */
 export interface PushResult {
-  /** The new `store.gcal.byItemId`. Rebuilt, not patched, so it cannot drift. */
+  /**
+   * The new `store.gcal.byItemId`: every call Google answered, and nothing
+   * else. Returned on failure too — see `failure`.
+   */
   index: Map<string, RemoteEvent>;
   inserted: number;
   patched: number;
   deleted: number;
   /** Total events on the calendar afterwards — what "Pushed N events" counts. */
   total: number;
+  /**
+   * The error that stopped the push, when one did.
+   *
+   * Returned rather than thrown, because a throw took `index` with it: the
+   * caller kept the index from *before* the push, so every event inserted
+   * before the failure was inserted again next time — a duplicate on the
+   * student's calendar — and every delete was repeated into a 404. That is
+   * what 44.72% errors on `events.delete` in the Cloud console was (2026-09-25).
+   * The caller saves `index` first and then acts on this.
+   */
+  failure?: unknown;
 }
 
 /**
@@ -350,10 +356,11 @@ export interface PushResult {
  *    believing a write that never landed. This is worker rule 2 at the event
  *    level: the stored hash is evidence, not intent.
  *
- * A `token_invalid`, `calendar_missing` or `rate_limited` stops the push and
- * propagates: those are states with a sentence and a button, and grinding
- * through two hundred more requests to collect two hundred copies of the same
- * failure helps nobody.
+ * Any failure stops the push and comes back in `failure`, with `index` holding
+ * what had already landed: a `token_invalid`, `calendar_missing` or
+ * `rate_limited` is a state with a sentence and a button, and grinding through
+ * two hundred more requests to collect two hundred copies of the same failure
+ * helps nobody.
  */
 export async function pushEvents(
   http: GcalHttp,
@@ -368,20 +375,36 @@ export async function pushEvents(
   let patched = 0;
   let deleted = 0;
 
-  for (const entry of diff.deletes) {
-    await deleteEvent(http, calendarId, entry.eventId);
-    index.delete(entry.key);
-    deleted += 1;
-  }
-  for (const { eventId, event } of diff.patches) {
-    await patchEvent(http, calendarId, eventId, event);
-    index.set(event.key, { eventId, hash: event.hash });
-    patched += 1;
-  }
-  for (const event of diff.inserts) {
-    const eventId = await insertEvent(http, calendarId, event);
-    index.set(event.key, { eventId, hash: event.hash });
-    inserted += 1;
+  try {
+    for (const entry of diff.deletes) {
+      await deleteEvent(http, calendarId, entry.eventId);
+      index.delete(entry.key);
+      deleted += 1;
+    }
+    for (const { eventId, event } of diff.patches) {
+      try {
+        await patchEvent(http, calendarId, eventId, event);
+        index.set(event.key, { eventId, hash: event.hash });
+        patched += 1;
+      } catch (err) {
+        // The event is gone from Google — the student deleted it by hand, most
+        // likely — so the stored id points at nothing. Left as a failure it
+        // stopped every later push at the same event, forever; the deadline
+        // still belongs on the calendar, so it goes back on as a new event.
+        if (!(err instanceof GcalError && (err.status === 404 || err.status === 410))) throw err;
+        const fresh = await insertEvent(http, calendarId, event);
+        index.set(event.key, { eventId: fresh, hash: event.hash });
+        inserted += 1;
+      }
+    }
+    for (const event of diff.inserts) {
+      const eventId = await insertEvent(http, calendarId, event);
+      index.set(event.key, { eventId, hash: event.hash });
+      inserted += 1;
+    }
+  } catch (failure) {
+    log(`[gcal] stopped after +${inserted} ~${patched} -${deleted}; kept what Google answered`);
+    return { index, inserted, patched, deleted, total: index.size, failure };
   }
 
   // Both branches out loud (worker rule 5): "nothing to do" and "the push never

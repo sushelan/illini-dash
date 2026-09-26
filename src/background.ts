@@ -64,13 +64,13 @@ import {
   isGcalConfigured,
 } from "./core/gcal-config.js";
 import { classifyAuthFailure, nextGcalState } from "./core/gcal-auth.js";
+import { createGcalLane } from "./core/gcal-lane.js";
 import {
   GcalError,
   createCalendar,
   listEvents,
   purgeCalendar,
   pushEvents,
-  setCalendarColor,
   type GcalHttp,
 } from "./core/gcal-client.js";
 import {
@@ -345,6 +345,8 @@ async function maybeRefreshRegistry(): Promise<void> {
  * asks for the queue again — a permanent deadlock — says anything at all.
  */
 const withStore = createStoreQueue();
+/** Pushes and Disconnect, one at a time (`core/gcal-lane.ts`). */
+const gcalLane = createGcalLane();
 
 /** One sync at a time: two overlapping runs would race on the same store. */
 let running: Promise<void> | null = null;
@@ -746,7 +748,11 @@ function gcalEventFor(err: unknown): Parameters<typeof nextGcalState>[1] | undef
  * `interactive` is true only from the Connect click. Everywhere else a missing
  * grant must not open a window over whatever the student is doing.
  */
-async function gcalPush(reason: string, interactive = false): Promise<void> {
+function gcalPush(reason: string, interactive = false): Promise<void> {
+  return gcalLane.run("push", () => gcalPushUnqueued(reason, interactive)).then(() => undefined);
+}
+
+async function gcalPushUnqueued(reason: string, interactive: boolean): Promise<void> {
   {
     const store = await loadStore();
     const gcal = store.gcal;
@@ -782,16 +788,18 @@ async function gcalPush(reason: string, interactive = false): Promise<void> {
 
     const attempt = async (bearer: string): Promise<void> => {
       const http: GcalHttp = { token: bearer, fetch: (input, init) => fetch(input, init) };
-      let calendarId = gcal.calendarId;
-      let index = new Map(Object.entries(gcal.byItemId));
+      // Read fresh on every attempt, never from the store loaded above: the
+      // token retry below runs this twice, and a first attempt that created the
+      // calendar and then met a 401 had saved its id — which the stale copy did
+      // not have, so the retry created a *second* calendar. Nine
+      // `calendars.insert` against one `calendars.delete` in the Cloud console.
+      const current = (await loadStore()).gcal;
+      let calendarId = current.calendarId;
+      let index = new Map(Object.entries(current.byItemId));
 
       if (calendarId === undefined) {
         calendarId = await createCalendar(http);
         console.log(`[gcal] created the calendar (${calendarId})`);
-        // Cosmetic, and never worth failing a push over.
-        await setCalendarColor(http, calendarId).catch((err: unknown) => {
-          console.warn("[gcal] the calendar colour could not be set:", err);
-        });
         index = new Map();
         await writeGcal((g) => {
           g.calendarId = calendarId;
@@ -807,6 +815,14 @@ async function gcalPush(reason: string, interactive = false): Promise<void> {
 
       const projected = projectEvents(store.items, store.settings, store.overrides.courseNames);
       const result = await pushEvents(http, calendarId, projected, index, (line) => console.log(line));
+      if (result.failure !== undefined) {
+        // What landed is saved before the failure is acted on, or the next push
+        // inserts it again and repeats every delete (`PushResult.failure`).
+        await writeGcal((g) => {
+          g.byItemId = Object.fromEntries(result.index);
+        });
+        throw result.failure;
+      }
       const at = new Date().toISOString();
       await writeGcal((g) => {
         g.byItemId = Object.fromEntries(result.index);
@@ -2328,7 +2344,9 @@ chrome.runtime.onMessage.addListener(
     }
     if (request?.type === "gcal-disconnect") {
       return answer(
-        (async () => {
+        // In the lane, so it waits for a push already under way and reads the
+        // index that push saved, rather than an empty one (`core/gcal-lane.ts`).
+        gcalLane.run("disconnect", async () => {
           /*
            * The order matters, and it is the promise §0 rule 1's amended
            * wording makes: "turning it off deletes that calendar's events".
@@ -2374,7 +2392,7 @@ chrome.runtime.onMessage.addListener(
             console.log("[gcal] disconnect: switched off and forgotten");
           });
           return { type: "ok" } as const;
-        })(),
+        }).then((answered) => answered ?? ({ type: "ok" } as const)),
       );
     }
     if (request?.type === "set-source-enabled") {

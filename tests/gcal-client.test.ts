@@ -182,13 +182,31 @@ describe("one push", () => {
     expect(calls.slice(1).map((c) => c.method)).toEqual(["POST", "POST"]);
   });
 
-  it("writes an index entry only after Google answered", async () => {
-    // Worker rule 2 at the event level: the stored hash is evidence, not
-    // intent. A failed insert must leave nothing behind claiming success.
+  it("keeps what Google answered when a later call fails, and nothing else", async () => {
+    /*
+     * Worker rule 6: this test used to assert only that the push rejected — and
+     * the rejection took the index with it, so the caller kept the one from
+     * before the push and inserted the first event again next time. It passed
+     * against exactly that. Now the index comes back with the failure, holding
+     * the insert that landed and not the one that did not.
+     */
     const { fn } = fakeFetch([ok({ id: "ev-1" }), fail(500)]);
-    await expect(
-      pushEvents({ token: "t", fetch: fn }, "cal-1", events, new Map()),
-    ).rejects.toBeInstanceOf(GcalError);
+    const result = await pushEvents({ token: "t", fetch: fn }, "cal-1", events, new Map());
+    expect(result.failure).toBeInstanceOf(GcalError);
+    expect([...result.index.entries()]).toEqual([
+      [events[0]!.key, { eventId: "ev-1", hash: events[0]!.hash }],
+    ]);
+    expect(result.inserted).toBe(1);
+  });
+
+  it("forgets a delete that landed, so a failed push does not repeat it", async () => {
+    // The other half of the Cloud console's 44.72%: a delete that succeeded and
+    // was then forgotten is sent again next push, and Google answers 410.
+    const index = new Map<string, RemoteEvent>([["gone", { eventId: "ev-gone", hash: "h" }]]);
+    const { fn } = fakeFetch([ok({}), fail(500)]);
+    const result = await pushEvents({ token: "t", fetch: fn }, "cal-1", events, index);
+    expect(result.failure).toBeDefined();
+    expect(result.index.has("gone")).toBe(false);
   });
 
   it("stops at a 401 rather than collecting two hundred copies of it", async () => {
@@ -197,10 +215,33 @@ describe("one push", () => {
       DEFAULT_SETTINGS,
     );
     const { fn, calls } = fakeFetch([fail(401)]);
-    await expect(
-      pushEvents({ token: "t", fetch: fn }, "cal-1", many, new Map()),
-    ).rejects.toMatchObject({ failure: "token_invalid" });
+    const result = await pushEvents({ token: "t", fetch: fn }, "cal-1", many, new Map());
+    expect(result.failure).toMatchObject({ failure: "token_invalid" });
     expect(calls).toHaveLength(1);
+  });
+
+  describe("an event deleted in Google by hand", () => {
+    const stale = () =>
+      new Map<string, RemoteEvent>(events.map((e) => [e.key, { eventId: `ev-${e.key}`, hash: "old" }]));
+
+    it("goes back on as a new event instead of blocking every later push", async () => {
+      for (const status of [404, 410]) {
+        const { fn, calls } = fakeFetch([fail(status), ok({ id: "ev-fresh" }), ok({})]);
+        const result = await pushEvents({ token: "t", fetch: fn }, "cal-1", events, stale());
+        expect(result.failure, String(status)).toBeUndefined();
+        expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST", "PATCH"]);
+        expect(result.index.get(events[0]!.key)).toEqual({ eventId: "ev-fresh", hash: events[0]!.hash });
+        expect(result.inserted).toBe(1);
+        expect(result.patched).toBe(1);
+      }
+    });
+
+    it("still stops on any other failed patch", async () => {
+      const { fn, calls } = fakeFetch([fail(400)]);
+      const result = await pushEvents({ token: "t", fetch: fn }, "cal-1", events, stale());
+      expect(result.failure).toMatchObject({ status: 400 });
+      expect(calls).toHaveLength(1);
+    });
   });
 });
 
@@ -253,5 +294,22 @@ describe("the backoff", () => {
     expect(retryDelay(9, () => 1)).toBe(retryDelay(3, () => 1));
     // Jittered, or every install retries a Google outage on the same second.
     expect(retryDelay(0, () => 0)).toBe(500);
+  });
+});
+
+describe("the calendar list", () => {
+  it("is never called: calendar.app.created cannot reach it", async () => {
+    /*
+     * `calendarList.patch` (the colour) failed 9 of 9 in the Cloud console and
+     * answered 401 Invalid Credentials live, from a token that had just created
+     * the calendar. `classifyStatus` reads any 401 as a dead token, so a second
+     * call to that endpoint would throw a working token away.
+     */
+    const { readFileSync } = await import("node:fs");
+    for (const file of ["../src/core/gcal-client.ts", "../src/background.ts"]) {
+      const code = readFileSync(new URL(file, import.meta.url), "utf8");
+      expect(code.includes('"/users/me/calendarList'), file).toBe(false);
+      expect(code.includes("`/users/me/calendarList"), file).toBe(false);
+    }
   });
 });

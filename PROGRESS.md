@@ -10,6 +10,46 @@ They still have no pinned clock.
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
 
+## Google Calendar: four defects from the Cloud console and one live log — 2026-09-25
+
+The Calendar API's metrics page showed `events.delete` failing 44.72% of the time,
+`events.patch` 12.57%, `calendarList.patch` 100%, and 9 `calendars.insert` against 1
+delete. (`Events.Get` and `Events.Update` on that page are Google counting each `PATCH` as
+a read and a write internally; the code never calls update.) Then a live Connect and
+Disconnect in Sushi's worker console showed a fourth defect.
+
+1. **A push that failed partway threw away what it had done.** `pushEvents` threw, and
+   its index went with the throw, so the worker kept the index from *before* the push.
+   Every insert that had landed was inserted again next time (a duplicate on the student's
+   calendar), and every delete was repeated into a 410, which Google counts as an error.
+   `PushResult.failure` now returns the error alongside the index, and the worker saves the
+   index before acting on it. The test "writes an index entry only after Google answered"
+   asserted only that the push rejected, so it passed against the defect (worker rule 6).
+   It now asserts the index.
+2. **An event deleted in Google by hand stopped every later push.** Its `PATCH` answered
+   404, which mapped to no state, so the push failed at the same event forever. A 404 or
+   410 on a patch now inserts the event again.
+3. **The calendar colour never worked.** `calendarList.patch` answered `401 Invalid
+   Credentials` from the token that had just created the calendar, because
+   `calendar.app.created` does not reach the calendar list. The call is gone, with a test
+   that the endpoint is never addressed, because `classifyStatus` reads any 401 as a dead
+   token.
+4. **Disconnect did not wait for a push.** Live: Disconnect "removed 0 events" while
+   Connect's push was still inserting 37, and the push then finished onto the calendar
+   being deleted. `core/gcal-lane.ts` now runs pushes and Disconnect one at a time, and a
+   push that has not started yet answers further push requests.
+
+Also: the token retry reused the store loaded before the first attempt, so an attempt
+that created the calendar and then met a 401 left a retry that created a **second**
+calendar. That likely explains the 9 inserts against 1 delete. The attempt now reads the
+store fresh. This one line is in the worker and is **not reachable by a test**. Nine
+count-asserted mutations over the client and the lane all died. Not yet observed live:
+nobody has pushed through a partial failure on this build. Orphaned calendars and
+duplicate events already in testers' accounts are not cleaned up. Two events with the same
+tag collapse to one entry in `listEvents`, so a reconnect adopts one of them and leaves the
+other on the calendar, untracked. A Disconnect removes both, because deleting the calendar
+takes every event with it.
+
 ## CS 341 course site, and a date behind "Week 8 ·" — 2026-09-24, 1.3.1
 
 CS 341's home page writes `Due: Week 8 · 2026-10-12 23:59`, and the start-anchored date

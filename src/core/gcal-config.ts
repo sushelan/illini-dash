@@ -83,9 +83,6 @@ export const GCAL_TIMEZONE = "America/Chicago";
 export const GCAL_API_ORIGIN = "https://www.googleapis.com";
 export const GCAL_MATCH = `${GCAL_API_ORIGIN}/*`;
 
-/** Illini orange, so the calendar is findable in a list of grey ones. */
-export const GCAL_CALENDAR_COLOR = "#E84A27";
-
 /**
  * Whether the client id is a real one rather than the placeholder.
  *
