@@ -281,19 +281,6 @@ export function readTweaks(): Tweaks {
  */
 export const WEEK_MODE: WeekMode = "rolling";
 
-/**
- * Said once, above the rows it applies to.
- *
- * A course site with five bare dates produced five consecutive rows each
- * carrying the same sentence. The fact belongs to the group, not the row.
- *
- * Never "all day": that is the calendar convention and it is wrong here. It
- * tells a student they have until midnight, when the real cutoff may be 5 PM,
- * which is the whole reason this distinction exists.
- */
-export const UNTIMED_NOTE =
-  "The course site posted a day, not a time — check the page for the cutoff.";
-
 /** How long "Deleted … · Undo" stays on screen. */
 export const UNDO_MS = 10_000;
 

@@ -46,6 +46,17 @@ export type FocusRequest = (
    * this is honoured.
    */
   | { kind: "date-nav"; control: DateNavControl }
+  /**
+   * Any other button a draw rebuilds — Sync now, a banner's Sign in, a view's
+   * Mark done, the deadline screen's own ⋯ (2026-09-27).
+   *
+   * The five kinds above are the controls someone thought about; this is the
+   * rest, and the keyboard found every one of them by landing on `<body>`
+   * after pressing it: `renderFooter`, `renderBanners` and every view call
+   * `replaceChildren()` on the element that had focus. Named by region, class
+   * and label, because the element itself is gone by the time this is read.
+   */
+  | ControlRequest
 ) & {
   /**
    * Derived from `document.activeElement` by a redraw nobody asked for, rather
@@ -54,6 +65,30 @@ export type FocusRequest = (
    */
   implicit?: boolean;
 };
+
+/** The regions a draw rebuilds wholesale, by the id each one carries in popup.html. */
+export type ControlRegion = "view" | "footer" | "banners" | "status";
+
+/** See `FocusRequest`'s last member. */
+export interface ControlRequest {
+  kind: "control";
+  region: ControlRegion;
+  /** The control's whole `class` attribute, which is what the draw writes. */
+  className: string;
+  /** Its day (a month cell), else its accessible name: `aria-label`, else its trimmed text. */
+  label: string;
+}
+
+/**
+ * The class on the element inside a row that takes focus.
+ *
+ * A row used to *be* the link — `<a class="row">` with the ⋯ `<button>` inside
+ * it — which is invalid interactive nesting and made every row announce as
+ * "MP 2 CS 411 8:00 PM More actions" (a11y review, 2026-09-27). The row is a
+ * `div.row` now, the title is the link (or, for a typed row with no URL, a
+ * `role=button`), and the ⋯ is its sibling. This class is the ring stop.
+ */
+export const ROW_LINK_CLASS = "row--link";
 
 /**
  * The roving ring `makeRowsNavigable` rolls over, in one place.
@@ -64,7 +99,45 @@ export type FocusRequest = (
  * The month has no `a.row` at all — its pills are `role=button`; a manual row
  * with no link is a `div.row`.
  */
-export const ROW_RING_SELECTOR = "a.row, div.row, .mpill[role='button']";
+export const ROW_RING_SELECTOR = `.${ROW_LINK_CLASS}, .mpill[role='button']`;
+
+/**
+ * The title a ring stop stands for, which is how a request names a row after
+ * the draw that destroyed it. The stop is the title element in a list row and
+ * holds one in anything else that ever joins the ring.
+ */
+export function ringTitle(stop: Element): string {
+  const title = stop.matches(".row--title") ? stop : stop.querySelector(".row--title");
+  return title?.textContent ?? "";
+}
+
+/**
+ * The ring stop a control belongs to, when the control itself is not one.
+ *
+ * The row's ⋯ is `tabIndex −1` — the ring is one stop per row — so returning
+ * focus to it after its menu closes (Escape, or an entry that closed the menu
+ * itself) stranded the keyboard on an element ↑ ↓ does not recognise and Tab
+ * leaves (a11y review, 2026-09-27, #5). Its row's stop is where it goes
+ * instead. Anything with a real tab stop of its own is returned as it is.
+ */
+export function ringStopFor(control: HTMLElement): HTMLElement {
+  // The attribute, not `tabIndex`: they agree in a browser for everything that
+  // reaches here, and the attribute is the one a DOM with no focus model reads.
+  if (control.getAttribute("tabindex") !== "-1" || control.matches(ROW_RING_SELECTOR)) return control;
+  const row = control.closest(".row");
+  return row?.querySelector<HTMLElement>(`.${ROW_LINK_CLASS}`) ?? control;
+}
+
+/**
+ * Make `stop` the ring's one Tab stop and every other one `−1`.
+ *
+ * One copy of the roving rule, used by the arrow keys, by `makeRowsNavigable`'s
+ * callers and by a menu handing focus back — a second copy is how the ⋯ ended
+ * up focused with no stop in the ring at all.
+ */
+export function rollRingTo(ring: readonly HTMLElement[], stop: HTMLElement): void {
+  for (const each of ring) each.tabIndex = each === stop ? 0 : -1;
+}
 
 /** The class on the footer's source button; shell.ts re-exports it. */
 export const FOOT_HEALTH_CLASS = "foot--health";
@@ -132,11 +205,10 @@ export function findFocusTarget(
       // By title, not by reference: the row that was pressed was destroyed by
       // the redraw that closed the screen. Two rows with one title in one
       // view is itself a merge defect (§5.3), so the first match is the row.
-      return (
-        rows.find((row) => row.querySelector(".row--title")?.textContent === request.title) ??
-        rows[0]
-      );
+      return rows.find((row) => ringTitle(row) === request.title) ?? rows[0];
     }
+    case "control":
+      return findControl(request, scope);
     case "footer-health":
       return scope.doc.querySelector<HTMLElement>(`.${FOOT_HEALTH_CLASS}`) ?? undefined;
     case "date-nav": {
@@ -201,9 +273,97 @@ export function focusRequestFor(
       if (nav.classList.contains(DATE_NAV_CLASS[control])) return { kind: "date-nav", control };
     }
   }
-  if (!scope.view.contains(active)) return undefined;
-  if (active.matches(".screen-bar button")) return { kind: "screen-back" };
-  const row = active.closest<HTMLElement>(ROW_RING_SELECTOR);
-  if (row) return { kind: "row", title: row.querySelector(".row--title")?.textContent ?? "" };
+  if (!scope.view.contains(active)) return controlRequestFor(active, scope);
+  // ‹ back is the screen bar's first button. The bar's ⋯ is a different
+  // control, and mapping every bar button to ‹ moved focus off the ⋯ the
+  // student had just used (a11y review, 2026-09-27, #2).
+  if (active.matches(".screen-bar button") && isScreenBack(active)) return { kind: "screen-back" };
+  // The row's own stop, or anything inside the row — the ⋯, an undo — whose
+  // row the redraw is about to replace.
+  const row = active.closest<HTMLElement>(`${ROW_RING_SELECTOR}, .row`);
+  if (row) {
+    const stop = row.matches(ROW_RING_SELECTOR)
+      ? row
+      : row.querySelector<HTMLElement>(`.${ROW_LINK_CLASS}`);
+    if (stop) return { kind: "row", title: ringTitle(stop) };
+  }
+  return controlRequestFor(active, scope);
+}
+
+/** The screen bar's ‹, which is its first button. */
+function isScreenBack(button: HTMLElement): boolean {
+  return button.parentElement?.querySelector("button") === button;
+}
+
+const REGION_IDS: readonly ControlRegion[] = ["view", "footer", "banners", "status"];
+
+function regionOf(active: HTMLElement): ControlRegion | undefined {
+  for (const region of REGION_IDS) {
+    if (active.closest(`#${region}`)) return region;
+  }
   return undefined;
+}
+
+/**
+ * What tells one control from its siblings: a month cell's day (its name
+ * carries a count that a sync can change), else the accessible name.
+ */
+function labelOf(control: Element): string {
+  return (
+    control.getAttribute("data-day") ??
+    control.getAttribute("aria-label") ??
+    control.textContent ??
+    ""
+  ).trim();
+}
+
+const firstClass = (className: string): string => className.trim().split(/\s+/)[0] ?? "";
+
+/**
+ * A request for any other button a draw rebuilds, or nothing for a control no
+ * draw touches (the header, a form field, a floating menu).
+ */
+export function controlRequestFor(
+  active: HTMLElement,
+  scope: FocusScope,
+): ControlRequest | undefined {
+  if (!active.matches("button, [role='button'], a[href]")) return undefined;
+  const region = regionOf(active);
+  if (!region) return undefined;
+  // The view region is `scope.view`; the others are found through the
+  // document, which is what the draw rebuilds them in.
+  if (region === "view" && !scope.view.contains(active)) return undefined;
+  return { kind: "control", region, className: active.className, label: labelOf(active) };
+}
+
+/**
+ * The control a `ControlRequest` names in the document as drawn now.
+ *
+ * Same class and same name first — "Sign in" on the Gradescope banner, not on
+ * Canvas's. Then the same class alone, because the draw may have changed the
+ * words on the very control that was pressed: "Sync now" is "Syncing…" by the
+ * time the footer is rebuilt — which also carries a pressed "Tick off" on to
+ * the next card's, once its own card has gone. A control of another kind is
+ * never substituted: a request nothing matches is dropped rather than sent
+ * somewhere the student was not.
+ */
+function findControl(request: ControlRequest, scope: FocusScope): HTMLElement | undefined {
+  const region =
+    request.region === "view"
+      ? scope.view
+      : scope.doc.querySelector<HTMLElement>(`#${request.region}`);
+  if (!region) return undefined;
+  // By the first class, which is the control's kind (`mday`, `btn`,
+  // `foot--sync`); the rest are states (`mday--on`) a redraw may have changed.
+  const kind = firstClass(request.className);
+  const candidates = [
+    ...region.querySelectorAll<HTMLElement>("button, [role='button'], a[href]"),
+  ].filter((control) => firstClass(control.className) === kind);
+  return (
+    candidates.find(
+      (control) => labelOf(control) === request.label && control.className === request.className,
+    ) ??
+    candidates.find((control) => labelOf(control) === request.label) ??
+    candidates.find((control) => control.className === request.className)
+  );
 }

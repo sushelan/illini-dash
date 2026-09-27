@@ -30,6 +30,7 @@ import { STUDENT_POST_ID } from "../../../core/overrides.js";
 import { assumedTimeNote, movedHeading } from "../../../core/provenance.js";
 import { postUrl } from "../../../core/post-link.js";
 import { unreadableDeadline, unreadableSummary } from "../../../core/quality.js";
+import { chromeTabs, focusOrOpen } from "../../../core/tabs.js";
 import { iconButton } from "../../icons.js";
 import type { Item, Status } from "../../../sources/types.js";
 import {
@@ -284,9 +285,11 @@ function renderDeadlineScreen(item: Item, now: Date): HTMLElement {
       // objected to twice.
       open.className = "btn btn-secondary btn-sm dl--moved-open";
       open.textContent = "Open the post ↗";
-      open.title = "Read the post this came out of, in a new tab";
+      // Not "in a new tab" any more: the tab already showing the post is
+      // brought forward instead of opened twice (I60).
+      open.title = "Read the post this came out of";
       open.addEventListener("click", () => {
-        void chrome.tabs.create({ url: postHref });
+        void focusOrOpen(postHref, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
       });
       note.append(open);
     }
@@ -332,6 +335,7 @@ function renderBar(item: Item): HTMLElement {
   back.addEventListener("click", () => closeScreen());
   bar.append(back, el("div", "screen-bar--title", "Deadline"));
   const more = iconButton("more", "More actions");
+  more.setAttribute("aria-haspopup", "menu");
   more.addEventListener("click", (event) => {
     event.stopPropagation();
     // A second press closes, as the header's ⋯ does (R2 L4).
@@ -422,7 +426,7 @@ function renderFacts(item: Item, now: Date): HTMLElement {
     open.type = "button";
     open.className = "link fact--open";
     open.textContent = "Open ↗";
-    open.addEventListener("click", () => chrome.tabs.create({ url }));
+    open.addEventListener("click", () => void focusOrOpen(url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
     sourceRow.append(open);
   }
   facts.append(sourceRow);
@@ -495,7 +499,7 @@ function renderButtons(item: Item): HTMLElement {
   // Hidden rather than disabled when it does not resolve: §8.3 route 1 needs an
   // instant to put in the link, and a dead button on a four-button grid is a
   // question with no answer.
-  const calendar = googleCalendarUrl(item);
+  const calendar = googleCalendarUrl(item, state.courseNames ?? {});
   if (calendar) {
     const gcal = button("Add to Calendar", false);
     gcal.addEventListener("click", () => chrome.tabs.create({ url: calendar }));
@@ -555,6 +559,7 @@ function openScreenMenu(item: Item, anchor: HTMLElement): void {
   const menu = document.createElement("div");
   menu.className = MENU_CLASS;
   menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", `Actions for ${item.title}`);
   menu.addEventListener("click", (event) => event.stopPropagation());
 
   const add = (

@@ -322,6 +322,48 @@ html.view-full,
 /* Errors only, and hidden the rest of the time — see popup.html. */
 #status { margin: 0; }
 #status[hidden] { display: none; }
+/*
+ * A notice in `#status` wraps; a banner in `#banners` does not.
+ *
+ * `.banner-line--text` is one line by design (ui.css), which is right for
+ * "Gradescope: signed out 40h — rows may be old" and wrong for a refusal whose
+ * last clause is the fix: "…refused that chang…" was all that showed of the
+ * sentence that ends "Open chrome://extensions and click Reload on the Illini
+ * Dash card" (popup-live #2, 2026-09-27). Only `#status` carries those.
+ * `anywhere`, so a long URL in a message breaks rather than widening a 400px
+ * document — a wider document is what opens the popup at 800px.
+ */
+#status .banner-line--text {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+/* For text only a screen reader should get (`#announce`). */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+ * The row's link is its title (2026-09-27, a11y review #12): the card is a
+ * `div.row` and the ⋯ beside the link is no longer inside it. Nothing about
+ * the title's look changes — the underline and link colour a bare `<a>` would
+ * bring are taken off at zero specificity, so every `.row--title` rule in the
+ * view sheets still wins — and the focus ring is drawn on the card, where the
+ * old `a.row` drew it, rather than around the title's text.
+ */
+:where(a.row--link) { color: inherit; text-decoration: inherit; }
+:where(.row--link) { cursor: pointer; }
+#view .row:has(.row--link:focus-visible) {
+  outline: 2px solid var(--primary, var(--accent));
+  outline-offset: 3px;
+}
+html #view .row .row--link:focus-visible { outline: none; }
 .row--moved { color: var(--warn); font-size: 11px; white-space: nowrap; }
 /* Late, not lost: full credit has gone but the window is still open. */
 .chip-practice { border-style: dashed; opacity: .8; }
@@ -1068,7 +1110,10 @@ h2.section.section--err { color: var(--err); opacity: 1; }
 .view-full .mhead { border-bottom: 0; }
 .view-full .mhead div { font-size: 12px; padding: 9px 0; letter-spacing: .07em; }
 .view-full .mcell { min-height: 112px; padding: 7px; gap: 3px; }
-.view-full .mgrid { grid-auto-rows: minmax(128px, 1fr); }
+/* `auto`, not `1fr` (popup-live #3): in an auto-height grid every `1fr` row
+   takes the tallest row's content height (measured 188px x5 at 1000x700), so
+   one busy week made all five tall. 112 is `.mcell`'s own floor above. */
+.view-full .mgrid { grid-auto-rows: minmax(112px, auto); }
 .view-full .mcell:nth-last-child(7) { border-bottom-left-radius: 12px; }
 .view-full .mcell:last-child { border-bottom-right-radius: 12px; }
 .view-full .mnum { font-size: 14px; font-weight: 500; min-height: 22px; }
@@ -1337,12 +1382,13 @@ h2.section.section--err { color: var(--err); opacity: 1; }
   color: var(--brand-mark); background: none; border: 0; padding: 2px 2px;
   cursor: pointer; border-radius: 5px;
 }
-.foot--sync:hover:not(:disabled) { background: var(--hover); }
+.foot--sync:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--hover); }
 /* Says "the click ran, and it is still running" on the control that was
    pressed — which is the one place a student is definitely looking, and what
    distinguishes "the click never ran" from "the round trip failed" with no
    console at all (UI rule 4). */
-.foot--sync:disabled { cursor: default; opacity: .7; }
+.foot--sync:disabled,
+.foot--sync[aria-disabled="true"] { cursor: default; opacity: .7; }
 .view-full .foot {
   min-height: 44px; font-size: 12.5px;
   padding-inline: max(24px, calc((100% - var(--chrome-max)) / 2));

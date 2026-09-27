@@ -30,8 +30,10 @@ import {
   displayState,
   footerLine,
   sourceRows,
+  staleBannerText,
   staleNotice,
   summarize,
+  toneOf,
 } from "../../core/health.js";
 import { courseLabel, displayCourseLabel, SOURCE_NAME, SOURCE_TITLE, timeAgo } from "../../core/names.js";
 import { TITLE_NAME_MAX } from "../../core/overrides.js";
@@ -39,12 +41,21 @@ import { coursesIn, weekContents } from "../../core/calendar.js";
 import { googleCalendarUrl } from "../../core/ics.js";
 import { sameCourse } from "../../core/dedupe.js";
 import { unreadableDeadline } from "../../core/quality.js";
+import { chromeTabs, focusOrOpen } from "../../core/tabs.js";
 import { downloadIcs } from "../download.js";
 import { appMark, bookMark, type IconName, icon, iconButton } from "../icons.js";
 import { renderThemePanel } from "../theme-panel.js";
 import { send, type OverrideAction, type Request } from "../../messages.js";
 import { type ActionOutcome, actionOutcome } from "../../core/outcome.js";
-import { DATE_NAV_CLASS, FOOT_HEALTH_CLASS, ROW_RING_SELECTOR } from "./focus.js";
+import {
+  DATE_NAV_CLASS,
+  FOOT_HEALTH_CLASS,
+  ROW_RING_SELECTOR,
+  findFocusTarget,
+  focusRequestFor,
+  ringStopFor,
+  rollRingTo,
+} from "./focus.js";
 import type { Item, Source, SourceState, SourceStatus } from "../../sources/types.js";
 import type { ViewName } from "../../core/calendar.js";
 import {
@@ -137,7 +148,12 @@ export function renderHealth(
 function sourcesTooltip(sources: Record<Source, SourceStatus>, now: Date): string {
   const lines = sourceRows(sources, now).map((row) => {
     const when = row.lastReadExact ? ` · last read ${row.lastReadExact}` : "";
-    const err = row.lastError ? ` (${row.lastError})` : "";
+    // What the *site* answered — an HTTP status, "Failed to fetch" — is worth a
+    // hover (PROGRESS, 2026-09-19). A `parse_error`'s message is this
+    // extension's own vocabulary ("dashboard: no .courseList--term headings"),
+    // which no student can act on; the word beside it already says what
+    // happened (copy audit #18, 2026-09-27).
+    const err = row.lastError && row.state !== "parse_error" ? ` (${row.lastError})` : "";
     return `${SOURCE_TITLE[row.source]} — ${row.word}${when}${err}`;
   });
   if (lines.length === 0) return "No sites are switched on";
@@ -209,13 +225,45 @@ export function actionButton(action: SourceAction | undefined): HTMLButtonElemen
   if (action.kind === "login") {
     button.textContent = "Sign in";
     button.title = `Open ${SOURCE_NAME[action.source]}'s login page`;
-    button.addEventListener("click", () => chrome.tabs.create({ url: action.url }));
+    button.addEventListener("click", () => void focusOrOpen(action.url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
     return button;
   }
   if (action.kind === "open") {
     button.textContent = "Open";
     button.title = `Open ${SOURCE_NAME[action.source]} and see what the page looks like`;
-    button.addEventListener("click", () => chrome.tabs.create({ url: action.url }));
+    button.addEventListener("click", () => void focusOrOpen(action.url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
+    return button;
+  }
+  if (action.kind === "off") {
+    /*
+     * The site answered and has nothing for this student (`empty`) — no
+     * PrairieLearn course this term, say. Signing in fixes nothing and a retry
+     * reads the same empty page, so the one useful thing to offer is to stop
+     * asking (2026-09-27, Sushi's "unable to read" report).
+     *
+     * A round trip to the worker, so the button says so while it runs (UI rule
+     * 4), and a refusal or a rejected send reaches the screen through the same
+     * path every correction's does (UI rule 2, ZIP rule 2).
+     */
+    const name = SOURCE_NAME[action.source];
+    button.textContent = "Turn off";
+    button.title = `Stop reading ${name}. You can switch it back on in Settings.`;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const restore = markBusy(button, () => [document.createTextNode("Turning off…")]);
+      console.log(`[illini-dash] turn off ${action.source} requested`);
+      void send({ type: "set-source-enabled", source: action.source, enabled: false })
+        .then((response) => settleCorrection(actionOutcome(response), restore))
+        .catch((err: unknown) => {
+          settleCorrection(
+            {
+              ok: false,
+              message: `Could not turn off ${name}: ${err instanceof Error ? err.message : String(err)}`,
+            },
+            restore,
+          );
+        });
+    });
     return button;
   }
   // Retry. A failed fetch is transient far more often than not, and pressing
@@ -237,13 +285,8 @@ export function actionButton(action: SourceAction | undefined): HTMLButtonElemen
 }
 
 /** The four tones the pill, the popover and the chips all share. */
-export function toneFor(state_: SourceState): "ok" | "warn" | "err" | "pending" | "off" {
-  if (state_ === "ok") return "ok";
-  if (state_ === "needs_login") return "warn";
-  if (state_ === "disabled") return "off";
-  if (state_ === "pending") return "pending";
-  return "err";
-}
+/** Moved to core as `toneOf` (2026-09-27) so the setup screen shares it; kept as a name for the views. */
+export const toneFor = toneOf;
 
 /* -------------------------------------------------------------------------- */
 /* The header's two controls                                                   */
@@ -409,8 +452,8 @@ function renderQuickFab(): void {
 /**
  * Lift the "+" clear of a tab strip that lives at the bottom.
  *
- * The Classical design moves `#tabs` under the list (`order: 2`, `position:
- * sticky; bottom: 0`), so a "+" at `bottom: 12px` sits **on top of the Exams
+ * The Classical design pins `#tabs` under the list (last in the document,
+ * `position: sticky; bottom: 0`), so a "+" at `bottom: 12px` sits **on top of the Exams
  * tab** — measured in the real document, dark, before this existed. Which
  * designs do that is not something to enumerate: it is read off the strip's own
  * box, so a design that moves it back to the top gets the low "+" with no rule
@@ -440,7 +483,7 @@ export function placeQuickFab(): void {
    * This read `tabsEl` and nothing else, on the reasoning that the strip is the
    * thing a design moves. That is true and it is not the whole question: the
    * strip and the sources bar TRADE places. Classical puts `#tabs` at the
-   * bottom and `#footer` at the top (`order: -1`); Plain leaves `#footer`
+   * bottom and `#footer` at the top (under the header, where the document puts it); Plain leaves `#footer`
    * sticky at the bottom and the tabs at the top. So in Plain the strip is not
    * pinned, the "+" dropped to its floor, and the floor is where the sources
    * bar is — measured in Plain's popup, the "+" sat on top of "Sync Now"
@@ -588,7 +631,7 @@ function openHeaderMenu(anchor: HTMLElement): void {
     void send({ type: "get-state" })
       .then((response) => {
         if (response.type !== "state") return;
-        const count = downloadIcs(response.items);
+        const count = downloadIcs(response.items, response.courseNames ?? {});
         showStatus(
           `Saved ${count} deadline${count === 1 ? "" : "s"} to illini-dash.ics — a one-time copy, ` +
             `not a subscription. Import it into Google Calendar, Apple Calendar or Outlook.`,
@@ -670,7 +713,7 @@ export function openOptions(section?: string): void {
  * from it. A filter that removes its own control gives the student no way back,
  * which is the failure §11 ranks worst.
  */
-function openCoursesMenu(menu: HTMLElement, anchor: HTMLElement): void {
+function openCoursesMenu(menu: HTMLElement, anchor: HTMLElement, pressed = 0): void {
   const courses = coursesIn(state.currentItems);
   menu.replaceChildren();
 
@@ -679,7 +722,7 @@ function openCoursesMenu(menu: HTMLElement, anchor: HTMLElement): void {
   heading.textContent = courses.length > 0 ? "Show these courses" : "No courses on screen yet";
   menu.append(heading);
 
-  for (const course of courses) {
+  for (const [index, course] of courses.entries()) {
     const on = !state.hidden.has(course);
     const entry = menuItem(courseLabel(course, state.courseNames), on ? "check" : "close", () => {
       if (state.hidden.has(course)) state.hidden.delete(course);
@@ -687,7 +730,7 @@ function openCoursesMenu(menu: HTMLElement, anchor: HTMLElement): void {
       writeStored(HIDDEN_KEY, JSON.stringify([...state.hidden]));
       // Redrawn in place rather than closed: hiding four of six courses is four
       // presses, and a menu that shuts after each one makes it twelve.
-      openCoursesMenu(menu, anchor);
+      openCoursesMenu(menu, anchor, index);
       void app.refresh();
     });
     entry.setAttribute("role", "menuitemcheckbox");
@@ -696,9 +739,24 @@ function openCoursesMenu(menu: HTMLElement, anchor: HTMLElement): void {
     menu.append(entry);
   }
 
-  // The pressed entry was just removed with the rest, and focus with it; put it
-  // on the first course so the arrows and Escape still work.
-  menu.querySelector<HTMLElement>(".menu-item")?.focus();
+  /*
+   * The pressed entry was just removed with the rest, and focus with it; put it
+   * back on the *same* course, rebuilt. Focusing the first one sent a student
+   * hiding the fourth of seven courses back to the top of the list after every
+   * press (a11y review, 2026-09-27, #10). With no course at all there is no
+   * entry, so the menu itself takes focus: the arrows and Escape still reach it,
+   * and focus is not left on a `<body>` behind an open menu.
+   */
+  const entries = [...menu.querySelectorAll<HTMLElement>(".menu-item")];
+  const target = entries[Math.min(pressed, entries.length - 1)];
+  if (target) {
+    for (const each of entries) delete each.dataset["active"];
+    target.dataset["active"] = "true";
+    target.focus();
+  } else {
+    menu.tabIndex = -1;
+    menu.focus();
+  }
   placeFloating(menu, anchor, "right");
 }
 
@@ -779,6 +837,11 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     // A tab strip with `aria-selected` and no `role` is a row of buttons one of
     // which claims to be selected — the attribute means nothing without it.
     tab.tabIndex = name === state.view ? 0 : -1;
+    // The strip names what it controls, and the panel names its tab (a11y
+    // review, 2026-09-27, #13) — a tablist whose tabs point nowhere is a row of
+    // toggles to a screen reader.
+    tab.id = tabIdFor(name);
+    tab.setAttribute("aria-controls", viewEl.id || "view");
 
     /*
      * The glyph, which the shipped design does not draw.
@@ -817,18 +880,49 @@ export function renderTabs(counts: Partial<Record<ViewName, number>>): void {
     tab.addEventListener("click", () => selectTab(name));
     tab.addEventListener("keydown", (event) => {
       // ← → moves between tabs, which is what a tablist does; Tab leaves the
-      // strip entirely rather than walking five buttons.
-      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      // strip entirely rather than walking five buttons. Home and End go to
+      // either end, which is the rest of what a tablist answers.
+      const next = tabKeyTarget(name, event.key);
+      if (!next) return;
       event.preventDefault();
-      const step = event.key === "ArrowRight" ? 1 : -1;
-      const next = VIEWS[(VIEWS.indexOf(name) + step + VIEWS.length) % VIEWS.length]!;
       selectTab(next);
     });
     tabsEl.append(tab);
   }
+  viewEl.setAttribute("role", "tabpanel");
+  if (VIEWS.includes(state.view)) {
+    viewEl.setAttribute("aria-labelledby", tabIdFor(state.view));
+    viewEl.removeAttribute("aria-label");
+  } else {
+    // Sources has no tab: the footer's button selects it.
+    viewEl.removeAttribute("aria-labelledby");
+    viewEl.setAttribute("aria-label", VIEW_LABEL[state.view] ?? state.view);
+  }
   // The floating "+" clears this strip, and where the strip is is a fact about
   // the document that only a draw knows.
   placeQuickFab();
+}
+
+/** The id a tab carries, which `#view`'s `aria-labelledby` names. */
+export function tabIdFor(name: ViewName): string {
+  return `tab-${name}`;
+}
+
+/** The view a key on the tab for `name` selects, or nothing for any other key. */
+export function tabKeyTarget(name: ViewName, key: string): ViewName | undefined {
+  const here = VIEWS.indexOf(name);
+  switch (key) {
+    case "ArrowRight":
+      return VIEWS[(here + 1) % VIEWS.length];
+    case "ArrowLeft":
+      return VIEWS[(here - 1 + VIEWS.length) % VIEWS.length];
+    case "Home":
+      return VIEWS[0];
+    case "End":
+      return VIEWS[VIEWS.length - 1];
+    default:
+      return undefined;
+  }
 }
 
 export function selectTab(name: ViewName): void {
@@ -888,6 +982,7 @@ export function renderBanners(stateIn: {
   notificationsBlocked: boolean;
   items: Item[];
 }): void {
+  const keep = focusKeptIn(bannersEl);
   bannersEl.replaceChildren();
   const banners: Banner[] = [];
 
@@ -908,11 +1003,9 @@ export function renderBanners(stateIn: {
     // Short enough to fit one 32px line beside an icon and a button at 400px —
     // about 45 characters. The longer sentence it replaces wrapped, and a
     // wrapped banner is 41px, which is only nine pixels until three of them
-    // are on screen at once.
-    const age =
-      stale.hours === undefined
-        ? "never read — nothing from it is listed"
-        : `signed out ${stale.hours}h — rows may be old`;
+    // are on screen at once. The words are core's (`staleBannerText`): it
+    // said "signed out 13h", a moment this extension does not know
+    // (copy audit #5).
     const login = signInUrl(stale.source, stateIn.sources[stale.source], "needs_login");
     banners.push({
       /*
@@ -928,9 +1021,9 @@ export function renderBanners(stateIn: {
       className: "banner--stale",
       tone: "warn",
       glyph: "warning",
-      text: `${SOURCE_NAME[stale.source]}: ${age}`,
+      text: staleBannerText(stale),
       ...(stale.needsLogin && login
-        ? { action: { label: "Sign in", run: () => chrome.tabs.create({ url: login }) } }
+        ? { action: { label: "Sign in", run: () => void focusOrOpen(login, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)) } }
         : {}),
     });
   }
@@ -964,6 +1057,79 @@ export function renderBanners(stateIn: {
    */
 
   for (const banner of banners) bannersEl.append(renderBanner(banner));
+  announce(
+    "undo",
+    state.pendingUndo && Date.now() < state.pendingUndo.until
+      ? `Deleted “${state.pendingUndo.title}”. Undo is in the banner at the top.`
+      : undefined,
+  );
+  keep();
+}
+
+/**
+ * Put focus back on the control it was on in `region`, once `region` has been
+ * rebuilt — or do nothing when focus was somewhere else.
+ *
+ * For the two strips a draw rebuilds *outside* `render`: the banners, before
+ * it, and the footer, which `repaintChrome` also rebuilds on its own when a
+ * sync starts. Pressing "Sync now" or tabbing to a banner's "Sign in" left the
+ * keyboard on `<body>` (a11y review, 2026-09-27, #2). Read before the replace
+ * and applied by the same function that replaced — the draw consumes it, and
+ * nothing is chained onto a promise (ZIP rule 1). Without scrolling: the
+ * control is where it was.
+ */
+function focusKeptIn(region: HTMLElement): () => void {
+  const active = document.activeElement;
+  if (!active || !region.contains(active)) return () => undefined;
+  const scope = { view: viewEl, tabs: tabsEl, doc: document };
+  const request = focusRequestFor(active, scope, state.view);
+  if (!request) return () => undefined;
+  return () => {
+    if (region.contains(document.activeElement)) return;
+    findFocusTarget(request, scope)?.focus({ preventScroll: true });
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* What a screen reader hears                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** The visually hidden live region, created on first use when the page has none. */
+export const ANNOUNCE_ID = "announce";
+
+/** What each channel last said, so a redraw that says it again says nothing. */
+const announced = new Map<string, string>();
+
+/**
+ * Say `text` once to a screen reader, or forget what `channel` last said.
+ *
+ * Nothing in the popup was a live region (a11y review, 2026-09-27, #6): a
+ * refusal arrived in `#status` while focus sat on `<body>`, and "Deleted … ·
+ * Undo" had a ten-second deadline nobody could hear. `#status` and `#banners`
+ * themselves are not made live, because every draw rebuilds them — a refusal
+ * is re-emitted by every draw until it is dismissed (ZIP rule 2), and a live
+ * region rebuilt each minute would read it out each minute. One hidden region,
+ * written only when a channel's sentence *changes*, is the fix; passing
+ * `undefined` clears the channel so the same sentence can be said again the
+ * next time it is true.
+ */
+export function announce(channel: string, text: string | undefined): void {
+  if (text === undefined || text === "") {
+    announced.delete(channel);
+    return;
+  }
+  if (announced.get(channel) === text) return;
+  announced.set(channel, text);
+  let region = document.getElementById(ANNOUNCE_ID);
+  if (!region) {
+    region = document.createElement("div");
+    region.id = ANNOUNCE_ID;
+    region.className = "sr-only";
+    region.setAttribute("role", "status");
+    region.setAttribute("aria-live", "polite");
+    document.body.append(region);
+  }
+  region.textContent = text;
 }
 
 function renderBanner(banner: Banner): HTMLElement {
@@ -1034,8 +1200,12 @@ export function showStatus(text: string | undefined): void {
       },
     });
   }
+  const keep = focusKeptIn(statusEl);
   statusEl.replaceChildren(...lines.map(renderBanner));
   statusEl.hidden = lines.length === 0;
+  keep();
+  announce("notice", text);
+  announce("refusal", state.actionError);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1071,10 +1241,14 @@ export function showStatus(text: string | undefined): void {
  * pill did — pressing a second time is what everybody tries first to dismiss
  * what they opened. The hover text is `sourcesTooltip`, moved across with it.
  */
+/** Whether "Syncing…" was said and its outcome is still owed. */
+let syncAnnounced = false;
+
 export function renderFooter(
   sources: Record<Source, SourceStatus>,
   now: Date,
 ): void {
+  const keep = focusKeptIn(footerEl);
   footerEl.replaceChildren();
   // One derivation, in core, mutation-tested: the first merged build carried
   // a second copy here that said "4 sources" in green over three sources that
@@ -1086,7 +1260,7 @@ export function renderFooter(
 
   const count = document.createElement("span");
   count.className = "foot--count";
-  count.textContent = line.sources === "no sources" ? "No sources on" : line.sources;
+  count.textContent = line.sources === "no sources" ? "No sites on" : line.sources;
 
   const when = document.createElement("span");
   when.className = "foot--when";
@@ -1146,16 +1320,44 @@ export function renderFooter(
   sync.append(icon("sync"));
   const syncLabel = document.createElement("span");
   syncLabel.className = "foot--sync-label";
-  syncLabel.textContent = state.syncing ? "Syncing…" : "Sync now";
+  // `isSyncing()`, not `state.syncing`: `footerLine` no longer says
+  // "syncing…" (that was the duplicate, popup-live #11), so this label is the
+  // one place a worker-initiated sync is said at all.
+  syncLabel.textContent = isSyncing() ? "Syncing…" : "Sync now";
   sync.append(syncLabel);
-  sync.disabled = state.syncing;
-  if (state.syncing) sync.dataset["busy"] = "true";
+  /*
+   * `aria-disabled`, not `disabled`, while a sync runs (2026-09-27).
+   *
+   * A disabled button cannot hold focus, so pressing Sync now from the
+   * keyboard dropped focus on `<body>` for the whole sync — and the footer is
+   * rebuilt at the start of it, so there was nothing to return to either
+   * (a11y review #2). `runSync` already refuses a second sync while one is in
+   * flight, so the press does nothing either way; this keeps the student where
+   * they were and says the control is busy.
+   */
+  if (state.syncing) {
+    sync.setAttribute("aria-disabled", "true");
+    sync.setAttribute("aria-busy", "true");
+    sync.dataset["busy"] = "true";
+  }
   sync.addEventListener("click", (event) => {
     event.stopPropagation();
+    if (state.syncing) return;
     void app.runSync();
   });
 
   footerEl.append(health, sync);
+  keep();
+  // Said when it starts, and when it ends with the sentence the strip now
+  // shows — the outcome of the attempt that just ran (worker rule 2).
+  if (state.syncing) {
+    announce("sync", "Syncing…");
+    syncAnnounced = true;
+  } else if (syncAnnounced) {
+    syncAnnounced = false;
+    announce("sync", undefined);
+    announce("sync", `Sync finished: ${count.textContent} · ${when.textContent}`);
+  }
   /*
    * Nothing after the strip.
    *
@@ -1471,9 +1673,22 @@ const menuCleanups = new WeakMap<Element, () => void>();
 export function closeMenus(): void {
   const open = [...document.querySelectorAll<HTMLElement>(MENU_SELECTOR)];
   for (const panel of open) {
-    menuAnchors.get(panel)?.removeAttribute("aria-expanded");
+    const anchor = menuAnchors.get(panel);
+    /*
+     * Did this panel have the keyboard? Asked *before* it is removed.
+     *
+     * Only Escape used to hand focus back; every entry that closes its own
+     * menu — Download .ics, Google Calendar…, a refused correction — removed
+     * the element that had focus and left `<body>`, so the next Tab started
+     * again from the top of the popup (a11y review, 2026-09-27, #3). When focus
+     * had already left — a click elsewhere, the focusout path below — `contains`
+     * is false and nothing is taken from wherever that click put it.
+     */
+    const hadFocus = panel.contains(document.activeElement);
+    anchor?.removeAttribute("aria-expanded");
     menuCleanups.get(panel)?.();
     panel.remove();
+    if (hadFocus && anchor?.isConnected) returnFocusTo(anchor);
   }
   // The room a panel asked for is given back the moment it closes, or the popup
   // stays that tall with nothing in the space. See `placeFloating`.
@@ -1482,6 +1697,20 @@ export function closeMenus(): void {
     state.redrawAfterMenu = false;
     void app.refresh();
   }
+}
+
+/**
+ * Focus the control a menu hangs off, or its row's stop when it has none.
+ *
+ * The row's ⋯ is `tabIndex −1`, so focusing it stranded the keyboard on an
+ * element ↑ ↓ did not recognise and Tab left (a11y review, 2026-09-27, #5).
+ * Its row's link is the stop instead, and the ring is rolled onto it so the
+ * next Tab comes back to the same row. The ⋯ stays the *placement* anchor.
+ */
+function returnFocusTo(anchor: HTMLElement): void {
+  const stop = ringStopFor(anchor);
+  if (viewEl.contains(stop) && stop.matches(ROW_RING_SELECTOR)) rollRingTo(rowsInView(), stop);
+  stop.focus({ preventScroll: true });
 }
 
 /**
@@ -1622,11 +1851,27 @@ document.addEventListener("keydown", (event) => {
     // guards would look at a document the menu has just left. One press, one
     // owner: the menu takes it and nothing behind it sees it (R2 M1).
     event.stopImmediatePropagation();
-    const anchor = menuAnchors.get(menu);
+    // `closeMenus` hands focus back — to the anchor, or its row's stop — when
+    // the menu had it, which `trapMenuKeys` guarantees from the moment it opens.
     closeMenus();
-    anchor?.focus();
   }
 });
+
+/**
+ * Everything Tab walks inside an open menu, in document order.
+ *
+ * The rename box, the entries, and whatever a panel of switches carries
+ * (Appearance). A radio group is one stop, as it is everywhere else: only its
+ * checked radio is in the walk.
+ */
+export const MENU_TAB_SELECTOR =
+  ".menu-input, .menu-item:not(:disabled), input:not(:disabled), button:not(:disabled), select:not(:disabled)";
+
+function menuTabStops(menu: HTMLElement): HTMLElement[] {
+  return [...menu.querySelectorAll<HTMLElement>(MENU_TAB_SELECTOR)].filter(
+    (el) => !(el instanceof HTMLInputElement && el.type === "radio" && !el.checked),
+  );
+}
 
 /**
  * Arrow keys inside an open menu, and focus back where it came from on close.
@@ -1641,9 +1886,18 @@ document.addEventListener("keydown", (event) => {
  * `<body>` and the next Tab starts again from the top of the popup.
  */
 export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
-  const items = () => [...menu.querySelectorAll<HTMLElement>(".menu-item:not(:disabled)")];
+  // The rename box is in the arrow ring with the entries: ↓ from it reaches
+  // Save and "Use the original name", which nothing else did (diff review
+  // #4, 2026-09-27).
+  const items = () => [...menu.querySelectorAll<HTMLElement>(".menu-input, .menu-item:not(:disabled)")];
   anchor.setAttribute("aria-expanded", "true");
   menuAnchors.set(menu, anchor);
+  // A menu with no name announces as "menu" (a11y review #13). The caller's
+  // own label wins; otherwise the control it hangs off names it.
+  if (!menu.hasAttribute("aria-label") && !menu.hasAttribute("aria-labelledby")) {
+    const name = anchor.getAttribute("aria-label") ?? anchor.textContent?.trim();
+    if (name) menu.setAttribute("aria-label", name);
+  }
 
   const focusAt = (index: number) => {
     const all = items();
@@ -1660,9 +1914,39 @@ export function trapMenuKeys(menu: HTMLElement, anchor: HTMLElement): void {
   };
 
   menu.addEventListener("keydown", (event) => {
-    // A text box in the menu (a rename) keeps Home, End and the arrows for its
-    // caret; only leaving it with Tab or Escape is the menu's business.
-    if (event.target instanceof HTMLInputElement && event.target.type === "text") return;
+    /*
+     * Tab walks the menu and wraps; it never walks out of it.
+     *
+     * The menu is appended to `<body>` after everything else, so Tab from its
+     * last control left the document, the focusout below closed the menu, and
+     * from the rename box it took the typed name with it — Save is `tabIndex
+     * −1` like every entry, so Tab skipped straight past it (a11y review #4,
+     * diff review #4). Escape is the way out, as it is for every menu.
+     */
+    if (event.key === "Tab") {
+      const stops = menuTabStops(menu);
+      if (stops.length === 0) return;
+      event.preventDefault();
+      const at = stops.indexOf(document.activeElement as HTMLElement);
+      const step = event.shiftKey ? -1 : 1;
+      const next =
+        at === -1 ? stops[event.shiftKey ? stops.length - 1 : 0]! : stops[(at + step + stops.length) % stops.length]!;
+      for (const item of items()) delete item.dataset["active"];
+      if (next.matches(".menu-item")) next.dataset["active"] = "true";
+      next.focus();
+      return;
+    }
+    // A text box in the menu (a rename) keeps Home, End, ← and → for its
+    // caret; ↑ and ↓ are not caret keys in a one-line box, so they move to the
+    // entries like everywhere else in the menu.
+    if (
+      event.target instanceof HTMLInputElement &&
+      event.target.type === "text" &&
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp"
+    ) {
+      return;
+    }
     const all = items();
     const here = all.findIndex((item) => item === document.activeElement);
     switch (event.key) {
@@ -1818,6 +2102,10 @@ function markBusy(control: HTMLElement | undefined, busy: () => Node[]): () => v
     (other) => [other, other.disabled] as const,
   );
   control.replaceChildren(...busy());
+  // Said as well as shown: the pressed control is the one place a sighted
+  // student is looking, and it is nowhere for one who cannot see it.
+  announce("busy", undefined);
+  announce("busy", control.textContent?.trim() || undefined);
   if (control instanceof HTMLButtonElement) control.disabled = true;
   for (const [other] of siblings) other.disabled = true;
   return () => {
@@ -2025,6 +2313,7 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
   const menu = document.createElement("div");
   menu.className = MENU_CLASS;
   menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", `Actions for ${item.title}`);
   menu.addEventListener("click", (event) => event.stopPropagation());
 
   const add = (label: string, glyph: IconName, onClick: (entry: HTMLElement) => void) => {
@@ -2089,7 +2378,7 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
     const primary = item.members[0]?.source;
     add(`Open in ${primary ? SOURCE_NAME[primary] : "the source"}`, "open-tab", () => {
       closeMenus();
-      chrome.tabs.create({ url: open });
+      void focusOrOpen(open, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
     });
   }
 
@@ -2135,7 +2424,7 @@ export function openRowMenu(item: Item, anchor: HTMLElement): void {
 
   addRenameEntries(menu, item, add);
 
-  const calendar = googleCalendarUrl(item);
+  const calendar = googleCalendarUrl(item, state.courseNames ?? {});
   if (calendar) {
     add("Add to Google Calendar", "tab-month", () => chrome.tabs.create({ url: calendar }));
   }
@@ -2205,9 +2494,8 @@ function rowsInView(): HTMLElement[] {
 }
 
 export function makeRowsNavigable(): void {
-  rowsInView().forEach((row, index) => {
-    row.tabIndex = index === 0 ? 0 : -1;
-  });
+  const rows = rowsInView();
+  if (rows[0]) rollRingTo(rows, rows[0]);
 }
 
 /*
@@ -2228,7 +2516,6 @@ viewEl.addEventListener("keydown", (event) => {
   const next =
     rows[Math.min(rows.length - 1, Math.max(0, here + (event.key === "ArrowDown" ? 1 : -1)))];
   if (!next) return;
-  for (const row of rows) row.tabIndex = -1;
-  next.tabIndex = 0;
+  rollRingTo(rows, next);
   next.focus();
 });

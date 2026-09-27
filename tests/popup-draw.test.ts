@@ -24,9 +24,9 @@
  */
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
-import type { Item, Source, SourceStatus } from "../src/sources/types.js";
+import type { Item, Source, SourceStatus, Suggestion } from "../src/sources/types.js";
 import { referenceItems } from "../scripts/preview-reference.js";
 
 const popup = parseHTML(
@@ -140,6 +140,27 @@ Object.defineProperty(popup.document, "scrollingElement", { get: () => root, con
   };
 }
 
+/* ---- the clock, pinned --------------------------------------------------
+ *
+ * Tuesday 2026-09-22, 11:14 CDT — the instant `scripts/preview-clock.js` and
+ * `tests/preview-acceptance.test.ts` already pin, so the reference dataset here
+ * is the one the harness draws.
+ *
+ * Unpinned, three rail tests failed every evening from 22:00 to midnight
+ * (tests-health #1, 2026-09-27; PROGRESS recorded two such evening runs): the
+ * rail's rows are cloned at now±1h, the past one is Late's, and from 22:00 the
+ * future one is past `END_OF_DAY_MINUTES` and lands in "By end of day" — so no
+ * rail was drawn, and a test about the rail failed for a reason that was the
+ * clock's. Only `Date` is faked: `settle()` still needs a real `setTimeout`.
+ * Not in `setupFiles` — a global fake makes `Date.now() - started` zero in the
+ * suite's three perf bounds, which then pass vacuously.
+ */
+vi.useFakeTimers({ toFake: ["Date"] });
+vi.setSystemTime(new Date("2026-09-22T16:14:00Z"));
+afterAll(() => {
+  vi.useRealTimers();
+});
+
 /* ---- the worker, stubbed ------------------------------------------------ */
 const now = Date.now();
 const items: Item[] = referenceItems(now);
@@ -156,6 +177,8 @@ const REFUSAL =
   "Preview does not simulate override. This journey needs a stateful stub or an isolated Chrome check.";
 /** What the next correction is answered with. */
 let answer: () => unknown = () => ({ type: "ok" });
+/** The worker's "found in a post" list; a test pushes and empties it. */
+const suggestions: Suggestion[] = [];
 const sent: { type: string }[] = [];
 
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -167,6 +190,8 @@ globals["Element"] = popup.Element;
 globals["Node"] = popup.Node;
 globals["HTMLAnchorElement"] = popup.HTMLAnchorElement;
 globals["HTMLButtonElement"] = popup.HTMLButtonElement;
+// `trapMenuKeys` asks whether a key landed in the rename box.
+globals["HTMLInputElement"] = popup.HTMLInputElement;
 globals["location"] = { search: "" };
 globals["localStorage"] = {
   // The week: every day has rows in the reference dataset, and Today may draw
@@ -191,7 +216,7 @@ globals["chrome"] = {
             sources,
             settings: DEFAULT_SETTINGS,
             courseNames: {},
-            suggestions: [],
+            suggestions,
             observers: { piazza: { enabled: false }, campuswire: { enabled: false } },
             lastSyncAt: new Date(now).toISOString(),
           };
@@ -209,7 +234,7 @@ globals["chrome"] = {
   tabs: { create: () => undefined },
 };
 
-const { MENU_CLASS, VIEW_LABEL, app, state } = await import("../src/ui/popup/state.js");
+const { MENU_CLASS, VIEWS, VIEW_LABEL, app, state } = await import("../src/ui/popup/state.js");
 
 /**
  * The rules of one stylesheet, as `{selector, decls}` — the same reader
@@ -252,6 +277,15 @@ const rowOf = (title: string) =>
   [...view().querySelectorAll<HTMLElement>("a.row, div.row")].find(
     (row) => row.querySelector(".row--title")?.textContent === title,
   );
+/**
+ * A row's keyboard stop: its link, or a typed row's `role=button` title.
+ *
+ * Since 2026-09-27 the card is a `div.row` holding the link and the ⋯ side by
+ * side (a11y review #12), so the element focus lands on is the link inside the
+ * card, not the card. Tests that asserted focus on "the row" assert it on this.
+ */
+const stopOf = (row: Element | undefined) =>
+  row?.querySelector<HTMLElement>(".row--link") ?? undefined;
 
 beforeAll(async () => {
   // The entry's own open-sync and first draw.
@@ -327,7 +361,7 @@ describe("I02 — a screen opened or closed by a held press focuses the right co
     expect(view().querySelector(".screen-bar")).toBeNull();
     const row = rowOf(wanted.title);
     expect(row).toBeDefined();
-    expect(document.activeElement).toBe(row);
+    expect(document.activeElement).toBe(stopOf(row));
   });
 
   /*
@@ -416,11 +450,12 @@ describe("I01 — arrow keys keep working across the strip's redraws", () => {
     state.view = "week";
     await app.refresh();
     const rows = [...view().querySelectorAll<HTMLElement>("a.row, div.row")];
-    const stale = rows[1] ?? rows[0]!;
-    const title = stale.querySelector(".row--title")!.textContent!;
+    const card = rows[1] ?? rows[0]!;
+    const title = card.querySelector(".row--title")!.textContent!;
+    const stale = stopOf(card)!;
     stale.focus();
     await app.refresh();
-    const fresh = rowOf(title)!;
+    const fresh = stopOf(rowOf(title))!;
     expect(fresh).not.toBe(stale);
     expect(document.activeElement).toBe(fresh);
   });
@@ -1453,8 +1488,11 @@ const showDay = async (): Promise<void> => {
  * The reference set is a *week* of realistic rows and today's share of it has
  * no stated hour, so the rail is not drawn at all — which would make both tests
  * below vacuous rather than failing (parser house rule 10's case: a fixture
- * that defeats itself looks exactly like a gap). Two hours apart and either
- * side of `now`, so the marker lands between them rather than at an end.
+ * that defeats itself looks exactly like a gap). One an hour before `now` and
+ * one an hour after: the past one is overdue and is drawn under Late, so it is
+ * the future one that puts the rail on screen, with the marker at its top.
+ * That only holds while now+1h is before 23:00, which is why the clock above
+ * is pinned.
  *
  * Spliced into the array the worker stub answers with and taken out again,
  * because every other test in this file reads the same set.
@@ -1837,5 +1875,867 @@ describe("a row past full credit with its 80% window still open", () => {
       const count = Number(band.querySelector(".section-head")!.lastElementChild!.textContent!.replace(/\D/g, ""));
       expect(count).toBe(band.querySelectorAll(".row").length);
     });
+  });
+});
+
+/* ========================================================================== */
+/* The keyboard, 2026-09-27                                                    */
+/* ========================================================================== */
+
+/*
+ * The a11y review of 2026-09-27 drove the real popup with CDP key events and
+ * recorded `document.activeElement` after each one. Every test below replays
+ * one of its sequences against the real entry, with keys rather than
+ * `.click()` wherever the finding was about a key (UI rule 5). A `click` is
+ * dispatched only where the browser's own default action for the key is a
+ * click on a `<button>` — Enter on a focused button — and says so.
+ */
+const keyWith = (el: Element, key: string, init: { shiftKey?: boolean } = {}) => {
+  const event = new popup.Event("keydown", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "key", { value: key });
+  Object.defineProperty(event, "shiftKey", { value: init.shiftKey === true });
+  el.dispatchEvent(event);
+  return event;
+};
+const menuOpen = () => document.querySelector<HTMLElement>(`.${MENU_CLASS}`);
+const entryNamed = (label: string) =>
+  [...(menuOpen()?.querySelectorAll<HTMLElement>(".menu-item") ?? [])].find(
+    (entry) => entry.textContent?.trim() === label,
+  );
+const announced = () => document.getElementById(shell.ANNOUNCE_ID)?.textContent ?? "";
+const escape = async () => {
+  keyWith(document.activeElement ?? document.body, "Escape");
+  await settle();
+};
+const showWeek = async (): Promise<void> => {
+  shell.selectTab("week");
+  state.dayOffset = 0;
+  await app.refresh();
+  await settle();
+};
+
+describe("a row is a link and a ⋯ side by side (a11y #1, #12)", () => {
+  /*
+   * A typed deadline with no link, dated two hours from the pinned now so it
+   * lands in this week's first day with a stated hour. Spliced into the
+   * worker's answer and taken out again, like `withTimedToday`.
+   */
+  const FLAT = "Keyboard test row";
+  const withFlatRow = async (body: () => Promise<void>): Promise<void> => {
+    const base = items.find((one) => one.members.length === 1 && one.members[0]!.source === "manual")!;
+    const dueAt = new Date(now + 2 * 60 * 60 * 1000).toISOString();
+    const member = { ...base.members[0]!, sourceId: "flat-row", title: FLAT, dueAt };
+    delete (member as { url?: string }).url;
+    delete (member as { extra?: unknown }).extra;
+    const flat: Item = { ...base, id: "flat-row", title: FLAT, dueAt, members: [member] };
+    delete (flat as { url?: string }).url;
+    items.push(flat);
+    try {
+      await showWeek();
+      await body();
+    } finally {
+      items.splice(items.indexOf(flat), 1);
+      state.screen = undefined;
+      await app.refresh();
+      await settle();
+    }
+  };
+
+  it("draws every card as a div whose title is the stop, with the ⋯ beside it", async () => {
+    await showWeek();
+    const cards = [...view().querySelectorAll<HTMLElement>(".row")];
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card.tagName).toBe("DIV");
+      const stop = stopOf(card)!;
+      expect(stop, "every card has one stop").toBeDefined();
+      expect(stop.classList.contains("row--title")).toBe(true);
+      const menu = card.querySelector(".row--menu")!;
+      // A sibling of the link, never inside it: HTML forbids interactive
+      // content in an `<a>`, and the nested button's name was being folded
+      // into every row's ("… More actions").
+      expect(stop.contains(menu)).toBe(false);
+      expect(menu.getAttribute("aria-haspopup")).toBe("menu");
+      const name = stop.getAttribute("aria-label")!;
+      expect(name.startsWith(stop.textContent!)).toBe(true);
+      expect(name).not.toContain("More actions");
+    }
+    // A row with a URL is still a real link, so it can be middle-clicked,
+    // copied and announced as one.
+    expect(view().querySelector("a.row--link[href]")).not.toBeNull();
+  });
+
+  it("opens a typed row with no link from the keyboard: Enter, Space and `.`", async () => {
+    await withFlatRow(async () => {
+      const card = rowOf(FLAT)!;
+      expect(card, "the flat row was drawn").toBeDefined();
+      const stop = stopOf(card)!;
+      expect(stop.tagName).toBe("SPAN");
+      expect(stop.getAttribute("role")).toBe("button");
+      stop.focus();
+
+      keyWith(stop, ".");
+      expect(menuOpen(), "`.` opens the row's menu").not.toBeNull();
+      await escape();
+      expect(menuOpen()).toBeNull();
+
+      // Read through a function: TypeScript narrows `state.screen` to
+      // `undefined` after the assignment below and cannot see the keydown set it.
+      const screenKind = (): string | undefined => state.screen?.kind;
+      keyWith(stop, "Enter");
+      expect(screenKind()).toBe("deadline");
+      state.screen = undefined;
+      await app.refresh();
+      await settle();
+
+      const again = stopOf(rowOf(FLAT))!;
+      keyWith(again, " ");
+      expect(screenKind(), "Space opens a role=button too").toBe("deadline");
+    });
+  });
+});
+
+describe("a menu hands focus back when it closes itself (a11y #3, #5)", () => {
+  afterEach(async () => {
+    if (menuOpen()) shell.closeMenus();
+    state.actionError = undefined;
+    answer = () => ({ type: "ok" });
+    await app.refresh();
+    await settle();
+  });
+
+  it("returns Escape to the row's stop, not the tabIndex −1 ⋯, and ↓ still walks", async () => {
+    await showWeek();
+    const stops = [...view().querySelectorAll<HTMLElement>(".row--link")];
+    const first = stops[0]!;
+    const title = first.textContent!;
+    first.focus();
+    keyWith(first, ".");
+    expect(menuOpen()).not.toBeNull();
+    expect(menuOpen()!.contains(document.activeElement)).toBe(true);
+    await escape();
+    const back = stopOf(rowOf(title))!;
+    expect(document.activeElement).toBe(back);
+    expect(back.getAttribute("tabindex")).toBe("0");
+    keyWith(back, "ArrowDown");
+    expect(document.activeElement).not.toBe(back);
+    expect((document.activeElement as HTMLElement).classList.contains("row--link")).toBe(true);
+  });
+
+  it("rolls the ring onto a row whose ⋯ the pointer opened, so Tab comes back to it", async () => {
+    // The order the keyboard test above cannot reach (mutation rule 5): there
+    // the student arrowed to the row first, which had already rolled it. A
+    // pointer press on the third row's ⋯ rolls nothing, so the hand-back has
+    // to, or the next Shift+Tab into the list lands on the first row instead.
+    await showWeek();
+    const cards = [...view().querySelectorAll<HTMLElement>(".row")];
+    const card = cards[2]!;
+    const title = stopOf(card)!.textContent!;
+    expect(stopOf(card)!.getAttribute("tabindex")).toBe("-1");
+    click(card.querySelector(".row--menu")!);
+    expect(menuOpen()).not.toBeNull();
+    await escape();
+    const back = stopOf(rowOf(title))!;
+    expect(document.activeElement).toBe(back);
+    expect(back.getAttribute("tabindex")).toBe("0");
+    const tabbable = [...view().querySelectorAll(".row--link")].filter(
+      (stop) => stop.getAttribute("tabindex") === "0",
+    );
+    expect(tabbable).toEqual([back]);
+  });
+
+  it("puts focus on the header ⋯ after an entry that closes the menu itself", async () => {
+    await showWeek();
+    const more = document.querySelector<HTMLElement>('#actions button[aria-label="More"]')!;
+    more.focus();
+    click(more);
+    expect(menuOpen()).not.toBeNull();
+    // Enter on a focused menu entry is a click (the browser's default action).
+    click(entryNamed("Google Calendar…")!);
+    expect(menuOpen()).toBeNull();
+    expect(document.activeElement).toBe(more);
+  });
+
+  it("returns a refused correction to the row it was made on", async () => {
+    await showWeek();
+    const first = view().querySelector<HTMLElement>(".row--link")!;
+    const title = first.textContent!;
+    first.focus();
+    keyWith(first, ".");
+    answer = () => ({ type: "error", message: REFUSAL });
+    click(entryNamed("Mark done")!);
+    await settle();
+    expect(state.actionError).toBe(REFUSAL);
+    expect(menuOpen()).toBeNull();
+    expect(document.activeElement).toBe(stopOf(rowOf(title)));
+  });
+});
+
+describe("Tab inside a menu walks the menu (a11y #4, diff review #4)", () => {
+  afterEach(async () => {
+    if (menuOpen()) shell.closeMenus();
+    await app.refresh();
+    await settle();
+  });
+
+  const openMenu = async () => {
+    await showWeek();
+    const first = view().querySelector<HTMLElement>(".row--link")!;
+    first.focus();
+    keyWith(first, ".");
+    return menuOpen()!;
+  };
+
+  it("moves Tab to the next entry and Shift+Tab from the first to the last, menu still open", async () => {
+    const menu = await openMenu();
+    const entries = [...menu.querySelectorAll<HTMLElement>(".menu-item")];
+    expect(document.activeElement).toBe(entries[0]);
+    const tab = keyWith(entries[0]!, "Tab");
+    expect(tab.defaultPrevented, "the browser's own Tab would leave the document").toBe(true);
+    expect(document.activeElement).toBe(entries[1]);
+    keyWith(entries[1]!, "Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(entries[0]);
+    keyWith(entries[0]!, "Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(entries[entries.length - 1]);
+    expect(menuOpen()).toBe(menu);
+  });
+
+  it("keeps a typed name when Tab leaves the rename box for Save", async () => {
+    const menu = await openMenu();
+    click(entryNamed("Rename…")!);
+    const input = menu.querySelector<HTMLInputElement>(".menu-input")!;
+    expect(document.activeElement).toBe(input);
+    input.value = "My own name";
+    keyWith(input, "Tab");
+    expect(document.activeElement?.textContent?.trim()).toBe("Save");
+    expect(menuOpen()).toBe(menu);
+    expect(input.value).toBe("My own name");
+    keyWith(document.activeElement!, "Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("reaches Save with ↓ and the last entry with ↑, and leaves ← → to the caret", async () => {
+    const menu = await openMenu();
+    click(entryNamed("Rename…")!);
+    const input = menu.querySelector<HTMLInputElement>(".menu-input")!;
+    const left = keyWith(input, "ArrowLeft");
+    expect(left.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(input);
+    keyWith(input, "ArrowDown");
+    expect(document.activeElement?.textContent?.trim()).toBe("Save");
+    input.focus();
+    keyWith(input, "ArrowUp");
+    const entries = [...menu.querySelectorAll<HTMLElement>(".menu-item")];
+    expect(document.activeElement).toBe(entries[entries.length - 1]);
+  });
+
+  it("names the row menu after its row", async () => {
+    const menu = await openMenu();
+    expect(menu.getAttribute("aria-label")).toMatch(/^Actions for /);
+  });
+});
+
+describe("the Courses menu keeps focus on the course just toggled (a11y #10)", () => {
+  it("rebuilds the list and focuses the same entry, not the first", async () => {
+    await showWeek();
+    const more = document.querySelector<HTMLElement>('#actions button[aria-label="More"]')!;
+    click(more);
+    click(entryNamed("Courses…")!);
+    const entries = () => [...menuOpen()!.querySelectorAll<HTMLElement>(".menu-item")];
+    expect(entries().length, "the reference set has at least three courses").toBeGreaterThanOrEqual(3);
+    const name = entries()[2]!.textContent;
+    click(entries()[2]!); // Enter on the focused entry
+    expect(document.activeElement).toBe(entries()[2]);
+    expect(document.activeElement?.textContent).toBe(name);
+    expect(entries()[2]!.getAttribute("aria-checked")).toBe("false");
+    click(entries()[2]!); // and back on
+    expect(entries()[2]!.getAttribute("aria-checked")).toBe("true");
+    shell.closeMenus();
+    await app.refresh();
+    await settle();
+  });
+});
+
+describe("focus survives the redraw of a control outside the ring (a11y #2)", () => {
+  const sync = () => document.querySelector<HTMLElement>(".foot--sync")!;
+
+  it("keeps Sync now focused through the sync it starts", async () => {
+    await showWeek();
+    const before = sync();
+    before.focus();
+    click(before); // Enter on a focused button
+    // The footer was rebuilt the instant the sync began.
+    expect(sync()).not.toBe(before);
+    expect(document.activeElement).toBe(sync());
+    expect(sync().getAttribute("aria-disabled")).toBe("true");
+    expect(sync().getAttribute("aria-busy")).toBe("true");
+    expect(announced()).toBe("Syncing…");
+    await settle(80);
+    expect(document.activeElement).toBe(sync());
+    expect(sync().getAttribute("aria-disabled")).toBeNull();
+    expect(announced()).toMatch(/^Sync finished: /);
+  });
+
+  it("keeps a banner's button focused across a redraw nobody asked for", async () => {
+    state.pendingUndo = { title: "Lab 9", values: {} as never, until: Date.now() + 10_000 };
+    await app.refresh();
+    const undo = () =>
+      [...document.querySelectorAll<HTMLElement>("#banners button")].find(
+        (button) => button.textContent === "Undo",
+      )!;
+    const stale = undo();
+    stale.focus();
+    await app.refresh();
+    expect(undo()).not.toBe(stale);
+    expect(document.activeElement).toBe(undo());
+    expect(announced()).toContain("Lab 9");
+    state.pendingUndo = undefined;
+    await app.refresh();
+  });
+});
+
+describe("a refusal is said once, and shown whole (a11y #6, popup-live #2)", () => {
+  it("writes the refusal to the live region once, however many draws re-show it", async () => {
+    answer = () => ({ type: "error", message: REFUSAL });
+    const control = document.createElement("button");
+    document.body.append(control);
+    shell.applyOverrideAction({ kind: "hide", itemId: "reference-late" }, control);
+    await settle();
+    expect(announced()).toBe(REFUSAL);
+    // Blank it, then draw twice: a live region rewritten by each draw would
+    // read the refusal out every minute.
+    document.getElementById(shell.ANNOUNCE_ID)!.textContent = "";
+    await app.refresh();
+    await app.refresh();
+    expect(status().textContent).toContain(REFUSAL);
+    expect(announced()).toBe("");
+    state.actionError = undefined;
+    answer = () => ({ type: "ok" });
+    control.remove();
+    await app.refresh();
+  });
+
+  it("wraps a notice in #status instead of clipping it to one line", () => {
+    const rule = rulesOf("popup.css").find((r) => r.selector === "#status .banner-line--text");
+    expect(rule?.decls["white-space"]).toBe("normal");
+    expect(rule?.decls["overflow"]).toBe("visible");
+    // And the stale banners stay one line: nothing here widens `.banner-line--text` itself.
+    expect(rulesOf("popup.css").some((r) => r.selector === ".banner-line--text")).toBe(false);
+  });
+});
+
+describe("the month grid is one stop with arrow keys (a11y #7)", () => {
+  it("rolls one tabbable day, names each day, and moves with the arrows", async () => {
+    await showMonth();
+    const cells = () => [...view().querySelectorAll<HTMLElement>(".mday")];
+    expect(cells().length).toBeGreaterThanOrEqual(28);
+    const tabbable = cells().filter((cell) => cell.getAttribute("tabindex") === "0");
+    expect(tabbable.length).toBe(1);
+    expect(tabbable[0]!.classList.contains("mday--on")).toBe(true);
+    for (const cell of cells()) expect(cell.getAttribute("aria-label")).toMatch(/— (nothing due|\d+ due)$/);
+
+    const start = tabbable[0]!;
+    start.focus();
+    keyWith(start, "ArrowRight");
+    const index = cells().indexOf(start);
+    expect(document.activeElement).toBe(cells()[index + 1]);
+    expect(cells()[index + 1]!.getAttribute("tabindex")).toBe("0");
+    expect(start.getAttribute("tabindex")).toBe("-1");
+    keyWith(document.activeElement!, "ArrowUp");
+    expect(document.activeElement).toBe(cells()[index + 1 - 7] ?? cells()[index + 1]);
+    keyWith(document.activeElement!, "End");
+    const inMonth = cells().filter((cell) => !cell.classList.contains("mday--out"));
+    expect(document.activeElement).toBe(inMonth[inMonth.length - 1]);
+    keyWith(document.activeElement!, "Home");
+    expect(document.activeElement).toBe(inMonth[0]);
+    await showWeek();
+  });
+});
+
+describe("the add panel is a named, modal dialog that keeps Tab (a11y #8)", () => {
+  it("is labelled by its heading and wraps Tab at both ends", async () => {
+    shell.selectTab("day");
+    await settle();
+    click(fab());
+    await settle();
+    const form = quick()!;
+    const id = form.getAttribute("aria-labelledby")!;
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id)?.textContent).toBe("Add");
+    expect(form.getAttribute("aria-modal")).toBe("true");
+    const stops = [...form.querySelectorAll<HTMLElement>("input, select, textarea, button")].filter(
+      (el) => el.getAttribute("tabindex") !== "-1" && !el.closest("[hidden]") && !(el as HTMLButtonElement).disabled,
+    );
+    const first = stops[0]!;
+    const last = stops[stops.length - 1]!;
+    last.focus();
+    keyWith(last, "Tab");
+    expect(document.activeElement).toBe(first);
+    keyWith(first, "Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(last);
+    app.closeEditor();
+    await settle();
+  });
+
+  it("names the tab an undated row goes to by the tab's own label (copy #6)", async () => {
+    await showDay();
+    const mine = items.find((item) => item.members.length === 1 && item.members[0]!.source === "manual")!;
+    app.openEditEditor(mine, mine.members[0]!);
+    await settle();
+    const note = quick()!.querySelector(".editor--nodate-text")!.textContent!;
+    expect(note).toContain(`the ${VIEW_LABEL.nodate} tab`);
+    expect(note).not.toContain("No date tab");
+    app.closeEditor();
+    await settle();
+  });
+});
+
+describe("the tab strip and the document order (a11y #11, #13)", () => {
+  it("answers Home and End, and names the panel it controls", async () => {
+    await showWeek();
+    const selected = () => tabs().querySelector<HTMLElement>("[role='tab'][aria-selected='true']")!;
+    selected().focus();
+    keyWith(selected(), "End");
+    await settle();
+    expect(state.view).toBe(VIEWS[VIEWS.length - 1]);
+    expect(document.activeElement).toBe(selected());
+    keyWith(selected(), "Home");
+    await settle();
+    expect(state.view).toBe(VIEWS[0]);
+    for (const tab of tabs().querySelectorAll("[role='tab']")) {
+      expect(tab.getAttribute("aria-controls")).toBe("view");
+    }
+    expect(view().getAttribute("role")).toBe("tabpanel");
+    expect(view().getAttribute("aria-labelledby")).toBe(selected().id);
+    await showWeek();
+  });
+
+  it("puts the footer under the header and the tab strip last, as they are drawn", () => {
+    const html = readFileSync(new URL("../public/popup.html", import.meta.url), "utf8").replace(
+      /<!--[\s\S]*?-->/g,
+      "",
+    );
+    const at = (needle: string) => {
+      const index = html.indexOf(needle);
+      expect(index, needle).toBeGreaterThan(-1);
+      return index;
+    };
+    expect(at("</header>")).toBeLessThan(at('id="footer"'));
+    expect(at('id="footer"')).toBeLessThan(at('id="banners"'));
+    expect(at('id="nav"')).toBeLessThan(at('id="view"'));
+    expect(at('id="view"')).toBeLessThan(at('id="tabs"'));
+    // Nothing focusable after the strip: the live region, then the script.
+    expect(at('id="tabs"')).toBeLessThan(at('id="announce"'));
+    expect(at('id="announce"')).toBeLessThan(at("<script"));
+  });
+});
+
+describe("a source with nothing to read offers Turn off (item 6)", () => {
+  afterEach(() => {
+    answer = () => ({ type: "ok" });
+    state.actionError = undefined;
+  });
+
+  it("says what it does, says so while it runs, and asks the worker to switch it off", async () => {
+    const button = shell.actionButton({ kind: "off", source: "prairielearn" })!;
+    document.body.append(button);
+    expect(button.textContent).toBe("Turn off");
+    expect(button.title).toBe("Stop reading PrairieLearn. You can switch it back on in Settings.");
+    const before = sent.length;
+    click(button);
+    expect(button.textContent).toBe("Turning off…");
+    expect(button.disabled).toBe(true);
+    await settle();
+    expect(sent.slice(before)).toContainEqual({
+      type: "set-source-enabled",
+      source: "prairielearn",
+      enabled: false,
+    });
+    button.remove();
+  });
+
+  it("puts the button back and shows the refusal when the worker says no", async () => {
+    answer = () => ({ type: "error", message: "no" });
+    const button = shell.actionButton({ kind: "off", source: "prairielearn" })!;
+    document.body.append(button);
+    // `set-source-enabled` is answered by the stub's default branch; route it
+    // through `answer` for this one test.
+    const real = (globalThis as unknown as { chrome: { runtime: { sendMessage: (r: { type: string }) => Promise<unknown> } } }).chrome.runtime;
+    const was = real.sendMessage;
+    real.sendMessage = async (request) =>
+      request.type === "set-source-enabled" ? answer() : was(request);
+    click(button);
+    await settle();
+    real.sendMessage = was;
+    expect(button.textContent).toBe("Turn off");
+    expect(button.disabled).toBe(false);
+    expect(status().textContent).toContain("no");
+    button.remove();
+    await app.refresh();
+  });
+});
+
+describe("row and footer tooltips speak the student's language (copy #10, #18)", () => {
+  it("names the modifier key this machine has", async () => {
+    const { modifierKeyName } = await import("../src/ui/popup/rows.js");
+    expect(modifierKeyName("MacIntel")).toBe("⌘");
+    expect(modifierKeyName("iPad")).toBe("⌘");
+    expect(modifierKeyName("Win32")).toBe("Ctrl");
+    expect(modifierKeyName("Linux x86_64")).toBe("Ctrl");
+    // Anything unrecognised, including no answer at all, is not a Mac.
+    expect(modifierKeyName("")).toBe("Ctrl");
+  });
+
+  it("says Gradescope, not the storage key, in an unreadable date's tooltip", async () => {
+    const { renderRow } = await import("../src/ui/popup/rows.js");
+    const base = items.find((one) => one.members.length === 1)!;
+    const member = { ...base.members[0]!, source: "gradescope" as const, extra: { unparsedDueDate: "Sept 31" } };
+    delete (member as { dueAt?: string }).dueAt;
+    const item: Item = { ...base, members: [member] };
+    delete (item as { dueAt?: string }).dueAt;
+    delete (item as { lateDueAt?: string }).lateDueAt;
+    const row = renderRow(item, new Date(now), undefined);
+    const detail = row.querySelector<HTMLElement>(".row--detail-error")!;
+    expect(detail.title).toBe("Gradescope due date: Sept 31");
+  });
+
+  it("keeps a site's own answer in the footer's hover, and drops a parser's", () => {
+    const failing = {
+      ...sources,
+      prairielearn: {
+        source: "prairielearn",
+        enabled: true,
+        state: "parse_error",
+        consecutiveFailures: 1,
+        lastAttemptAt: new Date(now).toISOString(),
+        lastError: "prairielearn: no course instances on the student home page",
+      },
+      gradescope: {
+        source: "gradescope",
+        enabled: true,
+        state: "network_error",
+        consecutiveFailures: 1,
+        lastAttemptAt: new Date(now).toISOString(),
+        lastError: "Failed to fetch",
+      },
+    } as Record<Source, SourceStatus>;
+    shell.renderFooter(failing, new Date(now));
+    const hover = document.querySelector<HTMLElement>(`.${shell.FOOT_HEALTH_CLASS}`)!.title;
+    expect(hover).toContain("PrairieLearn");
+    expect(hover).not.toContain("no course instances");
+    expect(hover).toContain("Failed to fetch");
+    shell.renderFooter(sources, new Date(now));
+  });
+});
+
+/* ========================================================================== */
+/* Wiring from the 2026-09-27 wave                                             */
+/* ========================================================================== */
+
+describe("a Week card on the day a late window closes (popup-live #5)", () => {
+  /*
+   * `week.ts` hands the row `weekCardStatus`, and only this harness draws the
+   * week: swapping it for `weekStatus` survived every other test (F2's
+   * mutation). Full credit went yesterday at 5 PM; the late window runs to 5 PM
+   * six days out, which is the last day of the rolling week.
+   */
+  it("says the window, not how late the row already is", async () => {
+    const base = items.find((one) => one.members.length === 1)!;
+    const missed = new Date(now);
+    missed.setDate(missed.getDate() - 1);
+    missed.setHours(17, 0, 0, 0);
+    const until = new Date(now);
+    until.setDate(until.getDate() + 6);
+    until.setHours(17, 0, 0, 0);
+    const member = {
+      ...base.members[0]!,
+      sourceId: "week-window",
+      kind: "assignment" as const,
+      dueAt: missed.toISOString(),
+      lateDueAt: until.toISOString(),
+      status: "not_submitted" as const,
+    };
+    delete (member as { extra?: unknown }).extra;
+    const added: Item = {
+      ...base,
+      id: "week-window",
+      title: "HW window row",
+      kind: "assignment",
+      status: "not_submitted",
+      done: false,
+      hidden: false,
+      dueAt: member.dueAt,
+      lateDueAt: member.lateDueAt,
+      members: [member],
+    };
+    items.push(added);
+    try {
+      await showWeek();
+      const row = rowOf("HW window row");
+      expect(row, "the row is on the week").toBeDefined();
+      expect(row!.closest(".wrow"), "on a day card").not.toBeNull();
+      expect(row!.querySelector<HTMLElement>(".row--rel")!.textContent).toMatch(/^late until /);
+    } finally {
+      items.splice(items.indexOf(added), 1);
+      await showWeek();
+    }
+  });
+});
+
+describe("a post's unstated hour on the Alerts tab (copy-audit #11)", () => {
+  /*
+   * `alerts.ts` reads `suggestion.timeAssumed` into `suggestionDueText`; wiring
+   * `false` there survived every other test (F2's mutation), because only this
+   * harness draws the tab.
+   */
+  it("says end of day, never the 11:59 PM the observer filled in", async () => {
+    const day = new Date(now);
+    day.setDate(day.getDate() + 3);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const key = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+    const stamp = new Date(now).toISOString();
+    suggestions.push({
+      id: "sug-eod",
+      kind: "new",
+      title: "Project proposal",
+      courseRaw: "CS 425",
+      courseCode: "CS425",
+      at: `${key}T23:59`,
+      timeAssumed: true,
+      span: "Friday",
+      context: "The proposal is due Friday.",
+      source: "piazza",
+      postId: "sug-eod-post",
+      postedAt: stamp,
+      createdAt: stamp,
+    });
+    try {
+      shell.selectTab("nodate");
+      await app.refresh();
+      await settle();
+      const due = view().querySelector<HTMLElement>(".sug-row .row--due");
+      expect(due, "the suggestion is drawn").not.toBeNull();
+      expect(due!.textContent).toMatch(/· end of day$/);
+      expect(due!.textContent).not.toContain("11:59");
+    } finally {
+      suggestions.splice(0);
+      await showWeek();
+    }
+  });
+});
+
+describe("the full view's month lands on today once (popup-live #3)", () => {
+  /*
+   * The pure half of `renderMonthView`'s landing: the harness draws the popup,
+   * never the full view (`isFullView` is read off the root at import), so the
+   * decision is pinned here and the draw only measures and hands it over.
+   */
+  it("centres a today below the fold, and never moves a redraw", async () => {
+    const { todayLanding } = await import("../src/ui/popup/views/month.js");
+    const cell = { top: 720, height: 128 };
+    // First draw, today in week five of a 700px window: centred.
+    expect(todayLanding("2026-9", undefined, cell, 0, 700)).toBe(720 - (700 - 128) / 2);
+    // The same month drawn again — a store write, the minute tick — stays put.
+    expect(todayLanding("2026-9", "2026-9", cell, 0, 700)).toBeUndefined();
+    // Stepping to another month is a first draw of that month.
+    expect(todayLanding("2026-9", "2026-10", cell, 0, 700)).toBe(434);
+    // Already inside the window the draw will land on: left alone. The edge
+    // itself is inside; one pixel past it is not.
+    expect(todayLanding("2026-9", undefined, { top: 572, height: 128 }, 0, 700)).toBeUndefined();
+    expect(todayLanding("2026-9", undefined, { top: 573, height: 128 }, 0, 700)).toBe(287);
+    // Judged against where the draw lands, not where the window is mid-draw:
+    // above a landing of 1200 is out of view, and inside one of 400 is not.
+    expect(todayLanding("2026-9", undefined, cell, 1200, 700)).toBe(434);
+    expect(todayLanding("2026-9", undefined, cell, 400, 700)).toBeUndefined();
+    // No today in the grid: nothing to land on.
+    expect(todayLanding("2026-10", "2026-9", undefined, 0, 700)).toBeUndefined();
+  });
+});
+
+describe("the Sources tab's hover agrees with the footer's (copy #18)", () => {
+  it("drops a parser's own message and keeps what the site answered", async () => {
+    const { SOURCE_TITLE } = await import("../src/core/names.js");
+    const was = { prairielearn: sources.prairielearn, gradescope: sources.gradescope };
+    const at = new Date(now).toISOString();
+    sources.prairielearn = {
+      source: "prairielearn",
+      enabled: true,
+      state: "parse_error",
+      consecutiveFailures: 1,
+      lastAttemptAt: at,
+      lastSuccessAt: at,
+      lastError: "prairielearn: no course instances on the student home page",
+    };
+    sources.gradescope = {
+      source: "gradescope",
+      enabled: true,
+      state: "network_error",
+      consecutiveFailures: 1,
+      lastAttemptAt: at,
+      lastSuccessAt: at,
+      lastError: "Failed to fetch",
+    };
+    try {
+      shell.selectTab("sources");
+      await app.refresh();
+      await settle();
+      const detailOf = (source: Source) =>
+        [...view().querySelectorAll<HTMLElement>(".needsyou--source")]
+          .find((line) => line.querySelector(".needsyou--source-name")?.textContent === SOURCE_TITLE[source])
+          ?.querySelector<HTMLElement>(".needsyou--source-detail");
+      expect(detailOf("prairielearn"), "PrairieLearn has a row").toBeDefined();
+      expect(detailOf("prairielearn")!.title).toContain("last read");
+      expect(detailOf("prairielearn")!.title).not.toContain("no course instances");
+      expect(detailOf("gradescope")!.title).toContain("Failed to fetch");
+    } finally {
+      sources.prairielearn = was.prairielearn;
+      sources.gradescope = was.gradescope;
+      await showWeek();
+    }
+  });
+});
+
+describe("an unbooked exam's name drops PrairieTest's prefix for a screen reader too", () => {
+  it("strips \"Book a slot:\" from the stop's accessible name", async () => {
+    const base = items.find((one) => one.members.length === 1)!;
+    const member = { ...base.members[0]!, sourceId: "book-q9", source: "prairietest" as const, kind: "booking" as const, title: "Book a slot: CS 357: Quiz 9" };
+    delete (member as { dueAt?: string }).dueAt;
+    delete (member as { extra?: unknown }).extra;
+    const added: Item = {
+      ...base,
+      id: "book-q9",
+      title: "Book a slot: CS 357: Quiz 9",
+      kind: "booking",
+      hidden: false,
+      members: [member],
+    };
+    delete (added as { dueAt?: string }).dueAt;
+    delete (added as { lateDueAt?: string }).lateDueAt;
+    items.push(added);
+    try {
+      shell.selectTab("exams");
+      await app.refresh();
+      await settle();
+      const title = [...view().querySelectorAll<HTMLElement>(".row--title")].find(
+        (one) => one.textContent === "CS 357: Quiz 9",
+      );
+      expect(title, "the booking is on the board, prefix gone").toBeDefined();
+      const name = title!.getAttribute("aria-label") ?? "";
+      expect(name.startsWith("CS 357: Quiz 9")).toBe(true);
+      expect(name).not.toContain("Book a slot");
+    } finally {
+      items.splice(items.indexOf(added), 1);
+      await showWeek();
+    }
+  });
+});
+
+describe("the footer's sync button and count (popup-live #11, copy-audit #16)", () => {
+  afterEach(() => {
+    state.workerSyncing = false;
+    shell.renderFooter(sources, new Date(now));
+  });
+
+  it("says Syncing… for a sync the worker started, not only for a press", () => {
+    const label = () => document.querySelector<HTMLElement>(".foot--sync-label")!.textContent;
+    state.workerSyncing = true;
+    shell.renderFooter(sources, new Date(now));
+    expect(label()).toBe("Syncing…");
+    state.workerSyncing = false;
+    shell.renderFooter(sources, new Date(now));
+    expect(label()).toBe("Sync now");
+  });
+
+  it("says sites, in prose, when none is switched on", () => {
+    // Every source in this harness is off.
+    shell.renderFooter(sources, new Date(now));
+    expect(document.querySelector<HTMLElement>(".foot--count")!.textContent).toBe("No sites on");
+  });
+});
+
+describe("the stale banner says what is known, and signs in to the open tab", () => {
+  /*
+   * Copy-audit #5: "signed out 13h" named a moment this extension does not
+   * know; the words are core's `staleBannerText` now. And I60: "Sign in" brings
+   * forward the tab already showing the login page rather than opening a
+   * second — `chrome.tabs` is stubbed with one such tab, so a press that still
+   * went to `create` fails here.
+   */
+  it("reads 'last read 13h' and focuses the existing tab", async () => {
+    const chromeStub = (globalThis as unknown as { chrome: Record<string, unknown> }).chrome;
+    const was = { gradescope: sources.gradescope, tabs: chromeStub["tabs"], windows: chromeStub["windows"] };
+    const status: SourceStatus = {
+      source: "gradescope",
+      enabled: true,
+      state: "needs_login",
+      consecutiveFailures: 1,
+      lastAttemptAt: new Date(now).toISOString(),
+      lastSuccessAt: new Date(now - 13 * 3_600_000 - 5 * 60_000).toISOString(),
+    };
+    sources.gradescope = status;
+    const login = shell.signInUrl("gradescope", status, "needs_login");
+    expect(login, "Gradescope has a sign-in page").toBeDefined();
+    const focusedTabs: number[] = [];
+    const created: string[] = [];
+    chromeStub["tabs"] = {
+      query: async () => [{ id: 41, url: login, windowId: 3 }],
+      update: async (id: number) => {
+        focusedTabs.push(id);
+        return {};
+      },
+      create: async ({ url }: { url: string }) => {
+        created.push(url);
+        return {};
+      },
+    };
+    chromeStub["windows"] = {
+      getLastFocused: async () => ({ id: 3 }),
+      update: async () => ({}),
+    };
+    try {
+      await showWeek();
+      const banner = document.querySelector<HTMLElement>("#banners .banner--stale");
+      expect(banner, "the stale banner is drawn").not.toBeNull();
+      expect(banner!.textContent).toContain("Gradescope: ");
+      expect(banner!.textContent).toContain("· last read 13h");
+      expect(banner!.textContent).not.toContain("signed out");
+      const signIn = [...banner!.querySelectorAll("button")].find((b) => b.textContent === "Sign in");
+      expect(signIn, "a Sign in button").toBeDefined();
+      click(signIn!);
+      await settle();
+      expect(focusedTabs).toEqual([41]);
+      expect(created).toEqual([]);
+    } finally {
+      sources.gradescope = was.gradescope;
+      chromeStub["tabs"] = was.tabs;
+      chromeStub["windows"] = was.windows;
+      await showWeek();
+    }
+  });
+});
+
+describe("the .ics file names a course the way the popup does (copy-audit #3)", () => {
+  it("carries the student's rename into the calendar file", async () => {
+    const { downloadIcs } = await import("../src/ui/download.js");
+    const blobs: Blob[] = [];
+    const url = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (href: string) => void;
+    };
+    const was = { create: url.createObjectURL, revoke: url.revokeObjectURL };
+    url.createObjectURL = (blob) => {
+      blobs.push(blob);
+      return "blob:ics";
+    };
+    url.revokeObjectURL = () => undefined;
+    try {
+      const one = items.find((item) => !item.hidden && item.dueAt !== undefined && item.courseLabel !== "")!;
+      expect(downloadIcs([one], { [one.courseLabel]: "Renamed For The Test" })).toBe(1);
+      expect(blobs.length).toBe(1);
+      expect(await blobs[0]!.text()).toContain("Renamed For The Test");
+    } finally {
+      url.createObjectURL = was.create;
+      url.revokeObjectURL = was.revoke;
+    }
   });
 });

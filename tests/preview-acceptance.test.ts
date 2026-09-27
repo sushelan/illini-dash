@@ -51,11 +51,19 @@ describe("acceptance preview tells the truth about its evidence", () => {
     expect(state.items.map((i: { id: string }) => i.id)).toEqual(dataset === "empty" ? [] : referenceItems(Date.parse("2026-09-22T16:14:00Z")).map((i) => i.id));
     expect(state.suggestions).toEqual([]);
   });
+  /*
+   * Rewritten 2026-09-27: this used `set-course-name`, which the stub now
+   * simulates (`preview-data.ts`'s `known` list gained it, with `override` and
+   * the Google Calendar messages, so acceptance journeys can cover Rename and
+   * Hide). The behaviour pinned is unchanged — a write the stub does not model
+   * answers an error, never a pretend `ok` — so it is held with a write the
+   * stub still does not model. The popup's "Turn off" sends this one.
+   */
   it("refuses unsupported writes instead of pretending settings saved", async () => {
     const context = preview("dataset=empty");
-    const result = await vm.runInContext('chrome.runtime.sendMessage({type:"set-course-name", key:"CS425", name:"Changed"})', context);
+    const result = await vm.runInContext('chrome.runtime.sendMessage({type:"set-source-enabled", source:"prairielearn", enabled:false})', context);
     expect(result.type).toBe("error");
-    expect(result.message).toContain("does not simulate set-course-name");
+    expect(result.message).toContain("does not simulate set-source-enabled");
     expect(vm.runInContext('__UI_ACCEPTANCE__.events.at(-1).kind', context)).toBe("unsupported");
   });
   it.each(["pending", "error"])("uses a real Piazza state in the %s front preview", async (state) => {

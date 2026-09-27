@@ -12,7 +12,7 @@ import { courseLabel, SOURCE_NAME } from "../../../core/names.js";
 import { icon } from "../../icons.js";
 import { send } from "../../../messages.js";
 import type { Item } from "../../../sources/types.js";
-import { UNDO_MS, app, state, viewedDate, viewEl } from "../state.js";
+import { UNDO_MS, VIEW_LABEL, app, state, viewedDate, viewEl } from "../state.js";
 import {
   QUICK_FAB_SELECTOR,
   closeMenus,
@@ -204,6 +204,7 @@ export function openEditor(request: EditorRequest): void {
   const handle = createEditor({
     ...(quick && !fullPanel ? { compact: true } : {}),
     heading: request.heading,
+    noDateTab: VIEW_LABEL.nodate,
     submitLabel: request.submitLabel,
     courses: courseChoices(),
     values: request.values,
@@ -298,6 +299,16 @@ function openQuickPanel(
   onClose: (() => void) | undefined,
 ): void {
   el.setAttribute("role", "dialog");
+  /*
+   * Named by its heading, and modal while open (a11y review, 2026-09-27, #8).
+   * The heading was there for this and did nothing: only `aria-labelledby`
+   * makes a heading a dialog's name. And Tab wraps inside it — Tab from Cancel
+   * used to leave a still-open panel for `<body>`.
+   */
+  const heading = el.querySelector<HTMLElement>(".editor--title");
+  if (heading?.id) el.setAttribute("aria-labelledby", heading.id);
+  el.setAttribute("aria-modal", "true");
+  el.addEventListener("keydown", (event) => wrapTab(el, event));
   document.body.append(el);
   anchor?.setAttribute("aria-expanded", "true");
   placeQuickPanel(el, anchor);
@@ -334,6 +345,34 @@ function openQuickPanel(
     if (restoreFocus) anchor?.focus();
   };
   state.editor?.handle.focus();
+}
+
+/** What Tab walks inside the quick panel. */
+const PANEL_TAB_SELECTOR =
+  "input:not([type='hidden']):not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href]";
+
+/**
+ * Tab and Shift+Tab wrap at the panel's ends instead of leaving it.
+ *
+ * Only at the ends: between them the browser's own order is the right one,
+ * and taking it over would be a second copy of it to keep true.
+ */
+export function wrapTab(panel: HTMLElement, event: KeyboardEvent): void {
+  if (event.key !== "Tab") return;
+  const stops = [...panel.querySelectorAll<HTMLElement>(PANEL_TAB_SELECTOR)].filter(
+    (stop) => stop.getAttribute("tabindex") !== "-1" && !stop.closest("[hidden]"),
+  );
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (!first || !last) return;
+  const active = document.activeElement;
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 /**

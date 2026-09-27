@@ -70,6 +70,14 @@ export interface EditorOptions {
   compact?: boolean;
   /** "Add a deadline" / "Edit this deadline". */
   heading: string;
+  /**
+   * What the popup calls the tab an undated row lands on, for the sentence
+   * under "No date yet". Passed in rather than imported: this file must not
+   * load the popup's shell, and the tab's name is `VIEW_LABEL`'s to decide —
+   * the sentence said "the No date tab" for a week after that tab was renamed
+   * Alerts (copy audit #6, 2026-09-27).
+   */
+  noDateTab?: string;
   /** The word on the button that saves: "Add it" or "Save". */
   submitLabel: string;
   /**
@@ -193,6 +201,13 @@ function labelled(
 }
 
 let datalistSeq = 0;
+/**
+ * The heading's id prefix. A panel that is a `dialog` is named by
+ * `aria-labelledby` pointing here — a heading inside a dialog does not name
+ * it, which is why the add panel announced as `dialog ""` (a11y review #8).
+ */
+export const EDITOR_TITLE_ID = "editor-title";
+let titleSeq = 0;
 
 export function createEditor(options: EditorOptions): Editor {
   const compact = options.compact === true;
@@ -224,6 +239,7 @@ export function createEditor(options: EditorOptions): Editor {
      */
     const quickTitle = document.createElement("h2");
     quickTitle.className = "editor--title screen-bar--title";
+    quickTitle.id = `${EDITOR_TITLE_ID}-${(titleSeq += 1)}`;
     quickTitle.textContent = options.heading;
     head.append(quickTitle);
     form.append(head);
@@ -232,6 +248,7 @@ export function createEditor(options: EditorOptions): Editor {
   back.addEventListener("click", () => options.onCancel());
   const heading = document.createElement("h2");
   heading.className = "editor--title screen-bar--title";
+  heading.id = `${EDITOR_TITLE_ID}-${(titleSeq += 1)}`;
   heading.textContent = options.heading;
   const dismiss = iconButton("close", "Close this form");
   dismiss.addEventListener("click", () => options.onCancel());
@@ -355,7 +372,9 @@ export function createEditor(options: EditorOptions): Editor {
   const noDateTitle = document.createElement("b");
   noDateTitle.textContent = "No date yet";
   const noDateNote = document.createElement("span");
-  noDateNote.textContent = "Puts it on the No date tab instead of the calendar.";
+  noDateNote.textContent = options.noDateTab
+    ? `Puts it on the ${options.noDateTab} tab instead of the calendar.`
+    : "Keeps it off the calendar until it has a date.";
   noDateText.append(noDateTitle, noDateNote);
   noDateWrap.append(noDate, noDateText);
 

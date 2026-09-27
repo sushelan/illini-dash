@@ -46,6 +46,22 @@
       <div class="bar--right" id="actions"></div>
     </header>
     <!--
+      The footer strip (D10): what was read, how long ago, and the one button
+      that reads it again. Drawn directly under the header.
+
+      `position: sticky`, in flow — never `fixed`. A fixed strip contributes no
+      height to the document, and the document's height is the only thing Chrome
+      measures to size a popup.
+
+      **Here in the document, not after `#view` (2026-09-27).** It sat last and
+      the stylesheet's `order` drew it under the header, so Tab went header →
+      tab strip at the bottom of the window → date strip → rows → back up to
+      this → the floating + (a11y review #11, WCAG 2.4.3). Focus order is
+      document order; the document now says what the screen shows, and the
+      `order` rules that restated it are gone (2026-09-27).
+    -->
+    <footer id="footer" class="foot"></footer>
+    <!--
       One slot, not three. The notification warning, the stale-source warning and
       the booking strip were three elements that could all be present at once,
       each with its own height and its own idea of what a banner looks like.
@@ -62,7 +78,6 @@
       failure it reported for a month landed below the fold (UI rule 3).
     -->
     <div id="status" hidden></div>
-    <nav id="tabs" class="tabs" role="tablist" aria-label="Views"></nav>
     <!--
       The course chips. Empty since D9 moved course visibility into the ⋯ menu;
       `renderFilters` still builds them and `.filters:empty` collapses this to
@@ -72,14 +87,17 @@
     <div id="nav" class="datenav"></div>
     <main id="view"></main>
     <!--
-      The footer strip (D10): what was read, how long ago, and the one button
-      that reads it again.
-
-      `position: sticky`, in flow — never `fixed`. A fixed strip contributes no
-      height to the document, and the document's height is the only thing Chrome
-      measures to size a popup.
+      The tab strip, last: it is drawn at the bottom of the window, so it is
+      the last thing Tab reaches (see the footer's note above).
     -->
-    <footer id="footer" class="foot"></footer>
+    <nav id="tabs" class="tabs" role="tablist" aria-label="Views"></nav>
+    <!--
+      What a screen reader hears (a11y review #6): a refusal, "Deleted …",
+      "Applying…", "Syncing…". Visually hidden and written only when a
+      sentence changes — see `announce` in popup/shell.ts. `#status` and
+      `#banners` are not live themselves because every draw rebuilds them.
+    -->
+    <div id="announce" class="sr-only" role="status" aria-live="polite"></div>
     <!--
       Piazza and Campuswire had a card each here, and a "Sources & needs-you
       ledger › / Full view" strip sat under them. Both went on 2026-09-19 —

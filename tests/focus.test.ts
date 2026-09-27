@@ -12,11 +12,29 @@ import {
   DATE_NAV_CLASS,
   DATE_NAV_SELECTOR,
   FOOT_HEALTH_CLASS,
+  ROW_LINK_CLASS,
   ROW_RING_SELECTOR,
   findFocusTarget,
   focusRequestFor,
+  ringStopFor,
+  ringTitle,
+  rollRingTo,
   type FocusScope,
 } from "../src/ui/popup/focus.js";
+
+/*
+ * A row as `renderRow` draws it since 2026-09-27: a `div.row` whose title is
+ * the link (or, with no URL, a `role=button`) and whose ⋯ is the link's
+ * sibling — not a `<button>` nested inside an `<a class="row">`, which is
+ * invalid interactive nesting (a11y review #12). The fixtures below were
+ * rewritten to that shape; what they assert about *which row* is unchanged.
+ */
+const linkRow = (title: string, n: number): string =>
+  `<div class="row"><span class="row--main"><a class="row--title ${ROW_LINK_CLASS}" href="https://x.test/${n}" tabindex="-1">${title}</a></span>` +
+  `<button class="btn btn-icon row--menu btn-sm" tabindex="-1" aria-label="More actions for ${title}">⋯</button></div>`;
+const flatRow = (title: string): string =>
+  `<div class="row row--flat"><span class="row--main"><span class="row--title ${ROW_LINK_CLASS}" role="button" tabindex="-1">${title}</span></span>` +
+  `<button class="btn btn-icon row--menu btn-sm" tabindex="-1" aria-label="More actions for ${title}">⋯</button></div>`;
 
 // `focusRequestFor` asks `active instanceof HTMLElement`; node has no such
 // global, so linkedom's class stands in for it (the same one its elements are).
@@ -59,10 +77,7 @@ describe("findFocusTarget", () => {
 
   it("returns a screen to the row it came from, by title, else the first row (I02, exit)", () => {
     const scope = scopeOf(
-      `<nav id="tabs"></nav><main id="view">` +
-        `<a class="row" href="https://x.test/1"><span class="row--title">MP 2</span></a>` +
-        `<div class="row"><span class="row--title">Lab 1</span></div>` +
-        `<a class="row" href="https://x.test/3"><span class="row--title">Quiz</span></a></main>`,
+      `<nav id="tabs"></nav><main id="view">${linkRow("MP 2", 1)}${flatRow("Lab 1")}${linkRow("Quiz", 3)}</main>`,
     );
     expect(findFocusTarget({ kind: "row", title: "Lab 1" }, scope)?.textContent).toBe("Lab 1");
     expect(findFocusTarget({ kind: "row", title: "Quiz" }, scope)?.textContent).toBe("Quiz");
@@ -147,9 +162,10 @@ describe("findFocusTarget", () => {
 describe("focusRequestFor — what a redraw nobody asked for should put back", () => {
   const html =
     `<header class="bar"><div id="actions"><button id="add">+</button></div></header>${TABS}` +
-    `<main id="view"><section class="screen"><div class="screen-bar"><button id="back">‹</button></div></section>` +
-    `<a class="row" href="https://x.test/1"><span class="row--title">MP 2</span><span class="row--due">11:59 PM</span></a>` +
-    `<div class="row"><span class="row--title">Lab 1</span><button class="row--menu">⋯</button></div></main>` +
+    `<main id="view"><section class="screen"><div class="screen-bar"><button id="back">‹</button>` +
+    `<div class="screen-bar--title">Deadline</div><button id="screen-more" class="btn btn-icon" aria-label="More actions">⋯</button></div></section>` +
+    `${linkRow("MP 2", 1)}${flatRow("Lab 1")}<button id="tick" class="btn btn-sm">Tick off</button></main>` +
+    `<div id="banners"><div class="banner-line"><span>Gradescope: signed out</span><button class="btn btn-quiet btn-sm">Sign in</button></div></div>` +
     `<footer id="footer"><button class="${FOOT_HEALTH_CLASS}">6 sources</button><button class="foot--sync">Sync</button></footer>`;
 
   it("keeps focus on the strip when a tab had it", () => {
@@ -171,20 +187,67 @@ describe("focusRequestFor — what a redraw nobody asked for should put back", (
     });
   });
 
-  it("keeps focus on the row that had it, even from a control inside it", () => {
+  it("keeps focus on the row that had it, even from a control beside its link", () => {
     const scope = scopeOf(html);
-    const row = scope.view.querySelector("a.row")!;
-    expect(focusRequestFor(row, scope, "day")).toEqual({ kind: "row", title: "MP 2" });
-    const menu = scope.view.querySelector(".row--menu")!;
+    const link = scope.view.querySelector(`a.${ROW_LINK_CLASS}`)!;
+    expect(focusRequestFor(link, scope, "day")).toEqual({ kind: "row", title: "MP 2" });
+    // The ⋯ is the link's sibling now, not its child: the row is found through
+    // the card, and the request still names the row rather than the ⋯.
+    const menu = scope.view.querySelectorAll(".row--menu")[1]!;
     expect(focusRequestFor(menu, scope, "day")).toEqual({ kind: "row", title: "Lab 1" });
   });
 
+  /*
+   * Rewritten 2026-09-27. This test used to assert that `.foot--sync` gets no
+   * request, under the heading "everything a redraw does not rebuild" — but
+   * `renderFooter` does rebuild it, on every draw and at the start of every
+   * sync, so the assertion was pinning the defect: Enter on Sync now left
+   * `<body>` focused for the whole sync (a11y review #2; worker rule 6). What
+   * it should pin is the *header*, a form field and `<body>`, which no draw
+   * touches.
+   */
   it("leaves everything a redraw does not rebuild alone", () => {
     const scope = scopeOf(html);
     expect(focusRequestFor(scope.document.getElementById("add"), scope, "day")).toBeUndefined();
-    expect(focusRequestFor(scope.doc.querySelector(".foot--sync"), scope, "day")).toBeUndefined();
     expect(focusRequestFor(scope.document.body, scope, "day")).toBeUndefined();
     expect(focusRequestFor(null, scope, "day")).toBeUndefined();
+  });
+
+  it("names any other control a draw rebuilds by region, class and label", () => {
+    const scope = scopeOf(html);
+    expect(focusRequestFor(scope.doc.querySelector(".foot--sync"), scope, "day")).toEqual({
+      kind: "control",
+      region: "footer",
+      className: "foot--sync",
+      label: "Sync",
+    });
+    expect(focusRequestFor(scope.doc.querySelector("#banners button"), scope, "day")).toEqual({
+      kind: "control",
+      region: "banners",
+      className: "btn btn-quiet btn-sm",
+      label: "Sign in",
+    });
+    expect(focusRequestFor(scope.document.getElementById("tick"), scope, "day")).toEqual({
+      kind: "control",
+      region: "view",
+      className: "btn btn-sm",
+      label: "Tick off",
+    });
+  });
+
+  it("keeps the screen bar's ⋯ as itself, and only ‹ as ‹ back", () => {
+    // Every `.screen-bar button` used to map to ‹ back, so pressing the bar's
+    // ⋯ and closing its menu moved focus to "Back to the list" (a11y #2).
+    const scope = scopeOf(html);
+    expect(focusRequestFor(scope.document.getElementById("back"), scope, "day")).toEqual({
+      kind: "screen-back",
+    });
+    expect(focusRequestFor(scope.document.getElementById("screen-more"), scope, "day")).toEqual({
+      kind: "control",
+      region: "view",
+      className: "btn btn-icon",
+      label: "More actions",
+    });
   });
 
   it("keeps focus in the date navigator, which every draw rebuilds", () => {
@@ -222,10 +285,16 @@ describe("focusRequestFor — what a redraw nobody asked for should put back", (
 
   it("agrees with the roving ring about what a row is", () => {
     // shell.ts's `rowsInView` and this file's lookup share the constant; a
-    // month pill is in it because ↑ ↓ walks pills too.
-    expect(ROW_RING_SELECTOR).toContain("a.row");
-    expect(ROW_RING_SELECTOR).toContain("div.row");
+    // month pill is in it because ↑ ↓ walks pills too. The row's stop is its
+    // link since 2026-09-27 — the card itself holds the ⋯ beside it.
+    expect(ROW_RING_SELECTOR).toContain(`.${ROW_LINK_CLASS}`);
     expect(ROW_RING_SELECTOR).toContain(".mpill[role='button']");
+    const scope = scopeOf(`${TABS}<main id="view">${linkRow("MP 2", 1)}${flatRow("Lab 1")}</main>`);
+    const ring = [...scope.view.querySelectorAll(ROW_RING_SELECTOR)];
+    expect(ring.map((stop) => ringTitle(stop))).toEqual(["MP 2", "Lab 1"]);
+    // The card is not a stop and the ⋯ is not one either.
+    expect(ring.some((stop) => stop.classList.contains("row"))).toBe(false);
+    expect(ring.some((stop) => stop.classList.contains("row--menu"))).toBe(false);
   });
 
   it("spells the navigator's classes once, where shell.ts adds them", () => {
@@ -239,5 +308,76 @@ describe("focusRequestFor — what a redraw nobody asked for should put back", (
       today: "datenav--today",
     });
     for (const cls of Object.values(DATE_NAV_CLASS)) expect(DATE_NAV_SELECTOR).toContain(`.${cls}`);
+  });
+});
+
+describe("findFocusTarget — the rest of the controls a draw rebuilds (2026-09-27)", () => {
+  const html =
+    `${TABS}<main id="view"><button class="btn btn-sm">Tick off</button><button class="btn btn-sm">Tick off</button>` +
+    `<button class="mday mday--on" data-day="2026-09-27" aria-label="Sunday, Sep 27 — 2 due">27</button>` +
+    `<button class="mday" data-day="2026-09-28" aria-label="Monday, Sep 28 — nothing due">28</button></main>` +
+    `<div id="banners"><button class="btn btn-quiet btn-sm">Undo</button><button class="btn btn-quiet btn-sm">Sign in</button></div>` +
+    `<footer id="footer"><button class="${FOOT_HEALTH_CLASS}">6 sources</button><button class="foot--sync" aria-disabled="true"><span>Syncing…</span></button></footer>`;
+
+  it("finds the banner button with the same name, not the first of its class", () => {
+    const scope = scopeOf(html);
+    const target = findFocusTarget(
+      { kind: "control", region: "banners", className: "btn btn-quiet btn-sm", label: "Sign in" },
+      scope,
+    );
+    expect(target?.textContent).toBe("Sign in");
+  });
+
+  it("finds Sync now after the press renamed it Syncing…", () => {
+    const scope = scopeOf(html);
+    const target = findFocusTarget(
+      { kind: "control", region: "footer", className: "foot--sync", label: "Sync now" },
+      scope,
+    );
+    expect(target?.classList.contains("foot--sync")).toBe(true);
+  });
+
+  it("finds a month cell by its day when its count and state classes changed", () => {
+    const scope = scopeOf(html);
+    const target = findFocusTarget(
+      { kind: "control", region: "view", className: "mday", label: "2026-09-28" },
+      scope,
+    );
+    expect(target?.getAttribute("data-day")).toBe("2026-09-28");
+  });
+
+  it("never substitutes a control of another kind", () => {
+    const scope = scopeOf(html);
+    expect(
+      findFocusTarget(
+        { kind: "control", region: "view", className: "btn btn-primary", label: "Sign in to Canvas" },
+        scope,
+      ),
+    ).toBeUndefined();
+    expect(
+      findFocusTarget({ kind: "control", region: "status", className: "btn", label: "Dismiss" }, scope),
+    ).toBeUndefined();
+  });
+});
+
+describe("ringStopFor / rollRingTo — where a closed row menu hands focus", () => {
+  it("sends the tabIndex −1 ⋯ to its row's link, and leaves a real stop alone", () => {
+    const scope = scopeOf(`${TABS}<main id="view">${linkRow("MP 2", 1)}</main><button id="more">⋯</button>`);
+    const dots = scope.view.querySelector<HTMLElement>(".row--menu")!;
+    expect(ringStopFor(dots)).toBe(scope.view.querySelector(`.${ROW_LINK_CLASS}`));
+    const header = scope.document.getElementById("more")!;
+    expect(ringStopFor(header)).toBe(header);
+  });
+
+  it("makes exactly one stop in the ring tabbable", () => {
+    const scope = scopeOf(`${TABS}<main id="view">${linkRow("A", 1)}${linkRow("B", 2)}${flatRow("C")}</main>`);
+    const ring = [...scope.view.querySelectorAll<HTMLElement>(ROW_RING_SELECTOR)];
+    // Read as the attribute: linkedom's `tabIndex` getter answers −1 for
+    // everything, whatever was set.
+    const stops = () => ring.map((stop) => stop.getAttribute("tabindex"));
+    rollRingTo(ring, ring[2]!);
+    expect(stops()).toEqual(["-1", "-1", "0"]);
+    rollRingTo(ring, ring[0]!);
+    expect(stops()).toEqual(["0", "-1", "-1"]);
   });
 });

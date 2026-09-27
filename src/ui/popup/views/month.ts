@@ -28,10 +28,10 @@ import {
   startOfDay,
 } from "../../../core/calendar.js";
 import { courseLabel } from "../../../core/names.js";
+import { assumedTimeNote } from "../../../core/provenance.js";
 import { icon, iconButton } from "../../icons.js";
 import type { Item } from "../../../sources/types.js";
 import {
-  UNTIMED_NOTE,
   VIEW_KEY,
   anchorDate,
   app,
@@ -128,6 +128,68 @@ export function renderMonthView(items: Item[], now: Date, colours: Map<string, n
     grid.append(box);
   }
   viewEl.append(head, grid);
+
+  /*
+   * Bring today into the window on the first draw of a month (popup-live #3).
+   *
+   * Handed to the draw as its scroll request rather than done here with
+   * `scrollIntoView`: `render` applies `scrollPlan`'s offset *after* the view
+   * is drawn (popup.ts, `applyScrollRequest`), and for a navigation that
+   * offset is 0, so a scroll made here would be undone before anyone saw it.
+   */
+  const monthKey = `${anchor.getFullYear()}-${anchor.getMonth() + 1}`;
+  const page = document.scrollingElement as HTMLElement | null;
+  const todayBox = grid.querySelector<HTMLElement>(".mcell--today");
+  // A draw must not throw into a console nobody has open, and a document with
+  // no layout engine (linkedom) has no rect to read.
+  const rect =
+    todayBox && typeof todayBox.getBoundingClientRect === "function"
+      ? todayBox.getBoundingClientRect()
+      : undefined;
+  const scrolled = page?.scrollTop ?? 0;
+  const landing = todayLanding(
+    monthKey,
+    landedMonth,
+    rect ? { top: rect.top + scrolled, height: rect.height } : undefined,
+    state.scrollAfterDraw ?? scrolled,
+    page?.clientHeight ?? innerHeight,
+  );
+  landedMonth = monthKey;
+  if (landing !== undefined) state.scrollAfterDraw = landing;
+}
+
+/** The month the full view last drew, so a redraw of it never moves the window. */
+let landedMonth: string | undefined;
+
+/**
+ * Where the full view should land so today's cell is on screen, or `undefined`
+ * to leave the draw's own offset alone (popup-live #3).
+ *
+ * Even with auto-height rows, today in the fifth week of a month starts about
+ * 720px down a 1000x700 window, so the month opened on weeks that are over.
+ *
+ * Only on the **first** draw of a month (`drawn !== last`) — opening the full
+ * view, or stepping to another month. A store write, the minute tick or a Hide
+ * redraws the same month, and moving the window then would move it under the
+ * student (ZIP rule 1, and `scrollPlan`'s "a redraw keeps your place").
+ *
+ * `today.top` is the cell's offset in the document, and `landing` is where the
+ * draw is about to put the window (`scrollPlan`'s answer, 0 for a navigation) —
+ * not where it happens to be mid-draw, which is an offset about to be replaced.
+ * A cell already inside that window is left where it is; otherwise it is
+ * centred, as `scrollIntoView({ block: "center" })` would put it. The draw
+ * clamps the answer to the document.
+ */
+export function todayLanding(
+  drawn: string,
+  last: string | undefined,
+  today: { top: number; height: number } | undefined,
+  landing: number,
+  viewport: number,
+): number | undefined {
+  if (drawn === last || today === undefined) return undefined;
+  if (today.top >= landing && today.top + today.height <= landing + viewport) return undefined;
+  return today.top - (viewport - today.height) / 2;
 }
 
 /**
@@ -164,7 +226,7 @@ function renderMonthPill(
   pill.append(code, name);
 
   pill.title = anchor.assumed
-    ? `${item.title} — ${UNTIMED_NOTE}`
+    ? `${item.title} — ${assumedTimeNote(item)}`
     : `${item.title} — ${anchor.opening ? "opens " : ""}${clockOf(anchor.at)}`;
 
   /*
@@ -271,6 +333,7 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
 
   const grid = document.createElement("div");
   grid.className = "mdots";
+  grid.addEventListener("keydown", (event) => gridKeys(grid, event));
   const list = document.createElement("div");
   list.className = "mday-list";
 
@@ -286,10 +349,11 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
          * `makeRowsNavigable` runs again because the rows it was rolling have
          * just been replaced.
          */
-        for (const other of grid.querySelectorAll<HTMLElement>(".mday")) {
+        for (const other of grid.querySelectorAll<HTMLElement>(`.${MONTH_CELL_CLASS}`)) {
           const on = other.dataset["day"] === selectedKey;
           other.classList.toggle("mday--on", on);
           other.setAttribute("aria-pressed", String(on));
+          other.tabIndex = on ? 0 : -1;
         }
         paintDayList(list, items, tapped, now, colours);
         makeRowsNavigable();
@@ -356,6 +420,53 @@ function renderLegend(cells: MonthDotCell[], colours: Map<string, number>): HTML
   return legend;
 }
 
+/** The class every day cell carries, and the one the grid's keys look up (UI rule 7). */
+export const MONTH_CELL_CLASS = "mday";
+
+/**
+ * The month grid's arrow keys (a11y review, 2026-09-27, #7).
+ *
+ * The grid was 35 Tab stops between the date strip and the first row, with no
+ * arrows at all. Now it is one stop, and ← → move a day, ↑ ↓ a week, Home and
+ * End go to the first and last day of the month being shown. Moving focus does
+ * not pick the day — Enter and Space do, as they do on any button — so walking
+ * across the month does not repaint the list under the grid at every step.
+ */
+export function gridKeys(grid: HTMLElement, event: KeyboardEvent): void {
+  const cells = [...grid.querySelectorAll<HTMLElement>(`.${MONTH_CELL_CLASS}`)];
+  const here = cells.indexOf(event.target as HTMLElement);
+  if (here === -1) return;
+  const inMonth = cells.filter((cell) => !cell.classList.contains("mday--out"));
+  let next: HTMLElement | undefined;
+  switch (event.key) {
+    case "ArrowLeft":
+      next = cells[here - 1];
+      break;
+    case "ArrowRight":
+      next = cells[here + 1];
+      break;
+    case "ArrowUp":
+      next = cells[here - 7];
+      break;
+    case "ArrowDown":
+      next = cells[here + 7];
+      break;
+    case "Home":
+      next = inMonth[0];
+      break;
+    case "End":
+      next = inMonth[inMonth.length - 1];
+      break;
+    default:
+      return;
+  }
+  // Past either edge of the grid the key does nothing — paging a month is ‹ ›'s job.
+  event.preventDefault();
+  if (!next) return;
+  for (const cell of cells) cell.tabIndex = cell === next ? 0 : -1;
+  next.focus();
+}
+
 function renderDotCell(
   cell: MonthDotCell,
   colours: Map<string, number>,
@@ -364,7 +475,7 @@ function renderDotCell(
 ): HTMLElement {
   const box = document.createElement("button");
   box.type = "button";
-  box.className = "mday";
+  box.className = MONTH_CELL_CLASS;
   box.dataset["day"] = dayKey(cell.date);
   if (cell.outside) box.classList.add("mday--out");
   if (cell.isToday) box.classList.add("mday--today");
@@ -379,7 +490,17 @@ function renderDotCell(
   const due = cell.dots.length + cell.more;
   // A dot is 4px and carries no text at all, so the cell has to say what it
   // means to somebody who cannot see it — and to anybody hovering it.
-  box.title = due === 0 ? `${named} — nothing due` : `${named} — ${due} due`;
+  //
+  // The name as well as the title (2026-09-27): a button's accessible name
+  // comes from its content, so the sentence in `title` never reached a screen
+  // reader, which heard "30", "1", "27 +2" — not which month the leading 30
+  // belongs to, and not what "+2" counts (a11y review #7).
+  const sentence = due === 0 ? `${named} — nothing due` : `${named} — ${due} due`;
+  box.title = sentence;
+  box.setAttribute("aria-label", sentence);
+  // One Tab stop for the grid, on the day the list below is showing; the
+  // arrows walk the rest (`gridKeys`).
+  box.tabIndex = on ? 0 : -1;
 
   const num = document.createElement("span");
   num.className = "mday--num";
@@ -491,7 +612,9 @@ function renderDayRow(placed: PlacedItem, now: Date, colours: Map<string, number
       ? "EOD"
       : `${placed.anchor.opening ? "opens " : ""}${clockOf(placed.anchor.at)}`;
   const row = renderRow(placed.item, now, undefined, { primary }, colours);
-  if (placed.anchor.assumed) row.title = UNTIMED_NOTE;
+  // Names who left the time out — a course page, a post, or the student's own
+  // row — rather than always blaming "the course site" (copy audit #4).
+  if (placed.anchor.assumed) row.title = assumedTimeNote(placed.item);
   /*
    * No `›` at the end of the line.
    *

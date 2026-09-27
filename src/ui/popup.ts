@@ -34,6 +34,7 @@ import {
   type ViewName,
 } from "../core/calendar.js";
 import { normalizePopupState, staleWorkerNotice } from "../core/compat.js";
+import { chromeTabs, focusOrOpen } from "../core/tabs.js";
 import { alertCount, emptyStateFor, sourcesToRecheck, type NavigatedAt } from "../core/health.js";
 import { SOURCE_NAME } from "../core/names.js";
 import { DEFAULT_SETTINGS, STORAGE_KEY } from "../core/store.js";
@@ -388,7 +389,7 @@ function render(
         button.type = "button";
         button.className = "btn btn-primary";
         button.textContent = `Sign in to ${SOURCE_NAME[source]}`;
-        button.addEventListener("click", () => chrome.tabs.create({ url }));
+        button.addEventListener("click", () => void focusOrOpen(url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
         actions.append(button);
       }
       if (actions.childElementCount > 0) viewEl.append(actions);

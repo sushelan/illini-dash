@@ -36,11 +36,26 @@ import {
 import { courseLabel, SOURCE_CODE, SOURCE_NAME } from "../../core/names.js";
 import { assumedTimeNote } from "../../core/provenance.js";
 import { qualityFlags, unreadableDeadline, unreadableSummary } from "../../core/quality.js";
+import { chromeTabs, focusOrOpen } from "../../core/tabs.js";
 import { iconButton } from "../icons.js";
 import { TWEAKS_EVENT } from "../theme-panel.js";
 import type { Item } from "../../sources/types.js";
 import { app, readTweaks, safeUrl, state } from "./state.js";
 import { applySuggestionRequest, openRowMenu } from "./shell.js";
+import { ROW_LINK_CLASS } from "./focus.js";
+
+/**
+ * The key a student holds to open a row's source instead of its screen, as
+ * this machine's keyboard spells it.
+ *
+ * The row tooltips said "⌘-click" on every machine, and most UIUC laptops have
+ * no ⌘ — the handler has always taken Ctrl too (copy audit #10, 2026-09-27).
+ * `navigator.platform` is deprecated but still the one synchronous answer a
+ * popup has; anything it does not recognise as Apple's gets "Ctrl".
+ */
+export function modifierKeyName(platform: string | undefined = globalThis.navigator?.platform): string {
+  return /^(Mac|iPhone|iPad|iPod)/i.test(platform ?? "") ? "⌘" : "Ctrl";
+}
 
 export interface RowOptions {
   /** One line: dot, title, code, one status word. Today and the Week. */
@@ -121,44 +136,62 @@ export function renderRow(
   const asCard = cardDesign();
   if (asCard && options.compact) options = { ...options, compact: false };
   /*
-   * An `<a>`, not a `<div>` with a click handler.
+   * A `div.row` holding a link and the ⋯ side by side (2026-09-27).
    *
-   * Every row in this list opened a page and none of them could be reached by
-   * keyboard: Tab went from the tab strip straight past a screenful of
-   * deadlines to whatever came after. A div also cannot be middle-clicked,
-   * cannot be copied as a link, and announces as nothing.
+   * The row was an `<a>` — a div with a click handler could not be reached by
+   * keyboard, middle-clicked or copied as a link — with the ⋯ `<button>`
+   * *inside* it. That is invalid interactive nesting, and it made every row's
+   * accessible name end in "More actions" (a11y review #12). So the card is a
+   * `div` again, the **title** is the link, and the ⋯ is its sibling: the
+   * link is the one ring stop per row, the button is its own control, and the
+   * card keeps every class the stylesheets key on.
    *
-   * Rows with no safe URL stay a `<div>` — an `<a>` with no `href` is not
-   * focusable and announces as a link that goes nowhere, which is worse than a
-   * plain row.
+   * A typed row with no safe URL has no link to be. It used to be a bare
+   * `div.row` that Tab and ↑ ↓ could land on and nothing could then open:
+   * Enter, Space, `.` and Shift+F10 all did nothing (a11y review #1). Its title
+   * is a `role=button` now, the same stop, answering the same keys.
+   *
+   * The mouse is unchanged: a press anywhere on the card still opens the
+   * deadline screen, ⌘/Ctrl and the middle button still open the source.
    */
   const url = safeUrl(item.url);
-  const row = document.createElement(url ? "a" : "div");
+  const row = document.createElement("div");
   row.className = "row";
-  // A div row joins the roving ring too (R2 L3); `makeRowsNavigable` rolls it.
-  if (!url) row.tabIndex = -1;
   if (options.compact) row.classList.add("row--compact");
-  if (url && row instanceof HTMLAnchorElement) {
-    row.href = url;
-    // Rolled by `makeRowsNavigable` once the view is drawn: one stop for the
-    // whole list, then ↑ ↓ inside it.
-    row.tabIndex = -1;
-    row.addEventListener("keydown", (event) => {
-      // Shift+F10 and the context-menu key are what a list row is expected to
-      // answer; `.` is the shorthand every mail client uses.
-      if (
-        (event.shiftKey && event.key === "F10") ||
-        event.key === "ContextMenu" ||
-        event.key === "."
-      ) {
-        event.preventDefault();
-        const trigger = row.querySelector<HTMLElement>(".row--menu");
-        if (trigger) openRowMenu(item, trigger);
-      }
-    });
-    // Middle click keeps opening the source. It does not fire `click` in
-    // Chrome, so the ordinary handler below cannot see it — without this the
-    // press would do nothing at all, which is worse than either answer.
+  const open = (event: Event, toSource: boolean): void => {
+    // A tab (`focusOrOpen`) rather than the browser's own navigation: a popup
+    // navigating itself away leaves a 400px window showing Gradescope.
+    event.preventDefault();
+    // ⌘ / Ctrl still means "open the source in a tab" — the gesture every list
+    // of links answers, and the one a student uses to get to Gradescope without
+    // reading anything here first. A plain press is now the deadline screen
+    // (D8), where every action on this row lives.
+    if (toSource && url) {
+      // The tab already showing it, if there is one (I60). Middle click below
+      // stays a new tab: that button *is* the new-tab gesture.
+      void focusOrOpen(url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
+      return;
+    }
+    app.openDeadline(item);
+  };
+  row.addEventListener("keydown", (event) => {
+    // Shift+F10 and the context-menu key are what a list row is expected to
+    // answer; `.` is the shorthand every mail client uses. On the row, so the
+    // link, the typed row's button and anything else inside all answer it.
+    if (
+      (event.shiftKey && event.key === "F10") ||
+      event.key === "ContextMenu" ||
+      event.key === "."
+    ) {
+      event.preventDefault();
+      const trigger = row.querySelector<HTMLElement>(".row--menu");
+      if (trigger) openRowMenu(item, trigger);
+    }
+  });
+  // Middle click keeps opening the source. It does not fire `click` in
+  // Chrome, so the ordinary handler below cannot see it — without this the
+  // press would do nothing at all, which is worse than either answer.
+  if (url) {
     row.addEventListener("auxclick", (event) => {
       if (event.button !== 1) return;
       event.preventDefault();
@@ -167,18 +200,7 @@ export function renderRow(
   }
   row.addEventListener("click", (raw) => {
     const event = raw as MouseEvent;
-    // `chrome.tabs.create` rather than the browser's own navigation: a popup
-    // navigating itself away leaves a 400px window showing Gradescope.
-    event.preventDefault();
-    // ⌘ / Ctrl still means "open the source in a tab" — the gesture every list
-    // of links answers, and the one a student uses to get to Gradescope without
-    // reading anything here first. A plain press is now the deadline screen
-    // (D8), where every action on this row lives.
-    if ((event.metaKey || event.ctrlKey) && url) {
-      chrome.tabs.create({ url });
-      return;
-    }
-    app.openDeadline(item);
+    open(event, event.metaKey || event.ctrlKey);
   });
   // The course colour is on the row, not only in the legend: a chip strip you
   // have to look up is a lookup table, and the point of colour is to answer
@@ -197,10 +219,32 @@ export function renderRow(
   chip.className = "chip";
   chip.textContent = code;
 
-  const title = document.createElement("span");
-  title.className = "row--title";
+  /*
+   * The title is the row's one keyboard stop — the link, or for a typed row
+   * with nowhere to link to, a button. Rolled by `makeRowsNavigable` once the
+   * view is drawn: one stop for the whole list, then ↑ ↓ inside it.
+   */
+  const title = document.createElement(url ? "a" : "span");
+  title.className = `row--title ${ROW_LINK_CLASS}`;
   title.textContent = item.title;
   title.title = item.title;
+  title.tabIndex = -1;
+  if (url && title instanceof HTMLAnchorElement) {
+    title.href = url;
+  } else {
+    title.setAttribute("role", "button");
+  }
+  title.addEventListener("keydown", (raw) => {
+    const event = raw as KeyboardEvent;
+    // Enter on both, Space on the button (Space on a link scrolls, which is
+    // what a link is expected to do). Handled here rather than left to the
+    // browser's synthesized click so the two shapes open the same way, with
+    // ⌘/Ctrl+Enter meaning what ⌘/Ctrl-click means.
+    if (event.key === "Enter" || (!url && event.key === " ")) {
+      event.stopPropagation();
+      open(event, event.metaKey || event.ctrlKey);
+    }
+  });
 
   // §4.3: not-for-credit work stays visible — some of those surveys are
   // required — but it is labelled, so half of a PrairieLearn course's page does
@@ -240,8 +284,8 @@ export function renderRow(
         ? // Not "On your own list — click the row to open it": the student wrote
           // this row, so naming a site to visit would be a lie, and a link is
           // there only if they gave one.
-          `You added this${item.url ? " — ⌘-click to open the link you gave" : ""}`
-        : `On ${SOURCE_NAME[distinct[0]!]}${item.url ? " — ⌘-click to open it" : ""}`;
+          `You added this${item.url ? ` — ${modifierKeyName()}-click to open the link you gave` : ""}`
+        : `On ${SOURCE_NAME[distinct[0]!]}${item.url ? ` — ${modifierKeyName()}-click to open it` : ""}`;
 
   /* ---- the right-hand column, and what it is allowed to claim ------------ */
 
@@ -287,8 +331,10 @@ export function renderRow(
       className: "row--detail row--detail-error",
       // The raw text the parser could not make sense of, as text so a hostile
       // page cannot use this path (§8.1's rendering rule).
+      // The source's *name*, not its storage key: "gradescope due date" was
+      // this extension's vocabulary on a student's screen (copy audit #18).
       title: unreadable
-        .map((flag) => `${flag.source} ${flag.field}: ${flag.detail ?? "(no value)"}`)
+        .map((flag) => `${SOURCE_NAME[flag.source]} ${flag.field}: ${flag.detail ?? "(no value)"}`)
         .join("\n"),
     });
   } else if (dueText !== undefined) {
@@ -384,6 +430,9 @@ export function renderRow(
     if (formatted.detail) details.push({ text: formatted.detail, className: "row--detail" });
   }
 
+  /** What the clock column says in words, for the link's name, before any mark joins it. */
+  const whenWords = [rel.textContent, due.textContent].filter(Boolean).join(" ");
+
   const soft = qualityFlags(item).filter((flag) => !flag.blocksDate);
   if (soft.length > 0 && unreadable.length === 0) {
     // Dated, but something else on the row did not parse. A mark, not a
@@ -392,7 +441,7 @@ export function renderRow(
     mark.className = "row--flag";
     mark.textContent = "!";
     mark.title = soft
-      .map((flag) => `${flag.source} ${flag.field}${flag.detail ? `: ${flag.detail}` : ""}`)
+      .map((flag) => `${SOURCE_NAME[flag.source]} ${flag.field}${flag.detail ? `: ${flag.detail}` : ""}`)
       .join("\n");
     due.append(document.createTextNode(" "), mark);
   }
@@ -432,8 +481,9 @@ export function renderRow(
   // see is a control nobody learns — and now that a press opens the deadline
   // screen, this is the only thing on the card that still reaches Split, Merge
   // and Rename without leaving the list.
-  const menu = iconButton("more", "More actions");
+  const menu = iconButton("more", `More actions for ${item.title}`);
   menu.classList.add("row--menu", "btn-sm");
+  menu.setAttribute("aria-haspopup", "menu");
   menu.tabIndex = -1;
   menu.addEventListener("click", (event) => {
     event.preventDefault();
@@ -468,6 +518,8 @@ export function renderRow(
     row.append(dot, title, short);
     if (item.forCredit === false) row.append(practice);
     row.append(rel, menu);
+    nameLink(title, [item.title, code, item.forCredit === false ? "practice" : "", whenWords]);
+    if (!url) row.classList.add("row--flat");
     return row;
   }
 
@@ -553,10 +605,35 @@ export function renderRow(
     row.append(line);
   }
 
+  nameLink(title, [
+    item.title,
+    ...[...metaLine.children]
+      .filter((part) => !part.classList.contains("row--sep"))
+      .map((part) => part.textContent ?? ""),
+    whenWords,
+  ]);
   // Not a link, but still something to press: the deadline screen is where a
   // manual row without a URL says everything it has to say.
   if (!url) row.classList.add("row--flat");
   return row;
+}
+
+/**
+ * The stop's accessible name: the row's facts, in reading order.
+ *
+ * Its visible text is the title alone, and the course, the source and the
+ * time sit beside it in the card, so a screen reader landing on the link heard
+ * only "MP 2". The name starts with the visible title, so what is heard and
+ * what is seen agree.
+ */
+function nameLink(link: HTMLElement, parts: readonly string[]): void {
+  link.setAttribute(
+    "aria-label",
+    parts
+      .map((part) => part.trim())
+      .filter((part) => part !== "")
+      .join(", "),
+  );
 }
 
 /** One chunk of the meta line. */
