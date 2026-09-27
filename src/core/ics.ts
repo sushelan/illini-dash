@@ -8,6 +8,7 @@
  * rather than let a student believe it stays in sync.
  */
 
+import { courseLabel } from "./names.js";
 import { assumedTimeNote } from "./provenance.js";
 import type { Item } from "../sources/types.js";
 
@@ -77,9 +78,66 @@ function icsDayAfter(iso: string): string {
   return icsDate(next.toISOString());
 }
 
-function event(item: Item, stamp: string): string[] {
-  const instant = item.dueAt ?? item.lateDueAt;
-  if (instant === undefined) return [];
+/**
+ * What an exported late leg says about itself, in the `.ics` and the Google
+ * Calendar push alike (copy-audit #15, 2026-09-27).
+ *
+ * "Late window" is the one noun every surface uses for it; this said
+ * "Reduced-credit deadline.", and §4.3 is explicit that the window is not a
+ * deadline. One constant for both exports, which is what keeps them from
+ * drifting the way I66's two copies of `exportLegs` did.
+ *
+ * Not `creditWindowText`, although it is the one spelling of the window as a
+ * time: the event's own start and end already are that time, and on a
+ * `timeAssumed` leg it would print the invented 11:59 PM inside an event that
+ * is filed all-day precisely so that no clock appears (worker rule 3).
+ */
+export const LATE_LEG_NOTE = "Late window — reduced credit.";
+
+/** One instant of one item that becomes a calendar event. */
+export interface ExportLeg {
+  /** `item.id`, or `item.id#late` for the late window. */
+  key: string;
+  instant: string;
+  /** True when this instant is a reduced-credit or late deadline. */
+  late: boolean;
+}
+
+/**
+ * Which instants of one item become events — for the `.ics` and the Google
+ * Calendar push alike (I66: two copies of this decision had already drifted,
+ * the push carrying the late window and the `.ics` dropping it).
+ *
+ * `dueAt ?? lateDueAt` is the primary: an item with only a reduced-credit
+ * deadline is still one thing to do, and hiding it because the full-credit
+ * window is unknown would be the silent empty at the row level.
+ *
+ * The late leg exists only when both instants are stated *and differ*: a source
+ * that repeats the same time in both fields would otherwise put two identical
+ * events on the same slot.
+ */
+export function exportLegs(item: Item): ExportLeg[] {
+  const primary = item.dueAt ?? item.lateDueAt;
+  if (primary === undefined) return [];
+  const out: ExportLeg[] = [{ key: item.id, instant: primary, late: item.dueAt === undefined }];
+  if (item.dueAt !== undefined && item.lateDueAt !== undefined && item.lateDueAt !== item.dueAt) {
+    out.push({ key: `${item.id}#late`, instant: item.lateDueAt, late: true });
+  }
+  return out;
+}
+
+/**
+ * "CS 357: HW3", with the course named as every other surface names it —
+ * `courseLabel` resolves the student's rename, then the display form.
+ * `Item.title` is already the renamed row title (`buildItem`).
+ */
+export function eventSummary(item: Item, courseNames: Record<string, string> = {}): string {
+  const label = item.courseLabel ? courseLabel(item.courseLabel, courseNames) : "";
+  return label ? `${label}: ${item.title}` : item.title;
+}
+
+function event(item: Item, leg: ExportLeg, stamp: string, courseNames: Record<string, string>): string[] {
+  const instant = leg.instant;
   let end: string;
   let start: string;
   try {
@@ -89,10 +147,11 @@ function event(item: Item, stamp: string): string[] {
     return [];
   }
 
-  const summary = item.courseLabel ? `${item.courseLabel}: ${item.title}` : item.title;
+  const summary = eventSummary(item, courseNames);
   const description = [
     item.kind === "booking" ? "Not booked — reserve a seat." : undefined,
-    item.dueAt === undefined ? "Reduced-credit deadline." : undefined,
+    // The same sentence the Google Calendar push writes on its late leg.
+    leg.late ? LATE_LEG_NOTE : undefined,
     // Said in the event itself, because a calendar entry is read long after and
     // far away from the popup that could have explained it.
     item.timeAssumed ? assumedTimeNote(item, "allDay") : undefined,
@@ -113,7 +172,8 @@ function event(item: Item, stamp: string): string[] {
   return [
     "BEGIN:VEVENT",
     // Stable across exports, so re-importing updates rather than duplicating.
-    `UID:${item.id}@illini-dash`,
+    // The primary leg's key is `item.id`, so its UID is what it always was.
+    `UID:${leg.key}@illini-dash`,
     `DTSTAMP:${stamp}`,
     ...timing,
     `SUMMARY:${escapeIcsText(summary)}`,
@@ -130,14 +190,18 @@ function event(item: Item, stamp: string): string[] {
 }
 
 /** §8.3: an `.ics` of the given items, CRLF-terminated as RFC 5545 requires. */
-export function buildIcs(items: Item[], now: Date = new Date()): string {
+export function buildIcs(
+  items: Item[],
+  now: Date = new Date(),
+  courseNames: Record<string, string> = {},
+): string {
   const stamp = icsTimestamp(now.toISOString());
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//illini-dash//EN",
     "CALSCALE:GREGORIAN",
-    ...items.flatMap((item) => event(item, stamp)),
+    ...items.flatMap((item) => exportLegs(item).flatMap((leg) => event(item, leg, stamp, courseNames))),
     "END:VCALENDAR",
   ];
   return `${lines.map(foldIcsLine).join("\r\n")}\r\n`;
@@ -147,7 +211,10 @@ export function buildIcs(items: Item[], now: Date = new Date()): string {
  * §8.3: a Google Calendar template link. No OAuth, no scopes, no consent
  * screen — it opens a prefilled "create event" page the student confirms.
  */
-export function googleCalendarUrl(item: Item): string | undefined {
+export function googleCalendarUrl(
+  item: Item,
+  courseNames: Record<string, string> = {},
+): string | undefined {
   const instant = item.dueAt ?? item.lateDueAt;
   if (instant === undefined) return undefined;
   let dates: string;
@@ -169,7 +236,7 @@ export function googleCalendarUrl(item: Item): string | undefined {
 
   const params = new URLSearchParams({
     action: "TEMPLATE",
-    text: item.courseLabel ? `${item.courseLabel}: ${item.title}` : item.title,
+    text: eventSummary(item, courseNames),
     dates,
     // `details` is required by URLSearchParams to be a string, and a row with no
     // link has nothing to put there but the note.

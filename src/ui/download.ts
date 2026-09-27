@@ -34,9 +34,15 @@ export function downloadFile(filename: string, text: string, mime: string): void
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** Returns how many items were written, for the line that reports it. */
-export function downloadIcs(items: readonly Item[]): number {
+/**
+ * Returns how many items were written, for the line that reports it.
+ *
+ * `courseNames` is the student's course renames, so the file says what the
+ * popup says (copy audit #3); a caller reading them off a worker message passes
+ * `?? {}`, since that message comes from another build (worker rule 8).
+ */
+export function downloadIcs(items: readonly Item[], courseNames: Record<string, string> = {}): number {
   const exported = itemsToExport(items);
-  downloadFile("illini-dash.ics", buildIcs(exported), "text/calendar");
+  downloadFile("illini-dash.ics", buildIcs(exported, new Date(), courseNames), "text/calendar");
   return exported.length;
 }

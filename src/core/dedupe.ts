@@ -271,6 +271,11 @@ function carryNotified(before: Item, item: Item): Item["notified"] {
   // re-arm them for the same reason.
   delete carried["late24h"];
   delete carried["late2h"];
+  // A moved exam must re-arm its week-out lead (I18), and a snooze aimed at the
+  // old instant is void (I13): the leads above re-arm for the new one.
+  delete carried["7d"];
+  delete carried["snooze"];
+  delete carried["snoozeUntil"];
 
   // Say so in the UI only when the source stated both instants. An assumed
   // 23:59 turning into a real 5 PM is this extension correcting its own

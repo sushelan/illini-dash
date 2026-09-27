@@ -610,6 +610,49 @@ describe("a deadline that moved (§7's fired record is about a moment)", () => {
     expect(after[0]!.notified["2h"]).toBeUndefined();
   });
 
+  it("re-arms an exam's week-out lead when the exam moves (I18)", () => {
+    // Without this an exam that moves keeps its spent `7d` stamp and never gets
+    // a week-out reminder for the new date — the week it was meant to buy.
+    const exam = (day: number) =>
+      raw({ source: "prairietest", sourceId: "exam1", title: "Exam 1", kind: "exam", dueAt: at(day, 9) });
+    const before = dedupe([exam(8)], NO_OVERRIDES);
+    before[0]!.notified = { "7d": "2026-09-01T14:00:00Z", "24h": "2026-09-07T14:00:00Z" };
+
+    const after = dedupe([exam(15)], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.id).toBe(before[0]!.id);
+    expect(after[0]!.notified["7d"]).toBeUndefined();
+    expect(after[0]!.notified["24h"]).toBeUndefined();
+  });
+
+  it("voids a snooze aimed at the old instant (I13)", () => {
+    // The snooze was asked for about Tuesday's deadline. With the deadline on
+    // Friday the leads above re-arm for it, and an hour-later nudge about a
+    // deadline that no longer exists is not the student's request any more.
+    const before = dedupe([stated(at(8))], NO_OVERRIDES);
+    before[0]!.notified = {
+      "2h": "2026-09-08T20:00:00Z",
+      snooze: "2026-09-08T21:00:00Z",
+      snoozeUntil: "2026-09-08T22:00:00Z",
+    };
+
+    const after = dedupe([stated(at(11))], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.notified).toEqual({});
+  });
+
+  it("keeps a week-out stamp and a snooze owed when the deadline did not move", () => {
+    // The other branch: every sync rebuilds the item, and a snooze pressed
+    // between two syncs must survive the second one or it never fires.
+    const before = dedupe([stated(at(8))], NO_OVERRIDES);
+    const fired = {
+      "7d": "2026-09-01T14:00:00Z",
+      snooze: "2026-09-08T21:00:00Z",
+      snoozeUntil: "2026-09-08T22:00:00Z",
+    };
+    before[0]!.notified = fired;
+    const after = dedupe([stated(at(8))], NO_OVERRIDES, { previous: before });
+    expect(after[0]!.notified).toEqual(fired);
+  });
+
   it("records what it moved from, so the row can say so", () => {
     const before = dedupe([stated(at(8))], NO_OVERRIDES);
     const after = dedupe([stated(at(11))], NO_OVERRIDES, { previous: before });

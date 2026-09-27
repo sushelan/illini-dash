@@ -9,8 +9,10 @@
  */
 
 import { isItemDone, isTickedDone } from "./dedupe.js";
-import { examDetail, liveDeadline } from "./grouping.js";
-import { nameList } from "./names.js";
+import { creditWindowText, examDetail, liveDeadline } from "./grouping.js";
+import { courseLabel, nameList } from "./names.js";
+import { isInstant } from "./parsing.js";
+import { assumedTimeNote } from "./provenance.js";
 import type { Item, Settings } from "../sources/types.js";
 
 /**
@@ -22,15 +24,66 @@ import type { Item, Settings } from "../sources/types.js";
  * late window meant the late reminder was suppressed as already-sent, which is
  * precisely the deadline the student still has a chance to meet.
  */
-export type Lead = "24h" | "2h" | "booking" | "late24h" | "late2h" | "dayOf";
+export type Lead =
+  | "24h"
+  | "2h"
+  | "booking"
+  | "late24h"
+  | "late2h"
+  | "dayOf"
+  /** I18: a week out, for an exam only — a sitting needs a study runway, a homework does not. */
+  | "7d"
+  /** I40: the evening of the last day a CBTF seat can be reserved. */
+  | "bookingLast"
+  /** I40: the window closed and the booking item is still here — said once. */
+  | "bookingMissed"
+  /** I13: the one reminder a student asked for from a toast's Snooze button. */
+  | "snooze";
 
-type TimedLead = "24h" | "2h" | "late24h" | "late2h";
+/**
+ * Every key `Item.notified` may carry: a lead that fired, plus `snoozeUntil`,
+ * which is not a firing record but the instant a snoozed reminder is owed.
+ *
+ * `Item.notified`'s declared type lags this until `sources/types.ts` is widened
+ * to it (lane H wiring note); reads go through `notifiedOf` so this file
+ * compiles either way.
+ */
+export type NotifiedKey = Lead | "snoozeUntil";
+export type Notified = Partial<Record<NotifiedKey, string>>;
+
+function notifiedOf(item: Item): Notified {
+  return item.notified as Notified;
+}
+
+type TimedLead = "24h" | "2h" | "late24h" | "late2h" | "7d";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 const LEAD_MS: Record<TimedLead, number> = {
-  "24h": 24 * 60 * 60 * 1000,
-  "2h": 2 * 60 * 60 * 1000,
-  late24h: 24 * 60 * 60 * 1000,
-  late2h: 2 * 60 * 60 * 1000,
+  "24h": DAY_MS,
+  "2h": 2 * HOUR_MS,
+  late24h: DAY_MS,
+  late2h: 2 * HOUR_MS,
+  "7d": 7 * DAY_MS,
+};
+
+/**
+ * How urgent each lead is when two of them are overdue at once — smaller wins
+ * the collapse. A timed lead ranks by its window; the student's own snooze
+ * outranks everything, because it is the reminder they asked for.
+ */
+const URGENCY_RANK: Record<Lead, number> = {
+  snooze: 0,
+  dayOf: 1,
+  bookingMissed: 1,
+  bookingLast: 1,
+  booking: 2,
+  "2h": LEAD_MS["2h"],
+  late2h: LEAD_MS.late2h,
+  "24h": LEAD_MS["24h"],
+  late24h: LEAD_MS.late24h,
+  "7d": LEAD_MS["7d"],
 };
 
 /** The late-window counterpart of each configured lead time. */
@@ -42,6 +95,30 @@ const LATE_LEAD: Record<"24h" | "2h", "late24h" | "late2h"> = {
 /** §7: the daily booking nag fires at 10:00 local. */
 export const BOOKING_HOUR = 10;
 
+/**
+ * I40: the last-day escalation fires at 18:00 local — late enough that the
+ * morning nag has been ignored, early enough that CBTF's evening slots are
+ * still worth reserving before the window ends at 23:59:59.
+ */
+export const BOOKING_LAST_HOUR = 18;
+
+/** §4.4: a missed reservation is worth saying for 3 days, then it is stale. */
+export const MISSED_NOTICE_DAYS = 3;
+
+/** I13: what one press of Snooze buys. */
+export const SNOOZE_MS = HOUR_MS;
+
+/**
+ * I28: how many reminder alarms `reschedule` may arm at once.
+ *
+ * Chrome 117+ refuses an extension's 501st alarm. The sync alarm and whatever
+ * else the worker keeps share that ceiling, so reminders get 400 and leave the
+ * rest as headroom.
+ */
+export const ALARM_BUDGET = 400;
+
+const LEAD_PATTERN = "late24h|late2h|24h|2h|7d|bookingLast|bookingMissed|booking|dayOf|snooze";
+
 const ALARM_PREFIX = "notify";
 
 export function alarmName(itemId: string, lead: Lead): string {
@@ -49,7 +126,7 @@ export function alarmName(itemId: string, lead: Lead): string {
 }
 
 export function parseAlarmName(name: string): { itemId: string; lead: Lead } | undefined {
-  const match = /^notify:(.+):(late24h|late2h|24h|2h|booking|dayOf)$/.exec(name);
+  const match = new RegExp(`^notify:(.+):(${LEAD_PATTERN})$`).exec(name);
   if (!match) return undefined;
   return { itemId: match[1]!, lead: match[2] as Lead };
 }
@@ -123,12 +200,50 @@ function isEligible(item: Item, settings: Settings): boolean {
   return true;
 }
 
+/** A booking's `windowEnd`, when the parser stated one that is an instant. */
+function windowEndOf(item: Item): number | undefined {
+  const raw = item.members.map((m) => m.extra?.["windowEnd"]).find((v) => v !== undefined && v !== "");
+  // Parser rule 5: `Date.parse("2026-09-23")` is 7 PM the day before here, and
+  // worker rule 3 says never invent an end — an unreadable one is no end.
+  return isInstant(raw) ? Date.parse(raw) : undefined;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.toDateString() === b.toDateString();
+}
+
 /**
  * §7: the booking nag repeats daily until the exam is booked — at which point
  * the item stops being produced at all, so its absence is what stops the nag.
+ *
+ * I40 adds two things around it, both keyed off the stated `windowEnd` and
+ * neither when it is unknown: one evening reminder on the last day
+ * (`bookingLast`), and — if the item is still here once the window has shut —
+ * a single "missed" notice instead of a nag about a seat nobody can reserve.
  */
-function planBooking(item: Item, settings: Settings, now: Date): PlannedNotification | undefined {
-  const lastFired = item.notified.booking;
+function planBooking(item: Item, settings: Settings, now: Date): PlannedNotification[] {
+  const notified = notifiedOf(item);
+  const end = windowEndOf(item);
+
+  if (end !== undefined && end <= now.getTime()) {
+    // Nagging "Book a seat" about a closed window is a lie; say once that it
+    // closed, within §4.4's three days, and never again.
+    if (notified.bookingMissed !== undefined) return [];
+    if (now.getTime() - end > MISSED_NOTICE_DAYS * DAY_MS) return [];
+    return [
+      {
+        alarmName: alarmName(item.id, "bookingMissed"),
+        itemId: item.id,
+        lead: "bookingMissed",
+        fireAt: deferPastQuietHours(now, settings.quietHours).toISOString(),
+        overdue: true,
+        superseded: [],
+      },
+    ];
+  }
+
+  const plans: PlannedNotification[] = [];
+  const lastFired = notified.booking;
   const next = new Date(now);
   next.setHours(BOOKING_HOUR, 0, 0, 0);
 
@@ -142,16 +257,36 @@ function planBooking(item: Item, settings: Settings, now: Date): PlannedNotifica
   // Past 10:00 with nothing fired today means fire now, not tomorrow.
   const overdue = next.getTime() <= now.getTime();
   const fireAt = deferPastQuietHours(overdue ? now : next, settings.quietHours);
+  // Never nag past the end of the window: tomorrow's 10:00 after the last day
+  // would be a nag about a seat that can no longer be had.
+  if (end === undefined || fireAt.getTime() < end) {
+    plans.push({
+      alarmName: alarmName(item.id, "booking"),
+      itemId: item.id,
+      lead: "booking",
+      fireAt: fireAt.toISOString(),
+      overdue,
+      superseded: [],
+    });
+  }
 
-  return {
-    alarmName: alarmName(item.id, "booking"),
-    itemId: item.id,
-    lead: "booking",
-    fireAt: fireAt.toISOString(),
-    overdue,
-    // The daily nag has no other lead to collapse with.
-    superseded: [],
-  };
+  if (end !== undefined && notified.bookingLast === undefined) {
+    const lastDay = new Date(end);
+    const evening = new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate(), BOOKING_LAST_HOUR);
+    const lastOverdue = evening.getTime() <= now.getTime();
+    const lastAt = deferPastQuietHours(lastOverdue ? now : evening, settings.quietHours);
+    if (lastAt.getTime() < end) {
+      plans.push({
+        alarmName: alarmName(item.id, "bookingLast"),
+        itemId: item.id,
+        lead: "bookingLast",
+        fireAt: lastAt.toISOString(),
+        overdue: lastOverdue,
+        superseded: [],
+      });
+    }
+  }
+  return plans;
 }
 
 /**
@@ -168,7 +303,7 @@ function planDayOf(
   now: Date,
   due: number,
 ): PlannedNotification | undefined {
-  if (item.notified.dayOf !== undefined) return undefined;
+  if (notifiedOf(item).dayOf !== undefined) return undefined;
   const dueDate = new Date(due);
   const morning = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
   const overdue = morning.getTime() <= now.getTime();
@@ -203,17 +338,12 @@ function collapseOverdue(plans: PlannedNotification[]): PlannedNotification[] {
   if (overdue.length <= 1) return plans;
 
   // Most urgent = smallest lead window = closest to the deadline.
-  const ranked = [...overdue].sort(
-    (a, b) => (LEAD_MS[a.lead as TimedLead] ?? 0) - (LEAD_MS[b.lead as TimedLead] ?? 0),
-  );
+  const ranked = [...overdue].sort((a, b) => URGENCY_RANK[a.lead] - URGENCY_RANK[b.lead]);
   const survivor = ranked[0]!;
   const replaced = ranked.slice(1).map((plan) => plan.lead);
-  // `!plan.overdue` is unexercised with today's two lead times — if both 24h and
-  // 2h are overdue there is no third lead left to be in the future, so a
-  // mutation that drops this clause passes the whole suite. It is kept
-  // deliberately: custom lead times are a planned change, and the moment a third
-  // lead exists this is what stops a collapse from eating a reminder whose
-  // moment has not arrived.
+  // `!plan.overdue` is reachable since the exam's 7d lead (I18): due in 23
+  // hours, the 7d and 24h moments have passed and the 2h has not, and without
+  // this clause the collapse would eat the 2h reminder whose moment is ahead.
   return plans
     .filter((plan) => !plan.overdue || plan === survivor)
     .map((plan) => (plan === survivor ? { ...plan, superseded: replaced } : plan));
@@ -226,6 +356,36 @@ function collapseOverdue(plans: PlannedNotification[]): PlannedNotification[] {
  * the deadline itself is still ahead — §7's "Chrome was closed" case — and
  * omitted entirely once the deadline has passed, so nothing fires stale.
  */
+/**
+ * I13: the reminder a student asked for by pressing Snooze.
+ *
+ * `snoozeUntil` is validated positively (parser rule 5: a stored value is data
+ * from an older build) and dropped at or past `limit`, the deadline it reminds
+ * about — worker rule 3's "never re-fire past the stated deadline". Once it
+ * fires, `recordFired` removes `snoozeUntil`, so it fires once.
+ */
+function planSnooze(
+  item: Item,
+  settings: Settings,
+  now: Date,
+  limit: number | undefined,
+): PlannedNotification | undefined {
+  const until = notifiedOf(item).snoozeUntil;
+  if (!isInstant(until)) return undefined;
+  const at = new Date(until);
+  const overdue = at.getTime() <= now.getTime();
+  const fireAt = deferPastQuietHours(overdue ? now : at, settings.quietHours);
+  if (limit !== undefined && fireAt.getTime() >= limit) return undefined;
+  return {
+    alarmName: alarmName(item.id, "snooze"),
+    itemId: item.id,
+    lead: "snooze",
+    fireAt: fireAt.toISOString(),
+    overdue,
+    superseded: [],
+  };
+}
+
 export function planNotifications(
   items: Item[],
   settings: Settings,
@@ -237,8 +397,12 @@ export function planNotifications(
     if (!isEligible(item, settings)) continue;
 
     if (item.kind === "booking") {
-      const booking = planBooking(item, settings, now);
-      if (booking) planned.push(booking);
+      const forBooking = planBooking(item, settings, now);
+      // Bounded by the window's end: a snooze on a closed window has nothing
+      // left to say.
+      const snooze = planSnooze(item, settings, now, windowEndOf(item));
+      if (snooze) forBooking.push(snooze);
+      planned.push(...collapseOverdue(forBooking));
       continue;
     }
 
@@ -260,16 +424,26 @@ export function planNotifications(
     // One reminder, on the morning of the day, saying plainly that the time is
     // unknown. Worker house rule 3: what this code invented must never be
     // handed to something that treats it as stated.
+    const snooze = planSnooze(item, settings, now, due);
+
     if (item.timeAssumed) {
       const dayOf = planDayOf(item, settings, now, due);
-      if (dayOf) planned.push(dayOf);
+      planned.push(...collapseOverdue([dayOf, snooze].filter((p): p is PlannedNotification => p !== undefined)));
       continue;
     }
 
-    const forItem: PlannedNotification[] = [];
-    for (const setting of settings.leadTimes) {
-      const lead: TimedLead = live.late ? LATE_LEAD[setting] : setting;
-      if (item.notified[lead] !== undefined) continue;
+    const leads: TimedLead[] = settings.leadTimes.map((setting) =>
+      live.late ? LATE_LEAD[setting] : setting,
+    );
+    // I18: a week out, for an exam only, and only off a stated instant (the
+    // `timeAssumed` branch above has already taken every invented one). Gated
+    // on the student having any lead on at all: someone who switched both off
+    // asked for no countdowns, and this is one.
+    if (item.kind === "exam" && !live.late && leads.length > 0) leads.push("7d");
+
+    const forItem: PlannedNotification[] = snooze ? [snooze] : [];
+    for (const lead of leads) {
+      if (notifiedOf(item)[lead] !== undefined) continue;
       const moment = new Date(due - LEAD_MS[lead]);
       const overdue = moment.getTime() <= now.getTime();
       const fireAt = deferPastQuietHours(overdue ? now : moment, settings.quietHours);
@@ -301,6 +475,120 @@ export function planNotifications(
  */
 export function shouldFireNow(plan: PlannedNotification, now: Date): boolean {
   return Date.parse(plan.fireAt) <= now.getTime();
+}
+
+/**
+ * I28: the plans to arm, soonest first, within Chrome's alarm ceiling.
+ *
+ * Soonest first is the whole decision: a reminder left over is a December one
+ * that the next sync re-plans once September's have fired, while dropping the
+ * sort would arm December and leave tomorrow's deadline silent. `overflow` is
+ * how many were left out, for the worker's log line (worker rule 5).
+ */
+export function armable(
+  plans: readonly PlannedNotification[],
+  limit = ALARM_BUDGET,
+): { armed: PlannedNotification[]; overflow: number } {
+  const sorted = [...plans].sort((a, b) => Date.parse(a.fireAt) - Date.parse(b.fireAt));
+  const armed = sorted.slice(0, Math.max(0, limit));
+  return { armed, overflow: plans.length - armed.length };
+}
+
+/**
+ * The `notified` record after `plan` fired at `at`.
+ *
+ * The lead is stamped, every lead it superseded is recorded as handled without
+ * a toast of its own, and a fired snooze is spent: its
+ * `snoozeUntil` goes, so it cannot fire a second time.
+ */
+export function recordFired(notified: Notified, plan: PlannedNotification, at: string): Notified {
+  const next: Notified = { ...notified, [plan.lead]: at };
+  for (const replaced of plan.superseded) next[replaced] = at;
+  // Only a fired snooze is spent: it outranks every other lead in a collapse
+  // (URGENCY_RANK), so it is never among the superseded.
+  if (plan.lead === "snooze") delete next.snoozeUntil;
+  return next;
+}
+
+/** I13: `notified` with a snooze owed at `until`. The lead that fired stays stamped. */
+export function applySnooze(notified: Notified, until: Date): Notified {
+  return { ...notified, snoozeUntil: until.toISOString() };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons (I13)                                                              */
+/* -------------------------------------------------------------------------- */
+
+export interface ToastButton {
+  title: string;
+  action: "snooze" | "done";
+}
+
+const SNOOZE_BUTTON: ToastButton = { title: "Snooze 1h", action: "snooze" };
+const DONE_BUTTON: ToastButton = { title: "Done", action: "done" };
+
+/**
+ * The buttons a toast carries, in `chrome.notifications` order.
+ *
+ * Chrome allows two, and the toast body is already Open (`onClicked`), so a
+ * deadline gets Snooze and Done — Done being the student's own tick, the
+ * existing `done` override, not Hide. A booking nag gets Snooze only: the item
+ * leaves by itself once a seat is booked (§4.4), and "Done" there would read as
+ * "booked" and silence the nag on a seat nobody reserved. The missed notice
+ * is said once and has nothing to snooze.
+ */
+export function toastButtons(lead: Lead): ToastButton[] {
+  if (lead === "bookingMissed") return [];
+  if (lead === "booking" || lead === "bookingLast") return [SNOOZE_BUTTON];
+  return [SNOOZE_BUTTON, DONE_BUTTON];
+}
+
+/**
+ * Whether the toast stays up until answered (`requireInteraction`).
+ *
+ * The last reminder before a moment — the 2h lead, its late twin, the last
+ * evening to book a seat — has nothing after it, so letting Chrome time it out
+ * mid-lecture loses the only warning left. A snooze is the student asking to be
+ * told again, so it stays too. The earlier leads auto-dismiss: a later one is
+ * still coming. (macOS draws alerts vs banners itself and may ignore this.)
+ */
+export function requiresInteraction(lead: Lead): boolean {
+  return lead === "2h" || lead === "late2h" || lead === "bookingLast" || lead === "snooze";
+}
+
+/** The toast id: the item, the lead, and a stamp so a re-fire is a new toast. */
+export function notificationId(itemId: string, lead: Lead, now: Date): string {
+  return `${itemId}:${lead}:${now.getTime()}`;
+}
+
+export function parseNotificationId(id: string): { itemId: string; lead: Lead } | undefined {
+  const match = new RegExp(`^(.+):(${LEAD_PATTERN}):(\\d+)$`).exec(id);
+  if (!match) return undefined;
+  return { itemId: match[1]!, lead: match[2] as Lead };
+}
+
+export type ButtonAction =
+  | { kind: "snooze"; itemId: string; until: string }
+  | { kind: "done"; itemId: string };
+
+/**
+ * What a press of button `index` on toast `id` asks for, or `undefined` when
+ * the id is not one of ours or the toast has no such button.
+ *
+ * Snooze: write `applySnooze(notified, until)` through the queue and
+ * reschedule. Done: the existing `{ kind: "done" }` override.
+ */
+export function buttonAction(id: string, index: number, now: Date): ButtonAction | undefined {
+  const parsed = parseNotificationId(id);
+  if (!parsed) return undefined;
+  const button = toastButtons(parsed.lead)[index];
+  if (!button) return undefined;
+  if (button.action === "done") return { kind: "done", itemId: parsed.itemId };
+  return {
+    kind: "snooze",
+    itemId: parsed.itemId,
+    until: new Date(now.getTime() + SNOOZE_MS).toISOString(),
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -392,22 +680,93 @@ export function urgency(due: Date | undefined, now: Date): string {
   return `in ${days} days`;
 }
 
-export function notificationContent(item: Item, lead: Lead, now: Date): NotificationContent {
-  if (lead === "booking") {
-    const start = item.members.find((m) => m.extra?.["windowStart"])?.extra?.["windowStart"];
-    const end = item.members.find((m) => m.extra?.["windowEnd"])?.extra?.["windowEnd"];
+/**
+ * "today", "tomorrow", or the weekday and date — counted in local calendar
+ * days, never from the clock.
+ *
+ * The morning-of toast for an untimed deadline fires at 08:00 on the day, when
+ * `urgency` still says "in 15 hours"; keying "today" on `urgency(…) === "now"`
+ * meant it could only say so once the deadline had passed (copy-audit #12).
+ */
+function dayWord(due: Date, now: Date): string {
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((midnight(due) - midnight(now)) / DAY_MS);
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  return due.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
+/** "Wed, Sep 23" — a date a student can place without a year. */
+function shortDate(when: Date): string {
+  return when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+/**
+ * What a snoozed toast is really about: the lead the live deadline would carry
+ * now. A snooze stores no lead of its own, so a snoozed late reminder still
+ * words itself as a closing window and a snoozed nag is still a nag.
+ */
+function effectiveLead(item: Item, lead: Lead, now: Date): Lead {
+  if (lead !== "snooze") return lead;
+  if (item.kind === "booking") return "booking";
+  // No `timeAssumed` case: the untimed branch below words every lead alike.
+  return liveDeadline(item, now)?.late ? "late2h" : "2h";
+}
+
+/**
+ * What a toast says.
+ *
+ * `courseNames` is the student's renames (`Overrides.courseNames`), resolved
+ * through `courseLabel` like every other surface that names a course — the
+ * raw `CS357` in a toast beside "CS 357" in the popup, or beside a rename, is
+ * the drift PROGRESS 2026-09-12's one-resolver rule exists to stop.
+ */
+export function notificationContent(
+  item: Item,
+  requested: Lead,
+  now: Date,
+  courseNames: Record<string, string> = {},
+): NotificationContent {
+  const lead = effectiveLead(item, requested, now);
+  const course = item.courseLabel ? courseLabel(item.courseLabel, courseNames) : "";
+  const line = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(" · ");
+  const work = clampTitle(item.title.replace(/^Book a slot:\s*/i, ""));
+
+  if (lead === "booking" || lead === "bookingLast" || lead === "bookingMissed") {
+    const read = (key: string) => item.members.find((m) => m.extra?.[key])?.extra?.[key];
+    const start = read("windowStart");
+    const endRaw = read("windowEnd");
     const window =
-      start && end
+      start && endRaw
         ? `${new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${new Date(
-            end,
+            endRaw,
           ).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
         : "soon";
+    const end = windowEndOf(item);
+
+    if (lead === "bookingMissed" && end !== undefined) {
+      // §4.4: the extension cannot know whether the student sat it another
+      // way, so it says what it saw and who can help — not that they missed
+      // the exam.
+      return {
+        title: `Missed the reservation window: ${work}`,
+        message: line(
+          course,
+          `sessions ended ${shortDate(new Date(end))} and no seat was booked — contact course staff if you still need one`,
+        ),
+        ...sourceLine(item),
+        url: item.url ?? "",
+      };
+    }
+
+    // I40: the last day is a different message, whichever lead carries it.
+    const lastDay = end !== undefined && end > now.getTime() && sameLocalDay(new Date(end), now);
     return {
       // §4.4: never phrase a booking as a deadline. The date is deliberately
       // early because slots fill; calling it "due" would be a lie. The verb
       // leads because there is exactly one thing to do about this one.
-      title: `Book a seat: ${clampTitle(item.title.replace(/^Book a slot:\s*/i, ""))}`,
-      message: `${item.courseLabel} · sessions ${window}`,
+      title: lastDay ? `Last day to book a seat: ${work}` : `Book a seat: ${work}`,
+      message: line(course, lastDay ? "sessions end today" : `sessions ${window}`),
       ...sourceLine(item),
       url: item.url ?? "",
     };
@@ -424,38 +783,67 @@ export function notificationContent(item: Item, lead: Lead, now: Date): Notifica
 
   // An assumed time must not appear in a toast at all, in any form: not as a
   // clock, not as a countdown. The day is the only thing the source stated.
-  if (item.timeAssumed && due) {
-    const day = due.toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
+  // Who left the hour out decides where to look (copy-audit #4): a post's day
+  // sends the student to the post, their own row to nowhere, and only a course
+  // site's bare date to the course page.
+  if (item.timeAssumed && due && !Number.isNaN(due.getTime())) {
     return {
-      title: `${clampTitle(item.title)} — due ${urgency(due, now) === "now" ? "today" : day}`,
-      message: `${item.courseLabel} · no time given — check the course page for the cutoff`,
+      title: `${clampTitle(item.title)} — due ${dayWord(due, now)}`,
+      message: line(course, assumedTimeNote(item)),
       ...sourceLine(item),
       url: item.url ?? "",
     };
   }
 
-  const when = due
-    ? `${due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${relative(due, now)}`
-    : "";
-  const credit = item.members.find((m) => m.extra?.["creditRemaining"])?.extra?.["creditRemaining"];
-  const kindWord = isLate
-    ? credit
-      ? `${credit}% credit until`
-      : "late window closes"
-    : item.dueAt === undefined
-      ? "reduced credit"
-      : "due";
   // §4.4's room and duration. An exam is the one reminder where "where" has a
   // wrong answer, and the parser has had this all along without ever showing it
   // in a toast.
   const where = examDetail(item);
+
+  // I18: the week-out toast is a date to plan around, not a countdown — the
+  // full date, and "a week" rather than "in 7 days" when it fires on time.
+  if (lead === "7d" && due && !Number.isNaN(due.getTime())) {
+    const words = urgency(due, now);
+    const date = due.toLocaleString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return {
+      title: `${clampTitle(item.title)} is ${words === "in 7 days" ? "in a week" : words}`,
+      message: line(course, date, where),
+      ...sourceLine(item),
+      url: item.url ?? "",
+    };
+  }
+
+  /*
+   * One noun and one spelling for the window (copy-audit #15, 2026-09-27).
+   *
+   * The title names it — "late window closes tomorrow" — where it used to say
+   * "80% credit until", "late window closes" or "reduced credit" depending on
+   * the lead and the source. The body states it as a time through
+   * `creditWindowText`, the formatter every popup surface uses, so the toast
+   * says "80% until Tue 11:00 PM" beside the row that says the same.
+   *
+   * `windowed` covers §4.3's shape too — no `dueAt`, only `lateDueAt` — which a
+   * full-credit lead can still reach (a lead planned before `dueAt` went); its
+   * instant is the window's close all the same, and "reduced credit" was the
+   * one spelling nothing else used.
+   */
+  const windowed = isLate || item.dueAt === undefined;
+  const clock = due
+    ? windowed
+      ? creditWindowText(item, due)
+      : due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+    : "";
+  const when = due ? `${clock} · ${relative(due, now)}` : "";
+  const kindWord = windowed ? "late window closes" : "due";
   return {
     title: `${clampTitle(item.title)} — ${kindWord} ${urgency(due, now)}`,
-    message: [item.courseLabel, when, where].filter(Boolean).join(" · "),
+    message: line(course, when, where),
     ...sourceLine(item),
     url: item.url ?? "",
   };

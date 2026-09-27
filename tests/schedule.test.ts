@@ -5,18 +5,32 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  ALARM_BUDGET,
   BOOKING_HOUR,
+  BOOKING_LAST_HOUR,
+  MISSED_NOTICE_DAYS,
+  SNOOZE_MS,
   alarmName,
+  applySnooze,
+  armable,
+  buttonAction,
   deferPastQuietHours,
   inQuietHours,
   clampTitle,
   notificationContent,
+  notificationId,
   parseAlarmName,
+  parseNotificationId,
   planNotifications,
+  recordFired,
+  requiresInteraction,
   shouldFireNow,
+  toastButtons,
   urgency,
 } from "../src/core/schedule.js";
+import type { Notified } from "../src/core/schedule.js";
 import { DEFAULT_SETTINGS, normalizeQuietHours } from "../src/core/store.js";
+import { OWN_TIME_NOTE, POST_TIME_NOTE, SOURCE_TIME_NOTE } from "../src/core/provenance.js";
 import type { Item, RawItem, Settings, Status } from "../src/sources/types.js";
 
 function member(status: Status, extra?: Record<string, string>): RawItem {
@@ -244,7 +258,13 @@ describe("the booking nag (§7)", () => {
     // "never fire stale" rule must not silence it.
     const past = booking();
     past.dueAt = local(2026, 8, 1, 0);
-    expect(planNotifications([past], DEFAULT_SETTINGS, NOW)).toHaveLength(1);
+    // Rewritten 2026-09-27: this asserted exactly one plan, which pinned the
+    // absence of I40's last-day reminder rather than the daily nag. The nag is
+    // what this test is about; `bookingLast` (armed for Sep 23 at 18:00) is the
+    // intended addition, pinned in "the booking nag escalates" below.
+    const plans = planNotifications([past], DEFAULT_SETTINGS, NOW);
+    expect(plans.filter((p) => p.lead === "booking")).toHaveLength(1);
+    expect(plans.map((p) => p.lead).sort()).toEqual(["booking", "bookingLast"]);
   });
 });
 
@@ -258,7 +278,10 @@ describe("notificationContent", () => {
      */
     const content = notificationContent(item({ dueAt: local(2026, 8, 11, 17) }), "24h", NOW);
     expect(content.title).toBe("HW3 Errors and Big-O — due tomorrow");
-    expect(content.message).toContain("CS357");
+    // Rewritten 2026-09-27: this asserted the raw "CS357", which is the
+    // un-resolved form the popup never shows (copy-audit #3). See "names the
+    // course the way the popup does" below.
+    expect(content.message).toContain("CS 357");
     expect(content.url).toContain("gradescope.com");
   });
 
@@ -362,7 +385,7 @@ describe("regressions found by the steps 9–12 review", () => {
     expect(shouldFireNow(plan!, morning)).toBe(true);
   });
 
-  it("notifies about a reduced-credit deadline, and does not call it 'due'", () => {
+  it("notifies about a late window with no full-credit deadline, and does not call it 'due'", () => {
     // §4.3's shape: dueAt undefined, lateDueAt set. grouping.ts and ics.ts both
     // treat it as live; §7 read dueAt alone and stayed silent.
     const late = item({
@@ -372,9 +395,13 @@ describe("regressions found by the steps 9–12 review", () => {
     });
     const plans = planNotifications(late ? [late] : [], DEFAULT_SETTINGS, NOW);
     expect(plans.length).toBeGreaterThan(0);
+    // A full-credit lead reaching this shape (one planned before `dueAt` went)
+    // is still about the window. copy-audit #15: "the one noun is 'late
+    // window'" — this said "reduced credit", which no other surface did.
     const content = notificationContent(late, "24h", NOW);
-    expect(content.title).toContain("reduced credit");
+    expect(content.title).toBe("HW3 Errors and Big-O — late window closes tomorrow");
     expect(content.title).not.toMatch(/\bdue\b/);
+    expect(content.message).toBe("CS 357 · 80% until Fri 5:00 PM · in 23h");
   });
 
   it("clamps an out-of-range or degenerate quiet-hours window", () => {
@@ -510,6 +537,10 @@ describe("reminders for a late window (§4.2, §4.3)", () => {
     const content = notificationContent(late(), "late24h", new Date(2026, 8, 15, 17));
     expect(content.title).toContain("late window closes");
     expect(content.title).not.toMatch(/— due /);
+    // Gradescope states a late date and never a credit, so the body says the
+    // window's time the way the row does, with no percent invented for it
+    // (`creditWindowText`, copy-audit #15).
+    expect(content.message).toBe("CS 357 · late until Wed 5:00 PM · in 1d");
   });
 
   it("counts down to the late window, not the full-credit deadline already passed", () => {
@@ -545,9 +576,12 @@ describe("reminders for a late window (§4.2, §4.3)", () => {
       lateDueAt: new Date(2026, 8, 22, 23).toISOString(),
       members: [member("not_submitted", { creditRemaining: "80" })],
     });
-    expect(notificationContent(pl, "late24h", new Date(2026, 8, 21, 23)).title).toContain(
-      "80% credit until",
-    );
+    // copy-audit #15: one noun in the title, and the window as a time in the
+    // one spelling every popup surface uses — "80% until Tue 11:00 PM", where
+    // the toast alone said "80% credit until tomorrow".
+    const content = notificationContent(pl, "late24h", new Date(2026, 8, 21, 23));
+    expect(content.title).toBe("HW3 Errors and Big-O — late window closes tomorrow");
+    expect(content.message).toBe("CS 357 · 80% until Tue 11:00 PM · in 1d");
   });
 
   it("round-trips the new lead names through the alarm name", () => {
@@ -607,6 +641,30 @@ describe("reminders for a time this extension invented (§4.5, worker rule 3)", 
     expect(content.message).toContain("no time");
     expect(content.title).not.toContain("11:59");
     expect(content.title).not.toContain("in 2 hours");
+  });
+
+  it("sends the student to whoever left the hour out (copy-audit #4)", () => {
+    // The toast said "check the course page for the cutoff" for every assumed
+    // time, including a post's day — whose course page says nothing of the kind
+    // — and the student's own row, which has no page at all.
+    const morning = new Date(2026, 8, 18, 8);
+    expect(notificationContent(assumed(), "dayOf", morning).message).toBe(`CS 357 · ${SOURCE_TIME_NOTE}`);
+
+    const fromPost = item({
+      dueAt: new Date(2026, 8, 18, 23, 59).toISOString(),
+      timeAssumed: true,
+      movedBy: { reason: "Piazza post", postId: "pz-1" },
+    });
+    const post = notificationContent(fromPost, "dayOf", morning).message;
+    expect(post).toBe(`CS 357 · ${POST_TIME_NOTE}`);
+    expect(post).not.toContain("course page");
+
+    const own = item({
+      dueAt: new Date(2026, 8, 18, 23, 59).toISOString(),
+      timeAssumed: true,
+      members: [{ ...member("unknown"), source: "manual" }],
+    });
+    expect(notificationContent(own, "dayOf", morning).message).toBe(`CS 357 · ${OWN_TIME_NOTE}`);
   });
 
   it("leaves an item with a stated time on the normal leads", () => {
@@ -688,5 +746,376 @@ describe("a row banded Late still plans for its reduced-credit window", () => {
     // §7: past the deadline a reminder is noise. The banding does not change
     // which deadline that sentence is about.
     expect(planNotifications([mp()], quiet, new Date(2026, 8, 13, 12))).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Lane H, 2026-09-27: budget, buttons, week-out, booking escalation, wording  */
+/* -------------------------------------------------------------------------- */
+
+describe("the alarm budget (I28)", () => {
+  // Chrome 117+ refuses an extension's 501st alarm, and `reschedule` armed one
+  // per (item, lead) in an awaited loop: the create that failed threw, and
+  // every reminder after it was never armed, silently.
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null, leadTimes: ["24h" as const] };
+  // Latest first, so an implementation that keeps the first N plans *as given*
+  // arms December and drops tomorrow.
+  const many = Array.from({ length: 600 }, (_, i) =>
+    item({ id: `i${i}`, dueAt: new Date(NOW.getTime() + (600 - i + 2) * 86_400_000).toISOString() }),
+  );
+
+  it("arms at most the budget, soonest first, and counts what is left over", () => {
+    const plans = planNotifications(many, quiet, NOW);
+    expect(plans).toHaveLength(600);
+    const { armed, overflow } = armable(plans);
+    expect(ALARM_BUDGET).toBe(400);
+    expect(armed).toHaveLength(400);
+    expect(overflow).toBe(200);
+    const latestArmed = Math.max(...armed.map((p) => Date.parse(p.fireAt)));
+    const armedNames = new Set(armed.map((p) => p.alarmName));
+    const earliestLeft = Math.min(
+      ...plans.filter((p) => !armedNames.has(p.alarmName)).map((p) => Date.parse(p.fireAt)),
+    );
+    expect(latestArmed).toBeLessThan(earliestLeft);
+    // The soonest reminder of all is among them.
+    expect(armedNames.has(alarmName("i599", "24h"))).toBe(true);
+  });
+
+  it("arms everything, and reports no overflow, under the budget", () => {
+    const plans = planNotifications(many.slice(0, 10), quiet, NOW);
+    expect(armable(plans)).toEqual({ armed: expect.any(Array), overflow: 0 });
+    expect(armable(plans).armed).toHaveLength(10);
+  });
+});
+
+describe("toast buttons (I13)", () => {
+  const due = local(2026, 8, 10, 20); // two hours after NOW
+
+  it("carries Snooze and Done on a deadline reminder, and never more than Chrome's two", () => {
+    // chrome.notifications allows at most two buttons; Open is the toast body.
+    expect(toastButtons("2h").map((b) => b.title)).toEqual(["Snooze 1h", "Done"]);
+    expect(toastButtons("dayOf").map((b) => b.action)).toEqual(["snooze", "done"]);
+    for (const lead of ["24h", "2h", "late24h", "late2h", "dayOf", "7d", "booking", "bookingLast", "bookingMissed", "snooze"] as const) {
+      expect(toastButtons(lead).length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("offers no Done on a booking nag, whose item leaves by itself once booked (§4.4)", () => {
+    expect(toastButtons("booking").map((b) => b.action)).toEqual(["snooze"]);
+    expect(toastButtons("bookingMissed")).toEqual([]);
+  });
+
+  it("keeps the last reminder before a deadline up until it is answered", () => {
+    expect(requiresInteraction("2h")).toBe(true);
+    expect(requiresInteraction("late2h")).toBe(true);
+    expect(requiresInteraction("bookingLast")).toBe(true);
+    expect(requiresInteraction("24h")).toBe(false);
+    expect(requiresInteraction("7d")).toBe(false);
+  });
+
+  it("round-trips the toast id, and refuses one it did not write", () => {
+    const id = notificationId("abc", "late2h", NOW);
+    expect(parseNotificationId(id)).toEqual({ itemId: "abc", lead: "late2h" });
+    expect(parseNotificationId(`test:${NOW.getTime()}`)).toBeUndefined();
+    expect(parseNotificationId("abc:5h:1")).toBeUndefined();
+  });
+
+  it("maps a press to snooze-for-an-hour or the student's own tick", () => {
+    const id = notificationId("item1", "2h", NOW);
+    expect(buttonAction(id, 0, NOW)).toEqual({
+      kind: "snooze",
+      itemId: "item1",
+      until: new Date(NOW.getTime() + SNOOZE_MS).toISOString(),
+    });
+    expect(SNOOZE_MS).toBe(60 * 60 * 1000);
+    expect(buttonAction(id, 1, NOW)).toEqual({ kind: "done", itemId: "item1" });
+    expect(buttonAction(notificationId("b1", "booking", NOW), 1, NOW)).toBeUndefined();
+    expect(buttonAction("nonsense", 0, NOW)).toBeUndefined();
+  });
+
+  it("re-plans a snoozed reminder once, an hour on, and not the lead it came from", () => {
+    // §7 amendment: "once each" still holds per lead — the 2h lead is spent; the
+    // snooze is its own, single, student-requested reminder.
+    const at = NOW.toISOString();
+    const snoozed = item({
+      dueAt: due,
+      notified: applySnooze({ "24h": at, "2h": at }, new Date(NOW.getTime() + SNOOZE_MS)),
+    });
+    const plans = planNotifications([snoozed], DEFAULT_SETTINGS, NOW);
+    expect(plans.map((p) => p.lead)).toEqual(["snooze"]);
+    expect(plans[0]!.fireAt).toBe(new Date(NOW.getTime() + SNOOZE_MS).toISOString());
+    expect(plans[0]!.overdue).toBe(false);
+    expect(parseAlarmName(plans[0]!.alarmName)).toEqual({ itemId: "item1", lead: "snooze" });
+
+    // Once it fires, it is spent.
+    snoozed.notified = recordFired(snoozed.notified, plans[0]!, new Date(NOW.getTime() + SNOOZE_MS).toISOString());
+    expect(planNotifications([snoozed], DEFAULT_SETTINGS, new Date(NOW.getTime() + SNOOZE_MS))).toEqual([]);
+  });
+
+  it("never snoozes past the deadline it reminds about (worker rule 3)", () => {
+    const soon = item({
+      dueAt: local(2026, 8, 10, 18, 30),
+      notified: applySnooze(
+        { "24h": NOW.toISOString(), "2h": NOW.toISOString() },
+        new Date(NOW.getTime() + SNOOZE_MS),
+      ),
+    });
+    expect(planNotifications([soon], DEFAULT_SETTINGS, NOW)).toEqual([]);
+  });
+
+  it("drops a snooze once the student ticks the row off", () => {
+    const ticked = item({
+      dueAt: due,
+      done: true,
+      members: [member("unknown")],
+      notified: applySnooze({}, new Date(NOW.getTime() + SNOOZE_MS)),
+    });
+    expect(planNotifications([ticked], DEFAULT_SETTINGS, NOW)).toEqual([]);
+  });
+
+  it("ignores a stored snooze instant that is not one (parser rule 5)", () => {
+    for (const bad of ["", "2026-09-10", "tomorrow"]) {
+      const stored: Notified = { "24h": "x", "2h": "x", snoozeUntil: bad };
+      const odd = item({ dueAt: due, notified: stored });
+      expect(planNotifications([odd], DEFAULT_SETTINGS, NOW)).toEqual([]);
+    }
+  });
+
+  it("collapses a snooze and a lead whose moments both passed into one toast", () => {
+    // 24h fired and was snoozed; Chrome was then closed across both the snooze
+    // and the 2h moment. One reminder, and it is the one the student asked for.
+    const at = new Date(2026, 8, 10, 12).toISOString();
+    const closed = item({
+      dueAt: local(2026, 8, 10, 19),
+      notified: applySnooze({ "24h": at }, new Date(2026, 8, 10, 13)),
+    });
+    const plans = planNotifications([closed], { ...DEFAULT_SETTINGS, quietHours: null }, NOW);
+    expect(plans.map((p) => p.lead)).toEqual(["snooze"]);
+    expect(plans[0]!.superseded).toEqual(["2h"]);
+    const after = recordFired(closed.notified, plans[0]!, NOW.toISOString());
+    expect(after["2h"]).toBe(NOW.toISOString());
+    expect(after.snoozeUntil).toBeUndefined();
+  });
+
+  it("words a snoozed toast from the live deadline, like the lead it replaced", () => {
+    const content = notificationContent(item({ dueAt: due }), "snooze", new Date(2026, 8, 10, 19));
+    expect(content.title).toBe("HW3 Errors and Big-O — due in 1 hour");
+    // A snoozed late reminder is still about the closing window (§4.3), not
+    // about the full-credit deadline that already passed.
+    const late = item({ dueAt: local(2026, 8, 9, 17), lateDueAt: due });
+    expect(notificationContent(late, "snooze", new Date(2026, 8, 10, 19)).title).toBe(
+      "HW3 Errors and Big-O — late window closes in 1 hour",
+    );
+  });
+});
+
+describe("the week-out reminder for an exam (I18)", () => {
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+  const exam = (partial: Partial<Item> = {}) =>
+    item({
+      kind: "exam",
+      title: "CS 357: Quiz 1",
+      dueAt: local(2026, 8, 20, 19), // Sunday Sep 20, 7 PM
+      members: [member("unknown", { location: "Grainger Library", duration: "50min" })],
+      ...partial,
+    });
+
+  it("plans a seventh-day lead for an exam, on top of the configured ones", () => {
+    const plans = planNotifications([exam()], quiet, NOW);
+    expect(plans.map((p) => p.lead).sort()).toEqual(["24h", "2h", "7d"]);
+    expect(plans.find((p) => p.lead === "7d")!.fireAt).toBe(local(2026, 8, 13, 19));
+  });
+
+  it("keeps 24h and 2h for everything else", () => {
+    const hw = item({ dueAt: local(2026, 8, 20, 19) });
+    expect(planNotifications([hw], quiet, NOW).map((p) => p.lead).sort()).toEqual(["24h", "2h"]);
+  });
+
+  it("never counts a week down to a time this code invented", () => {
+    const assumed = exam({ timeAssumed: true, dueAt: local(2026, 8, 20, 23, 59) });
+    expect(planNotifications([assumed], quiet, NOW).map((p) => p.lead)).toEqual(["dayOf"]);
+  });
+
+  it("stays silent when the student turned the lead times off", () => {
+    expect(planNotifications([exam()], { ...quiet, leadTimes: [] }, NOW)).toEqual([]);
+  });
+
+  it("is about the sitting, never about a late window", () => {
+    // Deliberately unrealistic — no exam source states a late window — so that
+    // the `!live.late` gate is reachable: a week-out lead aimed at a late
+    // instant would count down to something that is not an exam.
+    const odd = exam({ dueAt: local(2026, 8, 9, 19), lateDueAt: local(2026, 8, 20, 19) });
+    expect(planNotifications([odd], quiet, NOW).map((p) => p.lead).sort()).toEqual([
+      "late24h",
+      "late2h",
+    ]);
+  });
+
+  it("collapses a passed week-out into the 24h lead, and leaves the 2h lead its own alarm", () => {
+    // The `!plan.overdue` clause in collapseOverdue, unreachable with two leads:
+    // due in 23 hours, both the 7d and the 24h moments passed, the 2h has not.
+    const plans = planNotifications([exam({ dueAt: local(2026, 8, 11, 17) })], quiet, NOW);
+    expect(plans.map((p) => p.lead).sort()).toEqual(["24h", "2h"]);
+    expect(plans.find((p) => p.lead === "24h")!.superseded).toEqual(["7d"]);
+    expect(plans.find((p) => p.lead === "2h")!.overdue).toBe(false);
+  });
+
+  it("says a week, the date, and where", () => {
+    const content = notificationContent(exam(), "7d", new Date(2026, 8, 13, 19));
+    expect(content.title).toBe("CS 357: Quiz 1 is in a week");
+    expect(content.message).toBe("CS 357 · Sun, Sep 20, 7:00 PM · Grainger Library · 50min");
+  });
+
+  it("counts the days from the clock when it fires late", () => {
+    const content = notificationContent(exam(), "7d", new Date(2026, 8, 17, 9));
+    expect(content.title).toBe("CS 357: Quiz 1 is in 3 days");
+  });
+
+  it("round-trips every new lead through the alarm name", () => {
+    for (const lead of ["7d", "bookingLast", "bookingMissed", "snooze"] as const) {
+      expect(parseAlarmName(alarmName("a:b", lead))).toEqual({ itemId: "a:b", lead });
+    }
+  });
+});
+
+describe("the booking nag escalates (I40)", () => {
+  // Sessions Mon Sep 21 – Wed Sep 23; the parser stores the end as 23:59:59.
+  const booking = (notified: Notified = {}) =>
+    item({
+      id: "b1",
+      kind: "booking",
+      title: "Book a slot: CS 357: Quiz 2",
+      dueAt: local(2026, 8, 21, 0),
+      members: [
+        member("not_submitted", {
+          windowStart: local(2026, 8, 21, 0),
+          windowEnd: new Date(2026, 8, 23, 23, 59, 59).toISOString(),
+        }),
+      ],
+      notified,
+    });
+  const quiet = { ...DEFAULT_SETTINGS, quietHours: null };
+
+  it("says so on the last day of the window", () => {
+    const content = notificationContent(booking(), "booking", new Date(2026, 8, 23, 10));
+    expect(content.title).toBe("Last day to book a seat: CS 357: Quiz 2");
+    expect(content.message).toContain("sessions end today");
+    // A snoozed nag is still a nag — never "due", whatever `dueAt` says (§4.4).
+    expect(notificationContent(booking(), "snooze", new Date(2026, 8, 23, 11)).title).toBe(
+      "Last day to book a seat: CS 357: Quiz 2",
+    );
+  });
+
+  it("does not say so the day before", () => {
+    const content = notificationContent(booking(), "booking", new Date(2026, 8, 22, 23, 30));
+    expect(content.title).toBe("Book a seat: CS 357: Quiz 2");
+  });
+
+  it("adds one evening reminder on the last day, before the window shuts", () => {
+    const plans = planNotifications([booking()], quiet, new Date(2026, 8, 23, 9));
+    expect(plans.map((p) => p.lead).sort()).toEqual(["booking", "bookingLast"]);
+    const last = plans.find((p) => p.lead === "bookingLast")!;
+    expect(last.fireAt).toBe(local(2026, 8, 23, BOOKING_LAST_HOUR));
+    expect(BOOKING_LAST_HOUR).toBe(18);
+  });
+
+  it("arms the evening reminder ahead of time, and only once", () => {
+    const early = planNotifications([booking()], quiet, new Date(2026, 8, 21, 12));
+    expect(early.find((p) => p.lead === "bookingLast")!.fireAt).toBe(local(2026, 8, 23, 18));
+    const spent = booking({ bookingLast: new Date(2026, 8, 23, 18).toISOString() });
+    expect(
+      planNotifications([spent], quiet, new Date(2026, 8, 23, 19)).map((p) => p.lead),
+    ).toEqual(["booking"]);
+  });
+
+  it("does not nag tomorrow about a window that shuts tonight", () => {
+    const nagged = booking({ booking: new Date(2026, 8, 23, 10).toISOString() });
+    expect(planNotifications([nagged], quiet, new Date(2026, 8, 23, 11)).map((p) => p.lead)).toEqual([
+      "bookingLast",
+    ]);
+  });
+
+  it("skips the evening reminder when the window ends before it", () => {
+    // Deliberately unrealistic (the parser always stores 23:59:59): a window
+    // ending at 17:00 would put an 18:00 "last day" toast after it shut.
+    const early = booking();
+    early.members = [member("not_submitted", { windowEnd: new Date(2026, 8, 23, 17).toISOString() })];
+    expect(
+      planNotifications([early], quiet, new Date(2026, 8, 23, 9)).map((p) => p.lead),
+    ).toEqual(["booking"]);
+  });
+
+  it("fires one toast, not two, when both are due at once", () => {
+    const plans = planNotifications([booking()], quiet, new Date(2026, 8, 23, 19));
+    expect(plans.map((p) => p.lead)).toEqual(["bookingLast"]);
+    expect(plans[0]!.superseded).toEqual(["booking"]);
+  });
+
+  it("says once that the window closed with no seat, and stops nagging", () => {
+    const after = new Date(2026, 8, 24, 12);
+    const plans = planNotifications([booking()], quiet, after);
+    expect(plans.map((p) => p.lead)).toEqual(["bookingMissed"]);
+    expect(plans[0]!.overdue).toBe(true);
+    const content = notificationContent(booking(), "bookingMissed", after);
+    expect(content.title).toBe("Missed the reservation window: CS 357: Quiz 2");
+    expect(content.message).toContain("no seat was booked");
+    expect(content.title).not.toMatch(/\bdue\b/i);
+
+    const told = booking({ bookingMissed: after.toISOString() });
+    expect(planNotifications([told], quiet, new Date(2026, 8, 25, 12))).toEqual([]);
+  });
+
+  it("does not announce a window that closed long ago (§4.4's three days)", () => {
+    expect(MISSED_NOTICE_DAYS).toBe(3);
+    expect(planNotifications([booking()], quiet, new Date(2026, 8, 27, 12))).toEqual([]);
+  });
+
+  it("keeps the plain daily nag when the window end is unreadable (parser rule 5)", () => {
+    const odd = booking();
+    odd.members = [member("not_submitted", { windowEnd: "2026-09-23" })];
+    const plans = planNotifications([odd], quiet, new Date(2026, 8, 30, 12));
+    expect(plans.map((p) => p.lead)).toEqual(["booking"]);
+    expect(notificationContent(odd, "booking", new Date(2026, 8, 23, 10)).title).toBe(
+      "Book a seat: CS 357: Quiz 2",
+    );
+  });
+});
+
+describe("toast wording a student reads at a glance (copy-audit #3, #12)", () => {
+  it("names the course the way the popup does, rename included", () => {
+    // PROGRESS 2026-09-12: "a rename the calendar honours while the filter
+    // strip ignores is worse than no rename".
+    const hw = item({ dueAt: local(2026, 8, 11, 17) });
+    expect(notificationContent(hw, "24h", NOW).message).toMatch(/^CS 357 · /);
+    const renamed = notificationContent(hw, "24h", NOW, { CS357: "Numerical Methods" });
+    expect(renamed.message).toMatch(/^Numerical Methods · /);
+    expect(renamed.message).not.toContain("CS357");
+
+    const booking = item({ kind: "booking", title: "Book a slot: Quiz 2" });
+    expect(notificationContent(booking, "booking", NOW, { CS357: "Numerical Methods" }).message)
+      .toMatch(/^Numerical Methods · /);
+
+    const assumed = item({ dueAt: local(2026, 8, 18, 23, 59), timeAssumed: true });
+    expect(notificationContent(assumed, "dayOf", NOW, { CS357: "Numerical Methods" }).message)
+      .toMatch(/^Numerical Methods · /);
+  });
+
+  it("says 'due today' on the morning of an untimed deadline, not the date", () => {
+    // The toast fires at 08:00 on the day; `urgency` said "now" only once the
+    // deadline had passed, so the "today" branch could never be reached.
+    const assumed = item({ dueAt: local(2026, 8, 18, 23, 59), timeAssumed: true });
+    expect(notificationContent(assumed, "dayOf", new Date(2026, 8, 18, 8)).title).toBe(
+      "HW3 Errors and Big-O — due today",
+    );
+    // Snoozed, it still shows no clock (worker rule 3).
+    expect(notificationContent(assumed, "snooze", new Date(2026, 8, 18, 9)).title).toBe(
+      "HW3 Errors and Big-O — due today",
+    );
+    expect(notificationContent(assumed, "dayOf", new Date(2026, 8, 17, 20)).title).toBe(
+      "HW3 Errors and Big-O — due tomorrow",
+    );
+    expect(notificationContent(assumed, "dayOf", new Date(2026, 8, 15, 8)).title).toBe(
+      "HW3 Errors and Big-O — due Friday, Sep 18",
+    );
   });
 });

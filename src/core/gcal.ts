@@ -13,8 +13,8 @@
  */
 
 import { isItemDone, isTickedDone } from "./dedupe.js";
-import { icsDate } from "./ics.js";
-import { courseLabel, nameList } from "./names.js";
+import { LATE_LEG_NOTE, eventSummary, exportLegs, icsDate } from "./ics.js";
+import { nameList } from "./names.js";
 import { assumedTimeNote } from "./provenance.js";
 import {
   GCAL_TIMEZONE,
@@ -126,33 +126,12 @@ function describeSources(item: Item): string | undefined {
   return `From ${nameList(sources)}.`;
 }
 
-interface Leg {
-  key: string;
-  instant: string;
-  late: boolean;
-}
-
 /**
- * Which instants of one item become events.
- *
- * `dueAt ?? lateDueAt` is the primary, exactly as the `.ics` and the template
- * link already choose it — an item with only a reduced-credit deadline is still
- * one thing to do, and hiding it because the full-credit window is unknown
- * would be the silent empty at the row level.
- *
- * The late leg exists only when both instants are stated *and differ*: a source
- * that repeats the same time in both fields would otherwise put two identical
- * events on the same slot, which is exactly the clutter this feature is for.
+ * Which instants of one item become events: `exportLegs`, shared with the
+ * `.ics` so the two exports cannot drift (I66). The late leg is keyed
+ * `<item.id>#late`.
  */
-function legs(item: Item): Leg[] {
-  const primary = item.dueAt ?? item.lateDueAt;
-  if (primary === undefined) return [];
-  const out: Leg[] = [{ key: item.id, instant: primary, late: item.dueAt === undefined }];
-  if (item.dueAt !== undefined && item.lateDueAt !== undefined && item.lateDueAt !== item.dueAt) {
-    out.push({ key: `${item.id}#late`, instant: item.lateDueAt, late: true });
-  }
-  return out;
-}
+const legs = exportLegs;
 
 /**
  * Whether this deadline belongs on a calendar at all.
@@ -192,8 +171,7 @@ export function projectEvents(
 
   for (const item of items) {
     if (!shouldProject(item)) continue;
-    const label = item.courseLabel ? courseLabel(item.courseLabel, courseNames) : "";
-    const summary = label ? `${label}: ${item.title}` : item.title;
+    const summary = eventSummary(item, courseNames);
 
     for (const leg of legs(item)) {
       let start: EventTime;
@@ -224,7 +202,7 @@ export function projectEvents(
       }
 
       const description = [
-        leg.late ? "Reduced-credit deadline." : undefined,
+        leg.late ? LATE_LEG_NOTE : undefined,
         item.timeAssumed ? assumedTimeNote(item, "allDay") : undefined,
         item.url,
         describeSources(item),

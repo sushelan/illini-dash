@@ -170,14 +170,17 @@ describe("the event body", () => {
   });
 });
 
-describe("the reduced-credit leg", () => {
+describe("the late-window leg", () => {
   it("is a second event, keyed #late", () => {
     const events = projectEvents(
       [item({ lateDueAt: "2026-09-22T23:00:00.000Z" })],
       settings,
     );
     expect(events.map((e) => e.key)).toEqual(["abc123", "abc123#late"]);
-    expect(events[1]!.description).toContain("Reduced-credit deadline.");
+    // copy-audit #15: the same noun, and the same sentence the `.ics` writes.
+    expect(events[1]!.description).toContain("Late window — reduced credit.");
+    expect(events[1]!.description).not.toContain("deadline");
+    expect(events[0]!.description).not.toContain("Late window");
   });
 
   it("is absent when the source repeats the same instant in both fields", () => {

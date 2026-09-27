@@ -5,7 +5,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildIcs, escapeIcsText, foldIcsLine, googleCalendarUrl, icsTimestamp } from "../src/core/ics.js";
+import {
+  buildIcs,
+  escapeIcsText,
+  exportLegs,
+  foldIcsLine,
+  googleCalendarUrl,
+  icsTimestamp,
+} from "../src/core/ics.js";
 import {
   OWN_TIME_NOTE_ALL_DAY,
   SOURCE_TIME_NOTE_ALL_DAY,
@@ -124,11 +131,14 @@ describe("buildIcs", () => {
     expect(buildIcs([item()], now)).toContain("UID:abc123@illini-dash");
   });
 
-  it("exports a reduced-credit deadline and says what it is", () => {
+  it("exports a late window with no full-credit deadline and says what it is", () => {
     const late = item({ dueAt: undefined, lateDueAt: "2026-09-22T23:59:00.000Z" });
-    const ics = buildIcs([late], now);
+    const ics = unfold(buildIcs([late], now));
     expect(ics).toContain("DTEND:20260922T235900Z");
-    expect(ics).toContain("Reduced-credit deadline.");
+    // copy-audit #15: "the one noun is 'late window'". The window is not a
+    // deadline (§4.3), which is what "Reduced-credit deadline." called it.
+    expect(ics).toContain("DESCRIPTION:Late window — reduced credit.");
+    expect(ics).not.toContain("deadline");
   });
 
   it("marks a booking row as unbooked rather than as a deadline (§4.4)", () => {
@@ -145,7 +155,9 @@ describe("buildIcs", () => {
   it("survives a title full of RFC-hostile characters", () => {
     const ics = buildIcs([item({ title: "A, B; C\\D\nE" })], now);
     const summary = ics.split("\r\n").find((l) => l.startsWith("SUMMARY:"))!;
-    expect(summary).toBe("SUMMARY:CS357: A\\, B\\; C\\\\D\\nE");
+    // Rewritten 2026-09-27: this pinned `CS357:`, the raw label no other
+    // surface shows (copy-audit #3). The escaping is what this test is about.
+    expect(summary).toBe("SUMMARY:CS 357: A\\, B\\; C\\\\D\\nE");
     // One physical line per property: nothing leaked into the next.
     expect(ics.split("\r\n").filter((l) => l.startsWith("DTSTART"))).toHaveLength(1);
   });
@@ -157,7 +169,8 @@ describe("googleCalendarUrl (§8.3)", () => {
     expect(url.origin + url.pathname).toBe("https://calendar.google.com/calendar/render");
     expect(url.searchParams.get("action")).toBe("TEMPLATE");
     expect(url.searchParams.get("dates")).toBe("20260911T214500Z/20260911T220000Z");
-    expect(url.searchParams.get("text")).toBe("CS357: HW3 Errors and Big-O");
+    // Rewritten 2026-09-27 from the raw "CS357:" (copy-audit #3).
+    expect(url.searchParams.get("text")).toBe("CS 357: HW3 Errors and Big-O");
   });
 
   it("returns nothing for an undated item", () => {
@@ -216,5 +229,79 @@ describe("exporting a time this extension invented (§4.5)", () => {
   it("makes the Google Calendar link all-day too", () => {
     const url = googleCalendarUrl(assumed())!;
     expect(url).toContain("dates=20260918%2F20260919");
+  });
+});
+
+describe("the course is named the way the popup names it (copy-audit #3)", () => {
+  // PROGRESS 2026-09-12: "a rename the calendar honours while the filter strip
+  // ignores is worse than no rename" — and the Google Calendar push already
+  // honoured it (gcal.ts `projectEvents`), so the .ics and the link were the
+  // odd ones out.
+  const now = new Date("2026-09-10T18:00:00.000Z");
+  const names = { CS357: "Numerical Methods" };
+
+  it("uses the student's rename in the .ics", () => {
+    const ics = unfold(buildIcs([item()], now, names));
+    expect(ics).toContain("SUMMARY:Numerical Methods: HW3 Errors and Big-O");
+    expect(ics).not.toContain("CS357");
+  });
+
+  it("uses it in the Google Calendar link", () => {
+    const url = new URL(googleCalendarUrl(item(), names)!);
+    expect(url.searchParams.get("text")).toBe("Numerical Methods: HW3 Errors and Big-O");
+  });
+
+  it("uses the renamed row title, which is what Item.title already carries", () => {
+    const renamed = item({ title: "The distributed one", sourceTitle: "MP2" });
+    expect(unfold(buildIcs([renamed], now))).toContain("SUMMARY:CS 357: The distributed one");
+  });
+});
+
+describe("the late window goes on the calendar too (I66, §8.3)", () => {
+  // §8.3 (Google Calendar sync): "A distinct `lateDueAt` is a second event." The
+  // .ics carried only the primary instant, so a student importing it into Apple
+  // Calendar or Outlook lost the deadline they would race after a slip.
+  const now = new Date("2026-09-10T18:00:00.000Z");
+  const withLate = () =>
+    item({ dueAt: "2026-09-11T22:00:00.000Z", lateDueAt: "2026-09-18T22:00:00.000Z" });
+
+  it("writes a second event at the late deadline, with its own stable UID", () => {
+    const ics = unfold(buildIcs([withLate()], now));
+    const lines = ics.split("\r\n");
+    expect(lines.filter((l) => l === "BEGIN:VEVENT")).toHaveLength(2);
+    expect(lines).toContain("UID:abc123@illini-dash");
+    expect(lines).toContain("UID:abc123#late@illini-dash");
+    expect(lines).toContain("DTEND:20260918T220000Z");
+  });
+
+  it("says in the late event that it is the late window, as the push does", () => {
+    const events = unfold(buildIcs([withLate()], now)).split("BEGIN:VEVENT").slice(1);
+    const late = events.find((e) => e.includes("#late@"))!;
+    const primary = events.find((e) => !e.includes("#late@"))!;
+    expect(late).toContain("DESCRIPTION:Late window — reduced credit.");
+    expect(primary).not.toContain("Late window");
+  });
+
+  it("does not duplicate an event when both instants are the same", () => {
+    const same = item({ dueAt: "2026-09-11T22:00:00.000Z", lateDueAt: "2026-09-11T22:00:00.000Z" });
+    expect(buildIcs([same], now).split("\r\n").filter((l) => l === "BEGIN:VEVENT")).toHaveLength(1);
+  });
+
+  it("keeps an untimed late leg all-day (worker rule 3)", () => {
+    const assumed = item({
+      dueAt: "2026-09-18T23:59:00-05:00",
+      lateDueAt: "2026-09-20T23:59:00-05:00",
+      timeAssumed: true,
+    });
+    const ics = buildIcs([assumed], now);
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260920");
+    expect(ics).not.toMatch(/DTSTART:\d{8}T\d{6}Z/);
+  });
+
+  it("is the one decision the Google Calendar push also uses", () => {
+    expect(exportLegs(withLate()).map((leg) => leg.key)).toEqual(["abc123", "abc123#late"]);
+    expect(exportLegs(item({ dueAt: undefined, lateDueAt: "2026-09-18T22:00:00.000Z" }))).toEqual([
+      { key: "abc123", instant: "2026-09-18T22:00:00.000Z", late: true },
+    ]);
   });
 });
