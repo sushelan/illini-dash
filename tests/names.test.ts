@@ -18,9 +18,11 @@ import {
   STATE_WORD,
   fullStamp,
   nameList,
+  stateClause,
   timeAgo,
 } from "../src/core/names.js";
 import { ALL_SOURCES } from "../src/core/store.js";
+import { SOURCE_STATES } from "../src/sources/types.js";
 
 describe("the source tables", () => {
   it("names every source the sync loop can produce", () => {
@@ -95,22 +97,58 @@ describe("the state words", () => {
       expect(word.toLowerCase(), state).not.toBe(state);
     }
     for (const [state, phrase] of Object.entries(STATE_PHRASE)) {
-      expect(phrase, state).not.toContain("_");
+      expect(phrase.one, state).not.toContain("_");
+      expect(phrase.many, state).not.toContain("_");
     }
   });
 
   it("covers every state a status can display", () => {
-    for (const state of [
-      "ok",
-      "pending",
-      "needs_login",
-      "parse_error",
-      "network_error",
-      "disabled",
-    ]) {
+    /*
+     * DESIGN (I46) test 27, and ux-plan.md: never a raw enum on screen. Both
+     * tables were `Record<string, string>`, so a state added to `SourceState`
+     * with no word here compiled and rendered as `empty` in the middle of a
+     * chip. Walks `SOURCE_STATES` rather than a hand-kept list, which is the
+     * list that went stale the day `empty` was added.
+     */
+    for (const state of SOURCE_STATES) {
       expect(STATE_WORD[state], state).toBeTruthy();
-      expect(STATE_PHRASE[state], state).toBeTruthy();
+      expect(STATE_PHRASE[state].one, state).toBeTruthy();
+      expect(STATE_PHRASE[state].many, state).toBeTruthy();
     }
+  });
+
+  it("says a source with no courses is not broken and not off", () => {
+    // "Off" beside a switch that is on, or "Couldn't read" for a page that read
+    // fine and said there was nothing — the two wrong words this state replaces.
+    expect(STATE_WORD["empty"]).toBe("No courses");
+    expect(STATE_WORD["empty"]).not.toBe(STATE_WORD["disabled"]);
+    expect(STATE_WORD["empty"]).not.toBe(STATE_WORD["parse_error"]);
+  });
+});
+
+describe("stateClause (one verb per state, in every sentence)", () => {
+  /*
+   * sync-health #9: the badge said "could not be read" about a source the
+   * footer said "didn't answer" about, and the Sources tab called
+   * "Unreachable". The sentences now take their verb from one table.
+   */
+  it("names the source and says what its last attempt found", () => {
+    expect(stateClause(["canvas"], "network_error")).toBe("Canvas didn't answer");
+    expect(stateClause(["gradescope"], "parse_error")).toBe("Gradescope looks different");
+    expect(stateClause(["prairielearn"], "empty")).toBe("PrairieLearn lists no courses for you");
+  });
+
+  it("agrees in number with the sources it names", () => {
+    expect(stateClause(["canvas", "gradescope"], "parse_error")).toBe(
+      "Canvas and Gradescope look different",
+    );
+    expect(stateClause(["canvas", "gradescope"], "needs_login")).toBe(
+      "Canvas and Gradescope need you to sign in",
+    );
+  });
+
+  it("says nothing about nothing", () => {
+    expect(stateClause([], "parse_error")).toBe("");
   });
 });
 

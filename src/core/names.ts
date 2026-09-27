@@ -20,7 +20,7 @@
  */
 
 import { extractCourseCode } from "./normalize.js";
-import type { Source } from "../sources/types.js";
+import type { Source, SourceState } from "../sources/types.js";
 
 /**
  * A course label as a human writes it: `CS 421`, not `CS421`.
@@ -191,25 +191,57 @@ export function nameList(sources: readonly Source[]): string {
  *
  * The enum is for the console and the diagnostics file. §5 of the UX plan:
  * never `parse_error`, `needs_login` or `pending` on screen.
+ *
+ * Checked against `SourceState` by `satisfies`, so a state added to the union
+ * without a word here is a compile error rather than the raw enum in a chip.
+ * Exported as `Record<string, string>` because Settings also looks up the
+ * observers' own states (`needs_permission`) and falls back to the key.
  */
-export const STATE_WORD: Record<string, string> = {
+const WORDS = {
   ok: "Connected",
   pending: "Checking…",
   needs_login: "Sign in needed",
   parse_error: "Couldn't read",
   network_error: "Unreachable",
   disabled: "Off",
+  // Enabled, read fine, and the site positively says there is nothing for this
+  // student (I46). Not "Off" — the switch beside it is on — and not "Couldn't
+  // read", which is what PrairieLearn said here before 2026-09-27.
+  empty: "No courses",
+} satisfies Record<SourceState, string>;
+export const STATE_WORD: Readonly<Record<string, string>> = WORDS;
+
+/**
+ * The same states as the verb of a sentence: "Canvas didn't answer",
+ * "Gradescope and Canvas look different".
+ *
+ * **One table, and every sentence about a source's state reads it** — the
+ * badge tooltip, the footer's failure, the setup summary, the empty state and
+ * the Sources notice. The badge said "could not be read" about a source the
+ * footer said "didn't answer" about (sync-health #9, 2026-09-27), and an
+ * earlier copy of this table ("was not the page we expected") had drifted
+ * from every live sentence because nothing read it.
+ *
+ * The two failure verbs are the ones `healthPill` settled on for width:
+ * "couldn't be reached" truncated to "couldn't be rea…" in a 400px strip,
+ * losing the one word the distinction turns on.
+ */
+export const STATE_PHRASE: Readonly<Record<SourceState, { one: string; many: string }>> = {
+  ok: { one: "was read", many: "were read" },
+  pending: { one: "hasn't answered yet", many: "haven't answered yet" },
+  needs_login: { one: "needs you to sign in", many: "need you to sign in" },
+  parse_error: { one: "looks different", many: "look different" },
+  network_error: { one: "didn't answer", many: "didn't answer" },
+  disabled: { one: "is switched off", many: "are switched off" },
+  empty: { one: "lists no courses for you", many: "list no courses for you" },
 };
 
-/** The same states as a sentence fragment: "Gradescope could not be reached". */
-export const STATE_PHRASE: Record<string, string> = {
-  ok: "was read successfully",
-  pending: "has not been checked yet",
-  needs_login: "needs you to sign in",
-  parse_error: "was not the page we expected",
-  network_error: "could not be reached",
-  disabled: "is switched off",
-};
+/** "Canvas didn't answer", "Canvas and Gradescope look different"; "" for none. */
+export function stateClause(sources: readonly Source[], state: SourceState): string {
+  if (sources.length === 0) return "";
+  const phrase = STATE_PHRASE[state];
+  return `${nameList(sources)} ${sources.length === 1 ? phrase.one : phrase.many}`;
+}
 
 /**
  * "just now", "5 min ago", "3h ago", "yesterday", "6 Sep".

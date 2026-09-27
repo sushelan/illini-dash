@@ -6,21 +6,39 @@
  * at all: it looks like the extension forgot everything.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { parseHTML } from "linkedom";
+import { SOURCE_STATES } from "../src/sources/types.js";
+import { toneOf } from "../src/core/health.js";
 import {
+  isChecking,
   loginsToOpen,
   needsSetup,
   opensOnInstall,
+  parseAttempting,
+  setupChip,
   setupProgress,
   setupRows,
   setupSummary,
 } from "../src/core/setup.js";
+import { STATE_WORD } from "../src/core/names.js";
 import { emptyStore } from "../src/core/store.js";
 import type { Source, SourceState } from "../src/sources/types.js";
 import type { StoreV1Plus } from "../src/core/store.js";
 
 function storeWith(
-  sources: Partial<Record<Source, { enabled?: boolean; state?: SourceState; lastSuccessAt?: string }>>,
+  sources: Partial<
+    Record<
+      Source,
+      {
+        enabled?: boolean;
+        state?: SourceState;
+        lastAttemptAt?: string;
+        lastSuccessAt?: string;
+        lastError?: string;
+      }
+    >
+  >,
   extra: Partial<StoreV1Plus> = {},
 ): StoreV1Plus {
   const store = { ...emptyStore(), ...extra };
@@ -133,14 +151,21 @@ describe("loginsToOpen", () => {
   });
 });
 
-describe("setupProgress and setupSummary", () => {
-  const ok = "2026-09-10T18:00:00.000Z";
+/*
+ * A source the last attempt read successfully. `lastAttemptAt` is what makes
+ * `displayState` say anything other than `pending` — which is the point: these
+ * tests used to give a row `lastSuccessAt` and nothing else, and that is the
+ * exact shape the defect below read as "connected".
+ */
+const at = "2026-09-10T18:00:00.000Z";
+const read = { state: "ok" as const, lastAttemptAt: at, lastSuccessAt: at };
 
+describe("setupProgress and setupSummary", () => {
   it("counts only the sources the student chose", () => {
     const rows = setupRows(
       storeWith({
-        canvas: { lastSuccessAt: ok },
-        prairietest: { enabled: false, lastSuccessAt: ok },
+        canvas: read,
+        prairietest: { enabled: false, ...read },
       }),
     );
     const progress = setupProgress(rows);
@@ -154,9 +179,108 @@ describe("setupProgress and setupSummary", () => {
     expect(setupProgress(setupRows(emptyStore()))).toMatchObject({ connected: 0, working: false });
   });
 
+  it("does not count a source whose latest attempt failed, however recently it once worked", () => {
+    /*
+     * sync-health #5 / copy-audit #2 / pl-empty #4 (2026-09-27). `connected`
+     * was `lastSuccessAt !== undefined`, so a Canvas that read yesterday and
+     * did not answer today was "connected" here while the badge, the footer
+     * and the Sources tab all said it was not — on one store, in one second.
+     * Worker rule 2: what the UI asserts about a source comes from the attempt
+     * that happened, and that is the latest one.
+     */
+    const rows = setupRows(
+      storeWith({
+        canvas: { state: "network_error", lastAttemptAt: at, lastSuccessAt: "2026-09-09T18:00:00.000Z" },
+        gradescope: { state: "parse_error", lastAttemptAt: at, lastSuccessAt: "2026-09-09T18:00:00.000Z" },
+        prairielearn: read,
+        prairietest: { enabled: false },
+      }),
+    );
+    expect(setupProgress(rows)).toMatchObject({ connected: 1, chosen: 3 });
+    expect(setupSummary(setupProgress(rows))).not.toMatch(/^All /);
+  });
+
+  it("counts a source that read fine and has no courses as connected", () => {
+    // DESIGN (b): `empty` stamps `lastSuccessAt` because the fetch and the
+    // read both succeeded; "All 2 connected" over Canvas ok + PrairieLearn
+    // with no courses is true, and anything less would send the student to
+    // sign in to a site they are signed in to.
+    const rows = setupRows(
+      storeWith({
+        canvas: read,
+        prairielearn: { state: "empty", lastAttemptAt: at, lastSuccessAt: at },
+        gradescope: { enabled: false },
+        prairietest: { enabled: false },
+      }),
+    );
+    expect(setupSummary(setupProgress(rows))).toBe("All 2 connected.");
+  });
+
   it("says what is left rather than only how far along it is", () => {
-    const rows = setupRows(storeWith({ canvas: { lastSuccessAt: ok } }));
-    expect(setupSummary(setupProgress(rows))).toContain("sign in");
+    const rows = setupRows(
+      storeWith({
+        canvas: read,
+        gradescope: { state: "needs_login", lastAttemptAt: at },
+        prairielearn: { enabled: false },
+        prairietest: { enabled: false },
+      }),
+    );
+    expect(setupSummary(setupProgress(rows))).toBe("1 of 2 connected. Sign in to Gradescope.");
+  });
+
+  it("promises a sign-in only for the sources that asked for one", () => {
+    /*
+     * pl-empty #5 / popup-live #8: "3 of 5 connected. The rest still need you
+     * to sign in." while `loginsToOpen` was empty, and "1 of 3 connected. The
+     * rest still need you to sign in." while PrairieLearn was still checking.
+     * Each remaining source gets what its own last attempt found.
+     */
+    const rows = setupRows(
+      storeWith({
+        canvas: read,
+        gradescope: { state: "needs_login", lastAttemptAt: at },
+        prairielearn: { state: "network_error", lastAttemptAt: at },
+        prairietest: { state: "parse_error", lastAttemptAt: at },
+        smartphysics: { enabled: true, state: "pending" },
+      }),
+    );
+    expect(setupSummary(setupProgress(rows))).toBe(
+      "1 of 5 connected. Sign in to Gradescope. PrairieLearn didn't answer. " +
+        "PrairieTest looks different. smartPhysics hasn't answered yet.",
+    );
+  });
+
+  it("does not ask for a sign-in while the only thing left is still being checked", () => {
+    const rows = setupRows(
+      storeWith({
+        canvas: read,
+        gradescope: read,
+        prairielearn: { state: "pending" },
+        prairietest: { enabled: false },
+      }),
+    );
+    const sentence = setupSummary(setupProgress(rows));
+    expect(sentence).toBe("2 of 3 connected. PrairieLearn hasn't answered yet.");
+    expect(sentence).not.toContain("sign in");
+  });
+
+  it("agrees with the chip about a row being read right now", () => {
+    // The chip on a row being read says "Checking…" over its stored answer;
+    // the sentence under it said "Sign in to Gradescope" about the same row in
+    // the same frame, because it read the store and not the sync. Found as a
+    // surviving mutation (the `checking` argument ignored), 2026-09-27.
+    const rows = setupRows(
+      storeWith({
+        canvas: read,
+        gradescope: { state: "needs_login", lastAttemptAt: at },
+        prairielearn: { enabled: false },
+        prairietest: { enabled: false },
+      }),
+    );
+    const checking = (source: Source) => source === "gradescope";
+    expect(setupSummary(setupProgress(rows, checking))).toBe(
+      "1 of 2 connected. Gradescope hasn't answered yet.",
+    );
   });
 
   it("handles the student who unchecked everything", () => {
@@ -173,13 +297,15 @@ describe("setupProgress and setupSummary", () => {
   });
 
   it("says so when everything chosen is working", () => {
+    /*
+     * Rewritten 2026-09-27 (worker rule 6). This test used to give every row
+     * `lastSuccessAt` and no state, and asserted "All 4 connected." — which
+     * pinned the defect: a row with an old success and a failing latest
+     * attempt satisfied it too. Each row now carries the attempt that earned
+     * the word, and the test above holds the inverse.
+     */
     const all = setupRows(
-      storeWith({
-        canvas: { lastSuccessAt: ok },
-        gradescope: { lastSuccessAt: ok },
-        prairielearn: { lastSuccessAt: ok },
-        prairietest: { lastSuccessAt: ok },
-      }),
+      storeWith({ canvas: read, gradescope: read, prairielearn: read, prairietest: read }),
     );
     expect(setupSummary(setupProgress(all))).toBe("All 4 connected.");
   });
@@ -197,13 +323,12 @@ describe("setupProgress and setupSummary", () => {
 });
 
 describe("setupSummary, once something has actually been read", () => {
-  const ok = "2026-09-10T18:00:00.000Z";
   const connected = () =>
     setupProgress(
       setupRows(
         storeWith({
-          canvas: { lastSuccessAt: ok },
-          gradescope: { lastSuccessAt: ok },
+          canvas: read,
+          gradescope: read,
           prairielearn: { enabled: false },
           prairietest: { enabled: false },
           smartphysics: { enabled: false },
@@ -240,15 +365,161 @@ describe("setupSummary, once something has actually been read", () => {
     const partial = setupProgress(
       setupRows(
         storeWith({
-          canvas: { lastSuccessAt: ok },
-          gradescope: { state: "needs_login" },
+          canvas: read,
+          gradescope: { state: "needs_login", lastAttemptAt: at },
           prairielearn: { enabled: false },
           prairietest: { enabled: false },
           smartphysics: { enabled: false },
         }),
       ),
     );
-    expect(setupSummary(partial, { items: 43, courses: 6 })).toContain("sign in");
+    expect(setupSummary(partial, { items: 43, courses: 6 })).toBe(
+      "1 of 2 connected. Sign in to Gradescope.",
+    );
+  });
+});
+
+/*
+ * The chip on each row of the first-run screen (DESIGN (b) "Setup screen",
+ * test 26). It was an if-chain in `screens/setup.ts` that tested
+ * `lastSuccessAt` before the failure states, so a source that read once and
+ * failed since was a green "Connected" — and the comment above it claimed
+ * "the same chips Settings uses" while Settings derived from `displayState`.
+ * Now it is that derivation.
+ */
+describe("setupChip", () => {
+  const rowOf = (source: Source, patch: Parameters<typeof storeWith>[0][Source]) =>
+    setupRows(storeWith({ [source]: patch }, {})).find((row) => row.source === source)!;
+
+  it("says what the latest attempt found, not that one once succeeded", () => {
+    const chip = setupChip(
+      rowOf("gradescope", {
+        state: "parse_error",
+        lastAttemptAt: at,
+        lastSuccessAt: "2026-09-01T18:00:00.000Z",
+        lastError: "no .courseList on /account",
+      }),
+      false,
+    );
+    expect(chip).toEqual({
+      text: STATE_WORD["parse_error"],
+      tone: "err",
+      title: "no .courseList on /account",
+    });
+  });
+
+  it("says Unreachable, not Connected, for a source that did not answer", () => {
+    const chip = setupChip(
+      rowOf("canvas", {
+        state: "network_error",
+        lastAttemptAt: at,
+        lastSuccessAt: "2026-09-01T18:00:00.000Z",
+        lastError: "TypeError: Failed to fetch",
+      }),
+      false,
+    );
+    expect(chip.text).toBe(STATE_WORD["network_error"]);
+    expect(chip.tone).toBe("err");
+  });
+
+  it("is green only for a read that happened", () => {
+    expect(setupChip(rowOf("canvas", read), false)).toEqual({ text: "Connected", tone: "ok" });
+    // A stored `ok` with no attempt behind it is the fresh-install green dot.
+    expect(
+      setupChip(rowOf("canvas", { state: "ok", lastSuccessAt: at }), false).tone,
+    ).toBe("pending");
+  });
+
+  it("says No courses, grey, with the site's sentence behind it", () => {
+    const chip = setupChip(
+      rowOf("prairielearn", {
+        state: "empty",
+        lastAttemptAt: at,
+        lastSuccessAt: at,
+        lastError: "PrairieLearn lists no courses for you",
+      }),
+      false,
+    );
+    expect(chip).toEqual({
+      text: "No courses",
+      tone: "off",
+      title: "PrairieLearn lists no courses for you",
+    });
+  });
+
+  it("asks for a sign-in with the site's answer as the tooltip", () => {
+    const chip = setupChip(
+      rowOf("gradescope", {
+        state: "needs_login",
+        lastAttemptAt: at,
+        lastSuccessAt: at,
+        lastError: "302 to /login",
+      }),
+      false,
+    );
+    expect(chip).toEqual({ text: "Sign in needed", tone: "warn", title: "302 to /login" });
+  });
+
+  it("says Off for a source the student did not pick, the word Settings uses", () => {
+    // copy-audit #8: this screen said "Not used" where Settings and the
+    // Sources tab say "Off". PROGRESS 2026-09-19 moved the checklist onto
+    // Settings' chips; this one wording survived that.
+    expect(setupChip(rowOf("smartphysics", {}), false)).toEqual({
+      text: STATE_WORD["disabled"],
+      tone: "off",
+    });
+    expect(setupChip(rowOf("smartphysics", {}), true).text).toBe(STATE_WORD["disabled"]);
+  });
+
+  it("says Checking… on a row being read right now, over whatever it last said", () => {
+    const chip = setupChip(
+      rowOf("gradescope", { state: "needs_login", lastAttemptAt: at }),
+      true,
+    );
+    expect(chip.text).toBe("Checking…");
+    expect(chip.tone).toBe("pending");
+  });
+
+  it("says Checking… for a row never attempted, with nothing else to say", () => {
+    expect(setupChip(rowOf("canvas", {}), false).text).toBe("Checking…");
+  });
+});
+
+/*
+ * Which rows are being read *right now* (sync-health #5, second half). While
+ * any sync ran, every enabled row said "Checking…" — including a source
+ * resting in §6's backoff that the running plan does not attempt, so a chip
+ * claimed a fetch that was not happening (worker rule 2).
+ */
+describe("isChecking and parseAttempting", () => {
+  it("is false for every row when nothing is syncing", () => {
+    expect(isChecking("canvas", false, ["canvas"])).toBe(false);
+    expect(isChecking("canvas", false, undefined)).toBe(false);
+  });
+
+  it("names only the sources the running plan attempts", () => {
+    expect(isChecking("canvas", true, ["canvas"])).toBe(true);
+    expect(isChecking("gradescope", true, ["canvas"])).toBe(false);
+  });
+
+  it("falls back to every row when the worker has not said which", () => {
+    // An older worker, or the moment between the syncing flag and the plan.
+    expect(isChecking("gradescope", true, undefined)).toBe(true);
+  });
+
+  it("reads the worker's list as data from another build", () => {
+    // Worker rule 8: the value in storage.session was written by whichever
+    // worker is running, which may be older or newer than this page.
+    expect(parseAttempting({ attempting: ["canvas", "prairielearn"] })).toEqual([
+      "canvas",
+      "prairielearn",
+    ]);
+    expect(parseAttempting({ attempting: [] })).toEqual([]);
+    expect(parseAttempting(undefined)).toBeUndefined();
+    expect(parseAttempting(true)).toBeUndefined();
+    expect(parseAttempting({ attempting: "canvas" })).toBeUndefined();
+    // An unknown key is dropped rather than trusted; the rest still count.
+    expect(parseAttempting({ attempting: ["canvas", "moodle", 3] })).toEqual(["canvas"]);
   });
 });
 
@@ -278,5 +549,46 @@ describe("opensOnInstall", () => {
     // "spawn a tab".
     expect(opensOnInstall("something_new")).toBe(false);
     expect(opensOnInstall("")).toBe(false);
+  });
+});
+
+/*
+ * One state, one colour, on both screens that draw a chip for it.
+ *
+ * Settings' `stateChip` (src/ui/options/dom.ts) had its own if-chain for the
+ * tone, which painted the new `empty` state `is-err` red — "No courses" in the
+ * colour of a broken page — because it was not in its grey list. It now takes
+ * the tone from `toneOf`, the same function `setupChip` and the Sources tab's
+ * dots use, and this walks every state to hold the two screens together.
+ */
+describe("Settings' chip and the setup chip agree on colour", () => {
+  let stateChip: typeof import("../src/ui/options/dom.js").stateChip;
+  beforeAll(async () => {
+    const page = parseHTML("<!doctype html><html><body></body></html>");
+    (globalThis as unknown as Record<string, unknown>)["document"] = page.document;
+    ({ stateChip } = await import("../src/ui/options/dom.js"));
+  });
+  const CLASS = { ok: "is-ok", warn: "is-warn", err: "is-err", pending: "", off: "" } as const;
+
+  it("paints every source state the colour toneOf gives it", () => {
+    for (const state of SOURCE_STATES) {
+      const chip = stateChip(state);
+      const expected = CLASS[toneOf(state)];
+      for (const tone of ["is-ok", "is-warn", "is-err"]) {
+        expect(chip.classList.contains(tone), `${state} ${tone}`).toBe(tone === expected);
+      }
+      expect(chip.textContent, state).toBe(STATE_WORD[state]);
+    }
+  });
+
+  it("paints No courses grey, not red", () => {
+    const chip = stateChip("empty");
+    expect(chip.textContent).toBe("No courses");
+    expect(chip.className).toBe("chip-base chip-state");
+  });
+
+  it("keeps the observers' own states: a missing permission is a warning, an unknown word a failure", () => {
+    expect(stateChip("needs_permission").classList.contains("is-warn")).toBe(true);
+    expect(stateChip("something_new").classList.contains("is-err")).toBe(true);
   });
 });

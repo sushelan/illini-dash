@@ -25,8 +25,10 @@
  * "show my calendar" is always clickable.
  */
 
-import { SOURCE_HINT, SOURCE_NAME } from "./names.js";
-import type { Source, SourceStatus } from "../sources/types.js";
+import { SOURCE_HINT, SOURCE_NAME, STATE_WORD, nameList, stateClause } from "./names.js";
+import { displayState, toneOf } from "./health.js";
+import { ALL_SOURCES } from "./store.js";
+import type { Source, SourceState, SourceStatus } from "../sources/types.js";
 import type { StoreV1Plus } from "./store.js";
 
 export interface SetupRow {
@@ -126,18 +128,70 @@ export function loginsToOpen(rows: readonly SetupRow[]): Source[] {
     .map((row) => row.source);
 }
 
+/**
+ * The state a setup row shows, from the same derivation every other surface
+ * uses (`displayState`), with the switch on the row as the authority on
+ * `enabled` — the row is what the screen drew the switch from.
+ */
+function shownState(row: SetupRow): SourceState {
+  if (!row.enabled) return "disabled";
+  return row.status ? displayState({ ...row.status, enabled: true }) : "pending";
+}
+
 /** How far along setup is, for the line under the checklist. */
 export interface SetupProgress {
+  /**
+   * Chosen sources whose **latest** attempt read the site: `ok`, or `empty`
+   * (read fine, and the site says there is nothing for this student — I46).
+   *
+   * It was `lastSuccessAt !== undefined`, which a source keeps through every
+   * later failure, so a Canvas that read yesterday and did not answer today
+   * counted as connected while the badge, the footer and the Sources tab all
+   * said otherwise (sync-health #5, 2026-09-27). `empty` counts because it is
+   * a successful read: a student with Canvas ok and PrairieLearn empty is
+   * "All 2 connected", and anything less would send them to sign in to a site
+   * they are signed in to.
+   */
   connected: number;
   chosen: number;
   /** True once at least one chosen source has been read successfully. */
   working: boolean;
+  /** Chosen, and the latest attempt was asked to sign in. */
+  signIn: Source[];
+  /** Chosen, and the latest attempt did not get an answer. */
+  unreachable: Source[];
+  /** Chosen, and the latest attempt got a page it could not read. */
+  unreadable: Source[];
+  /** Chosen, and no attempt has answered yet (or one is running now). */
+  waiting: Source[];
 }
 
-export function setupProgress(rows: readonly SetupRow[]): SetupProgress {
+export function setupProgress(
+  rows: readonly SetupRow[],
+  checking: (source: Source) => boolean = () => false,
+): SetupProgress {
   const chosen = rows.filter((row) => row.enabled);
-  const connected = chosen.filter((row) => row.status?.lastSuccessAt !== undefined).length;
-  return { connected, chosen: chosen.length, working: connected > 0 };
+  const progress: SetupProgress = {
+    connected: 0,
+    chosen: chosen.length,
+    working: false,
+    signIn: [],
+    unreachable: [],
+    unreadable: [],
+    waiting: [],
+  };
+  for (const row of chosen) {
+    // A row being read right now has not answered this time, whatever it said
+    // last time; the chip says "Checking…" and the summary must agree with it.
+    const state = checking(row.source) ? "pending" : shownState(row);
+    if (state === "ok" || state === "empty") progress.connected += 1;
+    else if (state === "needs_login") progress.signIn.push(row.source);
+    else if (state === "network_error") progress.unreachable.push(row.source);
+    else if (state === "parse_error") progress.unreadable.push(row.source);
+    else progress.waiting.push(row.source);
+  }
+  progress.working = progress.connected > 0;
+  return progress;
 }
 
 /**
@@ -152,6 +206,12 @@ export function setupProgress(rows: readonly SetupRow[]): SetupProgress {
  * student installed this for, and it is the first evidence they get that it
  * worked. The connection count stays for every state before that, because
  * until something has been read there is nothing to count.
+ *
+ * **What is left is said per source, from its own last attempt** (pl-empty #5,
+ * popup-live #8, 2026-09-27). It said "The rest still need you to sign in"
+ * about every source not yet connected — over a PrairieLearn still being
+ * checked and a PrairieTest whose page had changed, neither of which a sign-in
+ * fixes. The verbs are `stateClause`'s, the footer's and the badge's.
  */
 export function setupSummary(
   progress: SetupProgress,
@@ -160,16 +220,112 @@ export function setupSummary(
   if (progress.chosen === 0) {
     return "Nothing selected yet, so there is nothing to read. Pick the sites your courses use.";
   }
-  if (progress.connected === 0) {
+  if (progress.connected === progress.chosen) {
+    if (found && found.items > 0) {
+      const items = `${found.items} deadline${found.items === 1 ? "" : "s"}`;
+      const courses = `${found.courses} course${found.courses === 1 ? "" : "s"}`;
+      return `Found ${items} across ${courses}.`;
+    }
+    return `All ${progress.chosen} connected.`;
+  }
+  // Nothing has answered at all yet: the first run, before the first sync
+  // lands. Naming five sources as "hasn't answered yet" says less than this.
+  if (progress.waiting.length === progress.chosen) {
     return `Checking ${progress.chosen} ${progress.chosen === 1 ? "site" : "sites"}. Sign in to any that ask.`;
   }
-  if (progress.connected < progress.chosen) {
-    return `${progress.connected} of ${progress.chosen} connected. The rest still need you to sign in.`;
+  const clauses = [
+    progress.signIn.length > 0 ? `Sign in to ${nameList(progress.signIn)}.` : "",
+    progress.unreachable.length > 0 ? `${stateClause(progress.unreachable, "network_error")}.` : "",
+    progress.unreadable.length > 0 ? `${stateClause(progress.unreadable, "parse_error")}.` : "",
+    progress.waiting.length > 0 ? `${stateClause(progress.waiting, "pending")}.` : "",
+  ].filter((clause) => clause !== "");
+  return [`${progress.connected} of ${progress.chosen} connected.`, ...clauses].join(" ");
+}
+
+/** The chip on one row of the first-run screen. */
+export interface SetupChip {
+  text: string;
+  /** `toneOf`'s answer; the screen maps it to a chip class. */
+  tone: ReturnType<typeof toneOf>;
+  /** What the site answered, for the one student who wants to know. */
+  title?: string;
+}
+
+/**
+ * The first-run screen's chip, derived exactly as Settings' is.
+ *
+ * It was an if-chain in `screens/setup.ts` that tested `lastSuccessAt` before
+ * the failure states, so a Gradescope that read once on Monday and failed
+ * since was a green "Connected" there while the Sources tab said "Couldn't
+ * read" about it in the same second (pl-empty #4, copy-audit #2) — under a
+ * comment claiming "the same chips Settings uses". It is now that derivation:
+ * `displayState`, `STATE_WORD`, `toneOf`. `lastSuccessAt` is not read at all.
+ *
+ * Off is "Off", Settings' word (copy-audit #8). The screen had kept "Not
+ * used" after PROGRESS 2026-09-19 moved the rest of it onto Settings' chips,
+ * and one state with two names on two screens is what that change removed.
+ *
+ * `checking` is whether *this* source is being read right now (`isChecking`),
+ * which outranks the stored answer: the store is written once, at the end of a
+ * sync, so for the whole fetch the stored word is about the previous attempt.
+ */
+export function setupChip(row: SetupRow, checking: boolean): SetupChip {
+  if (!row.enabled) return { text: STATE_WORD["disabled"]!, tone: "off" };
+  if (checking) {
+    return {
+      text: STATE_WORD["pending"]!,
+      tone: "pending",
+      title: "Reading this site now. This can take a few seconds.",
+    };
   }
-  if (found && found.items > 0) {
-    const items = `${found.items} deadline${found.items === 1 ? "" : "s"}`;
-    const courses = `${found.courses} course${found.courses === 1 ? "" : "s"}`;
-    return `Found ${items} across ${courses}.`;
-  }
-  return `All ${progress.chosen} connected.`;
+  const state = shownState(row);
+  const error = state === "ok" || state === "pending" ? undefined : row.status?.lastError;
+  return {
+    text: STATE_WORD[state] ?? state,
+    tone: toneOf(state),
+    ...(error ? { title: error } : {}),
+  };
+}
+
+/**
+ * Where the worker publishes the sources the running sync attempts.
+ *
+ * `chrome.storage.session`, beside `illini-dash.syncing`, as
+ * `{ attempting: Source[] }` — written when the plan is made, removed when a
+ * sync starts, so a page never reads the previous sync's list as this one's.
+ */
+export const ATTEMPTING_KEY = "illini-dash.attempting";
+
+/**
+ * The worker's list, or `undefined` when there is none to trust.
+ *
+ * Worker rule 8: the value was written by whichever worker is running, which
+ * may be older or newer than this page. Anything that is not the expected
+ * shape is "not said"; a key this build does not know is dropped.
+ */
+export function parseAttempting(value: unknown): Source[] | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const list = (value as { attempting?: unknown }).attempting;
+  if (!Array.isArray(list)) return undefined;
+  return list.filter(
+    (entry): entry is Source => typeof entry === "string" && ALL_SOURCES.includes(entry as Source),
+  );
+}
+
+/**
+ * Whether a row is being read right now.
+ *
+ * Only while a sync runs, and then only the sources its plan attempts: a
+ * source resting in §6's backoff is not asked, and "Checking…" on it claimed a
+ * fetch that was not happening (sync-health #5). With no list from the worker
+ * — an older build, or the moment between the syncing flag and the plan —
+ * every row is checking, which is what the screen said before.
+ */
+export function isChecking(
+  source: Source,
+  syncing: boolean,
+  attempting: readonly Source[] | undefined,
+): boolean {
+  if (!syncing) return false;
+  return attempting === undefined ? true : attempting.includes(source);
 }

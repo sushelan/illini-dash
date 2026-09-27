@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { observerRows } from "../src/core/observer-ui.js";
+import { observerRows, observerShownState, observerStatus } from "../src/core/observer-ui.js";
+import { STATE_WORD } from "../src/core/names.js";
 import type { ObserverId, ObserverState } from "../src/core/store.js";
 import { normalizePopupState } from "../src/core/compat.js";
 const now = new Date("2026-09-22T16:14:00Z");
@@ -66,5 +67,47 @@ describe("the Alerts tab's discussion sources", () => {
     const row = observerRows(normalized.state.observers, normalized.missing, now)[1]!;
     expect(row).toMatchObject({ tone: "warn", label: "Reload instructions" });
     expect(row.detail).toContain("chrome://extensions");
+  });
+});
+
+/*
+ * copy-audit #13 (2026-09-27): one Piazza/Campuswire state, two words on two
+ * pages. The Sources tab printed `describePiazza`'s "Couldn't be read" beneath
+ * source rows whose word for the same state is "Couldn't read", while Settings
+ * mapped it to `parse_error` and printed "Couldn't read"; Campuswire waiting
+ * was "Waiting for a feed" in Settings and "On · nothing read yet" here. Both
+ * pages now take the state and the word from this module.
+ */
+describe("one word per observer state, on every page", () => {
+  it("says Couldn't read, the source rows' word, for a Piazza read that failed", () => {
+    const row = observerRows({ piazza: { enabled: true, state: "error", lastAttemptAt: now.toISOString() } }, [], now)[0]!;
+    expect(row.status).toBe(STATE_WORD["parse_error"]);
+    expect(row.status).not.toContain("be read");
+  });
+
+  it("says Waiting for a feed for a Campuswire nothing has been read from", () => {
+    expect(observerRows({ campuswire: { enabled: true } }, [], now)[1]!.status).toBe("Waiting for a feed");
+  });
+
+  it("keeps the facts after the state word for a read that happened", () => {
+    const status = observerRows(
+      { campuswire: { enabled: true, lastObservedAt: now.toISOString(), postsSeen: 3 } },
+      [],
+      now,
+    )[1]!.status;
+    expect(status.startsWith(`${STATE_WORD["ok"]} \u00b7 last read `)).toBe(true);
+    expect(status).toContain("3 posts");
+  });
+
+  it("derives the state Settings draws from the same facts", () => {
+    expect(observerShownState("piazza", { enabled: true, state: "error" })).toBe("parse_error");
+    expect(observerShownState("piazza", { enabled: true, state: "needs_login" })).toBe("needs_login");
+    // Worker rule 2: a stored `ok` with no attempt behind it is not a read.
+    expect(observerShownState("piazza", { enabled: true, state: "ok" })).toBe("pending");
+    expect(observerShownState("campuswire", { enabled: true })).toBe("pending");
+    expect(observerShownState("campuswire", { enabled: false })).toBe("disabled");
+    expect(observerShownState("piazza", { enabled: true, state: "ok" }, false)).toBe("needs_permission");
+    expect(observerStatus("piazza", "needs_permission", { enabled: true }, now)).toBe("Permission needed");
+    expect(observerStatus("piazza", "disabled", { enabled: false }, now)).toBe(STATE_WORD["disabled"]);
   });
 });

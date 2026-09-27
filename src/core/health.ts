@@ -23,9 +23,11 @@ import {
   courseLabel,
   SOURCE_HOME,
   SOURCE_NAME,
+  STATE_PHRASE,
   STATE_WORD,
   fullStamp,
   nameList,
+  stateClause,
   timeAgo,
 } from "./names.js";
 import { ALL_SOURCES, isFetchedSource } from "./store.js";
@@ -161,7 +163,16 @@ export function sourcesToRecheck(
   const due: Source[] = [];
   for (const status of Object.values(sources)) {
     if (status === undefined) continue;
-    if (displayState(status) !== "needs_login") continue;
+    const shown = displayState(status);
+    /*
+     * `empty` joins for the navigation clause only (I46, 2026-09-27). Joining a
+     * course happens on prairielearn.com in a tab we do not own — exactly the
+     * argument above for `needs_login` — so a page finishing there is evidence.
+     * The timed clause below is not: the poll already re-reads an empty source
+     * (it has no backoff), and re-fetching a healthy-empty source every time a
+     * popup opens would be a request per glance for nothing.
+     */
+    if (shown !== "needs_login" && shown !== "empty") continue;
     const attempted = status.lastAttemptAt === undefined ? undefined : Date.parse(status.lastAttemptAt);
 
     /*
@@ -189,6 +200,7 @@ export function sourcesToRecheck(
       due.push(status.source);
       continue;
     }
+    if (shown === "empty") continue;
     /*
      * Phrased as "was it recent" rather than "was it long ago", because an
      * unreadable timestamp must not suppress the check and the two forms differ
@@ -217,6 +229,12 @@ export interface HealthSummary {
   needsLogin: Source[];
   /** Enabled, but reporting nothing configured — e.g. no course site enabled. */
   disabled: Source[];
+  /**
+   * Enabled, read fine, and the site says there is nothing for this student
+   * (I46): PrairieLearn with no courses. On neither side of "n of m", like
+   * `disabled` — but it *was* read, so its `lastSuccessAt` is a real clock.
+   */
+  empty: Source[];
 }
 
 /**
@@ -234,6 +252,7 @@ export function summarize(sources: Partial<Record<Source, SourceStatus>>): Healt
     failing: [],
     needsLogin: [],
     disabled: [],
+    empty: [],
   };
   for (const [key, status] of Object.entries(sources)) {
     if (!status) continue;
@@ -246,6 +265,13 @@ export function summarize(sources: Partial<Record<Source, SourceStatus>>): Healt
     const state = displayState(status);
     if (state === "disabled") {
       summary.disabled.push(source);
+      continue;
+    }
+    // Before `checkable`: every state that is not ok or pending falls into
+    // `failing` below, so an unlisted `empty` would light the badge red over a
+    // page that read fine — the I46 symptom one surface over.
+    if (state === "empty") {
+      summary.empty.push(source);
       continue;
     }
     summary.checkable.push(source);
@@ -281,7 +307,13 @@ export type SourceAction =
   /** A fetch failed. It is transient far more often than not — try again. */
   | { kind: "retry"; source: Source }
   /** The page was not what the parser expected. Open it and look. */
-  | { kind: "open"; source: Source; url: string };
+  | { kind: "open"; source: Source; url: string }
+  /**
+   * The site says there is nothing here for this student (`empty`). Nothing
+   * is broken; the one useful thing is to stop reading it — roadmap I46's
+   * one-click turn-off. Switching it back on is a Settings switch.
+   */
+  | { kind: "off"; source: Source };
 
 /**
  * `loginUrl` is the page the *last attempt* found locked, recorded by the sync
@@ -308,7 +340,24 @@ export function actionFor(
     const url = SOURCE_HOME[source];
     return url ? { kind: "open", source, url } : { kind: "retry", source };
   }
+  if (state === "empty") return { kind: "off", source };
   return undefined;
+}
+
+/**
+ * The colour a state paints — dot, chip, detail line — in one place.
+ *
+ * Was `toneFor` in `src/ui/popup/shell.ts`, where the setup screen could not
+ * reach it and grew its own copy of the state → colour decision (worker rule
+ * 1). `empty` is grey like `disabled`: nothing is wrong and nothing is being
+ * read, and the only green is a fetch that found something to read.
+ */
+export function toneOf(state: SourceState): "ok" | "warn" | "err" | "pending" | "off" {
+  if (state === "ok") return "ok";
+  if (state === "needs_login") return "warn";
+  if (state === "disabled" || state === "empty") return "off";
+  if (state === "pending") return "pending";
+  return "err";
 }
 
 export interface HealthPill {
@@ -398,8 +447,9 @@ export function healthPill(
      * five: "didn't answer" is plainly a thing to retry, and "looks different"
      * is plainly a thing that needs a fix.
      */
-    const verb = unreachable.length > 0 ? "didn't answer" : "looks different";
-    const plural = unreachable.length > 0 ? "didn't answer" : "look different";
+    const phrase = STATE_PHRASE[unreachable.length > 0 ? "network_error" : "parse_error"];
+    const verb = phrase.one;
+    const plural = phrase.many;
     return {
       tone: "err",
       text:
@@ -604,13 +654,18 @@ export interface FooterLine {
   dot: HealthTone;
   /** "8 sources", or "7 of 8 sources" when they are not all answering. */
   sources: string;
-  /** "synced 2m ago" · "not synced yet" · "syncing…". */
+  /**
+   * "synced 2m ago" · "not synced yet" · the failure by name ("Sign in to
+   * Gradescope · 2d ago"). Never "syncing…": the Sync button says that, and
+   * this keeps the last attempt's answer while the next one runs
+   * (popup-live #11).
+   */
   synced: string;
   /**
    * The strip's own wash, which is not always the dot's.
    *
-   * A sync in flight is `pending` across the whole strip — the words say
-   * "syncing…" and an amber background under them would read as a failure that
+   * A sync in flight is `pending` across the whole strip — the button says
+   * "Syncing…" and an amber background under it would read as a failure that
    * has already happened. Once it finishes the strip takes the dot's tone
    * again, which is where D10's `--warn-wash` comes from.
    */
@@ -749,8 +804,8 @@ export function sourceTrouble(
       state === "needs_login"
         ? `Sign in to ${name} · ${lastRead}`
         : state === "network_error"
-          ? `${name} didn't answer · ${lastRead}`
-          : `${name} looks different`;
+          ? `${stateClause([source], state)} · ${lastRead}`
+          : stateClause([source], state);
 
     const key: [number, number, number, string] = [
       rank,
@@ -817,11 +872,11 @@ export function footerLine(
   const summary = summarize(sources);
   const total = summary.checkable.length;
   const answering = summary.ok.length;
-  // Unconditional, and `synced` below is the only place `syncing` decides
-  // anything about this sentence. A `syncing ? undefined : …` here read as
-  // defence and was a second copy of that decision: mutating it away changed
-  // no output, because the ternary underneath already rejects exactly what it
-  // rejected (mutation house rule 2, "redundant — delete it").
+  // Unconditional: `syncing` decides nothing about the sentence any more,
+  // only the strip's wash (`tone`, below). A `syncing ? undefined : …` here
+  // once read as defence and was a second copy of the decision `synced` then
+  // made: mutating it away changed no output (mutation house rule 2,
+  // "redundant — delete it").
   const trouble = sourceTrouble(sources, now);
 
   const dot: HealthTone =
@@ -835,8 +890,10 @@ export function footerLine(
 
   // Only from a source the student has switched on: a disabled source's old
   // success is not evidence about the list in front of them.
+  // An `empty` source counts here (I46): it was read, and a student whose only
+  // source is a PrairieLearn with no courses was told so 2m ago.
   let newest: number | undefined;
-  for (const source of summary.checkable) {
+  for (const source of [...summary.checkable, ...summary.empty]) {
     const raw = sources[source]?.lastSuccessAt;
     if (raw === undefined) continue;
     const at = Date.parse(raw);
@@ -848,7 +905,9 @@ export function footerLine(
     dot,
     sources:
       total === 0
-        ? "no sources"
+        ? summary.empty.length > 0
+          ? "nothing to read"
+          : "no sources"
         : answering === total
           ? `${total} source${total === 1 ? "" : "s"}`
           : `${answering} of ${total} sources`,
@@ -864,13 +923,17 @@ export function footerLine(
      * than dropped, and now attached to the source it is about instead of to
      * the newest success across all of them.
      *
-     * Not while syncing: the sentence would be about an attempt that is being
-     * replaced as it is read.
+     * **And not replaced while syncing** (popup-live #11, 2026-09-27). It
+     * used to read "syncing…" for the duration, beside the Sync button's own
+     * "Syncing…" — the same word twice on one 400px line, and the one useful
+     * sentence gone for the whole fetch. The last attempt's answer is still
+     * the truth until the next one lands; the button owns saying that one is
+     * running (UI rule 4), and the wash below still goes `pending` so an
+     * amber strip does not read as a failure that already happened.
      */
-    synced: syncing
-      ? "syncing…"
-      : (trouble?.sentence ??
-        (newest === undefined ? "not synced yet" : `synced ${compactAgo(newest, now)}`)),
+    synced:
+      trouble?.sentence ??
+      (newest === undefined ? "not synced yet" : `synced ${compactAgo(newest, now)}`),
     tone: syncing ? "pending" : dot,
   };
 }
@@ -940,7 +1003,9 @@ export function sourceRows(
     network_error: 2,
     pending: 3,
     ok: 4,
-    disabled: 5,
+    // Read fine, nothing there: after the healthy rows, before the switched-off.
+    empty: 5,
+    disabled: 6,
   };
   return rows.sort((a, b) => rank[a.state] - rank[b.state] || a.source.localeCompare(b.source));
 }
@@ -1014,7 +1079,9 @@ export function staleNotice(
   for (const [key, status] of Object.entries(sources)) {
     if (!status) continue;
     const state = displayState(status);
-    if (state === "disabled" || state === "pending" || state === "ok") continue;
+    // `empty` read fine and has nothing to go stale (I46): without it, a
+    // day-old empty read "PrairieLearn last answered 26 hours ago".
+    if (state === "disabled" || state === "pending" || state === "ok" || state === "empty") continue;
 
     const success = status.lastSuccessAt ? Date.parse(status.lastSuccessAt) : Number.NaN;
     if (Number.isNaN(success)) {
@@ -1047,6 +1114,34 @@ export function staleNotice(
     return (b.hours ?? 0) - (a.hours ?? 0);
   });
   return candidates[0];
+}
+
+/**
+ * The Sources tab's sentence for a stale notice.
+ *
+ * It said "Gradescope signed you out 6 hours ago" — a moment this extension
+ * does not know (copy-audit #5, 2026-09-27). `hours` is the time since the
+ * last successful read; the session may have expired ten minutes ago. So it
+ * says what is known, in two clauses: the state now, with `stateClause`'s verb
+ * (the footer's and the badge's), and when the source was last read.
+ */
+export function staleSentence(notice: StaleNotice): string {
+  const clause = stateClause([notice.source], notice.state);
+  if (notice.hours === undefined) return `${clause}. Nothing from it has been read yet.`;
+  const ago =
+    notice.hours < 48 ? `${notice.hours} hours ago` : `${Math.floor(notice.hours / 24)} days ago`;
+  return `${clause} · last read ${ago}.`;
+}
+
+/**
+ * The same notice as the header banner's one line (about 45 characters at
+ * 400px): the chip's word, and the last read. It said "signed out 13h — rows
+ * may be old", the same unknown moment as the sentence above.
+ */
+export function staleBannerText(notice: StaleNotice): string {
+  const name = SOURCE_NAME[notice.source];
+  if (notice.hours === undefined) return `${name}: never read — nothing from it is listed`;
+  return `${name}: ${STATE_WORD[notice.state] ?? notice.state} · last read ${notice.hours}h`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1094,14 +1189,27 @@ export function badgeFor(
       // Names, not source keys. This string is a tooltip on the toolbar icon,
       // which is the first thing a student sees when something is wrong, and
       // "gradescope, prairietest" is not what those sites are called.
+      //
+      // One clause per kind of failure, each with the footer's verb for it
+      // (sync-health #9): "could not be read" about a source that did not
+      // answer sent the student to look for a page change that never happened.
       title: login
         ? `Illini Dash — sign in to ${nameList(summary.needsLogin)}`
-        : `Illini Dash — ${nameList(summary.failing)} could not be read`,
+        : `Illini Dash — ${failureClauses(summary.failing, sources).join("; ")}`,
     };
   }
 
   if (summary.checkable.length === 0) {
-    return { text: "", color: BADGE_BLUE, title: "Illini Dash — no sources are switched on" };
+    // Every source on said there is nothing here (I46). Quiet, and blue: it is
+    // not a failure, and "no sites are switched on" would be false.
+    if (summary.empty.length > 0) {
+      return {
+        text: "",
+        color: BADGE_BLUE,
+        title: `Illini Dash — ${stateClause(summary.empty, "empty")}`,
+      };
+    }
+    return { text: "", color: BADGE_BLUE, title: "Illini Dash — no sites are switched on" };
   }
   if (summary.ok.length === 0) {
     // Everything enabled is still pending: nothing has been fetched, so there
@@ -1124,6 +1232,22 @@ export function badgeFor(
     // rather than "due today" — an overdue item is neither today's nor a lie.
     title: `Illini Dash — ${urgent} item${urgent === 1 ? "" : "s"} due today or overdue`,
   };
+}
+
+/**
+ * "Canvas didn't answer", "PrairieLearn and PrairieTest look different": the
+ * non-login failures, one clause per state, unreachable first (the one a
+ * press of Sync can finish). `stateClause` owns the verbs.
+ */
+function failureClauses(
+  failing: readonly Source[],
+  sources: Partial<Record<Source, SourceStatus>>,
+): string[] {
+  const of = (state: SourceState) =>
+    failing.filter((source) => displayState(sources[source]!) === state);
+  return (["network_error", "parse_error"] as const)
+    .map((state) => stateClause(of(state), state))
+    .filter((clause) => clause !== "");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1151,7 +1275,12 @@ export function emptyStateFor(
   const summary = summarize(sources);
 
   if (summary.checkable.length === 0) {
-    return { text: "No sources are switched on — open Settings to turn one back on.", logins: [] };
+    if (summary.empty.length > 0) {
+      return { text: `Nothing to show: ${stateClause(summary.empty, "empty")}.`, logins: [] };
+    }
+    // "sites", the word the Settings lede and the setup screen use for this
+    // list (copy-audit #16); "sources" is the tab's name and the footer count.
+    return { text: "No sites are switched on — open Settings to turn one on.", logins: [] };
   }
   if (summary.needsLogin.length > 0) {
     return {
@@ -1163,7 +1292,7 @@ export function emptyStateFor(
   }
   if (summary.failing.length > 0) {
     return {
-      text: `Nothing to show: ${nameList(summary.failing)} could not be read, so this list is incomplete.`,
+      text: `Nothing to show: ${failureClauses(summary.failing, sources).join(" and ")}, so this list is incomplete.`,
       logins: [],
     };
   }

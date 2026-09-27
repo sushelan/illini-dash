@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import {
   RECHECK_AFTER_MS,
   STALE_AFTER_MS,
+  staleBannerText,
+  staleSentence,
   badgeFor,
   displayState,
   actionFor,
@@ -224,6 +226,44 @@ describe("badgeFor (worker rule 2: a failure outranks any number)", () => {
     // "gradescope could not be read".
     expect(badge.title).toContain("Gradescope");
     expect(badge.title).not.toContain("gradescope ");
+    // The footer's verb for the same state (sync-health #9).
+    expect(badge.title).toBe("Illini Dash \u2014 Gradescope looks different");
+  });
+
+  it("says a source that did not answer did not answer, not that it could not be read", () => {
+    /*
+     * sync-health #9: one store gave the badge "Canvas could not be read", the
+     * footer "Canvas didn't answer · 1d ago" and the Sources tab "Unreachable".
+     * "Could not be read" sends a student to look for a page change that did
+     * not happen; the fix for this one is pressing Sync.
+     */
+    const badge = badgeFor(
+      [],
+      sources({
+        canvas: status({ source: "canvas", state: "network_error" }),
+        gradescope: status({ state: "ok" }),
+      }),
+      DEFAULT_SETTINGS,
+      NOW,
+    );
+    expect(badge.text).toBe("!");
+    expect(badge.title).toBe("Illini Dash \u2014 Canvas didn't answer");
+  });
+
+  it("names both kinds of failure when both happened", () => {
+    const badge = badgeFor(
+      [],
+      sources({
+        canvas: status({ source: "canvas", state: "network_error" }),
+        prairielearn: status({ source: "prairielearn", state: "parse_error" }),
+        prairietest: status({ source: "prairietest", state: "parse_error" }),
+      }),
+      DEFAULT_SETTINGS,
+      NOW,
+    );
+    expect(badge.title).toBe(
+      "Illini Dash \u2014 Canvas didn't answer; PrairieLearn and PrairieTest look different",
+    );
   });
 
   it("names signing in when that is what is wrong", () => {
@@ -285,6 +325,30 @@ describe("emptyStateFor", () => {
     const empty = emptyStateFor(sources({ prairielearn: status({ state: "parse_error" }) }), false);
     expect(empty.text).toContain("incomplete");
     expect(empty.logins).toEqual([]);
+    // The same verb as the footer and the badge (sync-health #9).
+    expect(empty.text).toBe(
+      "Nothing to show: PrairieLearn looks different, so this list is incomplete.",
+    );
+  });
+
+  it("does not call a source that did not answer unreadable", () => {
+    const empty = emptyStateFor(
+      sources({
+        canvas: status({ source: "canvas", state: "network_error" }),
+        prairielearn: status({ source: "prairielearn", state: "parse_error" }),
+      }),
+      false,
+    );
+    expect(empty.text).toBe(
+      "Nothing to show: Canvas didn't answer and PrairieLearn looks different, so this list is incomplete.",
+    );
+  });
+
+  it("says sites, the student's word, when nothing is switched on", () => {
+    // copy-audit #16: "sources" and "sites" named the same list in adjacent
+    // sentences. The prose says sites (Settings' lede, the setup screen).
+    const empty = emptyStateFor(sources({ canvas: status({ enabled: false }) }), false);
+    expect(empty.text).toBe("No sites are switched on \u2014 open Settings to turn one on.");
   });
 
   it("says it is still checking before the first success", () => {
@@ -1118,17 +1182,29 @@ describe("footerLine (brief D10)", () => {
     expect(line.dot).toBe("warn");
   });
 
-  it("says syncing, not the failure, while a sync is in flight", () => {
-    // The sentence would be about an attempt that is being replaced as it is
-    // read, and an amber wash under "syncing\u2026" reads as a failure that has
-    // already happened (`tone`).
+  it("keeps the last outcome in words while a sync is in flight, and leaves 'Syncing…' to the button", () => {
+    /*
+     * Rewritten 2026-09-27 (popup-live #11). This used to pin
+     * `synced === "syncing…"`, and the strip then read
+     * "5 of 6 sources · syncing…  Syncing…": the same word twice on one 400px
+     * line, from this sentence and from the Sync button's own label (UI rule
+     * 4 puts it on the control, which is the right owner). The useful
+     * sentence — "Sign in to Gradescope · 1m ago" — vanished for the whole
+     * fetch, and it is still the truth until the next attempt answers.
+     *
+     * What stays: the wash is `pending`, not amber, because an amber strip
+     * under a sync that has not finished reads as a failure that already
+     * happened.
+     */
     const line = footerLine(
       sources({ gradescope: status({ state: "needs_login", lastSuccessAt: iso(60_000) }) }),
       true,
       NOW,
     );
-    expect(line.synced).toBe("syncing\u2026");
+    expect(line.synced).toBe("Sign in to Gradescope \u00b7 1m ago");
+    expect(line.synced.toLowerCase()).not.toContain("syncing");
     expect(line.tone).toBe("pending");
+    expect(line.dot).toBe("warn");
   });
 
   it("keeps exactly four fields, because a fifth would have to be drawn", () => {
@@ -1158,9 +1234,11 @@ describe("footerLine (brief D10)", () => {
     expect(line.sources).toMatch(/^0 of \d+ sources$/);
   });
 
-  it("says syncing on both halves while a sync is in flight", () => {
+  it("keeps the healthy clock while a sync is in flight", () => {
+    // Rewritten with the test above (popup-live #11): the button says
+    // "Syncing…", so this half keeps saying when a source was last read.
     const line = footerLine(sources({ gradescope: status() }), true, NOW);
-    expect(line.synced).toBe("syncing…");
+    expect(line.synced).toBe("synced 1m ago");
     // The dot still reports what the sources did; the strip does not go amber
     // over a sync that has not finished.
     expect(line.tone).toBe("pending");
@@ -1605,6 +1683,182 @@ describe("quietState (brief D13, mock 1f)", () => {
   it("uses the student's own name for the course", () => {
     expect(quietState([TUESDAY()], ALL_OK(), NOW, { ECE374: "Algorithms" })?.detail).toContain(
       "Next up is Algorithms GPS5",
+    );
+  });
+});
+
+/*
+ * I46 (2026-09-27): PrairieLearn "no courses" is a state, not a parse error.
+ *
+ * Sushi: "prairielearn also shows unable to read when theres no classes/
+ * assignments on there." DESIGN (b): `empty` means "enabled, attempted, read
+ * fine, and the page positively states there is nothing for this student".
+ * These are DESIGN (e) tests 17-24, one per consumer.
+ */
+describe("the empty state on every health surface (I46)", () => {
+  const empty = (partial: Partial<SourceStatus> = {}) =>
+    status({
+      source: "prairielearn",
+      state: "empty",
+      lastError: "PrairieLearn lists no courses for you",
+      ...partial,
+    });
+
+  it("17: is on neither side of n of m, and is not a failure", () => {
+    // DESIGN (b) summarize: "`empty` is excluded from `checkable` like
+    // `disabled` (a source with nothing behind it is on neither side of
+    // 'n of m')".
+    const summary = summarize(
+      sources({ canvas: status({ source: "canvas" }), prairielearn: empty() }),
+    );
+    expect(summary.empty).toEqual(["prairielearn"]);
+    expect(summary.checkable).toEqual(["canvas"]);
+    expect(summary.failing).toEqual([]);
+    expect(summary.disabled).toEqual([]);
+    expect(summary.pending).toEqual([]);
+  });
+
+  it("18: reads 'No courses' in the list, offers Turn off, and sorts after ok and before off", () => {
+    const rows = sourceRows(
+      sources({
+        prairietest: status({ source: "prairietest", enabled: false, state: "disabled" }),
+        prairielearn: empty(),
+        canvas: status({ source: "canvas" }),
+      }),
+      NOW,
+    );
+    expect(rows.map((row) => row.source)).toEqual(["canvas", "prairielearn", "prairietest"]);
+    const row = rows.find((r) => r.source === "prairielearn")!;
+    expect(row.word).toBe("No courses");
+    expect(row.action).toEqual({ kind: "off", source: "prairielearn" });
+    // The site's own sentence goes in the tooltip, as every state's does.
+    expect(row.lastError).toBe("PrairieLearn lists no courses for you");
+  });
+
+  it("19: is not stale however old its last read, because nothing is missing", () => {
+    // Without the skip, a day-old empty became "PrairieLearn last answered 26
+    // hours ago" — a warning about a source that answered every half hour.
+    expect(
+      staleNotice(sources({ prairielearn: empty({ lastSuccessAt: iso(2 * 86_400_000) }) }), NOW),
+    ).toBeUndefined();
+  });
+
+  it("20a: leaves the footer's count to the sources that have something, green", () => {
+    const line = footerLine(
+      sources({
+        canvas: status({ source: "canvas", lastSuccessAt: iso(3 * 3_600_000) }),
+        prairielearn: empty({ lastSuccessAt: iso(120_000) }),
+      }),
+      false,
+      NOW,
+    );
+    expect(line.sources).toBe("1 source");
+    expect(line.dot).toBe("ok");
+    // The clock comes from the newer read, which was the empty one: it was
+    // read, 2m ago, and said so.
+    expect(line.synced).toBe("synced 2m ago");
+  });
+
+  it("20b: says there is nothing to read, not that nothing is switched on, when every source is empty", () => {
+    // DESIGN (b) scenario D: only PL on and empty read "no sources · not synced
+    // yet" — an instruction to turn on a source that is on.
+    const line = footerLine(sources({ prairielearn: empty({ lastSuccessAt: iso(120_000) }) }), false, NOW);
+    expect(line.sources).toBe("nothing to read");
+    expect(line.synced).toBe("synced 2m ago");
+    expect(line.dot).toBe("pending");
+  });
+
+  it("21: never raises the badge for it, and says why it is quiet when it is all there is", () => {
+    const withOk = badgeFor(
+      [],
+      sources({ canvas: status({ source: "canvas" }), prairielearn: empty() }),
+      DEFAULT_SETTINGS,
+      NOW,
+    );
+    expect(withOk.text).toBe("");
+    const alone = badgeFor([], sources({ prairielearn: empty() }), DEFAULT_SETTINGS, NOW);
+    expect(alone).toEqual({
+      text: "",
+      color: "#1a73e8",
+      title: "Illini Dash \u2014 PrairieLearn lists no courses for you",
+    });
+  });
+
+  it("22: explains an empty list by the source that has nothing, not by the switches", () => {
+    expect(emptyStateFor(sources({ prairielearn: empty() }), false)).toEqual({
+      text: "Nothing to show: PrairieLearn lists no courses for you.",
+      logins: [],
+    });
+  });
+
+  it("23: offers the one-click turn-off", () => {
+    expect(actionFor("prairielearn", "empty")).toEqual({ kind: "off", source: "prairielearn" });
+  });
+
+  it("24: is re-read when the student comes back from its site, and not on a timer", () => {
+    // DESIGN (b): joining a course happens on prairielearn.com in a tab we do
+    // not own — the argument `sourcesToRecheck` makes for `needs_login` — but
+    // a popup open must not refetch a healthy-empty source every 10 seconds.
+    const attempted = NOW.getTime() - 60_000;
+    const record = sources({
+      prairielearn: empty({ lastAttemptAt: new Date(attempted).toISOString() }),
+    });
+    expect(sourcesToRecheck(record, NOW.getTime(), { prairielearn: attempted + 1000 })).toEqual([
+      "prairielearn",
+    ]);
+    expect(sourcesToRecheck(record, NOW.getTime())).toEqual([]);
+  });
+
+  it("is not counted on the Sources tab's badge or the pill's needs-you count", () => {
+    const record = sources({ canvas: status({ source: "canvas" }), prairielearn: empty() });
+    expect(sourceAlertCount(record)).toBe(0);
+    expect(needsYouPill({ sources: record, syncing: false, overdue: 0, suggestions: 0 }).kind).toBe(
+      "clear",
+    );
+  });
+});
+
+/*
+ * copy-audit #5 (2026-09-27): "Gradescope signed you out 6 hours ago" states a
+ * moment the extension does not know. `hours` is the time since the last
+ * successful read; the session may have expired ten minutes ago. Say what is
+ * known — the state now, and when it was last read — with the footer's verbs.
+ */
+describe("staleSentence and staleBannerText (say what we know)", () => {
+  it("says the state now and when it was last read, never when it changed", () => {
+    expect(staleSentence({ source: "gradescope", state: "needs_login", needsLogin: true, hours: 13 })).toBe(
+      "Gradescope needs you to sign in · last read 13 hours ago.",
+    );
+    expect(staleSentence({ source: "gradescope", state: "parse_error", needsLogin: false, hours: 13 })).toBe(
+      "Gradescope looks different · last read 13 hours ago.",
+    );
+    expect(staleSentence({ source: "canvas", state: "network_error", needsLogin: false, hours: 72 })).toBe(
+      "Canvas didn't answer · last read 3 days ago.",
+    );
+    for (const hours of [13, 72]) {
+      const sentence = staleSentence({ source: "gradescope", state: "needs_login", needsLogin: true, hours });
+      expect(sentence).not.toContain("signed you out");
+    }
+  });
+
+  it("says nothing from a never-read source is listed, in a sentence about the site", () => {
+    expect(staleSentence({ source: "gradescope", state: "needs_login", needsLogin: true })).toBe(
+      "Gradescope needs you to sign in. Nothing from it has been read yet.",
+    );
+    expect(staleSentence({ source: "canvas", state: "network_error", needsLogin: false })).toBe(
+      "Canvas didn't answer. Nothing from it has been read yet.",
+    );
+  });
+
+  it("gives the header banner the chip's word and the last read, short enough for one line", () => {
+    const banner = staleBannerText({ source: "gradescope", state: "needs_login", needsLogin: true, hours: 13 });
+    expect(banner).toBe("Gradescope: Sign in needed · last read 13h");
+    expect(banner.length).toBeLessThanOrEqual(45);
+    expect(staleBannerText({ source: "canvas", state: "network_error", needsLogin: false, hours: 30 })).toBe(
+      "Canvas: Unreachable · last read 30h",
+    );
+    expect(staleBannerText({ source: "gradescope", state: "parse_error", needsLogin: false })).toBe(
+      "Gradescope: never read — nothing from it is listed",
     );
   });
 });

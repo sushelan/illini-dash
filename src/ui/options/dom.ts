@@ -8,6 +8,8 @@
  */
 
 import { STATE_WORD } from "../../core/names.js";
+import { toneOf } from "../../core/health.js";
+import { isSourceState } from "../../sources/types.js";
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -28,16 +30,20 @@ export function el<K extends keyof HTMLElementTagNameMap>(
  * one. The exact stamp and the error stay in the tooltip.
  */
 export function stateChip(state: string, detail?: string, title?: string): HTMLElement {
-  const tone =
-    state === "ok"
-      ? "is-ok"
-      : // `needs_permission` is a warning and not a failure: nothing is broken,
-        // and the fix is the button beside it (see `observerRow`).
-        state === "needs_login" || state === "needs_permission"
-        ? "is-warn"
-        : state === "disabled" || state === "pending"
-          ? ""
-          : "is-err";
+  /*
+   * The colour is `toneOf`'s — the setup screen's chip and the Sources tab's
+   * dot read the same function — so a state cannot be grey on one screen and
+   * red on another. This was its own if-chain, and it painted `empty` ("No
+   * courses", I46) `is-err` because `empty` was not in its grey list.
+   *
+   * Two words are not source states: `needs_permission` is the observers' own
+   * and is a warning, not a failure — nothing is broken, and the fix is the
+   * button beside it (see `observerRow`). Anything else unknown stays red, as
+   * it always did: a word this build cannot place is not a healthy one.
+   */
+  const shade =
+    state === "needs_permission" ? "warn" : isSourceState(state) ? toneOf(state) : "err";
+  const tone = shade === "ok" ? "is-ok" : shade === "warn" ? "is-warn" : shade === "err" ? "is-err" : "";
   const word = STATE_WORD[state] ?? state;
   const chip = el(
     "span",

@@ -13,7 +13,7 @@
  *
  * Three things move here together, because all three are statements about a
  * *source* rather than about the student's work: the stale notice ("Gradescope
- * signed you out 6 days ago", with its button), the list itself, and the
+ * needs you to sign in · last read 6 days ago", with its button), the list itself, and the
  * "nothing was dropped" reassurance that only makes sense beside the notice.
  * Alerts keeps what is asking the student for something.
  *
@@ -29,13 +29,18 @@ import {
   actionFor,
   sourceRows,
   staleNotice,
+  staleSentence,
+  toneOf,
 } from "../../../core/health.js";
 import { SOURCE_NAME, SOURCE_TITLE } from "../../../core/names.js";
 import { icon } from "../../icons.js";
 import type { Item, Source, SourceStatus } from "../../../sources/types.js";
 import { viewEl } from "../state.js";
 import { renderObserverRows } from "../observers.js";
-import { actionButton, toneFor } from "../shell.js";
+// `actionButton` draws every `SourceAction` kind, including `off` (I46's
+// one-click turn-off for a source with no courses) — this view passes the
+// action through and owns no copy of what each kind does.
+import { actionButton } from "../shell.js";
 import { sectionHead } from "./section.js";
 
 export function renderSourcesView(
@@ -90,7 +95,7 @@ function renderNotice(
 
   const text = document.createElement("span");
   text.className = "needsyou--notice-text";
-  text.textContent = noticeSentence(notice);
+  text.textContent = staleSentence(notice);
 
   line.append(glyph, text);
   const button = actionButton(
@@ -101,19 +106,6 @@ function renderNotice(
   // wants to know whether it is the cookie or the page.
   if (notice.lastError) line.title = notice.lastError;
   return line;
-}
-
-export function noticeSentence(notice: StaleNotice): string {
-  const name = SOURCE_NAME[notice.source];
-  if (notice.hours === undefined) {
-    return notice.needsLogin
-      ? `${name} has never been signed in, so nothing from it is listed.`
-      : `${name} has never been read, so nothing from it is listed.`;
-  }
-  const ago = notice.hours < 48 ? `${notice.hours} hours ago` : `${Math.floor(notice.hours / 24)} days ago`;
-  if (notice.needsLogin) return `${name} signed you out ${ago}.`;
-  if (notice.state === "parse_error") return `${name} last looked different ${ago}.`;
-  return `${name} last answered ${ago}.`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -150,7 +142,7 @@ function renderSources(rows: SourceRow[], now: Date): HTMLElement {
     line.className = "needsyou--source";
 
     const dot = document.createElement("i");
-    dot.className = `needsyou--dot is-${toneFor(row.state)}`;
+    dot.className = `needsyou--dot is-${toneOf(row.state)}`;
 
     const text = document.createElement("div");
     text.className = "needsyou--source-text";
@@ -161,10 +153,15 @@ function renderSources(rows: SourceRow[], now: Date): HTMLElement {
     // PrairieTest.
     name.textContent = SOURCE_TITLE[row.source];
     const detail = document.createElement("div");
-    detail.className = `needsyou--source-detail is-${toneFor(row.state)}`;
+    detail.className = `needsyou--source-detail is-${toneOf(row.state)}`;
     detail.textContent = row.lastRead ? `${row.word} · last read ${row.lastRead}` : row.word;
-    if (row.lastReadExact || row.lastError) {
-      detail.title = [row.lastError, row.lastReadExact && `last read ${row.lastReadExact}`]
+    // What the *site* answered ("Failed to fetch", an HTTP status) is worth a
+    // hover. A `parse_error`'s message is this extension's own vocabulary,
+    // which no student can act on, and the word already says what happened —
+    // the same cut the footer's tooltip makes (copy audit #18).
+    const shownError = row.state === "parse_error" ? undefined : row.lastError;
+    if (row.lastReadExact || shownError) {
+      detail.title = [shownError, row.lastReadExact && `last read ${row.lastReadExact}`]
         .filter(Boolean)
         .join("\n");
     }
@@ -191,7 +188,7 @@ function renderSources(rows: SourceRow[], now: Date): HTMLElement {
  *
  * `runSync`'s failure branch keeps a source's previously fetched rows on
  * purpose, so the list does not go blank — and nothing on screen ever said so.
- * A student who reads "Gradescope signed you out 6 days ago" has every reason
+ * A student who reads "Gradescope needs you to sign in · last read 6 days ago" has every reason
  * to assume six days of Gradescope deadlines are missing, and the reassurance
  * is the difference between fixing it today and fixing it in a panic.
  *

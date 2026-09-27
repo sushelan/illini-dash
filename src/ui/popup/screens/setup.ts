@@ -25,8 +25,19 @@
  * group's switch sends one message per source in it.
  */
 
-import { type SetupRow, loginsToOpen, setupProgress, setupSummary } from "../../../core/setup.js";
-import { LOGIN_URL, SOURCE_NAME } from "../../../core/names.js";
+import {
+  ATTEMPTING_KEY,
+  type SetupRow,
+  isChecking,
+  loginsToOpen,
+  parseAttempting,
+  setupChip,
+  setupProgress,
+  setupSummary,
+} from "../../../core/setup.js";
+import { actionOutcome } from "../../../core/outcome.js";
+import { chromeTabs, focusOrOpen } from "../../../core/tabs.js";
+import { LOGIN_URL, SOURCE_NAME, nameList } from "../../../core/names.js";
 import { appMark, icon, iconButton } from "../../icons.js";
 import { send } from "../../../messages.js";
 import type { Source } from "../../../sources/types.js";
@@ -95,6 +106,35 @@ const ELSEWHERE: { label: string; hint: string; section: string }[] = [
     section: "sec-sites",
   },
 ];
+
+/**
+ * The sources the running sync attempts, as the worker last published them
+ * (`ATTEMPTING_KEY`), or `undefined` when it has not said — an older worker,
+ * or the moment between the syncing flag and the plan. `isChecking` falls back
+ * to "every row" then, which is what this screen always did.
+ *
+ * Kept here, current, rather than read per draw: a draw is synchronous and
+ * `storage.session` is not. A change redraws the screen while it is showing,
+ * because the chips are exactly what changed.
+ */
+let attempting: Source[] | undefined;
+
+// `typeof`, not `chrome?.`: optional chaining on an undeclared global still
+// throws, and the test harness and the preview load this module without one.
+const storage = typeof chrome === "undefined" ? undefined : chrome.storage;
+void storage?.session
+  ?.get(ATTEMPTING_KEY)
+  .then((stored) => {
+    attempting = parseAttempting(stored?.[ATTEMPTING_KEY]);
+  })
+  .catch(() => undefined);
+storage?.onChanged?.addListener((changes, area) => {
+  if (area !== "session" || !(ATTEMPTING_KEY in changes)) return;
+  attempting = parseAttempting(changes[ATTEMPTING_KEY]?.newValue);
+  if (document.body.classList.contains("setup")) void app.refresh();
+});
+
+const checkingNow = (source: Source): boolean => isChecking(source, isSyncing(), attempting);
 
 export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
   document.body.classList.add("setup");
@@ -170,7 +210,9 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
   // What was actually found, once anything has been. `found` comes from the
   // last draw's state, so on the first paint it is undefined and the line falls
   // back to the connection count — which is the only true thing available then.
-  summary.textContent = setupSummary(setupProgress(rows), state.lastFound);
+  // `checkingNow`, so a row whose chip says "Checking…" is not also described
+  // by its previous answer in the sentence under it.
+  summary.textContent = setupSummary(setupProgress(rows, checkingNow), state.lastFound);
   page.append(summary);
 
   const actions = document.createElement("div");
@@ -194,7 +236,10 @@ export function renderSetup(rows: SetupRow[], recheckLogins: () => void): void {
       outstanding.length === 1
         ? "Open the sign-in page"
         : `Open all ${outstanding.length} sign-in pages`;
-    all.title = "Opens a tab for each site you picked that is not signed in yet";
+    // Names them. `loginsToOpen` includes sources nothing has checked yet (a
+    // first run has nothing else to offer), so "not signed in yet" was a claim
+    // about sites no attempt had answered (popup-live #8).
+    all.title = `Opens the sign-in page for ${nameList(outstanding.map((entry) => entry.source))}`;
     all.addEventListener("click", () => {
       for (const { url } of outstanding) {
         // Not focused: four tabs stealing focus one after another would leave
@@ -290,24 +335,42 @@ function renderGroup(label: string, hint: string, rows: SetupRow[]): HTMLElement
   box.addEventListener("change", () => {
     box.disabled = true;
     const enabled = box.checked;
+    const refuse = (reason: string) => {
+      box.disabled = false;
+      box.checked = !enabled;
+      showStatus(`Could not switch ${label} ${enabled ? "on" : "off"}: ${reason}`);
+    };
     void Promise.all(
       rows.map((row) => send({ type: "set-source-enabled", source: row.source, enabled })),
     )
-      .then(async () => {
+      .then(async (responses) => {
+        /*
+         * The worker's answer, read (options-live #2, 2026-09-27). Every
+         * handler throw in the worker — a failed write, a queue timeout —
+         * comes back as `{ type: "error" }`, and this discarded all five: the
+         * switch sprang back on the redraw with no sentence anywhere. A
+         * refusal puts the box back, says why, and does not refresh — nothing
+         * in the store changed (ZIP rule 2; `core/outcome.ts` decides which
+         * answers are refusals).
+         */
+        const refused = responses.map(actionOutcome).find((outcome) => !outcome.ok);
+        if (refused && !refused.ok) {
+          console.warn(`[setup] ${label}: the worker refused set-source-enabled — ${refused.message}`);
+          refuse(refused.message);
+          return;
+        }
         // A source just switched on has never been fetched, so ask for one now
         // rather than leaving the row pending until the next poll — the whole
         // screen is a checklist that is supposed to tick itself.
-        if (enabled) void send({ type: "sync", trigger: "manual" });
+        if (enabled) {
+          void send({ type: "sync", trigger: "manual" }).catch((err: unknown) => {
+            console.warn(`[setup] ${label}: the sync after switching on failed to send`, err);
+          });
+        }
         await app.refresh();
       })
       .catch((err: unknown) => {
-        box.disabled = false;
-        box.checked = !enabled;
-        showStatus(
-          `Could not switch ${label} ${enabled ? "on" : "off"}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
+        refuse(err instanceof Error ? err.message : String(err));
       });
   });
 
@@ -337,7 +400,7 @@ function renderGroup(label: string, hint: string, rows: SetupRow[]): HTMLElement
     button.className = "btn btn-secondary btn-sm";
     button.textContent = rows.length > 1 ? `Sign in to ${SOURCE_NAME[row.source]}` : "Sign in";
     button.title = `Open ${SOURCE_NAME[row.source]}'s login page`;
-    button.addEventListener("click", () => chrome.tabs.create({ url: login }));
+    button.addEventListener("click", () => void focusOrOpen(login, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
     states.append(button);
   }
 
@@ -347,57 +410,30 @@ function renderGroup(label: string, hint: string, rows: SetupRow[]): HTMLElement
 
 /**
  * The same chips Settings uses, so a student who has seen one screen can read
- * the other. "✓ connected", "needs sign-in", "could not read" and "not used"
- * were four wordings this screen invented for itself.
+ * the other — `setupChip` in core derives it the way Settings does
+ * (`displayState`, `STATE_WORD`, `toneOf`), which this function did not until
+ * 2026-09-27: it tested `lastSuccessAt` before the failure states, and a
+ * source that read once and failed since was a green "Connected".
+ *
+ * "Checking…" while a sync is in flight, for the rows it is actually reading:
+ * the store is written once, at the end of a sync, so during the five to ten
+ * seconds one takes the stored answer is about the *previous* attempt. Sushi,
+ * looking at a signed-in Gradescope dashboard with this screen on top of it:
+ * "as u can see im in gradescope and it still says not signed in. Either
+ * there's a really long delay or it's waiting on something to trigger the
+ * sync." Both readings were available because the screen offered no third one.
  */
 function renderStateChip(row: SetupRow, named: boolean): HTMLElement {
   const chip = document.createElement("span");
   // In a pair, the chip has to say which source it is about, or "Connected ·
   // Sign in needed" is two states and no subjects.
   const prefix = named ? `${SOURCE_NAME[row.source]}: ` : "";
-  if (!row.enabled) {
-    chip.className = "chip-base chip-state";
-    chip.textContent = `${prefix}Not used`;
-  } else if (isSyncing()) {
-    /*
-     * A sync is in flight, so every other word on this row is about the
-     * *previous* one.
-     *
-     * The store is written once, at the end of a sync, so during the five to
-     * ten seconds one takes these rows keep asserting the pre-sync answer with
-     * nothing to say they are being re-read. Sushi, looking at a signed-in
-     * Gradescope dashboard with this screen on top of it: "as u can see im in
-     * gradescope and it still says not signed in. Either there's a really long
-     * delay or it's waiting on something to trigger the sync." Both readings
-     * were available because the screen offered no third one.
-     *
-     * The header pill has said "Checking…" throughout; this screen has no pill,
-     * which is exactly why it needed its own.
-     */
-    chip.className = "chip-base chip-state";
-    chip.textContent = `${prefix}Checking…`;
-    chip.title = "Reading this site now. This can take a few seconds.";
-  } else if (row.status?.state === "needs_login") {
-    // Before the Connected branch: an expired session has a `lastSuccessAt`
-    // too, and it was rendering a green chip beside its own Sign in (R2 M8).
-    chip.className = "chip-base chip-state is-warn";
-    chip.textContent = `${prefix}Sign in needed`;
-    // What the site actually answered. It was already here for the two error
-    // states and missing from the one people get stuck on — and it is the
-    // difference between "the cookie is not reaching us" and "the page says
-    // something we misread", which nothing else on this screen can tell apart.
-    chip.title = row.status.lastError ?? "";
-  } else if (row.status?.lastSuccessAt !== undefined) {
-    chip.className = "chip-base chip-state is-ok";
-    chip.textContent = `${prefix}Connected`;
-  } else if (row.status?.state === "parse_error" || row.status?.state === "network_error") {
-    chip.className = "chip-base chip-state is-err";
-    chip.textContent = `${prefix}Couldn't read`;
-    chip.title = row.status.lastError ?? "";
-  } else {
-    chip.className = "chip-base chip-state";
-    chip.textContent = `${prefix}Checking…`;
-  }
+  const shown = setupChip(row, checkingNow(row.source));
+  const tone =
+    shown.tone === "ok" ? "is-ok" : shown.tone === "warn" ? "is-warn" : shown.tone === "err" ? "is-err" : "";
+  chip.className = `chip-base chip-state ${tone}`.trim();
+  chip.textContent = `${prefix}${shown.text}`;
+  if (shown.title) chip.title = shown.title;
   return chip;
 }
 
