@@ -126,3 +126,50 @@ describe("a section names itself once", () => {
     }
   });
 });
+
+describe("the student's words (copy audit, 2026-09-27)", () => {
+  const shown = html.replace(/<!--[\s\S]*?-->/g, "");
+  // The page's script and the row builders it draws with.
+  const script = ["../src/ui/options.ts", "../src/ui/options/rows.ts"]
+    .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+    .join("\n");
+
+  it("says \"sign in\", never \"log in\" or \"login\", on the page", () => {
+    // copy-audit #19: "Sign in" is the verb on every button; "Log in to all
+    // four sites" and "landed on a login page" were the exceptions.
+    expect(shown).not.toMatch(/\blog ?in\b/i);
+    expect(script).not.toContain("login page");
+    expect(script).not.toMatch(/"[^"\n]*\blog in\b[^"\n]*"/i);
+  });
+
+  it("answers \"What if it cannot read the page?\" with the reasons, not a count of them", () => {
+    // options-live #10: "the three dead ends it hit" named three things it
+    // never listed, and "on-device model" is not a phrase a student can check.
+    expect(shown).not.toContain("dead ends");
+    expect(shown).not.toContain("on-device model");
+    expect(shown).toContain("the page has no table");
+  });
+
+  it("names both address boxes, rather than leaving them to a placeholder", () => {
+    // a11y #9: the two URL boxes were named only by their placeholders.
+    for (const id of ["add-site-url", "report-url"]) {
+      const tag = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+      expect(tag, `#${id}`).toMatch(/aria-label="[^"]+"/);
+    }
+  });
+
+  it("does not tell a student Google Calendar is off while it is on", () => {
+    // copy-audit #9: the lede is drawn once and never redrawn.
+    expect(script).not.toContain("Off until you turn it on");
+  });
+
+  it("calls the background read a sync everywhere Settings names it", () => {
+    // copy-audit #14: "Check for changes", "also checks" and "the next check"
+    // named the footer's "Sync now" a third way.
+    for (const phrase of ["Check for changes", "also checks", "next check"]) {
+      expect(shown).not.toContain(phrase);
+      // In a string literal, not in a comment explaining what was replaced.
+      expect(script).not.toMatch(new RegExp(`"[^"\\n]*${phrase}[^"\\n]*"`));
+    }
+  });
+});

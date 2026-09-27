@@ -22,8 +22,8 @@
 
     <header class="page--head">
       <h1>Settings</h1>
-      <!-- Version, last check, and how many sources answered — from the same
-           `healthPill` the popup's header uses, so the two cannot disagree. -->
+      <!-- Version, and the sources counted in the words their chips below use
+           (`settingsHeadline` in src/ui/options/wording.ts). -->
       <p id="page-sub" class="muted"></p>
     </header>
 
@@ -75,14 +75,18 @@
           <details class="why">
             <summary>What if it cannot read the page?</summary>
             <p>
-              It says which of the three dead ends it hit. If your copy of Chrome has the
-              built-in on-device model, it then asks that model for a suggestion — which is
-              run against the same page and shown to you the same way. Nothing a model says
-              is stored, and it is never asked for a date, only for where to look.
+              It says why: the page has no table, the schedule is drawn by JavaScript after
+              the page loads, or it is a list rather than a table. If your Chrome has its
+              built-in AI model, it also asks that for a guess, which you see the same way
+              and can ignore. Nothing is saved until you press Use this one, and the model
+              is never asked for a date, only for where to look.
             </p>
           </details>
           <p class="row-actions">
+            <!-- Named, not just placeholdered: a placeholder is not an accessible
+                 name, and it disappears the moment anything is typed (a11y #9). -->
             <input id="add-site-url" class="field field--grow" type="url"
+                   aria-label="Address of the course page"
                    placeholder="https://courses.grainger.illinois.edu/…" />
             <button id="add-site-go" class="btn btn-secondary">Read this page</button>
           </p>
@@ -191,6 +195,7 @@
             </p>
             <p class="row-actions">
               <input id="report-url" class="field field--grow" type="url"
+                     aria-label="Address of the page that is not working"
                      placeholder="https://www.gradescope.com/courses/1352838" />
               <button id="report-fetch" class="btn btn-secondary">Prepare report</button>
             </p>
@@ -229,7 +234,7 @@
             <summary>Gate 0 — cookie-authenticated fetch from the service worker</summary>
             <p>
               Fetches each source's authenticated home page from the extension's service
-              worker with <code>credentials: "include"</code>. Log in to all four sites in
+              worker with <code>credentials: "include"</code>. Sign in to all four sites in
               this browser profile first. Nothing is stored.
             </p>
             <p class="row-actions">

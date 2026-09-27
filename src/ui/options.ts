@@ -46,19 +46,25 @@ import {
   type AdapterEntry,
   type CourseSiteActions,
 } from "./options/course-sites.js";
-import { normalizeOptionsState, staleWorkerNotice } from "../core/compat.js";
+import { normalizeOptionsState } from "../core/compat.js";
+import { applyChange } from "./options/actions.js";
+import { requestAnswer, runFlow } from "./options/flows.js";
+import {
+  plainRow,
+  pollRow,
+  quietHoursFields,
+  clockValue,
+  readQuietHours,
+  rowNote,
+  switchRow,
+  tidyRow,
+} from "./options/rows.js";
+import { settingsHeadline, staleWarning, type StaleFacts } from "./options/wording.js";
 import { isDevHash, normalizePageUrl } from "../core/page-url.js";
-import {
-  CAMPUSWIRE_MATCH,
-  describeObserver,
-  type ObserverFacts,
-} from "../core/campuswire.js";
-import {
-  describePiazza,
-  PIAZZA_LOGIN_URL,
-  PIAZZA_MATCH,
-  type PiazzaFacts,
-} from "../core/piazza.js";
+import { chromeTabs, focusOrOpen } from "../core/tabs.js";
+import { CAMPUSWIRE_MATCH, type ObserverFacts } from "../core/campuswire.js";
+import { PIAZZA_LOGIN_URL, PIAZZA_MATCH, type PiazzaFacts } from "../core/piazza.js";
+import { observerShownState, observerStatus } from "../core/observer-ui.js";
 import { coursesUrl } from "../sources/canvas.js";
 import { downloadFile, downloadIcs } from "./download.js";
 import {
@@ -75,7 +81,6 @@ import {
 import {
   actionFor,
   displayState,
-  healthPill,
   sourceRows,
   sourcesToRecheck,
 } from "../core/health.js";
@@ -86,7 +91,6 @@ import {
   displayCourseLabel,
   SOURCE_HINT,
   SOURCE_TITLE,
-  STATE_WORD,
   fullStamp,
   timeAgo,
 } from "../core/names.js";
@@ -147,15 +151,10 @@ void (async () => {
       setWarning("build", undefined);
       return;
     }
-    // The build ids stay in the sentence: this is the one warning they are the
-    // evidence for. Everything before them says what happened and what to do.
-    setWarning(
-      "build",
-      "Illini Dash was updated, but the background part is still running the old " +
-        "version, so this page may be wrong. Open chrome://extensions and click " +
-        `Reload on the Illini Dash card. (This page is build ${BUILD_ID}; the ` +
-        `background part is build ${resp.buildId}.)`,
-    );
+    // One banner with the missing fields (`setStale`), not a second one
+    // opening with the same sentence (options-live #7). The build ids are the
+    // evidence, so they stay — on the banner's title and under Developer.
+    setStale({ builds: { page: BUILD_ID, worker: resp.buildId } });
   } catch (err) {
     setWarning(
       "build",
@@ -181,8 +180,9 @@ void (async () => {
  * into invisibility and neither can escape the page's own margins.
  */
 function setWarning(
-  key: "build" | "fields" | "draw",
+  key: "build" | "stale" | "draw",
   text: string | undefined,
+  title?: string,
 ): void {
   let line = buildInfo.querySelector<HTMLElement>(`[data-warning="${key}"]`);
   if (!text) {
@@ -196,14 +196,26 @@ function setWarning(
     buildInfo.append(line);
   }
   line.textContent = text;
+  if (title) line.title = title;
+  else line.removeAttribute("title");
   buildInfo.hidden = false;
 }
 
+/**
+ * The two ways of finding out the worker is on another build, drawn as one
+ * banner. The ping answers asynchronously and the missing fields arrive with
+ * the first state message, so each records its fact here and the banner is
+ * recomposed from both (`staleWarning`).
+ */
+const staleFacts: StaleFacts = {};
+function setStale(patch: StaleFacts): void {
+  Object.assign(staleFacts, patch);
+  const banner = staleWarning(staleFacts);
+  setWarning("stale", banner?.text, banner?.title);
+}
+
 function showMissingFields(missing: readonly string[]): void {
-  setWarning(
-    "fields",
-    missing.length === 0 ? undefined : staleWorkerNotice(missing),
-  );
+  setStale({ missing });
 }
 
 function row(dl: HTMLElement, label: string, value: string): void {
@@ -439,7 +451,7 @@ function renderCapture(result: CaptureResult): void {
       ? "verdict-logged_in"
       : "verdict-error";
   verdict.textContent = result.needsLogin
-    ? " — landed on a login page"
+    ? " — landed on a sign-in page"
     : ` — ${result.status}`;
   heading.append(verdict);
   box.append(heading);
@@ -567,7 +579,7 @@ captureButton.addEventListener("click", async () => {
     }
     renderCapture(resp.result);
     captureStatus.textContent = resp.result.needsLogin
-      ? "That fetch landed on a login page — log in to the site and retry."
+      ? "That fetch landed on a sign-in page — sign in to the site and retry."
       : `Fetched ${resp.result.bytes} bytes.`;
   } catch (err) {
     captureStatus.textContent =
@@ -592,48 +604,8 @@ const PRIVACY_TEXT =
   "course websites; that request contains no personal data. Uninstalling the extension " +
   "deletes all stored data.";
 
-/**
- * One settings row: a switch, a name, a line saying what it is, and a state.
- *
- * A real `<input type="checkbox">` under the switch — not a div with a click
- * handler — so the keyboard behaviour, the label association and the
- * announcement all come for free rather than being reimplemented badly.
- */
-function switchRow(options: {
-  name: string;
-  hint?: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (checked: boolean) => void;
-}): HTMLElement {
-  const row = el("div", undefined, "srow2");
-  const box = el("input");
-  box.type = "checkbox";
-  box.className = "switch srow2--lead";
-  box.checked = options.checked;
-  box.disabled = options.disabled === true;
-  const id = `sw-${Math.random().toString(36).slice(2)}`;
-  box.id = id;
-
-  const label = el("label", options.name, "srow2--name");
-  label.htmlFor = id;
-  box.addEventListener("change", () => options.onChange(box.checked));
-
-  row.append(box, label);
-  if (options.hint) row.append(el("span", options.hint, "srow2--hint"));
-  return row;
-}
-
-/** A plain row with no switch — a course that was set aside, a hidden item. */
-function plainRow(name: string, hint?: string): HTMLElement {
-  const row = el("div", undefined, "srow2");
-  const label = el("span", name, "srow2--name");
-  // An empty cell where the switch would be, so a row with a switch and a row
-  // without line up down the list.
-  row.append(el("span", undefined, "srow2--lead"), label);
-  if (hint) row.append(el("span", hint, "srow2--hint"));
-  return row;
-}
+/* `switchRow` and `plainRow` live in `./options/rows.ts`, where the DOM test
+   can build them. */
 
 /* ---- Piazza and Campuswire ----------------------------------------------
  *
@@ -646,13 +618,13 @@ function plainRow(name: string, hint?: string): HTMLElement {
  * use. So a Campuswire that was working and a Campuswire that was off were the
  * same grey, and the page had two dialects for one question.
  *
- * `core/observer-ui.ts`'s `observerRows` derives the popup's version of this and
- * is not edited from here. It could not serve this row as it stands: its tone is
- * never `ok`, so it cannot express "I read it, and it was fine" — the whole of
- * what was asked for — and it knows nothing about the host permission. The state
- * is therefore derived below from the same `ObserverState` fields it reads, into
- * the sources' own vocabulary, and the *words* inside the chip still come from
- * the two describe functions the suite already pins.
+ * The state and the chip's words are `core/observer-ui.ts`'s since 2026-09-27
+ * (`observerShownState`, `observerStatus`), shared with the popup's Sources
+ * tab. This page had private copies of both, so one Piazza failure was worded
+ * one way here and another way there (copy audit #13), and a second copy of a
+ * decision is one a mutation can hide behind (mutation rule 3). What only this
+ * page knows — whether the host permission behind the row is still granted —
+ * it passes in (`hasOrigin`).
  */
 
 interface ObserverSpec {
@@ -710,85 +682,6 @@ async function hasOrigin(match: string): Promise<boolean> {
 }
 
 /**
- * The state to show for an observer, in the same words as a fetched source.
- *
- * Worker rule 2 decides every branch. `ok` is returned only where something has
- * actually been read — a Piazza attempt that happened, a Campuswire page that
- * was seen — so a source the student has just switched on is `pending` and
- * never green. A stored `ok` with no `lastAttemptAt` is not proof either: it is
- * what a seed or an older build writes, which is exactly the defect
- * `displayState` exists for one row up.
- */
-function observerState(
-  spec: ObserverSpec,
-  facts: ObserverFacts | undefined,
-  granted: boolean,
-): string {
-  if (facts?.enabled !== true) return "disabled";
-  if (!granted) return "needs_permission";
-  if (spec.id === "campuswire")
-    return facts.lastObservedAt === undefined ? "pending" : "ok";
-  const piazza = facts as PiazzaFacts;
-  if (piazza.state === "needs_login") return "needs_login";
-  if (piazza.state === "error") return "parse_error";
-  return piazza.state === "ok" && piazza.lastAttemptAt !== undefined
-    ? "ok"
-    : "pending";
-}
-
-/** The "On · …" tail of a describe line — the facts, without its own state word. */
-function observerDetail(
-  spec: ObserverSpec,
-  facts: ObserverFacts | undefined,
-  now: Date,
-): string | undefined {
-  const line =
-    spec.id === "piazza"
-      ? describePiazza(facts as PiazzaFacts | undefined, now)
-      : describeObserver(facts, now);
-  return line.startsWith("On \u00b7 ") ? line.slice(5) : undefined;
-}
-
-/**
- * The chip's text: the state word from the family, the facts from the describe
- * functions.
- *
- * Two words are the observers' own. "Permission needed" has no equivalent among
- * the fetched sources, which are granted up front. And Campuswire is not
- * *checking* anything while it waits — it reads a feed the student opens, so
- * `STATE_WORD.pending`'s "Checking…" would claim an activity that is not
- * happening, which is the same lie as a green dot over a source that never
- * fetched.
- */
-function observerChipText(
-  spec: ObserverSpec,
-  shown: string,
-  facts: ObserverFacts | undefined,
-  now: Date,
-): string {
-  const word =
-    shown === "needs_permission"
-      ? "Permission needed"
-      : shown === "pending" && spec.id === "campuswire"
-        ? "Waiting for a feed"
-        : (STATE_WORD[shown] ?? shown);
-  /*
-   * Only a state that *is* about reading carries the reading facts. With the
-   * permission revoked the same line read "Permission needed · last read
-   * 11:14 AM · 3 posts" — a state word and a detail that contradict each
-   * other, and the half a student believes is the cheerful one.
-   */
-  const detail =
-    shown === "ok" || shown === "pending"
-      ? observerDetail(spec, facts, now)
-      : undefined;
-  // "nothing read yet" is what both pending words already say.
-  return detail === undefined || detail === "nothing read yet"
-    ? word
-    : `${word} \u00b7 ${detail}`;
-}
-
-/**
  * One observer row: the sources' switch, the sources' chip, one button.
  *
  * The button is the point of the two states that need a person. `needs_login`
@@ -805,7 +698,7 @@ async function observerRow(
   const unavailable =
     missing.includes("observers") || missing.includes(`observers.${spec.id}`);
   const granted = await hasOrigin(spec.match);
-  const shown = unavailable ? "pending" : observerState(spec, facts, granted);
+  const shown = unavailable ? "pending" : observerShownState(spec.id, facts, granted);
 
   /*
    * Held as variables rather than looked up by class when the switch is used.
@@ -814,7 +707,7 @@ async function observerRow(
    * reference cannot be misspelled.
    */
   const chip = stateChip(shown, undefined, spec.title);
-  chip.textContent = observerChipText(spec, shown, facts, now);
+  chip.textContent = observerStatus(spec.id, shown, facts, now);
   const lastError = (facts as PiazzaFacts | undefined)?.lastError;
   if (lastError !== undefined) chip.title = lastError;
 
@@ -839,7 +732,7 @@ async function observerRow(
         }
         // The chip goes back to the state it was drawn in, tone and all.
         chip.className = stateChip(shown).className;
-        chip.textContent = observerChipText(spec, shown, facts, now);
+        chip.textContent = observerStatus(spec.id, shown, facts, now);
         // On the row, not in the page's status line: `#gate0-status` is in
         // another section entirely, and a report that lands where the error did
         // not happen is not a channel (UI rule 3).
@@ -919,7 +812,7 @@ async function observerRow(
   } else if (shown === "needs_login" && spec.loginUrl !== undefined) {
     const url = spec.loginUrl;
     const login = el("button", "Sign in", "btn btn-secondary btn-sm");
-    login.addEventListener("click", () => chrome.tabs.create({ url }));
+    login.addEventListener("click", () => void focusOrOpen(url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)));
     row.append(login);
   }
   return row;
@@ -1125,7 +1018,9 @@ const courseSiteActions: CourseSiteActions = {
   remove(adapter, note, button) {
     const restore = (text: string): void => {
       button.disabled = false;
-      button.textContent = "Remove";
+      // Put back as drawn: the mark is "×" (course-sites.ts), and restoring the
+      // word "Remove" turned a refused removal into a different control.
+      button.textContent = "\u00d7";
       note(text);
     };
     void send({ type: "remove-local-adapter", adapterId: adapter.id })
@@ -1225,9 +1120,9 @@ async function renderOptions(): Promise<void> {
   const now = new Date();
   document.getElementById("privacy")!.textContent = PRIVACY_TEXT;
 
-  /* The line under the title: version, last check, and how many answered.
-     From `healthPill`, so this page and the popup's header cannot disagree. */
-  const pill = healthPill(state.sources, state.lastSyncAt, now);
+  /* The line under the title: version, and the sources counted in the same
+     words their chips below say (`settingsHeadline`, copy-audit #7). */
+  const headline = settingsHeadline(sourceRows(state.sources, now));
   // Guarded: `getManifest` is one `chrome.*` call inside a function that draws
   // the whole page, and a throw here used to take the other eight sections
   // with it. Worker rule 8 — never let a render function reject into a console
@@ -1238,7 +1133,7 @@ async function renderOptions(): Promise<void> {
   } catch {
     /* A harness, or a page opened outside the extension. */
   }
-  document.getElementById("page-sub")!.textContent = `${version}${pill.text}`;
+  document.getElementById("page-sub")!.textContent = `${version}${headline}`;
 
   /* Sources */
   const sources = document.getElementById("sources")!;
@@ -1262,12 +1157,12 @@ async function renderOptions(): Promise<void> {
       name: SOURCE_TITLE[source] ?? key,
       hint: SOURCE_HINT[source],
       checked: status.enabled,
-      onChange: (enabled) => {
-        void send({
-          type: "set-source-enabled",
-          source: source as never,
-          enabled,
-        }).then(refreshOptions);
+      onChange: (enabled, box) => {
+        void applyChange(
+          send({ type: "set-source-enabled", source: source as never, enabled }),
+          { note: rowNote(box), restore: () => (box.checked = !enabled), control: box },
+          refreshOptions,
+        );
       },
     });
 
@@ -1292,7 +1187,7 @@ async function renderOptions(): Promise<void> {
     if (signIn?.kind === "login") {
       const login = el("button", "Sign in", "btn btn-secondary btn-sm");
       login.addEventListener("click", () =>
-        chrome.tabs.create({ url: signIn.url }),
+        void focusOrOpen(signIn.url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)),
       );
       row.append(login);
     }
@@ -1304,7 +1199,7 @@ async function renderOptions(): Promise<void> {
    *
    * They belong under this heading because what they produce is deadlines, from
    * places a student thinks of as places deadlines come from. Everything that
-   * decides what each row says is in `observerRow` and its three helpers above;
+   * decides what each row says is in `observerRow` and `core/observer-ui.ts`;
    * this loop only decides the order.
    */
   const observers = (state.observers ?? {}) as Record<
@@ -1358,7 +1253,7 @@ async function renderOptions(): Promise<void> {
       const login = el("button", "Sign in", "btn btn-secondary btn-sm");
       login.title = `Opens ${new URL(siteAction.url).hostname}, which signs you in and lands on the page`;
       login.addEventListener("click", () =>
-        chrome.tabs.create({ url: siteAction.url }),
+        void focusOrOpen(siteAction.url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err)),
       );
       row.append(login);
     }
@@ -1383,12 +1278,12 @@ async function renderOptions(): Promise<void> {
         .map((source) => SOURCE_TITLE[source as never] ?? source)
         .join(", ")}`,
       checked: !course.disabled,
-      onChange: (enabled) => {
-        void send({
-          type: "set-course-disabled",
-          course: course.key,
-          disabled: !enabled,
-        }).then(refreshOptions);
+      onChange: (enabled, box) => {
+        void applyChange(
+          send({ type: "set-course-disabled", course: course.key, disabled: !enabled }),
+          { note: rowNote(box), restore: () => (box.checked = !enabled), control: box },
+          refreshOptions,
+        );
       },
     });
 
@@ -1416,12 +1311,13 @@ async function renderOptions(): Promise<void> {
       "aria-label",
       `Name for ${displayCourseLabel(course.label)}`,
     );
+    const savedName = rename.value;
     rename.addEventListener("change", () => {
-      void send({
-        type: "set-course-name",
-        course: course.label,
-        name: rename.value,
-      }).then(refreshOptions);
+      void applyChange(
+        send({ type: "set-course-name", course: course.label, name: rename.value }),
+        { note: rowNote(rename), restore: () => (rename.value = savedName) },
+        refreshOptions,
+      );
     });
     row.append(rename);
     courses.append(row);
@@ -1515,7 +1411,9 @@ async function renderOptions(): Promise<void> {
     );
     const keep = el("button", "Put back", "btn btn-secondary btn-sm");
     keep.addEventListener("click", () => {
-      void send({ type: "keep-course", courseId: course.id, keep: true }).then(
+      void applyChange(
+        send({ type: "keep-course", courseId: course.id, keep: true }),
+        { note: rowNote(keep), restore: () => undefined, control: keep, busyText: "Putting back\u2026" },
         refreshOptions,
       );
     });
@@ -1573,7 +1471,11 @@ async function renderOptions(): Promise<void> {
       const leadTimes = on
         ? state.settings.leadTimes.filter((l) => l !== lead)
         : [...new Set([...state.settings.leadTimes, lead])];
-      void send({ type: "update-settings", settings: { leadTimes } }).then(
+      void applyChange(
+        send({ type: "update-settings", settings: { leadTimes } }),
+        // Nothing to put back: `aria-pressed` and the chip's look only change
+        // on the redraw that follows a success.
+        { note: rowNote(chip), restore: () => undefined, control: chip },
         refreshOptions,
       );
     });
@@ -1587,11 +1489,12 @@ async function renderOptions(): Promise<void> {
       name: "Remind me about not-for-credit work",
       hint: "They stay in the list either way — this is only about interrupting you.",
       checked: state.settings.remindNotForCredit,
-      onChange: (remindNotForCredit) => {
-        void send({
-          type: "update-settings",
-          settings: { remindNotForCredit },
-        }).then(refreshOptions);
+      onChange: (remindNotForCredit, box) => {
+        void applyChange(
+          send({ type: "update-settings", settings: { remindNotForCredit } }),
+          { note: rowNote(box), restore: () => (box.checked = !remindNotForCredit), control: box },
+          refreshOptions,
+        );
       },
     }),
   );
@@ -1600,11 +1503,12 @@ async function renderOptions(): Promise<void> {
       name: "Hide submitted and graded work",
       hint: "Days already past still show what you finished.",
       checked: state.settings.hideSubmitted,
-      onChange: (hideSubmitted) => {
-        void send({
-          type: "update-settings",
-          settings: { hideSubmitted },
-        }).then(refreshOptions);
+      onChange: (hideSubmitted, box) => {
+        void applyChange(
+          send({ type: "update-settings", settings: { hideSubmitted } }),
+          { note: rowNote(box), restore: () => (box.checked = !hideSubmitted), control: box },
+          refreshOptions,
+        );
       },
     }),
   );
@@ -1615,99 +1519,79 @@ async function renderOptions(): Promise<void> {
     name: "Quiet hours",
     hint: "Reminders due in this window wait until it ends.",
     checked: quiet !== null,
-    onChange: (enabled) => {
-      void send({
-        type: "update-settings",
-        settings: { quietHours: enabled ? { start: 23, end: 8 } : null },
-      }).then(refreshOptions);
+    onChange: (enabled, box) => {
+      void applyChange(
+        send({
+          type: "update-settings",
+          settings: { quietHours: enabled ? { start: 23, end: 8 } : null },
+        }),
+        { note: rowNote(box), restore: () => (box.checked = !enabled), control: box },
+        refreshOptions,
+      );
     },
   });
   if (quiet) {
-    const times = el("span", undefined, "row-actions");
-    times.style.margin = "0";
-    const hourField = (value: number) => {
-      const input = el("input", undefined, "field") as HTMLInputElement;
-      input.type = "time";
-      input.step = "3600";
-      input.value = `${String(value).padStart(2, "0")}:00`;
-      return input;
+    // Labelled boxes (a11y #9) from `rows.ts`, and a refusal reported on this
+    // row. It went to `#data-status`, measured 1674px below the row, and the
+    // row was redrawn with no note at all (options-live #6); a refusal also
+    // must not redraw, because nothing in the store changed (ZIP rule 2).
+    const { cell, from, to } = quietHoursFields(quiet);
+    const note = rowNote(quietRow);
+    const putBack = (): void => {
+      from.value = clockValue(quiet.start);
+      to.value = clockValue(quiet.end);
     };
-    const from = hourField(quiet.start);
-    const to = hourField(quiet.end);
     const push = () => {
-      // `Number("")` is 0, which is a legitimate hour, so a cleared box would
-      // silently become midnight and narrow the window rather than being
-      // rejected. `<input type=time>` can still be empty, so this checks.
-      const hour = (input: HTMLInputElement): number | undefined => {
-        const match = /^(\d{2}):/.exec(input.value);
-        if (!match) return undefined;
-        const n = Number(match[1]);
-        return Number.isInteger(n) && n >= 0 && n <= 23 ? n : undefined;
-      };
-      const start = hour(from);
-      const end = hour(to);
-      if (start === undefined || end === undefined) {
-        dataStatus().textContent = "Quiet hours need a start and an end.";
-        void refreshOptions();
+      const reading = readQuietHours(from.value, to.value);
+      if (!reading.ok) {
+        putBack();
+        note(reading.message);
         return;
       }
-      void send({
-        type: "update-settings",
-        settings: { quietHours: { start, end } },
-      }).then(refreshOptions);
+      void applyChange(
+        send({
+          type: "update-settings",
+          settings: { quietHours: { start: reading.start, end: reading.end } },
+        }),
+        { note, restore: putBack },
+        refreshOptions,
+      );
     };
     from.addEventListener("change", push);
     to.addEventListener("change", push);
-    times.append(
-      el("span", "from", "opt-note"),
-      from,
-      el("span", "to", "opt-note"),
-      to,
-    );
-    quietRow.append(times);
+    quietRow.append(cell);
   }
   remindRows.append(quietRow);
 
   /* How often. A select, because the useful values are four and the box let
      you type 17 minutes and wonder why nothing changed. */
-  const pollRow = el("div", undefined, "srow2");
-  pollRow.append(el("span"), el("span", "Check for changes", "srow2--name"));
-  pollRow.append(
-    el(
-      "span",
-      "Opening the popup also checks, at most once every five minutes.",
-      "srow2--hint",
-    ),
-  );
-  const poll = el("select", undefined, "field") as HTMLSelectElement;
-  for (const minutes of [15, 30, 60, 120]) {
-    if (minutes < MIN_POLL_MINUTES || minutes > MAX_POLL_MINUTES) continue;
-    const option = document.createElement("option");
-    option.value = String(minutes);
-    option.textContent =
-      minutes < 60
-        ? `Every ${minutes} minutes`
-        : `Every ${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
-    option.selected = minutes === state.settings.pollMinutes;
-    poll.append(option);
-  }
+  const pollChoices: { value: number; text: string }[] = [15, 30, 60, 120]
+    .filter((minutes) => minutes >= MIN_POLL_MINUTES && minutes <= MAX_POLL_MINUTES)
+    .map((minutes) => ({
+      value: minutes,
+      text:
+        minutes < 60
+          ? `Every ${minutes} minutes`
+          : `Every ${minutes / 60} hour${minutes === 60 ? "" : "s"}`,
+    }));
   // A stored value that is not one of the four — set by an older build, or by
   // hand — would otherwise silently select the first option and then save it.
-  if (!offersValue(poll, state.settings.pollMinutes)) {
-    const option = document.createElement("option");
-    option.value = String(state.settings.pollMinutes);
-    option.textContent = `Every ${state.settings.pollMinutes} minutes`;
-    option.selected = true;
-    poll.append(option);
+  if (!pollChoices.some((choice) => choice.value === state.settings.pollMinutes)) {
+    pollChoices.push({
+      value: state.settings.pollMinutes,
+      text: `Every ${state.settings.pollMinutes} minutes`,
+    });
   }
+  const { row: pollLine, select: poll } = pollRow(pollChoices, state.settings.pollMinutes);
+  const savedPoll = poll.value;
   poll.addEventListener("change", () => {
-    void send({
-      type: "update-settings",
-      settings: { pollMinutes: Number(poll.value) },
-    }).then(refreshOptions);
+    void applyChange(
+      send({ type: "update-settings", settings: { pollMinutes: Number(poll.value) } }),
+      { note: rowNote(poll), restore: () => (poll.value = savedPoll), control: poll },
+      refreshOptions,
+    );
   });
-  pollRow.append(poll);
-  remindRows.append(pollRow);
+  remindRows.append(pollLine);
 
   reminders.append(remindRows);
 
@@ -1775,24 +1659,27 @@ function renderTidy(hiddenItems: TidyItem[], doneItems: TidyItem[]): void {
       el(
         "p",
         "Only deadlines you typed in yourself can be deleted; the rest come back " +
-          "on the next check, so Unhide is the only thing that changes them.",
+          "on the next sync, so Unhide is the only thing that changes them.",
         "opt-note",
       ),
     );
     const rows = el("div", undefined, "rows");
     if (items.length === 0) rows.append(plainRow(empty));
     for (const item of items) {
-      const row = plainRow(item.title, item.courseLabel);
       const undo = el("button", button, "btn btn-secondary btn-sm");
       undo.addEventListener("click", () => {
-        void send({ type: "override", action: { kind, itemId: item.id } }).then(
+        void applyChange(
+          send({ type: "override", action: { kind, itemId: item.id } }),
+          { note: rowNote(undo), restore: () => undefined, control: undo, busyText: "Applying\u2026" },
           refreshOptions,
         );
       });
-      row.append(undo);
+      // Two buttons share one actions cell (`tidyRow`): as bare siblings the
+      // grid drew Unhide underneath Trash (options-live #1).
       const ids = trashable(item.members);
-      if (ids !== null) row.append(trashButton(item, ids));
-      rows.append(row);
+      rows.append(
+        tidyRow(item, { undo, ...(ids !== null ? { trash: trashButton(item, ids) } : {}) }),
+      );
     }
     details.append(rows);
   };
@@ -1826,8 +1713,9 @@ function trashButton(item: TidyItem, sourceIds: string[]): HTMLElement {
     const restore = (text: string): void => {
       button.disabled = false;
       button.textContent = "Trash";
-      const hint = button.parentElement?.querySelector(".srow2--hint");
-      if (hint) hint.textContent = text;
+      // The row, not `parentElement`: inside `tidyRow`'s actions cell the
+      // parent is the cell, which has no hint.
+      rowNote(button)(text);
     };
     void Promise.all(
       sourceIds.map((sourceId) =>
@@ -1874,7 +1762,10 @@ function gcalSection(): HTMLElement {
   const section = el("div");
   section.id = "sec-gcal";
   const heading = el("h3", "Google Calendar");
-  const lede = el("p", "Off until you turn it on.", "lede");
+  // No state in the lede: this is drawn once and never redrawn, so "Off until
+  // you turn it on." stayed on screen while it was on (copy-audit #9). The
+  // state is the switch row's own hint, which `renderGcal` redraws.
+  const lede = el("p", "Your unfinished deadlines, on a calendar in your own Google account.", "lede");
   const rows = el("div", undefined, "rows");
   rows.id = "gcal-rows";
   section.append(heading, lede, rows);
@@ -1976,11 +1867,6 @@ function renderGcal(facts: GcalFacts | undefined): void {
   }
 }
 
-/** Whether a `<select>` already offers this value. */
-function offersValue(select: HTMLSelectElement, value: number): boolean {
-  return [...select.options].some((option) => option.value === String(value));
-}
-
 /**
  * §2.3 keeps course-site hosts out of the up-front permission request, so any
  * illinois.edu host other than the four sources needs a runtime grant before it
@@ -2000,18 +1886,35 @@ async function ensureHostPermission(url: string): Promise<boolean> {
 
 const dataStatus = () => document.getElementById("data-status")!;
 
-document.getElementById("download-ics")!.addEventListener("click", async () => {
-  const state = await send({ type: "get-state" });
-  if (state.type !== "state") return;
-  const count = downloadIcs(state.items);
-  dataStatus().textContent = `Exported ${count} items. This is a one-time copy, not a subscription.`;
+/*
+ * Both exports returned silently on any answer but the one they wanted, and a
+ * rejected `send` escaped as an unhandled rejection (UI rule 2): the button did
+ * nothing and nothing said why. `runFlow` + `requestAnswer`, as for the report.
+ */
+const icsButton = document.getElementById("download-ics") as HTMLButtonElement;
+icsButton.addEventListener("click", () => {
+  void runFlow({ button: icsButton, busyText: "Exporting\u2026", status: dataStatus() }, async () => {
+    const answer = await requestAnswer(send, { type: "get-state" }, "state");
+    if (!answer.ok) {
+      dataStatus().textContent = answer.message;
+      return;
+    }
+    const count = downloadIcs(answer.value.items, answer.value.courseNames ?? {});
+    dataStatus().textContent = `Exported ${count} items. This is a one-time copy, not a subscription.`;
+  });
 });
 
-document.getElementById("export")!.addEventListener("click", async () => {
-  const response = await send({ type: "export" });
-  if (response.type !== "export") return;
-  downloadFile("illini-dash-export.json", response.json, "application/json");
-  dataStatus().textContent = "Exported.";
+const exportButton = document.getElementById("export") as HTMLButtonElement;
+exportButton.addEventListener("click", () => {
+  void runFlow({ button: exportButton, busyText: "Exporting\u2026", status: dataStatus() }, async () => {
+    const answer = await requestAnswer(send, { type: "export" }, "export");
+    if (!answer.ok) {
+      dataStatus().textContent = answer.message;
+      return;
+    }
+    downloadFile("illini-dash-export.json", answer.value.json, "application/json");
+    dataStatus().textContent = "Exported.";
+  });
 });
 
 /*
@@ -2046,9 +1949,18 @@ document.getElementById("reset")!.addEventListener("click", async () => {
     !confirm("Delete all stored data, including your hide/merge corrections?")
   )
     return;
-  await send({ type: "reset" });
-  dataStatus().textContent = "Everything reset.";
-  await refreshOptions();
+  const reset = document.getElementById("reset") as HTMLButtonElement;
+  // Read, not assumed: "Everything reset." was written whatever the worker
+  // answered, including a refusal and a rejected send (options-live #2).
+  await runFlow({ button: reset, busyText: "Resetting\u2026", status: dataStatus() }, async () => {
+    const answer = await requestAnswer(send, { type: "reset" }, "ok");
+    if (!answer.ok) {
+      dataStatus().textContent = answer.message;
+      return;
+    }
+    dataStatus().textContent = "Everything reset.";
+    await refreshOptions();
+  });
 });
 
 void refreshOptions();
@@ -2064,7 +1976,18 @@ const reportName = document.getElementById("report-name") as HTMLInputElement;
 const reportStatus = () => document.getElementById("report-status")!;
 const reportResult = () => document.getElementById("report-result")!;
 
-document.getElementById("report-fetch")!.addEventListener("click", async () => {
+const reportButton = document.getElementById("report-fetch") as HTMLButtonElement;
+reportButton.addEventListener("click", () => {
+  // Disabled and relabelled while it runs, and whatever it throws lands in the
+  // status line (`runFlow`) — "Fetching…" used to stay up for good on a
+  // rejected send, with the button still live (options-live #3).
+  void runFlow(
+    { button: reportButton, busyText: "Preparing\u2026", status: reportStatus() },
+    prepareReport,
+  );
+});
+
+async function prepareReport(): Promise<void> {
   const typed = (
     document.getElementById("report-url") as HTMLInputElement
   ).value.trim();
@@ -2088,12 +2011,12 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   reportStatus().textContent = "Fetching…";
   reportResult().replaceChildren();
 
-  const captured = await send({ type: "capture", url });
-  if (captured.type === "error") {
-    reportStatus().textContent = captured.message;
+  const answer = await requestAnswer(send, { type: "capture", url }, "capture");
+  if (!answer.ok) {
+    reportStatus().textContent = answer.message;
     return;
   }
-  if (captured.type !== "capture") return;
+  const captured = answer.value;
 
   const { html, report } = scrubHtml(captured.result.body, {
     netid: reportNetid.value.trim() || undefined,
@@ -2191,7 +2114,7 @@ document.getElementById("report-fetch")!.addEventListener("click", async () => {
   reportStatus().textContent = blockers.length
     ? `Prepared, but ${blockers.length} thing(s) still look identifying.`
     : "Prepared.";
-});
+}
 
 /* ---- Right-click "Report this page" hand-off ------------------------------
  * The worker opens this page with the page URL in the fragment. It is untrusted
@@ -2258,7 +2181,17 @@ const addSiteUrl = document.getElementById("add-site-url") as HTMLInputElement;
 const addSiteStatus = document.getElementById("add-site-status")!;
 const addSiteResult = document.getElementById("add-site-result")!;
 
-document.getElementById("add-site-go")!.addEventListener("click", async () => {
+const addSiteButton = document.getElementById("add-site-go") as HTMLButtonElement;
+addSiteButton.addEventListener("click", () => {
+  // As "Prepare report": the button says it is reading and cannot be pressed
+  // twice, and a rejection lands in the status line (options-live #3).
+  void runFlow(
+    { button: addSiteButton, busyText: "Reading\u2026", status: addSiteStatus },
+    readCourseSite,
+  );
+});
+
+async function readCourseSite(): Promise<void> {
   const typed = addSiteUrl.value.trim();
   addSiteResult.replaceChildren();
   if (!typed) {
@@ -2281,12 +2214,12 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
     return;
   }
   addSiteStatus.textContent = "Reading…";
-  const response = await send({ type: "detect-adapter", url });
-  if (response.type === "error") {
-    addSiteStatus.textContent = response.message;
+  const answer = await requestAnswer(send, { type: "detect-adapter", url }, "detected");
+  if (!answer.ok) {
+    addSiteStatus.textContent = answer.message;
     return;
   }
-  if (response.type !== "detected") return;
+  const response = answer.value;
 
   if (response.candidates.length === 0) {
     /*
@@ -2322,7 +2255,7 @@ document.getElementById("add-site-go")!.addEventListener("click", async () => {
   // and because said here it said "table" about a list (worker rule 1).
   addSiteStatus.textContent = candidatesFoundLine(response.candidates);
   renderCandidates(response.candidates, response.url, response.courseCodeGuess);
-});
+}
 
 /**
  * The second answer: Chrome's on-device model, when there is no first answer.

@@ -767,6 +767,9 @@ body.page { padding: 0; }
   grid-column: 4; grid-row: 1 / span 2; justify-self: end;
   display: flex; align-items: center; gap: 6px;
 }
+/* A refusal written on a row (`rowNote`, src/ui/options/rows.ts) reads as one,
+   not as the caption it replaced. */
+.srow2--hint.is-refusal { color: var(--err, #d64545); }
 /* A row with no hint collapses to one line rather than leaving a gap. */
 .srow2:not(:has(.srow2--hint)) > * { grid-row: auto; }
 
@@ -842,9 +845,19 @@ label.crow--name { cursor: pointer; }
  * is the only way to take back a page they added. Faint at rest, full on hover
  * or focus, so it is discoverable without competing with the switches.
  */
+/*
+ * The hit area is 24x24 although the glyph is not (options-live #9, 2026-09-27:
+ * the button measured 11x15px, the smallest control on the page and 6px from a
+ * switch). Negative margins give the extra back, so the row is no taller and
+ * the mark sits where it did. And legible at rest: 0.45 of muted ink on the
+ * dark surface was a smudge; 0.7 is still quieter than the switches.
+ */
 .crow--remove {
-  border: 0; background: none; padding: 0 2px; line-height: 1;
-  font-size: 15px; color: var(--muted); cursor: pointer; opacity: 0.45;
+  border: 0; background: none; padding: 0; line-height: 1;
+  min-width: 24px; min-height: 24px; margin: -4px -4px;
+  display: inline-grid; place-items: center;
+  font-size: 15px; color: var(--muted); cursor: pointer; opacity: 0.7;
+  border-radius: 6px;
   transition: opacity 120ms ease, color 120ms ease;
 }
 .crow--page:hover .crow--remove,

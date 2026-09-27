@@ -331,3 +331,318 @@ describe("Course websites: what a page can be asked to do", () => {
     expect(empty.querySelector(`.${mod.UNDO_CLASS}`)!.textContent).toContain("CS 233");
   });
 });
+
+/* ------------------------------------------------------------------------ */
+/* The rest of Settings: rows, presses, and what they say (2026-09-27)       */
+/* ------------------------------------------------------------------------ */
+
+type Rows = typeof import("../src/ui/options/rows.js");
+type Actions = typeof import("../src/ui/options/actions.js");
+type Flows = typeof import("../src/ui/options/flows.js");
+type Wording = typeof import("../src/ui/options/wording.js");
+let rows: Rows;
+let actions: Actions;
+let flows: Flows;
+let wording: Wording;
+beforeAll(async () => {
+  rows = await import("../src/ui/options/rows.js");
+  actions = await import("../src/ui/options/actions.js");
+  flows = await import("../src/ui/options/flows.js");
+  wording = await import("../src/ui/options/wording.js");
+});
+
+const button = (text: string) => {
+  const b = page.document.createElement("button");
+  b.textContent = text;
+  return b as unknown as HTMLButtonElement;
+};
+/** Every microtask and one task, so a chain of `.then`s has settled. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("Hidden and ticked off: the buttons on a row", () => {
+  it("puts Unhide and Trash in one actions cell, so neither is drawn under the other", () => {
+    /*
+     * options-live #1: `.srow2 > .btn` places every bare button in column 4,
+     * rows 1–2, so two of them on one row share a cell. Measured at 900px:
+     * Unhide [809,386,54,28] under Trash [818,386,45,28], and
+     * `elementFromPoint` at Unhide's centre returned Trash — the irreversible
+     * one, with no confirm.
+     */
+    const undo = button("Unhide");
+    const trash = button("Trash");
+    const row = rows.tidyRow({ title: "test2", courseLabel: "CS424" }, { undo, trash });
+    const cell = row.querySelector(`.${rows.ROW_ACTIONS_CLASS}`);
+    expect(cell, "no .srow2--actions cell").not.toBeNull();
+    expect(cell!.parentElement).toBe(row);
+    expect([...cell!.children].map((b) => b.textContent)).toEqual(["Unhide", "Trash"]);
+    // And no button is left as a bare grid child to be placed on top of it.
+    expect([...row.children].filter((c) => c.tagName === "BUTTON")).toHaveLength(0);
+  });
+
+  it("leaves a one-button row as it was, with no wrapper", () => {
+    const row = rows.tidyRow({ title: "HW 3", courseLabel: "CS 128" }, { undo: button("Unhide") });
+    expect(row.querySelector(`.${rows.ROW_ACTIONS_CLASS}`)).toBeNull();
+    expect(row.lastElementChild!.textContent).toBe("Unhide");
+  });
+
+  it("finds the row's hint from a button inside the actions cell", () => {
+    // `trashButton` used `button.parentElement.querySelector(hint)`, which is
+    // the wrapper once there is one — a refusal would have been written nowhere.
+    const trash = button("Trash");
+    const row = rows.tidyRow({ title: "test2", courseLabel: "CS424" }, { undo: button("Unhide"), trash });
+    rows.rowNote(trash)("Could not delete that.");
+    expect(row.querySelector(`.${rows.ROW_HINT_CLASS}`)!.textContent).toBe("Could not delete that.");
+  });
+});
+
+describe("applyChange: a refused or failed write puts the control back and says why on the row", () => {
+  /*
+   * options-live #2: eleven `void send({…}).then(refreshOptions)` sites never
+   * read the answer. ZIP rule 2: "a refusal also must not refresh at all —
+   * nothing in the store changed — and the pressed control has to be put back".
+   */
+  function switchOn() {
+    let refreshed = 0;
+    let box!: HTMLInputElement;
+    const row = rows.switchRow({
+      name: "Gradescope",
+      hint: "Most CS, ECE and Math courses",
+      checked: false,
+      onChange: (_on, b) => {
+        box = b;
+      },
+    });
+    const input = row.querySelector("input")!;
+    input.checked = true;
+    input.dispatchEvent(new page.window.Event("change"));
+    const refresh = async () => {
+      refreshed += 1;
+    };
+    return { row, box, refresh, refreshed: () => refreshed };
+  }
+
+  it("on {type: \"error\"}: restores the switch, writes the message on the row, does not redraw", async () => {
+    const { row, box, refresh, refreshed } = switchOn();
+    expect(box.checked).toBe(true);
+    await actions.applyChange(
+      Promise.resolve({ type: "error", message: "The store write timed out." }),
+      { note: rows.rowNote(box), restore: () => (box.checked = false), control: box },
+      refresh,
+    );
+    expect(box.checked).toBe(false);
+    expect(box.disabled).toBe(false);
+    expect(row.querySelector(`.${rows.ROW_HINT_CLASS}`)!.textContent).toBe("The store write timed out.");
+    expect(refreshed()).toBe(0);
+  });
+
+  it("on a rejected send: the same, with the rejection's own sentence", async () => {
+    const { row, box, refresh, refreshed } = switchOn();
+    await actions.applyChange(
+      Promise.reject(new Error("The worker is running older code than this page.")),
+      { note: rows.rowNote(box), restore: () => (box.checked = false), control: box },
+      refresh,
+    );
+    expect(box.checked).toBe(false);
+    expect(row.querySelector(`.${rows.ROW_HINT_CLASS}`)!.textContent)
+      .toBe("The worker is running older code than this page.");
+    expect(refreshed()).toBe(0);
+  });
+
+  it("on success: redraws and leaves the control alone", async () => {
+    const { row, box, refresh, refreshed } = switchOn();
+    await actions.applyChange(
+      Promise.resolve({ type: "ok" }),
+      { note: rows.rowNote(box), restore: () => (box.checked = false), control: box },
+      refresh,
+    );
+    expect(refreshed()).toBe(1);
+    expect(box.checked).toBe(true);
+    expect(row.querySelector(`.${rows.ROW_HINT_CLASS}`)!.textContent).toBe("Most CS, ECE and Math courses");
+  });
+
+  it("marks a switch busy without disabling it, so the keyboard stays on it", async () => {
+    const { box, refresh } = switchOn();
+    let answer!: (value: unknown) => void;
+    const done = actions.applyChange(
+      new Promise((resolve) => (answer = resolve)),
+      { note: rows.rowNote(box), restore: () => (box.checked = false), control: box },
+      refresh,
+    );
+    expect(box.getAttribute("aria-busy")).toBe("true");
+    expect(box.disabled).toBe(false);
+    answer({ type: "error", message: "no" });
+    await done;
+    expect(box.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("says it on the button while the round trip runs, and gives the label back", async () => {
+    const undo = button("Unhide");
+    let answer!: (value: unknown) => void;
+    const pending = new Promise((resolve) => (answer = resolve));
+    const done = actions.applyChange(pending, { note: () => undefined, restore: () => undefined, control: undo, busyText: "Unhiding…" }, async () => undefined);
+    expect(undo.textContent).toBe("Unhiding…");
+    expect(undo.disabled).toBe(true);
+    answer({ type: "error", message: "no" });
+    await done;
+    expect(undo.textContent).toBe("Unhide");
+    expect(undo.disabled).toBe(false);
+  });
+});
+
+describe("the two long presses: Prepare report and Read this page", () => {
+  const ui = () => {
+    const status = page.document.createElement("p") as unknown as HTMLElement;
+    return { button: button("Prepare report"), busyText: "Preparing…", status };
+  };
+
+  it("disables and relabels the button while it runs, and restores it after", async () => {
+    const flow = ui();
+    let release!: () => void;
+    const running = flows.runFlow(flow, () => new Promise<void>((r) => (release = r)));
+    expect(flow.button.disabled).toBe(true);
+    expect(flow.button.textContent).toBe("Preparing…");
+    release();
+    await running;
+    expect(flow.button.disabled).toBe(false);
+    expect(flow.button.textContent).toBe("Prepare report");
+  });
+
+  it("puts a thrown error in the status line and gives the button back", async () => {
+    const flow = ui();
+    flow.status.textContent = "Fetching…";
+    await flows.runFlow(flow, async () => {
+      throw new Error("The service worker received \"capture\" but returned no response.");
+    });
+    expect(flow.status.textContent).toContain("returned no response");
+    expect(flow.button.disabled).toBe(false);
+  });
+
+  it("classifies a rejected send as its own sentence", async () => {
+    const answer = await flows.requestAnswer(
+      () => Promise.reject(new Error("worker is running older code")),
+      { type: "capture", url: "https://example.edu/" } as never,
+      "capture",
+    );
+    expect(answer).toEqual({ ok: false, message: "worker is running older code" });
+  });
+
+  it("classifies a refusal with the worker's message", async () => {
+    const answer = await flows.requestAnswer(
+      async () => ({ type: "error", message: "Nothing at that address." }) as never,
+      { type: "capture", url: "https://example.edu/" } as never,
+      "capture",
+    );
+    expect(answer).toEqual({ ok: false, message: "Nothing at that address." });
+  });
+
+  it("names an answer of the wrong shape instead of returning with \"Fetching…\" still up", async () => {
+    // Worker rule 8: a response is data from another build.
+    const answer = await flows.requestAnswer(
+      async () => ({ type: "ok" }) as never,
+      { type: "capture", url: "https://example.edu/" } as never,
+      "capture",
+    );
+    expect(answer.ok).toBe(false);
+    expect(!answer.ok && answer.message).toContain(flows.UNEXPECTED_ANSWER);
+    expect(!answer.ok && answer.message).toContain("“ok”");
+  });
+
+  it("hands back the answer it asked for", async () => {
+    const reply = { type: "capture", result: { bytes: 3 } };
+    const answer = await flows.requestAnswer(
+      async () => reply as never,
+      { type: "capture", url: "https://example.edu/" } as never,
+      "capture",
+    );
+    expect(answer).toEqual({ ok: true, value: reply });
+  });
+});
+
+describe("Quiet hours", () => {
+  it("rejects a cleared box rather than reading it as midnight", () => {
+    // `Number("")` is 0 (parser rule 5).
+    expect(rows.readQuietHours("", "08:00")).toEqual({ ok: false, message: rows.QUIET_HOURS_INCOMPLETE });
+    expect(rows.readQuietHours("23:00", "")).toEqual({ ok: false, message: rows.QUIET_HOURS_INCOMPLETE });
+    expect(rows.readQuietHours("23:00", "08:00")).toEqual({ ok: true, start: 23, end: 8 });
+    expect(rows.readQuietHours("00:00", "07:00")).toEqual({ ok: true, start: 0, end: 7 });
+    // An hour that is not one.
+    expect(rows.readQuietHours("24:00", "08:00").ok).toBe(false);
+  });
+
+  it("gives each time box a name, and makes \"from\" and \"to\" its labels", () => {
+    // a11y #9: both boxes were `INPUT.field name=""`.
+    const { cell, from, to } = rows.quietHoursFields({ start: 23, end: 8 });
+    page.document.body.append(cell);
+    expect(from.getAttribute("aria-label")).toBe("Quiet hours start");
+    expect(to.getAttribute("aria-label")).toBe("Quiet hours end");
+    for (const input of [from, to]) {
+      const label = cell.querySelector(`label[for="${input.id}"]`);
+      expect(label, `no label for ${input.getAttribute("aria-label")}`).not.toBeNull();
+    }
+    expect([from.value, to.value]).toEqual(["23:00", "08:00"]);
+    cell.remove();
+  });
+});
+
+describe("How often to sync", () => {
+  it("labels the select with the row's own name, in the footer button's word", () => {
+    const { row, select } = rows.pollRow(
+      [{ value: 15, text: "Every 15 minutes" }, { value: 60, text: "Every 1 hour" }],
+      60,
+    );
+    const label = row.querySelector(`label[for="${select.id}"]`);
+    expect(label, "the select has no <label for>").not.toBeNull();
+    expect(select.id).not.toBe("");
+    // copy-audit #14: "Check for changes" named the "Sync now" action a third way.
+    expect(label!.textContent).toBe("How often to sync");
+    expect(row.textContent).not.toMatch(/\bchecks?\b/i);
+    expect(select.value).toBe("60");
+  });
+});
+
+describe("the line under the title speaks the chips' words", () => {
+  const row = (source: string, state: string, word: string) => ({ source, state, word }) as never;
+
+  it("counts each chip word, most urgent first, and never says OK", () => {
+    // copy-audit #7: "All 5 OK" / "2 sites look different" above chips that
+    // read "Connected" / "Couldn't read".
+    const line = wording.settingsHeadline([
+      row("gradescope", "needs_login", "Sign in needed"),
+      row("canvas", "ok", "Connected"),
+      row("prairielearn", "ok", "Connected"),
+      row("smartphysics", "disabled", "Off"),
+    ]);
+    expect(line).toBe("1 sign in needed · 2 connected · 1 off");
+    expect(line).not.toMatch(/\bOK\b|look different/);
+  });
+
+  it("says so when there is nothing to count", () => {
+    expect(wording.settingsHeadline([])).toBe("No sources yet");
+  });
+});
+
+describe("a worker on an older build: one banner, in the student's words", () => {
+  it("merges the build mismatch and the missing fields into one sentence", () => {
+    // options-live #7: two red banners, both opening "Illini Dash was updated,
+    // but the background part is still running the old version", the second
+    // naming `setAsideCourses, gcal`.
+    const banner = wording.staleWarning({
+      builds: { page: "20260927T170636", worker: "20260101T000000" },
+      missing: ["setAsideCourses", "gcal"],
+    })!;
+    expect(banner.text).toContain("Older courses and Google Calendar are missing");
+    expect(banner.text.match(/still running the old version/g)).toHaveLength(1);
+    expect(banner.text).not.toMatch(/setAsideCourses|gcal\b|\d{8}T/);
+    // The evidence is kept, where a maintainer looks.
+    expect(banner.title).toContain("setAsideCourses, gcal");
+    expect(banner.title).toContain("20260101T000000");
+  });
+
+  it("still warns on a build mismatch alone, and says nothing when there is neither", () => {
+    expect(wording.staleWarning({ builds: { page: "a", worker: "b" } })!.text)
+      .toContain("this page may be wrong");
+    expect(wording.staleWarning({ missing: [] })).toBeUndefined();
+    expect(wording.sectionsFor(["observers.piazza", "somethingNew", "alsoNew"]))
+      .toEqual(["Piazza", "some settings"]);
+  });
+});
