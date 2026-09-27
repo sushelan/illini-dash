@@ -184,6 +184,24 @@ export function monthIndex(name: string): number | undefined {
 }
 
 /**
+ * The weekday a wall-clock date falls on in `timeZone`, as "Sun".."Sat".
+ *
+ * Shared by `inferYear` and by the course-site runner, which checks a weekday
+ * printed beside a date that *states* its year (§3.2) — one reading of "what
+ * day is this", so the two cannot disagree about it. Formatted with an explicit
+ * `en-US` so the answer does not depend on the machine's locale. Throws, like
+ * `wallClockToIso`, on a date that does not exist; callers check
+ * `isRealWallClock` first.
+ */
+export function weekdayOf(
+  parts: { year: number; month: number; day: number; hour: number; minute: number },
+  timeZone: string,
+): string {
+  const iso = wallClockToIso(parts, timeZone);
+  return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(new Date(iso));
+}
+
+/**
  * §3.2 year inference for dates that carry no year.
  *
  * Try the reference year and its neighbours; prefer one whose weekday matches
@@ -216,10 +234,7 @@ export function inferYear(
       // verdict either: Feb 29 is absent from 2027 and present in 2028, and
       // letting `wallClockToIso` throw here ended the search before 2028.
       if (!isRealWallClock({ ...parts, year })) continue;
-      const iso = wallClockToIso({ ...parts, year }, timeZone);
-      const actual = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" })
-        .format(new Date(iso));
-      if (WEEKDAYS.indexOf(actual) === wanted) return year;
+      if (WEEKDAYS.indexOf(weekdayOf({ ...parts, year }, timeZone)) === wanted) return year;
     }
     // No candidate matches: the weekday contradicts the date, so the source has
     // changed shape. Say so instead of guessing.

@@ -671,11 +671,27 @@ describe("the CS 424 seed adapter, against its real captured page", () => {
 describe("the bundled registry", () => {
   const text = readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8");
 
-  it("is what the extension actually ships", () => {
-    // Guards the build step that copies it: a registry that never reaches
-    // dist/ cannot be fetched from chrome.runtime.getURL at runtime.
-    const shipped = readFileSync(new URL("../dist/adapters/registry.json", import.meta.url), "utf8");
-    expect(JSON.parse(shipped)).toEqual(JSON.parse(text));
+  it("is copied by the build to the path the worker fetches it from", () => {
+    /*
+     * Guards the build step that copies it: a registry that never reaches
+     * dist/ cannot be fetched from chrome.runtime.getURL at runtime.
+     *
+     * This used to compare `dist/adapters/registry.json` with the source, which
+     * made a bare `npx vitest run` answer about whatever build last wrote dist/:
+     * ENOENT on a fresh clone, and a pass against another commit's registry
+     * after switching branches without rebuilding (tests-health #4,
+     * 2026-09-27). The claim is about the *build*, so it is read off the
+     * build script and the worker's fetch, both from source: the directory the
+     * worker asks for is the directory the build writes, and the build writes
+     * this directory. `adapters/registry.json` itself is `text` above.
+     */
+    const build = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
+    const copies = build.match(/cp\(\s*"adapters"\s*,\s*`\$\{outdir\}\/adapters`/g) ?? [];
+    expect(copies, "build.mjs copies adapters/ to dist/adapters").toHaveLength(1);
+    // …and the one-shot build runs that copy, not only `--watch`.
+    expect(build).toMatch(/^\s*await copyStatic\(\);$/m);
+    const worker = readFileSync(new URL("../src/background.ts", import.meta.url), "utf8");
+    expect(worker).toContain('chrome.runtime.getURL("adapters/registry.json")');
   });
 
   it("validates with nothing rejected", () => {
@@ -951,6 +967,69 @@ describe("adapter date grammar against real fa26 course pages (§4.5)", () => {
       const at = parse("9/1 Monthly report 5 pm", "M/d")!;
       expect(at.timeAssumed).toBe(true);
       expect(at.unparsedTime).toBe("Monthly report 5 pm");
+    });
+  });
+
+  /**
+   * A printed weekday is evidence, not decoration (§3.2).
+   *
+   * SPEC §3.2: "if a weekday is present and doesn't match, try the adjacent
+   * years and pick the one that matches". PrairieLearn has done this through
+   * `inferYear` since step 4; a course page consumed the weekday and passed
+   * `undefined`, so "Sun 12/15" was read as Tuesday Dec 15 with nothing to say
+   * the page contradicted itself. The dates below are deliberately chosen so
+   * that the 6-month rule and the weekday disagree (parser rule 10): Dec 15 is
+   * a Tuesday in 2026, a Wednesday in 2027 and a Monday in 2025.
+   */
+  describe("a weekday that has to agree with the date", () => {
+    const year = (raw: string, format = "M/d") => parse(raw, format)?.iso.slice(0, 4);
+
+    it("picks the adjacent year the weekday names, before or after the date", () => {
+      expect(year("Wed 12/15")).toBe("2027");
+      expect(year("12/15 Wed")).toBe("2027");
+      expect(year("12/15 (Wednesday)")).toBe("2027");
+      expect(year("Wednesday, December 15", "MMM d, h:mm a")).toBe("2027");
+      expect(year("Mon 12/15")).toBe("2025");
+    });
+
+    it("agrees with the 6-month rule when the weekday matches this year", () => {
+      expect(year("Tue 12/15")).toBe("2026");
+      expect(year("12/15 Tue")).toBe("2026");
+      expect(year("12/15")).toBe("2026");
+    });
+
+    it("refuses a date the weekday contradicts in every candidate year", () => {
+      // Dec 15 is never a Sunday in 2025–2027. Guessing a year here would put
+      // a deadline on a day the page did not name; undefined leaves the row
+      // undated with the text in `unparsedDate` (parser rule 1).
+      expect(parse("Sun 12/15", "M/d")).toBeUndefined();
+      expect(parse("12/15 (Sun)", "M/d")).toBeUndefined();
+      expect(parse("Sun, Dec 15", "MMM d, h:mm a")).toBeUndefined();
+    });
+
+    it("refuses a date that names two different weekdays", () => {
+      // Each weekday alone picks a year (Tue → 2026, Wed → 2027); together they
+      // contradict each other, and choosing either is a guess.
+      expect(parse("Tue 12/15 (Wed)", "M/d")).toBeUndefined();
+      expect(year("Tue 12/15 (Tuesday)")).toBe("2026");
+    });
+
+    it("checks a stated year against the weekday too", () => {
+      // Sep 11 2026 is a Friday. A stated year is not inferred, so there is no
+      // adjacent year to try: a contradiction is simply unreadable.
+      expect(parse("Fri, 2026-09-11", "yyyy-MM-dd")).toBeDefined();
+      expect(parse("2026-09-11 Fri", "yyyy-MM-dd")).toBeDefined();
+      expect(parse("Thu, 2026-09-11", "yyyy-MM-dd")).toBeUndefined();
+      expect(parse("9/11/2026 (Thu)", "M/d")).toBeUndefined();
+    });
+
+    it("does not take a word that merely starts like a weekday as a weekday", () => {
+      // Deliberately unrealistic (parser rule 10): `WEEKDAY_NAME`'s `[a-z]*`
+      // tail lets "Monthly" through in front of a date. Only an exact weekday
+      // spelling is a claim about the date, so this still reads Sep 11 —
+      // cross-checking "mon" would have discarded a correct date.
+      expect(year("Monthly 9/11")).toBe("2026");
+      expect(year("Saturnalia Sep 11", "MMM d, h:mm a")).toBe("2026");
     });
   });
 
@@ -2081,9 +2160,28 @@ describe("ECE 374 A: the date is the dt before each dd", () => {
       expect(hw15.extra?.["timeAssumed"]).toBeUndefined();
     });
 
+    it("keeps a row whose dt names a weekday the date is not, undated", () => {
+      /*
+       * "Mon Dec 10" — Dec 10 is a Wednesday in 2025, a Thursday in 2026 and a
+       * Friday in 2027, so no candidate year agrees with it (§3.2). Invented:
+       * the live page's weekdays are all right, which is why a runner that
+       * ignored them read it identically (parser rule 10). The hook is there
+       * and the value is self-contradictory, so it costs the date and keeps
+       * the row (parser rule 1).
+       */
+      const hw16 = by("Homework 16")!;
+      expect(hw16.dueAt).toBeUndefined();
+      expect(hw16.extra?.["unparsedDate"]).toBe("Mon Dec 10");
+    });
+
     it("leaves the eleven real rows exactly as they were", () => {
+      // Every real <dt> prints a weekday, and all eleven agree with 2026 —
+      // so the cross-check changes none of them.
       expect(by("Homework 1")!.dueAt).toBe("2026-09-01T21:00:00-05:00");
-      expect(items).toHaveLength(14);
+      expect(by("Homework 2")!.dueAt).toBe("2026-09-09T21:00:00-05:00");
+      expect(by("Homework 11")!.dueAt).toBe("2026-12-01T21:00:00-06:00");
+      // Fourteen before Homework 16 was added; it is kept, undated.
+      expect(items).toHaveLength(15);
     });
   });
 

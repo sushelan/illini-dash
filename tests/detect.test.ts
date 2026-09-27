@@ -1565,25 +1565,57 @@ describe("how many proposals the page draws", () => {
 
 describe("proposeCandidates on a large page", () => {
   /*
-   * The same bound `repeatedStructures` is held to, and for the same reason:
+   * The same growth rule `repeatedStructures` is held to, for the same reason:
    * `offscreen.ts` runs this synchronously, and a 0.5MB department schedule is
    * well inside `MAX_AUTHOR_HTML`. The search runs the *real runner* once per
    * (group, hook) pair that clears the thresholds, which is the part of this
    * that could have been quadratic and is not — the thresholds are read off
    * evidence the inventory already measured.
    */
-  it("answers a 12,000-element page in well under a second", () => {
+  /*
+   * It was `toBeLessThan(2_000)` on the 12,000-element page, which measured
+   * 1.39–1.59s solo and tripped under the suite's own parallelism with
+   * nothing wrong in the code (tests-health #3, 2026-09-27). What must not
+   * happen is the search growing faster than the page, so that is asserted,
+   * as a count rather than a stopwatch: every whole-document
+   * `querySelectorAll` is a walk of every element, and the search issues the
+   * same number of them (14) whether the page is 3,000 elements or 12,000.
+   * One per row, or per candidate per row, is the quadratic this is here for.
+   *
+   * A ratio of two timings was tried first and is not safe either: fastest of
+   * three runs each, 4× the page measured 3.8–4.5× the time solo and **9.7×**
+   * with two suites running — so any bound that tolerated load could not tell
+   * a quadratic from a busy machine. The hang guard behind it is generous on
+   * purpose; it is not the test.
+   */
+  it("walks the document no more often on a 12,000-element page than on a 3,000-element one", () => {
     const raw = readFileSync(
       new URL("../fixtures/sites/ece310-fa2026-index.html", import.meta.url),
       "utf8",
     );
     const body = raw.slice(raw.indexOf("<body"), raw.lastIndexOf("</body>"));
-    const doc = docFrom(`<html><body>${body.repeat(16)}</body></html>`);
-    expect(doc.querySelectorAll("*").length).toBeGreaterThan(10_000);
-    const structures = repeatedStructures(doc, ZONE, REFERENCE);
-    const started = Date.now();
-    const found = proposeCandidates(doc, REFERENCE, ZONE, structures);
-    expect(Date.now() - started).toBeLessThan(2_000);
-    expect(found.length).toBeGreaterThan(0);
+    const page = (times: number) => docFrom(`<html><body>${body.repeat(times)}</body></html>`);
+    const search = (doc: Document) => {
+      const structures = repeatedStructures(doc, ZONE, REFERENCE);
+      let scans = 0;
+      const real = doc.querySelectorAll.bind(doc);
+      (doc as unknown as { querySelectorAll: (s: string) => unknown }).querySelectorAll = (
+        selector: string,
+      ) => {
+        scans += 1;
+        return real(selector);
+      };
+      const started = performance.now();
+      const found = proposeCandidates(doc, REFERENCE, ZONE, structures);
+      return { scans, took: performance.now() - started, found };
+    };
+    const large = page(16);
+    expect(large.querySelectorAll("*").length).toBeGreaterThan(10_000);
+    const small = search(page(4));
+    const big = search(large);
+    expect(small.scans).toBeGreaterThan(0);
+    expect(big.scans).toBe(small.scans);
+    expect(big.took).toBeLessThan(10_000);
+    expect(big.found.length).toBeGreaterThan(0);
   });
 });

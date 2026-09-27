@@ -23,6 +23,7 @@ import {
   renderStructures,
   repeatedStructures,
   skeletonise,
+  type RepeatedStructure,
 } from "../src/core/skeleton.js";
 import { ParseError } from "../src/sources/types.js";
 
@@ -558,35 +559,89 @@ describe("repeatedStructures on a large page", () => {
     return docFrom(`<html><body>${body.repeat(times)}</body></html>`);
   }
 
-  it("answers a 12,000-element page in well under a second", () => {
-    const doc = repeated(16);
-    expect(doc.querySelectorAll("*").length).toBeGreaterThan(10_000);
-    const started = Date.now();
-    const structures = repeatedStructures(doc);
-    const took = Date.now() - started;
-    // 10.1s before the memo, 337ms after; the locator evidence added on
-    // 2026-09-20 costs roughly half as much again (640ms → 960ms on the
-    // machine that measured it, linkedom), because every considered group is
-    // probed before the twelve are chosen. It is the options page's main
-    // thread that pays it — every other control frozen behind "Reading…",
-    // with no cancel — so the bound stays where it is.
-    expect(took).toBeLessThan(2_000);
-    expect(structures.length).toBeGreaterThan(0);
-  });
-
-  it("answers a 5,000-element page of repeated blocks", () => {
+  /** `count` blocks of `<div class="assignment">`, three children each. */
+  function blocks(count: number): Document {
     const rows = Array.from(
-      { length: 1250 },
+      { length: count },
       (_, i) =>
         `<div class="assignment"><span>HW${i}</span>` +
         `<span>9/${(i % 28) + 1}</span><a href="#">link</a></div>`,
     ).join("");
-    const doc = docFrom(`<html><body><div id="schedule">${rows}</div></body></html>`);
-    expect(doc.querySelectorAll("*").length).toBeGreaterThan(5_000);
-    const started = Date.now();
+    return docFrom(`<html><body><div id="schedule">${rows}</div></body></html>`);
+  }
+
+  /**
+   * One inventory, and what it cost: how many whole-document
+   * `querySelectorAll`s it issued, and how long it took.
+   *
+   * Each scan is a walk of every element, so the scan count times the page
+   * size *is* the cost the memo removed — and unlike a stopwatch it is the
+   * same on every machine, under any load. The pre-memo defect was exactly
+   * this number growing with the page: 2,177 `consider` calls for 15 distinct
+   * selectors.
+   */
+  function inventory(doc: Document): {
+    scans: number;
+    took: number;
+    structures: RepeatedStructure[];
+  } {
+    let scans = 0;
+    const real = doc.querySelectorAll.bind(doc);
+    (doc as unknown as { querySelectorAll: (s: string) => unknown }).querySelectorAll = (
+      selector: string,
+    ) => {
+      scans += 1;
+      return real(selector);
+    };
+    const started = performance.now();
     const structures = repeatedStructures(doc);
-    expect(Date.now() - started).toBeLessThan(2_000);
-    expect(structures.some((structure) => structure.selector.includes("div.assignment"))).toBe(
+    return { scans, took: performance.now() - started, structures };
+  }
+
+  /*
+   * What these used to assert, and why they do not any more.
+   *
+   * Both were `expect(took).toBeLessThan(2_000)` — a statement about the
+   * machine. Solo, the 12,000-element page measured 1.36–1.61s, and it failed
+   * at 2,058, 2,073, 2,213 and 2,273ms under the suite's own parallelism with
+   * nothing wrong in the code (tests-health #3, 2026-09-27). The property the
+   * memo exists for is *linear, not quadratic*, and that is a count of
+   * whole-document walks — not a wall-clock figure, and not a ratio of two
+   * (which read 9.7× for a linear search under load; see detect.test.ts). The options
+   * page's main thread still pays whatever this costs, every control frozen
+   * behind "Reading…" with no cancel, which is why growth is pinned rather
+   * than dropped, and why a hang guard stays behind it.
+   */
+  it("scans a 12,000-element page barely more often than a 3,000-element one", () => {
+    const large = repeated(16);
+    expect(large.querySelectorAll("*").length).toBeGreaterThan(10_000);
+    const small = inventory(repeated(4));
+    const big = inventory(large);
+    // Measured 112 → 196 with the memo, 743 → 2,915 without it: one scan per
+    // distinct selector grows with the page's *variety*, one scan per group
+    // grows with its size. A 4× page may cost at most 2.5× the scans.
+    expect(big.scans / small.scans).toBeLessThan(2.5);
+    // A hang guard, not a benchmark: 1.4–1.6s solo on the machine that
+    // measured it, 10.1s before the memo. Growth is the assertion above.
+    expect(big.took).toBeLessThan(10_000);
+    expect(big.structures.length).toBeGreaterThan(0);
+  });
+
+  it("walks a 5,000-element page of repeated blocks as often as a 1,250-element one", () => {
+    const large = blocks(1250);
+    expect(large.querySelectorAll("*").length).toBeGreaterThan(5_000);
+    const small = inventory(blocks(312));
+    const big = inventory(large);
+    // One group, one selector: the number of scans does not depend on how
+    // many blocks there are (6 and 6 with the memo; 317 and 1,255 without).
+    expect(small.scans).toBeGreaterThan(0);
+    expect(big.scans).toBe(small.scans);
+    // No timing ratio: 4× the rows measured 4.3× the time here, but the same
+    // shape of ratio on proposeCandidates read 9.7× with two suites running
+    // and no defect (tests/detect.test.ts), so a bound loose enough to survive
+    // load cannot see a quadratic. The count can, on every machine.
+    expect(big.took).toBeLessThan(10_000);
+    expect(big.structures.some((structure) => structure.selector.includes("div.assignment"))).toBe(
       true,
     );
   });

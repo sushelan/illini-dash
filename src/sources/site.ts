@@ -8,7 +8,7 @@
  * declarative field; it never grows a script.
  */
 
-import { inferYear, isRealWallClock, monthIndex, wallClockToIso } from "../core/dates.js";
+import { inferYear, isRealWallClock, monthIndex, wallClockToIso, weekdayOf } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
 import { KeyGuard, escapeRegex, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
 import { cellAt, columnOf, formTableGrid, gridFor, rowIndex, type GridCache } from "../core/table-grid.js";
@@ -192,6 +192,14 @@ export const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
 /** The bare name, without the trailing punctuation a date cell puts after it. */
 export const WEEKDAY_NAME = "(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*";
 const WEEKDAY = `${WEEKDAY_NAME}\\.?,?\\s+`;
+/**
+ * `WEEKDAY`, with the name captured, for the three date formats only.
+ *
+ * A separate constant because the prose grammar below also uses `WEEKDAY` and a
+ * second `(?<weekday>…)` in one pattern is a syntax error. The capture is read
+ * by `statedWeekday`, which only believes an exact spelling.
+ */
+const WEEKDAY_LEAD = `(?<weekday>${WEEKDAY_NAME})\\.?,?\\s+`;
 export const SEP = "[\\s,]*(?:at|@|T)?[\\s,]*";
 
 /**
@@ -228,7 +236,7 @@ const WEEKDAY_AFTER_NAME =
  * and anything else, and a leftover "¹" is enough to make `timeLikeTail` look
  * at text the parser had no business stopping before.
  */
-const WEEKDAY_AFTER = `(?:[\\s,]*\\(?${WEEKDAY_AFTER_NAME}\\b\\)?\\.?[¹²³⁴⁵⁶⁷⁸⁹⁰*†‡]*)?`;
+const WEEKDAY_AFTER = `(?:[\\s,]*\\(?(?<weekdayAfter>${WEEKDAY_AFTER_NAME})\\b\\)?\\.?[¹²³⁴⁵⁶⁷⁸⁹⁰*†‡]*)?`;
 
 /**
  * A stated time, in the three shapes that are not ambiguous.
@@ -378,19 +386,19 @@ export function clockGroups(g: Record<string, string | undefined>): ClockGroups 
 const DATE_FORMATS: Record<string, RegExp> = {
   // 2026-09-11 · 2026-09-11 23:59 · Fri, 2026-09-11 at 18:00
   "yyyy-MM-dd": new RegExp(
-    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
+    `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}(?<year>\\d{4})-(?<month>\\d{1,2})-(?<day>\\d{1,2})` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
   "MMM d, h:mm a": new RegExp(
-    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
+    `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
   // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM · 11.59 PM 9/13
   "M/d": new RegExp(
-    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+    `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
@@ -908,6 +916,32 @@ export interface AdapterDate {
   unparsedTime?: string;
 }
 
+/** Exact weekday spellings, lower-case, to the "Sun".."Sat" `inferYear` reads. */
+const WEEKDAY_SPELLINGS: Record<string, string> = {
+  sun: "Sun", sunday: "Sun",
+  mon: "Mon", monday: "Mon",
+  tue: "Tue", tues: "Tue", tuesday: "Tue",
+  wed: "Wed", weds: "Wed", wednesday: "Wed",
+  thu: "Thu", thur: "Thu", thurs: "Thu", thursday: "Thu",
+  fri: "Fri", friday: "Fri",
+  sat: "Sat", saturday: "Sat",
+};
+
+/**
+ * The weekday a date cell states, or undefined when it states none.
+ *
+ * Exact spellings only (parser rule 6). `WEEKDAY_NAME`'s `[a-z]*` tail lets
+ * "Monthly" or "Saturnalia" through in front of a date, and slicing three
+ * letters off those would turn a correct date into a contradiction and cost
+ * the row its deadline. A word that is not a weekday is not a claim about one.
+ */
+function statedWeekday(name: string | undefined): string | undefined {
+  if (name === undefined) return undefined;
+  return Object.hasOwn(WEEKDAY_SPELLINGS, name.toLowerCase())
+    ? WEEKDAY_SPELLINGS[name.toLowerCase()]
+    : undefined;
+}
+
 export function parseAdapterDateParts(
   raw: string,
   format: string,
@@ -958,14 +992,28 @@ export function parseAdapterDateParts(
   // otherwise throw out of a function whose contract is to return undefined.
   if (!isRealWallClock({ ...parts, year: 2000 })) return undefined;
 
+  /*
+   * §3.2: "if a weekday is present and doesn't match, try the adjacent years".
+   * CS 374 A prints "Tue Sep 01", ECE 310 "09/03 Thu.", CS 425 "(Sun)" — the
+   * weekday was consumed by the grammar and then thrown away, so a page that
+   * contradicted itself was read as whichever half the parser liked. A weekday
+   * no candidate year agrees with makes the date unreadable: undefined here,
+   * and the runner keeps the row with the text in `unparsedDate` (rule 1).
+   */
+  const lead = statedWeekday(g["weekday"]);
+  const after = statedWeekday(g["weekdayAfter"]);
+  // "Tue 12/15 (Wed)" names two days for one date; neither half is believable.
+  if (lead !== undefined && after !== undefined && lead !== after) return undefined;
+  const weekday = lead ?? after;
   let year = g["year"] ? Number(g["year"]) : undefined;
   if (year !== undefined && year < 100) year += 2000;
   if (year === undefined) {
-    // §3.2's inference. Course sites rarely print a weekday, so there is
-    // usually no cross-check available — which is why a site adapter is the
-    // least trustworthy date in the project and is labelled as such.
-    year = inferYear(parts, undefined, reference, timezone);
+    year = inferYear(parts, weekday, reference, timezone);
     if (year === undefined) return undefined;
+  } else if (weekday !== undefined) {
+    // A stated year is not a guess, so there is no neighbour to try.
+    if (!isRealWallClock({ ...parts, year })) return undefined;
+    if (weekdayOf({ ...parts, year }, timezone) !== weekday) return undefined;
   }
 
   // Anything after the match that still looks like a time is a value this

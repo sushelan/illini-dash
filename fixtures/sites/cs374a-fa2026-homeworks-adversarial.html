@@ -18,7 +18,7 @@
 </script><script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script><title>CS/ECE 374 A | Homeworks</title></head><body><!--
   DELIBERATELY UNREALISTIC. Derived from the 2026-09-18 capture of
   https://courses.grainger.illinois.edu/cs374al1/fa2026/homeworks.html by adding
-  four pairs to the <dl>. Parser rule 10: the live page is eleven well-formed
+  five pairs to the <dl>. Parser rule 10: the live page is eleven well-formed
   dt/dd pairs, so a right implementation of `duePrev` and several wrong ones
   read it identically and every mutation survives against it.
 
@@ -40,6 +40,11 @@
       states must beat the page-wide `defaultTime` of 21:00, because a row that
       contradicts the page's usual hour means it. Expected: 23:59, and NOT
       marked `timeAssumed` — the row said it.
+    * "<dt>Mon Dec 10</dt>" before "Homework 16" (added 2026-09-27). Dec 10 is a
+      Wednesday in 2025, a Thursday in 2026 and a Friday in 2027, so the weekday
+      the page prints contradicts the date in every year §3.2 may try. Every
+      weekday on the live page is right, so a runner that ignored them read it
+      identically. Expected: kept, undated, "Mon Dec 10" in `unparsedDate`.
 
   The live page has none of these: every pair is <dt>date</dt><dd>item</dd> and
   no row states a clock of its own. Nothing else in this file is changed.
@@ -52,4 +57,4 @@ topics of future homeworks are subject to change.) </p>
 <li><a href="misc/rubrics.pdf">Standard grading rubrics</a> are available for many problem types.</li>
 <li>Don’t forget to read the <a href="hw-pol.html">homework policies</a></li>
 </ul>
-<hr><dl class="calendar"><dd>Homework 0: A row with no date before it</dd><dt>Tue Sep 01</dt><dd><a href="homeworks/hw1.pdf">Homework 1</a>: Strings and induction — [<span class="extra-links"><a href="solutions/hw1-sol.pdf">solutions</a></span>]</dd><dt><em><strong>Wed Sep 09</strong></em></dt><dd><a href="homeworks/hw2.pdf">Homework 2</a>: Regular expressions, DFAs — [<span class="extra-links"><a href="solutions/hw2-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 15</dt><dd><a href="homeworks/hw3.pdf">Homework 3</a>: Proving irregularity, regular or not? — [<span class="extra-links"><a href="solutions/hw3-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 22</dt><dd><a href="homeworks/hw4.pdf">Homework 4</a>: Language transformations, CFGs</dd><dt>Tue Oct 06</dt><dd>Homework 5: Divide and conquer</dd><dt>Tue Oct 13</dt><dd>Homework 6: Dynamic programming</dd><dt>Tue Oct 20</dt><dd>Homework 7: More dynamic programming</dd><dt>Tue Oct 27</dt><dd>Homework 8: Graph algorithms</dd><dt>Tue Nov 03</dt><dd>Homework 9: More graph algorithms</dd><dt>Tue Nov 17</dt><dd>Homework 10: NP-hardness</dd><dt>Tue Dec 01</dt><dd>Homework 11: More NP-hardness</dd><dt>Mon Dec 07</dt><dt>Tue Dec 08</dt><dd>Homework 13: Two dates, the nearer one wins</dd><dt>Mid-semester break</dt><dd>Homework 14: A dt that is not a date</dd><dt>Tue Dec 15</dt><dd>Homework 15: This one is due by 11:59pm, not at the usual hour</dd></dl></main></body>
+<hr><dl class="calendar"><dd>Homework 0: A row with no date before it</dd><dt>Tue Sep 01</dt><dd><a href="homeworks/hw1.pdf">Homework 1</a>: Strings and induction — [<span class="extra-links"><a href="solutions/hw1-sol.pdf">solutions</a></span>]</dd><dt><em><strong>Wed Sep 09</strong></em></dt><dd><a href="homeworks/hw2.pdf">Homework 2</a>: Regular expressions, DFAs — [<span class="extra-links"><a href="solutions/hw2-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 15</dt><dd><a href="homeworks/hw3.pdf">Homework 3</a>: Proving irregularity, regular or not? — [<span class="extra-links"><a href="solutions/hw3-sol.pdf">solutions</a></span>]</dd><dt>Tue Sep 22</dt><dd><a href="homeworks/hw4.pdf">Homework 4</a>: Language transformations, CFGs</dd><dt>Tue Oct 06</dt><dd>Homework 5: Divide and conquer</dd><dt>Tue Oct 13</dt><dd>Homework 6: Dynamic programming</dd><dt>Tue Oct 20</dt><dd>Homework 7: More dynamic programming</dd><dt>Tue Oct 27</dt><dd>Homework 8: Graph algorithms</dd><dt>Tue Nov 03</dt><dd>Homework 9: More graph algorithms</dd><dt>Tue Nov 17</dt><dd>Homework 10: NP-hardness</dd><dt>Tue Dec 01</dt><dd>Homework 11: More NP-hardness</dd><dt>Mon Dec 07</dt><dt>Tue Dec 08</dt><dd>Homework 13: Two dates, the nearer one wins</dd><dt>Mid-semester break</dt><dd>Homework 14: A dt that is not a date</dd><dt>Tue Dec 15</dt><dd>Homework 15: This one is due by 11:59pm, not at the usual hour</dd><dt>Mon Dec 10</dt><dd>Homework 16: The weekday contradicts the date</dd></dl></main></body>

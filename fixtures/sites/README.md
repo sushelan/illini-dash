@@ -87,7 +87,7 @@ list; nothing else changed.
 
 ### `cs374a-fa2026-homeworks-adversarial.html`
 
-From `cs374a-fa2026-homeworks.html`. Four pairs added to the `<dl>`; nothing else changed.
+From `cs374a-fa2026-homeworks.html`. Five pairs added to the `<dl>`; nothing else changed.
 
 | invented row | what it pins |
 |---|---|
@@ -95,6 +95,7 @@ From `cs374a-fa2026-homeworks.html`. Four pairs added to the `<dl>`; nothing els
 | `<dt>Mon Dec 07</dt><dt>Tue Dec 08</dt><dd>Homework 13…</dd>` | the **nearest** `<dt>` wins, not the first match. Expected Dec 08. |
 | `<dt>Mid-semester break</dt><dd>Homework 14…</dd>` | the hook is there and the *value* is unreadable — house rule 1's other half. Expected undated, with the text in `unparsedDate`. |
 | `<dd>Homework 15: … due by 11:59pm …</dd>` | a clock the **row** states beats the page-wide `defaultTime` of 21:00. Expected 23:59 and *not* `timeAssumed`. |
+| `<dt>Mon Dec 10</dt><dd>Homework 16…</dd>` (2026-09-27) | §3.2's weekday cross-check. Dec 10 is Wed/Thu/Fri in 2025/2026/2027, so the printed weekday contradicts the date in every candidate year. Every weekday on the live page is right, so a runner that consumed the weekday and ignored it read the live page identically. Expected kept, undated, `unparsedDate` "Mon Dec 10". |
 
 ## Adding one
 
