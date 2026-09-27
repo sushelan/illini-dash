@@ -172,3 +172,70 @@ other note does. A cell-only entry finished at its cap has no `dueAt`, so it too
 scored 40% with an 80% tier open is still indistinguishable from a resubmittable
 homework, and still stays on the list. The ceiling only decides what *counts* as
 finished, never how many attempts remain.
+
+## The student home page — 2026-09-27 (roadmap I46)
+
+**What is captured and what is not.** No `/pl/` home capture exists, signed in or out.
+Everything below is read from PrairieLearn master's *source* on 2026-09-27
+(`apps/prairielearn/src/pages/home/home.html.tsx`, `components/HomeCards.tsx`,
+`components/StudentCoursesCard.tsx`, `components/EmptyStateCards.tsx`, `home.sql`, and
+`packages/react/src/server.tsx` for `<Hydrate>`), and the three home fixtures are
+**constructed** from those templates (`fixtures/prairielearn/README.md`). Production may lag
+master; the day a real capture lands it supersedes them.
+
+**Why it matters.** Sushi, 2026-09-27: *"prairielearn also shows unable to read when theres
+no classes/assignments on there."* §4.3 step 1 was a regex over the whole home body for
+`/pl/course_instance/(\d+)`, and zero hits threw `ParseError` — "Couldn't read", a red badge
+and §6's backoff for every student with no current PrairieLearn course. `home.sql` keeps an
+instance on the student list only while `$req_date` is inside its dates, so every CS student
+meets that page over a term break.
+
+**The shape.**
+
+- The **instructor card** (`Courses with instructor access`,
+  `table[aria-label="Courses with instructor access"]`) is rendered *outside* `<Hydrate>`.
+  Its instance links are `/pl/course_instance/{id}/instructor`, and expired instances sit
+  under `<details><summary>Older instances</summary>`. The old regex matched both, so a
+  TA fetched every instance they ever staffed. None of these are enrolments.
+- `<Hydrate>` emits **two** elements with `data-component="HomeCards"`: first a
+  `<script type="application/json" data-component-props>` with the superjson props (bare
+  `"id"` strings, `urlPrefix: "/pl"`), then the `<div class="js-hydrated-component">` with
+  the server-rendered markup. `querySelector('[data-component="HomeCards"]')` returns the
+  **script**; the parser takes the first non-script match.
+- Inside the region, one of three student-side shapes:
+  1. `StudentCoursesCard` with `table[aria-label="Courses"]` (or `"Courses with student
+     access"` when the student also has instructor courses). One `<tr>` per course; an
+     accessible row links `/pl/course_instance/{id}`; an **invitation** row has no link, an
+     "Invitation" badge, and a form with `input[name="__action"][value="accept_invitation"]`
+     (and the colour class `table-warning`, which is not used as a hook).
+  2. `StudentCoursesCard` with no table and a direct `.card-body` reading "No courses found
+     with student access. …" — only when the student has instructor courses. (The plain "No
+     courses found." branch is unreachable from `HomeCards`, but is read the same way.)
+  3. `EmptyStateCards` — two cards; the student one has `h3.card-title` "Students" and
+     `p.card-text` "Add a course and start learning." A student with no course at all always
+     gets this (`hasCourses = studentCourses.length > 0 || hasInstructorCourses`).
+- Anonymous `GET /pl/` answers **302 → `/pl/login`** (curl, 2026-09-27), so the existing
+  `loginPath` marker already covers never-signed-in (parser rule 11); the empty case needs a
+  signed-in student with no course.
+
+**The parser** (`parseHome` in `src/sources/prairielearn.ts`) reads the student table first,
+so a course *titled* "Add a course and start learning." is a course (parser rule 12), then
+the two empty markers exactly and on their smallest elements, and throws when the region is
+missing, the table has no rows, a row has no enrolment link, or the region has neither a
+table nor a marker (parser rule 2). "Add course" is never a marker: that button is in the
+healthy card's header too.
+
+**The state.** An empty reading is the source state `empty` (SPEC §3 as amended): read fine,
+nothing for this student. No failure counted, no backoff, rows dropped, `lastSuccessAt`
+stamped, re-read every poll so joining a course flips it to `ok` unaided. `lastError` carries
+one of three sentences (`emptyReason`).
+
+**An empty assessments page is `[]`.** Upstream `studentAssessments.html.tsx` always renders
+the `<thead>`, so a course with nothing published is a header-only table, which
+`parseAssessments` returns as `[]` (pinned by `assessments-empty-CONSTRUCTED.html`). A held
+row from an instance the home no longer lists does not trip the N→0 guard; one from a listed
+instance still does.
+
+**Unsettled.** Whether PrairieLearn answers 403 in place for an instance a student cannot
+open — `looksLoggedOut` treats any 403 as needs_login. Moot for instructor instances now that
+they are never fetched; no capture of a PL 403 exists.

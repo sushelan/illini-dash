@@ -121,9 +121,11 @@ tester. Tier 1 is after the beta. Tier 2 needs a §0/§1 decision or a new permi
 18. **Non-CS tester's first look** — name the publisher host behind undated external-tool rows
     ("MCB 150 · 14 items in McGraw Hill Connect"), then a collapsed Canvas "No date" section
     with the LTI-shell explanation. (I82 stage 1, I44)
-19. **"Not used by you" for PrairieLearn / PrairieTest** — cheap half now (friendlier wording,
-    one-click turn-off); the positive empty marker waits for a capture from a student without
-    PL courses. (I46)
+19. **"Not used by you" for PrairieLearn / PrairieTest** — **partial (2026-09-27)**:
+    PrairieLearn's home is read for its own empty-state shape (from upstream templates;
+    constructed fixtures until a `/pl/` capture lands) and reports the new `empty` state —
+    grey, no backoff, re-read every poll — with a Turn-off action. PrairieTest waits on a
+    capture from a student with no CBTF-enabled course. (I46)
 20. **First-run page, minimal** — open Settings on install with per-source login state; the
     per-course "what I found" table can wait for beta feedback. (I05) **Done**: install opens
     the setup screen in the full view.
@@ -156,7 +158,7 @@ Ordered by skeptic value, then how many lenses proposed it, then effort. Full en
 - I36 · 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind on open (M) — **partial**
 - I37 · A partial PrairieLearn score is not 'done' (M) — **partial**
 - I40 · CBTF reservation-window escalation and missed-reservation notice (M) — **partial**
-- I47 · Per-adapter health state and N->0 guard per course site (M)
+- I47 · Per-adapter health state and N->0 guard per course site (M) — **partial**
 - I48 · Header-anchored adapter columns and 'Due'-header autodetect (M) — **done**
 - I51 · In-options adapter workbench with 'Propose this adapter' bundle (M) — **partial**
 - I64 · This-week workload strip per course (M)
@@ -510,14 +512,14 @@ Stage 1 (small): call /api/v1/courses/{id}/assignments?per_page=100 (already an 
 - *Spec tension:* Stage 1: none. Stage 2: every publisher host is off illinois.edu, so it is a manifest host_permissions change plus a hand-written parser per platform (code, like Gradescope — fine under rule 4).
 
 ### I46 · 'Not used by you' source state for PrairieLearn / PrairieTest
-**Effort** M · **In the code today** missing (the "Not used" chip shows only for a source the student switched off) · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial, 2026-09-27: PrairieLearn done (`parseHome` in prairielearn.ts reads the student Courses table or PrairieLearn's own empty-state cards; `SourceEmpty` → state `empty`, no backoff, rows dropped, `lastSuccessAt` stamped; smartPhysics with no enrolment reports the same state). PrairieTest waits on a capture from a student with no CBTF-enabled course. The PrairieLearn fixtures are constructed from upstream templates until a real `/pl/` capture lands · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
 
 A student with no PrairieLearn course instances, or a PrairieTest home with no exam cards, gets a grey 'You do not seem to use PrairieLearn this term' state with a one-click 'turn it off' instead of a red parse_error dot and a 30-minute backoff ladder.
 
 - *Why:* For a Gies or LAS student the honest state of PrairieLearn is 'not enrolled', but `syncPrairieLearn` throws `ParseError("no course instances on the student home page")`, which is a red dot plus backoff, and the tooltip text is written for the maintainer.
 - *Touches:* types.ts (SourceState), sync.ts (SourceEmpty beside SourceDisabled :266; third branch like :388-399), prairielearn.ts/prairietest.ts markers after captures, popup.ts + options.ts (grey state…
 - *House-rule hazards:* Rule 2/§0 rule 3: turns an error into a benign state, so key on a captured marker, never zero rows. Rule 6: exact, scoped marker (the PT isEmptyCard defect).
-- *Audit correction:* PL's zero-instance check is a regex over the whole body (sync.ts:169), not a DOM marker, and no test pins it (`grep 'no course instances' tests` empty).
+- *Audit correction:* PL's zero-instance check was a regex over the whole body (sync.ts:308, not :169 as first written), not a DOM marker, and no test pinned it. It also swept up instructor and expired instances (`/pl/course_instance/{id}/instructor`) and fetched them. Replaced by `parseHome` on 2026-09-27.
 - *Strongest objection:* A student who never uses PrairieLearn is not logged in, so /pl/ redirects and the dot is yellow, not red — the red case needs them to log into a system they do not use.
 - *Spec tension:* Borders §0 rule 3 (empty = error). It does not conflict if the empty state is *positively* detected — a specific marker on PrairieLearn's home for zero enrolments…
 
@@ -796,7 +798,7 @@ The daily 10:00 booking nag stays, but when the session window ends within 24h (
 - *Strongest objection:* The 10:00 nag already fires on the last day; the escalation is one extra toast. The 'missed' row requires the extension to keep emitting an item the source stopped emitting…
 
 ### I47 · Per-adapter health state and N->0 guard per course site
-**Effort** M · **In the code today** missing · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
+**Effort** M · **In the code today** partial, 2026-09-27: the loop half is done with no store schema change — `syncSites` returns each adapter's answer, `applySync` replaces rows per `site:{id}:` and keeps (and marks seen) a failed adapter's rows, and the source is `ok` only when every adapter answered, otherwise the worst adapter's kind with `lastError` naming it and its kept row count. Adapters are fetched through one pool per host. Still missing: the per-adapter status in the store and its rows in Settings › Course websites · **Skeptic** value 3/5, feasibility 5/5, keep, v1.1 · **Lenses** 1
 
 `SourceStatus.site` grows `adapters: Record<adapterId, { state, lastAttemptAt, lastSuccessAt, itemCount, lastError }>`. Options -> Course websites shows next to each enabled adapter: `ok · 9 rows · 2 min ago`, `parse_error: 0 rows matched "table tr"`, `needs login`, `permission missing`, or `was 9 rows, now 0`. The popup's WEB dot goes yellow/red when *any* enabled adapter failed, with the tooltip naming it.
 
@@ -804,7 +806,7 @@ The daily 10:00 booking nag stays, but when the session window ends within 24h (
 - *Touches:* sync.ts (syncSites returns per-adapter outcomes; ok-branch deletes keys per `site:{id}:` prefix), types.ts SourceStatus, store.ts migrate default, background.ts get-adapters, options.ts adapter rows…
 - *House-rule hazards:* Worker rule 2, exactly: green dot over a failed adapter. Worker rule 1 + review policy: sync-loop change, full review.
 - *Audit correction:* Worse than stated: partial failure is `ok`, and sync.ts:403 deletes ALL `site:` keys before re-adding survivors' items — the failed adapter's rows vanish next sync; they do not linger to §5.4.
-- *Strongest objection:* There is one seed adapter. With one adapter every failure already throws (failures.length === adapters.length) and the WEB dot goes red…
+- *Strongest objection:* There is one seed adapter. With one adapter every failure already throws (failures.length === adapters.length) and the WEB dot goes red… (No longer true: the registry ships nine, and two courses are split across two adapters by design.)
 
 ### I48 · Header-anchored adapter columns and 'Due'-header autodetect
 **Effort** M · **In the code today** done (`columns` by header name, src/core/table-grid.ts) · **Skeptic** value 3/5, feasibility 3/5, defer, v1.1 · **Lenses** 1
@@ -1051,7 +1053,7 @@ calendars.illinois.edu publishes a public .ics per calendar. https://calendars.i
 | I55 | Beta install kit: packaged zip, install guide, unlisted-store decision | 0b | done | S | 4 | 5 | before_beta | yes |
 | I45 | Canvas concluded-course filter via include[]=term with an 'Older cours | 0b | done | M | 3 | 4 | before_beta |  |
 | I82 | Publisher-tool deadlines (Connect, Mastering, WebAssign, zyBooks): nam | 0b | missing | M | 3 | 4 | before_beta | yes |
-| I46 | 'Not used by you' source state for PrairieLearn / PrairieTest | 0b | missing | M | 3 | 3 | v1.1 | yes |
+| I46 | 'Not used by you' source state for PrairieLearn / PrairieTest | 0b | partial | M | 3 | 3 | v1.1 | yes |
 | I44 | Canvas 'No date' section with an LTI-shell explanation | 0b | missing | M | 3 | 4 | v1.1 |  |
 | I05 | First-run onboarding page (pin, per-source login check, per-course wha | 0b | done | M | 3 | 4 | v1.1 |  |
 | I13 | Reminder toasts with Open / Snooze / Done buttons, requireInteraction  | 1 | missing | M | 4 | 3 | v1.1 |  |
@@ -1076,7 +1078,7 @@ calendars.illinois.edu publishes a public .ics per calendar. https://calendars.i
 | I36 | 'Opens Thu 9 AM': surface release times, dim not-yet-open rows, remind | 1 | partial | M | 3 | 5 | v1.1 |  |
 | I37 | A partial PrairieLearn score is not 'done' | 1 | partial | M | 3 | 4 | v1.1 | yes |
 | I40 | CBTF reservation-window escalation and missed-reservation notice | 1 | partial | M | 3 | 3 | v1.1 |  |
-| I47 | Per-adapter health state and N->0 guard per course site | 1 | missing | M | 3 | 5 | v1.1 |  |
+| I47 | Per-adapter health state and N->0 guard per course site | 1 | partial | M | 3 | 5 | v1.1 |  |
 | I48 | Header-anchored adapter columns and 'Due'-header autodetect | 1 | done | M | 3 | 3 | v1.1 |  |
 | I51 | In-options adapter workbench with 'Propose this adapter' bundle | 1 | partial | M | 3 | 5 | v1.1 |  |
 | I64 | This-week workload strip per course | 1 | missing | M | 3 | 5 | v1.1 |  |

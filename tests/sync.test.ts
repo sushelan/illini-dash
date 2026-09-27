@@ -19,13 +19,18 @@ import {
   type StoreV1Plus,
 } from "../src/core/store.js";
 import { createStoreQueue } from "../src/core/queue.js";
-import { coursesUrl } from "../src/sources/canvas.js";
+import { coursesUrl, plannerUrl } from "../src/sources/canvas.js";
+import { sourcesToRecheck } from "../src/core/health.js";
 import { ParseError } from "../src/sources/types.js";
 import {
   POPUP_DEBOUNCE_MS,
   adapterFailureKind,
   adapterPrefix,
+  applySync,
+  fetchSync,
   planSync,
+  pooled,
+  stillExpected,
   runSync,
   sourcePrefix,
   syncOnce,
@@ -35,7 +40,10 @@ import {
   type SyncDeps,
 } from "../src/core/sync.js";
 import { currentTermCourses, parseCoursePage } from "../src/sources/gradescope.js";
-import { parseAssessments } from "../src/sources/prairielearn.js";
+import {
+  parseAssessments,
+  parseHome as parsePrairieLearnHome,
+} from "../src/sources/prairielearn.js";
 import { parseHome } from "../src/sources/prairietest.js";
 import { parseCourseList as parseSmartPhysicsCourseList } from "../src/sources/smartphysics.js";
 import { runAdapter } from "../src/sources/site.js";
@@ -57,9 +65,17 @@ const PAGES: Record<string, string> = {
     fixture("canvas/planner-items-SYNTHETIC.json"),
   "https://www.gradescope.com/": fixture("gradescope/dashboard.html"),
   "https://www.gradescope.com/courses/1352838": fixture("gradescope/course-1352838.html"),
-  "https://us.prairielearn.com/pl/": fixture("prairielearn/assessments-cs357.html"),
+  // Constructed from upstream templates (fixtures/prairielearn/README.md): the
+  // healthy home with every trap — an instructor card, "Older instances", ids
+  // in the props script. It used to be the *assessments* page served as the
+  // home, which passed only because that page happens to link its own id.
+  "https://us.prairielearn.com/pl/": fixture("prairielearn/home-courses-CONSTRUCTED.html"),
   "https://us.prairielearn.com/pl/course_instance/224254/assessments":
     fixture("prairielearn/assessments-cs357.html"),
+  "https://us.prairielearn.com/pl/course_instance/224300/assessments":
+    fixture("prairielearn/assessments-partial-scores.html"),
+  "https://us.prairielearn.com/pl/course_instance/224301/assessments":
+    fixture("prairielearn/assessments-empty-CONSTRUCTED.html"),
   "https://us.prairietest.com/pt/": fixture("prairietest/home-booked-and-available.html"),
 };
 
@@ -69,6 +85,9 @@ function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
     reportSetAsideCourses: () => undefined,
     async parseSmartPhysicsCourses(html: string) {
       return parseSmartPhysicsCourseList(doc(html));
+    },
+    async parsePrairieLearnHome(html: string) {
+      return parsePrairieLearnHome(doc(html));
     },
     async fetchPage(url) {
       const body = PAGES[url];
@@ -254,7 +273,26 @@ describe("syncOneSource against the real fixtures", () => {
   });
 
   it("reads PrairieLearn and PrairieTest", async () => {
-    expect((await syncOneSource("prairielearn", deps())).items).toHaveLength(14);
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+    let pl;
+    try {
+      pl = await syncOneSource("prairielearn", deps());
+    } finally {
+      console.log = log;
+    }
+    expect(lines).toContain(
+      "[prairielearn] home: 3 course instance(s) [224254, 224300, 224301], 1 invitation(s) not accepted",
+    );
+    // The home plus one assessments page per *student* enrolment: 224254 (the
+    // real capture, 14 rows), 224300 (6 constructed rows), 224301 (no
+    // assessments yet). Never the instructor instances 301 and 299, which
+    // the old body regex fetched (pl-empty finding 2).
+    expect(pl.state).toBe("ok");
+    expect(pl.requests).toBe(4);
+    expect(pl.items).toHaveLength(20);
+    expect(pl.scope).toEqual(["224254", "224300", "224301"]);
     const pt = await syncOneSource("prairietest", deps());
     expect(pt.items.map((i) => i.kind).sort()).toEqual(["booking", "exam"]);
   });
@@ -930,15 +968,256 @@ describe("course-site adapters in the loop (§4.5)", () => {
   });
 
   it("isolates one failing adapter from the others (§4.5)", async () => {
-    // The whole reason course sites are adapters rather than a fifth parser.
+    // The whole reason course sites are adapters rather than a fifth parser:
+    // the healthy adapter's rows still arrive.
+    //
+    // This test asserted `state: "ok"` until 2026-09-27. It was pinning the
+    // defect (worker rule 6): a green dot over a course site that was not
+    // read, and the ok branch dropping every `site:` row, the failed one's
+    // included (roadmap I47). The state now says one adapter failed.
     const broken = { ...ADAPTER, id: "broken-fa26", rows: ".nothing-matches" };
     const { store } = await runSync(
       enableSite(emptyStore()),
       "alarm",
       withAdapters([broken, ADAPTER]),
     );
-    expect(store.sources.site.state).toBe("ok");
+    expect(store.sources.site.state).toBe("parse_error");
+    expect(store.sources.site.lastError).toMatch(/^1 of 2 course sites failed — broken-fa26: /);
     expect(Object.keys(store.raw).some((k) => k.startsWith("site:cs999-fa26"))).toBe(true);
+  });
+
+  describe("one adapter failing among several (roadmap I47)", () => {
+    const OTHER = {
+      ...ADAPTER,
+      id: "cs998-fa26",
+      courseCode: "CS998",
+      url: "https://courses.engr.illinois.edu/cs998/fa2026/schedule",
+    };
+    const LATER = "2026-09-10T20:00:00.000Z";
+    /** Both adapters answer, except `failing`, which throws `error`. */
+    const failingOne = (failing: string, error: Error, now = LATER) =>
+      deps({
+        now: () => now,
+        async enabledAdapters() {
+          return [ADAPTER, OTHER] as never;
+        },
+        async fetchPage(url) {
+          if (url.includes(failing)) throw error;
+          const body = PAGES[url] ?? (url.includes("illinois.edu/cs") ? SITE_HTML : undefined);
+          if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body };
+        },
+      });
+    const keysUnder = (store: StoreV1Plus, id: string) =>
+      Object.keys(store.raw).filter((k) => k.startsWith(adapterPrefix(id)));
+
+    async function twoAdapterStore() {
+      const first = await runSync(enableSite(emptyStore()), "alarm", withAdapters([ADAPTER, OTHER]));
+      expect(first.store.sources.site.state).toBe("ok");
+      expect(keysUnder(first.store, "cs999-fa26").length).toBeGreaterThan(0);
+      expect(keysUnder(first.store, "cs998-fa26").length).toBeGreaterThan(0);
+      return first.store;
+    }
+
+    it("keeps the failed adapter's rows, and replaces the other's", async () => {
+      const before = await twoAdapterStore();
+      const kept = keysUnder(before, "cs998-fa26");
+      const { store } = await runSync(
+        before,
+        "manual",
+        failingOne("cs998", new TypeError("Failed to fetch")),
+      );
+      // The failed adapter's rows are still there, as last read.
+      expect(keysUnder(store, "cs998-fa26")).toEqual(kept);
+      for (const key of kept) expect(store.raw[key]!.fetchedAt).toBe(NOW);
+      // The answered adapter's rows are this sync's.
+      const replaced = keysUnder(store, "cs999-fa26");
+      expect(replaced.length).toBeGreaterThan(0);
+      for (const key of replaced) expect(store.raw[key]!.fetchedAt).toBe(LATER);
+      // And the dedupe output keeps both courses on the calendar.
+      expect(store.items.some((i) => i.courseCode === "CS998")).toBe(true);
+    });
+
+    it("is a network error naming the adapter, not a green dot", async () => {
+      const before = await twoAdapterStore();
+      const kept = keysUnder(before, "cs998-fa26").length;
+      const { store, outcomes } = await runSync(
+        before,
+        "manual",
+        failingOne("cs998", new TypeError("Failed to fetch")),
+      );
+      expect(outcomes.find((o) => o.source === "site")!.state).toBe("network_error");
+      expect(store.sources.site.state).toBe("network_error");
+      expect(store.sources.site.lastError).toBe(
+        `1 of 2 course sites failed — cs998-fa26: Failed to fetch (kept ${kept} row(s))`,
+      );
+      // §6's ladder, as for any failure of the source.
+      expect(store.sources.site.consecutiveFailures).toBe(1);
+      expect(store.backoffUntil.site).toBe(nextAttemptAt(1, LATER));
+    });
+
+    it("is a parse error when the failed adapter's page changed", async () => {
+      const before = await twoAdapterStore();
+      const { store } = await runSync(
+        before,
+        "manual",
+        failingOne("cs998", new ParseError('no rows matched "#schedule tr.assignment"')),
+      );
+      expect(store.sources.site.state).toBe("parse_error");
+      expect(keysUnder(store, "cs998-fa26").length).toBeGreaterThan(0);
+    });
+
+    it("ranks a changed page above a network error when both happen", async () => {
+      const third = { ...ADAPTER, id: "cs997-fa26", url: "https://courses.engr.illinois.edu/cs997/x" };
+      const { store } = await runSync(
+        enableSite(emptyStore()),
+        "manual",
+        deps({
+          async enabledAdapters() {
+            return [ADAPTER, OTHER, third] as never;
+          },
+          async fetchPage(url) {
+            if (url.includes("cs998")) throw new TypeError("Failed to fetch");
+            if (url.includes("cs997")) return { url, finalUrl: url, status: 404, body: "" };
+            return { url, finalUrl: url, status: 200, body: SITE_HTML };
+          },
+        }),
+      );
+      expect(store.sources.site.state).toBe("parse_error");
+      expect(store.sources.site.lastError).toMatch(/^2 of 3 course sites failed — cs998-fa26: .*; cs997-fa26: 404/);
+    });
+
+    it("still drops the rows of an adapter that is no longer enabled", async () => {
+      const before = await twoAdapterStore();
+      const gone = { ...ADAPTER, id: "cs996-fa26" };
+      const { store } = await runSync(
+        before,
+        "manual",
+        deps({
+          async enabledAdapters() {
+            return [gone, OTHER] as never;
+          },
+          async fetchPage(url) {
+            if (url.includes("cs998")) throw new TypeError("Failed to fetch");
+            return { url, finalUrl: url, status: 200, body: SITE_HTML };
+          },
+        }),
+      );
+      // cs999 is not enabled any more; cs998 failed and keeps its rows.
+      expect(keysUnder(store, "cs999-fa26")).toEqual([]);
+      expect(keysUnder(store, "cs998-fa26").length).toBeGreaterThan(0);
+      expect(keysUnder(store, "cs996-fa26").length).toBeGreaterThan(0);
+    });
+
+    it("keeps a failed adapter's undated rows through §5.4's miss counter", async () => {
+      const before = await twoAdapterStore();
+      const undated = Object.entries(before.raw)
+        .filter(([key, item]) => key.startsWith(adapterPrefix("cs998-fa26")) && !item.dueAt)
+        .map(([key]) => key);
+      expect(undated.length).toBeGreaterThan(0);
+      let store = before;
+      for (let sync = 0; sync < 4; sync += 1) {
+        store = (await runSync(store, "manual", failingOne("cs998", new TypeError("x")))).store;
+      }
+      for (const key of undated) expect(Object.keys(store.raw)).toContain(key);
+    });
+
+    it("logs both branches, per adapter", async () => {
+      const before = await twoAdapterStore();
+      const lines: string[] = [];
+      const log = console.log;
+      const warn = console.warn;
+      console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+      console.warn = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+      try {
+        await runSync(before, "manual", failingOne("cs998", new TypeError("Failed to fetch")));
+      } finally {
+        console.log = log;
+        console.warn = warn;
+      }
+      expect(lines.some((l) => /^\[sync\] site: cs999-fa26 answered — \d+ row\(s\) replaced$/.test(l))).toBe(true);
+      expect(lines.some((l) => /^\[sync\] site: cs998-fa26 failed \(network_error\) — kept \d+ row\(s\)/.test(l))).toBe(true);
+    });
+  });
+
+  describe("adapters are fetched through one pool per host (worker rule 9)", () => {
+    function gate() {
+      const started: string[] = [];
+      let release!: () => void;
+      const open = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return {
+        started,
+        release: () => release(),
+        async fetchPage(url: string) {
+          started.push(url);
+          await open;
+          return { url, finalUrl: url, status: 200, body: PAGES[url] ?? SITE_HTML };
+        },
+      };
+    }
+    const on = (host: string, n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        ...ADAPTER,
+        id: `${host.split(".")[0]}${i}-fa26`,
+        url: `https://${host}/cs${i}/schedule`,
+      }));
+    const settle = async () => {
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    };
+
+    it("starts adapters on different hosts without waiting for each other", async () => {
+      const g = gate();
+      // Five adapters: one more than one host's cap, so a single shared pool
+      // (or the old one-at-a-time loop) cannot have them all in flight.
+      const adapters = [...on("a.illinois.edu", 4), ...on("b.illinois.edu", 1)];
+      const running = syncOneSource(
+        "site",
+        deps({ fetchPage: g.fetchPage, enabledAdapters: async () => adapters as never }),
+      );
+      await settle();
+      // Nothing has finished — the gate is shut — and all five have begun.
+      expect(g.started).toHaveLength(5);
+      g.release();
+      const outcome = await running;
+      // Registry order, whichever host answered first.
+      expect(outcome.adapters!.map((a) => a.id)).toEqual(adapters.map((a) => a.id));
+    });
+
+    it("returns answers in registry order, not the order they arrived", async () => {
+      let releaseA!: () => void;
+      const slowA = new Promise<void>((resolve) => {
+        releaseA = resolve;
+      });
+      const adapters = [...on("a.illinois.edu", 1), ...on("b.illinois.edu", 1)];
+      const running = syncOneSource(
+        "site",
+        deps({
+          enabledAdapters: async () => adapters as never,
+          async fetchPage(url) {
+            if (url.includes("a.illinois")) await slowA;
+            return { url, finalUrl: url, status: 200, body: SITE_HTML };
+          },
+        }),
+      );
+      await settle();
+      releaseA(); // b answered first
+      const outcome = await running;
+      expect(outcome.adapters!.map((a) => a.id)).toEqual(adapters.map((a) => a.id));
+    });
+
+    it("never has more than the cap in flight at one host", async () => {
+      const g = gate();
+      const running = syncOneSource(
+        "site",
+        deps({ fetchPage: g.fetchPage, enabledAdapters: async () => on("a.illinois.edu", 6) as never }),
+      );
+      await settle();
+      expect(g.started).toHaveLength(4);
+      g.release();
+      expect((await running).adapters).toHaveLength(6);
+    });
   });
 
   it("fails the source only when every adapter fails", async () => {
@@ -1488,5 +1767,421 @@ describe("planSync and §6's backoff ladder", () => {
     const plan = planSync(store, "manual", NOW);
     expect(plan.attempt).not.toContain("gradescope");
     expect(plan.resting).not.toContain("gradescope");
+  });
+});
+
+/**
+ * Roadmap I46, Sushi 2026-09-27: *"prairielearn also shows unable to read when
+ * theres no classes/assignments on there."* The home page regex-scan called
+ * zero hits a ParseError — "Couldn't read", a red badge and §6's backoff for
+ * every student with no current PrairieLearn course. The page states its own
+ * empty shape, so this is a state (`empty`), not a failure.
+ */
+describe("PrairieLearn with nothing for this student (I46)", () => {
+  const withHome = (name: string, overrides: Partial<SyncDeps> = {}) =>
+    deps({
+      async fetchPage(url) {
+        const body =
+          url === "https://us.prairielearn.com/pl/" ? fixture(`prairielearn/${name}`) : PAGES[url];
+        if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+        return { url, finalUrl: url, status: 200, body };
+      },
+      ...overrides,
+    });
+
+  it("reports a home with no courses as empty, from one request", async () => {
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+    let outcome;
+    try {
+      outcome = await syncOneSource("prairielearn", withHome("home-empty-CONSTRUCTED.html"));
+    } finally {
+      console.log = log;
+    }
+    expect(lines).toContain("[prairielearn] home: no-courses — nothing to read");
+    expect(outcome.state).toBe("empty");
+    expect(outcome.requests).toBe(1);
+    expect(outcome.items).toEqual([]);
+    expect(outcome.error).toBe("PrairieLearn lists no courses for you");
+  });
+
+  it("reports an instructor-only home as empty, and fetches no instructor instance", async () => {
+    // The old regex returned 301 and 299 here and fetched both.
+    const outcome = await syncOneSource(
+      "prairielearn",
+      withHome("home-instructor-only-CONSTRUCTED.html"),
+    );
+    expect(outcome.state).toBe("empty");
+    expect(outcome.requests).toBe(1);
+    expect(outcome.error).toMatch(/instructor access only/);
+  });
+
+  it("still reports a home that changed shape as a parse error", async () => {
+    const outcome = await syncOneSource(
+      "prairielearn",
+      deps({
+        async fetchPage(url) {
+          return { url, finalUrl: url, status: 200, body: "<html><body><main>new</main></body></html>" };
+        },
+      }),
+    );
+    expect(outcome.state).toBe("parse_error");
+    expect(outcome.error).toMatch(/no HomeCards region/);
+  });
+
+  it("drops the rows, stamps a success, counts no failure and arms no backoff", async () => {
+    const first = await runSync(emptyStore(), "alarm", deps());
+    const plKeys = Object.keys(first.store.raw).filter((k) => k.startsWith("prairielearn:"));
+    const others = Object.keys(first.store.raw).filter((k) => !k.startsWith("prairielearn:"));
+    expect(plKeys.length).toBeGreaterThan(0);
+
+    const LATER = "2026-09-10T19:00:00.000Z";
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+    let second;
+    try {
+      second = await runSync(
+        first.store,
+        "alarm",
+        withHome("home-empty-CONSTRUCTED.html", { now: () => LATER }),
+      );
+    } finally {
+      console.log = log;
+    }
+    const status = second.store.sources.prairielearn;
+    expect(second.outcomes.find((o) => o.source === "prairielearn")!.state).toBe("empty");
+    expect(status.state).toBe("empty");
+    expect(status.lastSuccessAt).toBe(LATER);
+    expect(status.lastAttemptAt).toBe(LATER);
+    expect(status.consecutiveFailures).toBe(0);
+    expect(status.lastError).toBe("PrairieLearn lists no courses for you");
+    expect(second.store.backoffUntil.prairielearn).toBeUndefined();
+    expect(Object.keys(second.store.raw).filter((k) => k.startsWith("prairielearn:"))).toEqual([]);
+    // Nobody else's rows moved.
+    for (const key of others) expect(Object.keys(second.store.raw)).toContain(key);
+    // A false empty deletes rows, so it says so (worker rule 5).
+    expect(lines).toContain(
+      `[sync] prairielearn: empty — dropped ${plKeys.length} row(s) it previously held`,
+    );
+  });
+
+  it("is read again on the next alarm, and flips to ok once a course appears", async () => {
+    const empty = await runSync(emptyStore(), "alarm", withHome("home-empty-CONSTRUCTED.html"));
+    expect(empty.store.sources.prairielearn.state).toBe("empty");
+    expect(planSync(empty.store, "alarm", NOW).attempt).toContain("prairielearn");
+    const back = await runSync(empty.store, "alarm", deps());
+    expect(back.store.sources.prairielearn.state).toBe("ok");
+    expect(Object.keys(back.store.raw).some((k) => k.startsWith("prairielearn:"))).toBe(true);
+  });
+
+  it("reports smartPhysics with no active enrolment as empty, not off", async () => {
+    // The real home capture: two Fall 2025 courses, both under Inactive.
+    const outcome = await syncOneSource(
+      "smartphysics",
+      deps({
+        async fetchPage(url) {
+          if (url !== "https://smart.physics.illinois.edu/") throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body: fixture("smartphysics/home.html") };
+        },
+      }),
+    );
+    expect(outcome.state).toBe("empty");
+    expect(outcome.error).toBe("smartPhysics lists no active course (2 inactive)");
+    expect(outcome.requests).toBe(1);
+  });
+
+  describe("a closed term's course leaves the home in the same sync a new one appears", () => {
+    /** A home listing exactly `ids`, from the constructed healthy page's shape. */
+    const homeListing = (ids: string[]) =>
+      `<html><body><div data-component="HomeCards"><div class="card"><div class="card-header"><h2>Courses</h2></div>` +
+      `<table aria-label="Courses"><tbody>${ids
+        .map((id) => `<tr><td><a href="/pl/course_instance/${id}">CS ${id}</a></td></tr>`)
+        .join("")}</tbody></table></div></div></body></html>`;
+    const listing = (ids: string[], pages: Record<string, string> = {}) =>
+      deps({
+        async fetchPage(url) {
+          const body = url === "https://us.prairielearn.com/pl/" ? homeListing(ids) : (pages[url] ?? PAGES[url]);
+          if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body };
+        },
+      });
+
+    it("accepts 0 when every held row belongs to an instance the home no longer lists", async () => {
+      const first = await runSync(emptyStore(), "alarm", listing(["224254"]));
+      const held = Object.keys(first.store.raw).filter((k) => k.startsWith("prairielearn:224254:"));
+      expect(held.length).toBeGreaterThan(0);
+      // 224301's page is header-only: a new term with nothing published yet.
+      const lines: string[] = [];
+      const log = console.log;
+      console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+      let second;
+      try {
+        second = await runSync(first.store, "alarm", listing(["224301"]));
+      } finally {
+        console.log = log;
+      }
+      // Both branches of the guard are logged (worker rule 5); this is the
+      // "accepted" one, and the home read says what it listed.
+      expect(lines).toContain(
+        `[sync] prairielearn: 0 items after ${held.length} — every held row has left the page by its own rule`,
+      );
+      expect(lines).toContain("[prairielearn] home: 1 course instance(s) [224301]");
+      expect(second.store.sources.prairielearn.state).toBe("ok");
+      expect(second.store.backoffUntil.prairielearn).toBeUndefined();
+      expect(Object.keys(second.store.raw).some((k) => k.startsWith("prairielearn:"))).toBe(false);
+    });
+
+    it("still trips when a listed instance's page comes back empty", async () => {
+      const first = await runSync(emptyStore(), "alarm", listing(["224254"]));
+      const second = await runSync(
+        first.store,
+        "alarm",
+        listing(["224254"], {
+          "https://us.prairielearn.com/pl/course_instance/224254/assessments": fixture(
+            "prairielearn/assessments-empty-CONSTRUCTED.html",
+          ),
+        }),
+      );
+      expect(second.store.sources.prairielearn.state).toBe("parse_error");
+      expect(second.store.sources.prairielearn.lastError).toMatch(/still expected/);
+    });
+  });
+});
+
+describe("the N→0 guard knows when each page stops listing a row", () => {
+  const item = (source: Source, partial: Partial<RawItem>): RawItem => ({
+    source,
+    sourceId: `k${Math.random()}`,
+    courseRaw: "CS 357",
+    title: "HW",
+    kind: "assignment",
+    url: "https://canvas.illinois.edu/",
+    status: "unknown",
+    fetchedAt: NOW,
+    ...partial,
+  });
+  const raw = (...items: RawItem[]) =>
+    Object.fromEntries(items.map((i) => [`${i.source}:${i.sourceId}`, i]));
+  const DAY = 86_400_000;
+  const daysAgo = (n: number) => new Date(Date.parse(NOW) - n * DAY).toISOString();
+
+  describe("Canvas: the planner's trailing edge (open-bugs 2)", () => {
+    it("accepts 0 once every held row is past the planner's window", () => {
+      expect(vanishedUnexpectedly("canvas", raw(item("canvas", { dueAt: daysAgo(10) })), NOW)).toBe(false);
+    });
+
+    it("trips while a held row is still inside the window", () => {
+      expect(
+        vanishedUnexpectedly(
+          "canvas",
+          raw(item("canvas", { dueAt: daysAgo(10) }), item("canvas", { dueAt: daysAgo(3) })),
+          NOW,
+        ),
+      ).toBe(true);
+    });
+
+    it("trips on an undated row, since planner rows are always dated", () => {
+      expect(vanishedUnexpectedly("canvas", raw(item("canvas", {})), NOW)).toBe(true);
+    });
+
+    it("reads the edge off the very URL the loop fetches", () => {
+      // plannerUrl(NOW) starts at 2026-09-03. A row due at that date's UTC
+      // midnight is on the page; one due a millisecond earlier is not.
+      const start = /start_date=(\d{4}-\d{2}-\d{2})/.exec(plannerUrl(new Date(NOW)))![1]!;
+      expect(start).toBe("2026-09-03");
+      const edge = Date.parse(`${start}T00:00:00Z`);
+      const at = (t: number) => raw(item("canvas", { dueAt: new Date(t).toISOString() }));
+      expect(vanishedUnexpectedly("canvas", at(edge), NOW)).toBe(true);
+      expect(vanishedUnexpectedly("canvas", at(edge - 1), NOW)).toBe(false);
+    });
+
+    it("keeps Canvas ok over a term break, where it used to go red and stay red", async () => {
+      const first = await runSync(emptyStore(), "alarm", deps());
+      // The synthetic planner fixture carries two undated rows on purpose (it
+      // exercises the parser's fallback); a real planner row always has a
+      // date, and an undated held row rightly keeps the guard armed (above).
+      for (const [key, held] of Object.entries(first.store.raw)) {
+        if (key.startsWith("canvas:") && held.dueAt === undefined) delete first.store.raw[key];
+      }
+      const canvasKeys = Object.keys(first.store.raw).filter((k) => k.startsWith("canvas:"));
+      expect(canvasKeys.length).toBeGreaterThan(0);
+      const breakDay = "2026-12-31T18:00:00.000Z";
+      for (const key of canvasKeys) {
+        expect(Date.parse(first.store.raw[key]!.dueAt!)).toBeLessThan(Date.parse(breakDay) - 8 * DAY);
+      }
+      const second = await runSync(
+        first.store,
+        "manual",
+        deps({
+          now: () => breakDay,
+          async fetchPage(url) {
+            if (url.includes("planner")) return { url, finalUrl: url, status: 200, body: "[]" };
+            const body = PAGES[url];
+            if (body === undefined) return { url, finalUrl: url, status: 200, body: "[]" };
+            return { url, finalUrl: url, status: 200, body };
+          },
+        }),
+      );
+      expect(second.store.sources.canvas.state).toBe("ok");
+    });
+  });
+
+  describe("PrairieLearn: the instances the home listed", () => {
+    const pl = (instance: string) =>
+      item("prairielearn", { sourceId: `${instance}:HW${Math.random()}`, dueAt: daysAgo(1) });
+
+    it("accepts 0 when no held row's instance is still listed", () => {
+      expect(vanishedUnexpectedly("prairielearn", raw(pl("1"), pl("2")), NOW, ["3"])).toBe(false);
+    });
+
+    it("trips when one held row's instance is still listed", () => {
+      expect(vanishedUnexpectedly("prairielearn", raw(pl("1"), pl("3")), NOW, ["3"])).toBe(true);
+    });
+
+    it("trips without a scope, as any N→0 did", () => {
+      expect(vanishedUnexpectedly("prairielearn", raw(pl("1")), NOW)).toBe(true);
+    });
+  });
+
+  it("names the rows it is still waiting on", () => {
+    const due = item("gradescope", { title: "Homework 1", dueAt: daysAgo(400) });
+    expect(stillExpected("gradescope", raw(due), NOW).map((i) => i.title)).toEqual(["Homework 1"]);
+  });
+});
+
+/**
+ * open-bugs 3 / sync-health 6: `lastAttemptAt` was stamped at apply, after the
+ * fetches, so a sign-in finished *during* them looked older than the attempt
+ * and `sourcesToRecheck` — whose comment says "`lastAttemptAt` is stamped when
+ * the sync *starts*" — skipped it: "sign in needed" while signed in until the
+ * next alarm.
+ */
+describe("lastAttemptAt is when the attempt started", () => {
+  const T0 = "2026-09-10T17:00:00.000Z";
+  const T1 = "2026-09-10T17:00:20.000Z";
+
+  it("stamps the plan's instant on every branch, and the write's on success", async () => {
+    const store = enableSiteOnly(emptyStore());
+    store.sources.smartphysics = { ...store.sources.smartphysics, enabled: true };
+    const plan = planSync(store, "manual", T0);
+    const outcomes = await fetchSync(
+      plan,
+      deps({
+        now: () => T0,
+        async fetchPage(url) {
+          if (url.includes("gradescope")) {
+            return { url, finalUrl: "https://www.gradescope.com/login", status: 200, body: "" };
+          }
+          if (url === "https://us.prairielearn.com/pl/") {
+            return { url, finalUrl: url, status: 200, body: fixture("prairielearn/home-empty-CONSTRUCTED.html") };
+          }
+          if (url.includes("prairietest")) throw new TypeError("Failed to fetch");
+          if (url === "https://smart.physics.illinois.edu/") {
+            return { url, finalUrl: url, status: 200, body: fixture("smartphysics/home.html") };
+          }
+          const body = PAGES[url];
+          if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body };
+        },
+      }),
+    );
+    const { store: after } = applySync(store, plan, outcomes, T1);
+    const s = after.sources;
+    expect([s.canvas.state, s.gradescope.state, s.prairielearn.state, s.prairietest.state, s.site.state]).toEqual([
+      "ok",
+      "needs_login",
+      "empty",
+      "network_error",
+      "disabled",
+    ]);
+    for (const source of ["canvas", "gradescope", "prairielearn", "prairietest", "site"] as const) {
+      expect(s[source].lastAttemptAt, source).toBe(T0);
+    }
+    expect(s.canvas.lastSuccessAt).toBe(T1);
+    expect(s.prairielearn.lastSuccessAt).toBe(T1);
+  });
+
+  it("stamps the plan's instant when some course sites failed", async () => {
+    const store = enableSiteOnly(emptyStore());
+    const plan = { ...planSync(store, "manual", T0), attempt: ["site" as const] };
+    const outcomes = await fetchSync(
+      plan,
+      deps({
+        async enabledAdapters() {
+          return [
+            { id: "a-fa26", url: "https://a.illinois.edu/x" },
+            { id: "b-fa26", url: "https://b.illinois.edu/x" },
+          ] as never;
+        },
+        async fetchPage(url) {
+          if (url.includes("b.illinois")) throw new TypeError("Failed to fetch");
+          return { url, finalUrl: url, status: 200, body: "<html></html>" };
+        },
+        async runAdapter() {
+          return [];
+        },
+      }),
+    );
+    const { store: after } = applySync(store, plan, outcomes, T1);
+    expect(after.sources.site.state).toBe("network_error");
+    expect(after.sources.site.lastAttemptAt).toBe(T0);
+  });
+
+  it("re-checks a sign-in that finished while the fetches were in flight", async () => {
+    const store = emptyStore();
+    const plan = planSync(store, "manual", T0);
+    const outcomes = await fetchSync(
+      plan,
+      deps({
+        now: () => T0,
+        async fetchPage(url) {
+          if (url.includes("gradescope")) {
+            return { url, finalUrl: "https://www.gradescope.com/login", status: 200, body: "" };
+          }
+          const body = PAGES[url];
+          if (body === undefined) throw new Error(`unexpected fetch: ${url}`);
+          return { url, finalUrl: url, status: 200, body };
+        },
+      }),
+    );
+    const { store: after } = applySync(store, plan, outcomes, T1);
+    expect(after.sources.gradescope.state).toBe("needs_login");
+    // Signed in at T0+10s, during the fetches; the popup looks at T1+5s.
+    const signedIn = Date.parse(T0) + 10_000;
+    expect(
+      sourcesToRecheck(after.sources, Date.parse(T1) + 5_000, { gradescope: signedIn }),
+    ).toContain("gradescope");
+  });
+});
+
+/** The site source on, with no adapter enabled (so it reports `disabled`). */
+function enableSiteOnly(store: StoreV1Plus): StoreV1Plus {
+  return { ...store, sources: { ...store.sources, site: { ...store.sources.site, enabled: true } } };
+}
+
+describe("pooled", () => {
+  it("keeps input order and caps concurrency", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const out = await pooled([5, 1, 4, 2, 3, 0], 2, async (n) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, n));
+      inFlight -= 1;
+      return n * 10;
+    });
+    expect(out).toEqual([50, 10, 40, 20, 30, 0]);
+    expect(peak).toBe(2);
+  });
+
+  it("rejects with the first failure, like Promise.all", async () => {
+    await expect(
+      pooled([1, 2], 4, async (n) => {
+        if (n === 2) throw new Error("two");
+        return n;
+      }),
+    ).rejects.toThrow("two");
   });
 });

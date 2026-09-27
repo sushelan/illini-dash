@@ -202,21 +202,39 @@ export interface Item {
   movedBy?: { reason: string; from?: string; postId: string };
 }
 
-export type SourceState =
-  | "ok"
-  | "needs_login"
-  | "parse_error"
-  | "network_error"
-  | "disabled"
-  /**
-   * Enabled, but not yet attempted — so nothing is known about it.
-   *
-   * AMENDED from §3. Without this, `defaultStatus` had to seed something, it
-   * seeded `ok`, and a fresh install showed four green dots before a single
-   * request had been made. Worker house rule 2 says a green dot means "I
-   * fetched, and it was fine"; this is the state for "I have not fetched".
-   */
-  | "pending";
+/**
+ * Every state a source can be in, as a list so the store can validate what it
+ * reads (house rule 5: a string is not a state) and a test can check that every
+ * member has a word on screen.
+ *
+ * - `pending` — enabled, but not yet attempted, so nothing is known about it.
+ *   AMENDED from §3. Without this, `defaultStatus` had to seed something, it
+ *   seeded `ok`, and a fresh install showed four green dots before a single
+ *   request had been made. Worker house rule 2 says a green dot means "I
+ *   fetched, and it was fine"; this is the state for "I have not fetched".
+ * - `empty` — enabled, attempted, read fine, and the page *positively* states
+ *   there is nothing for this student: PrairieLearn's home with no course, or
+ *   smartPhysics with no enrolment. AMENDED from §3 on 2026-09-27 (roadmap
+ *   I46). Neither `ok` (nothing was read) nor `disabled` (the student switched
+ *   it on) nor `parse_error` (the page did not change — it said so). It arms
+ *   no backoff and is re-read every sync, so joining a course flips it to
+ *   `ok` on its own.
+ */
+export const SOURCE_STATES = [
+  "ok",
+  "needs_login",
+  "parse_error",
+  "network_error",
+  "disabled",
+  "empty",
+  "pending",
+] as const;
+
+export type SourceState = (typeof SOURCE_STATES)[number];
+
+export function isSourceState(value: unknown): value is SourceState {
+  return typeof value === "string" && (SOURCE_STATES as readonly string[]).includes(value);
+}
 
 export interface SourceStatus {
   source: Source;

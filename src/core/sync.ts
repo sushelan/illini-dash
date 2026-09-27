@@ -79,6 +79,11 @@ export interface SyncDeps {
   parseGradescopeDashboard(html: string): Promise<gradescope.GradescopeCourse[]>;
   /** Same shape: the enrolment list yields courses, not items. */
   parseSmartPhysicsCourses(html: string): Promise<smartphysics.SmartPhysicsCourse[]>;
+  /**
+   * PrairieLearn's student home (§4.3 step 1): the course instances, or the
+   * page's own statement that there are none (roadmap I46).
+   */
+  parsePrairieLearnHome(html: string): Promise<prairielearn.HomeReading>;
   now(): string;
 }
 
@@ -104,13 +109,32 @@ export interface SourceOutcome {
    *
    * `syncOneSource` itself never returns `pending`: it always attempts, so it
    * always has a result. The backoff branch in `runSync` pushes its outcome and
-   * `continue`s, so a `pending` outcome never reaches the ok / disabled /
-   * failure branches below and cannot be mistaken for a failed attempt.
+   * `continue`s, so a `pending` outcome never reaches the ok / disabled / empty
+   * / failure branches below and cannot be mistaken for a failed attempt.
+   *
+   * The loop's terminal answers are therefore: `ok` (read, and here is what it
+   * says), `disabled` (nothing configured to read), `empty` (read, and the page
+   * itself says there is nothing for this student), and a failure.
    */
   state: SourceState;
   items: RawItem[];
   error?: string;
   requests: number;
+  /**
+   * Course sites only: what each adapter answered (§4.5).
+   *
+   * One adapter failing among several used to report `ok` — and the ok branch
+   * dropped every `site:` row before re-adding the survivors', so the failed
+   * course's deadlines vanished behind a green dot (roadmap I47). With this,
+   * `applySync` replaces rows per adapter and keeps the failed one's.
+   */
+  adapters?: AdapterOutcome[];
+  /**
+   * What the page listed this time, for the N→0 guard: PrairieLearn's course
+   * instance ids. A held row from an instance the home no longer lists has
+   * left the page by the page's own rule, not by a parser short-circuiting.
+   */
+  scope?: string[];
   /** Only for `needs_login`, and only where the page is not a fixed login form. */
   loginUrl?: string;
   /**
@@ -197,27 +221,56 @@ async function fetchChecked(url: string, deps: SyncDeps, isLoginResponse: LoginT
   return page;
 }
 
-/** §4: at most 4 concurrent requests per host. */
+/**
+ * `run` over `items`, at most `limit` at a time, results in input order.
+ *
+ * A pool, not batches: with batches of four, one slow request held three free
+ * slots until it finished. Rejects with the first rejection, like
+ * `Promise.all`, which is what every caller wants — a login page or a network
+ * failure on one course page is the source's answer.
+ */
+export async function pooled<T, R>(
+  items: readonly T[],
+  limit: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await run(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** §4: at most 4 concurrent requests per host. Every URL here is one source's host. */
 async function fetchAll(
   urls: string[],
   deps: SyncDeps,
   isLoginResponse: LoginTest,
 ): Promise<FetchedPage[]> {
-  const results: FetchedPage[] = [];
-  for (let i = 0; i < urls.length; i += MAX_CONCURRENT_PER_HOST) {
-    const batch = urls.slice(i, i + MAX_CONCURRENT_PER_HOST);
-    results.push(
-      ...(await Promise.all(batch.map((url) => fetchChecked(url, deps, isLoginResponse)))),
-    );
-  }
-  return results;
+  return pooled(urls, MAX_CONCURRENT_PER_HOST, (url) => fetchChecked(url, deps, isLoginResponse));
 }
 
 /* -------------------------------------------------------------------------- */
 /* Per-source plans                                                            */
 /* -------------------------------------------------------------------------- */
 
-async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
+/**
+ * What a plan read. `items` is the answer; the rest is evidence the loop needs
+ * to judge it (see `SourceOutcome`).
+ */
+interface PlanResult {
+  items: RawItem[];
+  adapters?: AdapterOutcome[];
+  scope?: string[];
+}
+
+async function syncCanvas(deps: SyncDeps): Promise<PlanResult> {
   const fetchedAt = deps.now();
   const coursesPage = await fetchChecked(canvas.coursesUrl(), deps, canvas.isLoginResponse);
 
@@ -259,14 +312,16 @@ async function syncCanvas(deps: SyncDeps): Promise<RawItem[]> {
     url: plannerPage.finalUrl,
     fetchedAt,
   });
-  if (held.size === 0) return items;
-  return items.filter((item) => {
-    const courseId = item.extra?.["canvasCourseId"];
-    return courseId === undefined || !held.has(Number(courseId));
-  });
+  if (held.size === 0) return { items };
+  return {
+    items: items.filter((item) => {
+      const courseId = item.extra?.["canvasCourseId"];
+      return courseId === undefined || !held.has(Number(courseId));
+    }),
+  };
 }
 
-async function syncGradescope(deps: SyncDeps): Promise<RawItem[]> {
+async function syncGradescope(deps: SyncDeps): Promise<PlanResult> {
   const fetchedAt = deps.now();
   const dashboard = await fetchChecked(
     `${gradescope.GRADESCOPE_ORIGIN}/`,
@@ -292,11 +347,11 @@ async function syncGradescope(deps: SyncDeps): Promise<RawItem[]> {
       ...(await deps.parseHtml("gradescope", page.body, { url: page.finalUrl, fetchedAt })),
     );
   }
-  return items;
+  return { items };
 }
 
 
-async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
+async function syncPrairieLearn(deps: SyncDeps): Promise<PlanResult> {
   const fetchedAt = deps.now();
   const home = await fetchChecked(
     `${prairielearn.PRAIRIELEARN_ORIGIN}/pl/`,
@@ -304,13 +359,22 @@ async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
     prairielearn.isLoginResponse,
   );
 
-  // §4.3 step 1: the student home lists course instances.
-  const instanceIds = [...home.body.matchAll(/\/pl\/course_instance\/(\d+)/g)]
-    .map((match) => match[1]!)
-    .filter((id, index, all) => all.indexOf(id) === index);
-  if (instanceIds.length === 0) {
-    throw new ParseError("prairielearn: no course instances on the student home page");
+  // §4.3 step 1 as amended 2026-09-27: the *student* Courses table, read in
+  // the offscreen document. This was a regex over the whole body, which swept
+  // up instructor and expired instances and called a student with no course a
+  // parse error — "Couldn't read" for every CS student over a break (I46).
+  const reading = await deps.parsePrairieLearnHome(home.body);
+  if (reading.kind === "none") {
+    // Both branches logged (worker rule 5): a false "empty" deletes rows, so it
+    // has to be diagnosable from the console.
+    console.log(`[prairielearn] home: ${reading.reason} — nothing to read`);
+    throw new SourceEmpty(prairielearn.emptyReason(reading));
   }
+  const instanceIds = reading.courseInstanceIds;
+  console.log(
+    `[prairielearn] home: ${instanceIds.length} course instance(s) [${instanceIds.join(", ")}]` +
+      (reading.invitations > 0 ? `, ${reading.invitations} invitation(s) not accepted` : ""),
+  );
 
   const pages = await fetchAll(
     instanceIds.map((id) => `${prairielearn.PRAIRIELEARN_ORIGIN}/pl/course_instance/${id}/assessments`),
@@ -323,17 +387,19 @@ async function syncPrairieLearn(deps: SyncDeps): Promise<RawItem[]> {
       ...(await deps.parseHtml("prairielearn", page.body, { url: page.finalUrl, fetchedAt })),
     );
   }
-  return items;
+  return { items, scope: instanceIds };
 }
 
-async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
+async function syncPrairieTest(deps: SyncDeps): Promise<PlanResult> {
   const fetchedAt = deps.now();
   const home = await fetchChecked(
     `${prairietest.PRAIRIETEST_ORIGIN}/pt/`,
     deps,
     prairietest.isLoginResponse,
   );
-  return deps.parseHtml("prairietest", home.body, { url: home.finalUrl, fetchedAt });
+  return {
+    items: await deps.parseHtml("prairietest", home.body, { url: home.finalUrl, fetchedAt }),
+  };
 }
 
 /**
@@ -343,7 +409,7 @@ async function syncPrairieTest(deps: SyncDeps): Promise<RawItem[]> {
  * to be discovered rather than configured — which is why this is a source and
  * not a §4.5 adapter.
  */
-async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
+async function syncSmartPhysics(deps: SyncDeps): Promise<PlanResult> {
   const fetchedAt = deps.now();
   const home = await fetchChecked(
     `${smartphysics.SMARTPHYSICS_ORIGIN}/`,
@@ -359,10 +425,14 @@ async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
     // that a broken page would put a red dot on every non-physics tester.
     // Worker rule 2's third branch: report *that*, do not report `ok` with
     // nothing behind it either.
-    throw new SourceDisabled(
+    //
+    // `empty`, not `disabled` (2026-09-27): the student switched this on, and
+    // `disabled` printed "Off" beside a switch that was on. The page was read
+    // and said there is nothing here, which is what `empty` means.
+    throw new SourceEmpty(
       courses.length === 0
-        ? "no smartPhysics enrolments"
-        : `no active smartPhysics course (${courses.length} inactive)`,
+        ? "smartPhysics lists no enrolments for you"
+        : `smartPhysics lists no active course (${courses.length} inactive)`,
     );
   }
 
@@ -377,7 +447,27 @@ async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
       ...(await deps.parseHtml("smartphysics", page.body, { url: page.finalUrl, fetchedAt })),
     );
   }
-  return items;
+  return { items };
+}
+
+/** What one course-site adapter answered in one sync (§4.5). */
+export interface AdapterOutcome {
+  id: string;
+  state: "ok" | "parse_error" | "network_error";
+  /** Empty when it failed; its previous rows are kept by `applySync`. */
+  items: RawItem[];
+  error?: string;
+}
+
+/** The host an adapter fetches from, which is what §4's per-host cap counts. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    // An unparseable URL fails in `fetchPage` and is reported against its
+    // adapter there; it still needs a pool, and one of its own is harmless.
+    return url;
+  }
 }
 
 /**
@@ -388,8 +478,16 @@ async function syncSmartPhysics(deps: SyncDeps): Promise<RawItem[]> {
  * so a throw is recorded against that adapter and the rest still run. The
  * source only fails outright when *every* adapter failed, which means the
  * runner or the registry is broken rather than one course's page.
+ *
+ * Each adapter's answer is returned, not only the survivors' rows: the loop
+ * replaces rows per adapter and keeps the failed one's (roadmap I47).
+ *
+ * Fetched through one flat pool per host (worker rule 9), all hosts at once.
+ * They used to run strictly one after another, so the source took the sum of
+ * its adapters — two slow course sites outlasted the popup's 30 s spinner cap
+ * on a sync where nothing was wrong. Results stay in registry order.
  */
-async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
+async function syncSites(deps: SyncDeps): Promise<PlanResult> {
   const adapters = await deps.enabledAdapters();
   // Not `return []`. A source that fetched nothing because nothing is
   // configured is not a source that succeeded: reporting `ok` painted a green
@@ -399,10 +497,8 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
   if (adapters.length === 0) throw new SourceDisabled("no course sites are enabled");
 
   const fetchedAt = deps.now();
-  const items: RawItem[] = [];
-  const failures: { id: string; message: string; kind: "parse" | "network" }[] = [];
 
-  for (const adapter of adapters) {
+  const readOne = async (adapter: Adapter): Promise<AdapterOutcome> => {
     try {
       const page = await deps.fetchPage(adapter.url);
       // §4.5: "sites behind Shibboleth work only while the SSO session is alive;
@@ -414,39 +510,55 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
       if (looksLoggedOut(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
       if (page.status >= 400) throw new HttpStatusError(page.status, adapter.url);
       const rows = await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt });
-      items.push(...rows);
       // The success branch, logged (worker rule 5): "site: ok (19 items, 2
       // requests)" cannot say which adapter read how many, and on 2026-09-20 it
       // cost a question that this line answers.
       console.log(`[site] adapter ${adapter.id}: ${rows.length} item(s)`);
+      return { id: adapter.id, state: "ok", items: rows };
     } catch (err) {
       if (err instanceof NeedsLogin) throw err;
       const kind = adapterFailureKind(err);
-      failures.push({
-        id: adapter.id,
-        message: err instanceof Error ? err.message : String(err),
-        kind,
-      });
       // The kind is in the line, so a recurrence is diagnosable from the console
       // without another trip to the browser (worker rule 5).
       console.warn(`[site] adapter ${adapter.id} failed (${kind}):`, err);
+      return {
+        id: adapter.id,
+        state: kind === "parse" ? "parse_error" : "network_error",
+        items: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
-  }
+  };
 
+  const byHost = new Map<string, Adapter[]>();
+  for (const adapter of adapters) {
+    const host = hostOf(adapter.url);
+    byHost.set(host, [...(byHost.get(host) ?? []), adapter]);
+  }
+  const answered = new Map<string, AdapterOutcome>();
+  await Promise.all(
+    [...byHost.values()].map(async (group) => {
+      const results = await pooled(group, MAX_CONCURRENT_PER_HOST, readOne);
+      for (const result of results) answered.set(result.id, result);
+    }),
+  );
+  const results = adapters.map((adapter) => answered.get(adapter.id)!);
+
+  const failures = results.filter((result) => result.state !== "ok");
   if (failures.length === adapters.length) {
     const detail = `every adapter failed — ${failures
-      .map((failure) => `${failure.id}: ${failure.message}`)
+      .map((failure) => `${failure.id}: ${failure.error}`)
       .join("; ")}`;
     // Only a *structural* failure earns `parse_error`. A source that could not
     // be reached is a network error, which is what §6's two branches are for.
-    throw failures.some((failure) => failure.kind === "parse")
+    throw failures.some((failure) => failure.state === "parse_error")
       ? new ParseError(detail)
       : new Error(detail);
   }
-  return items;
+  return { items: results.flatMap((result) => result.items), adapters: results };
 }
 
-const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<RawItem[]>>> = {
+const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<PlanResult>>> = {
   canvas: syncCanvas,
   gradescope: syncGradescope,
   prairielearn: syncPrairieLearn,
@@ -467,6 +579,28 @@ const PLANS: Partial<Record<Source, (deps: SyncDeps) => Promise<RawItem[]>>> = {
  */
 export class SourceDisabled extends Error {}
 
+/**
+ * A source that was read and whose page *positively* says there is nothing for
+ * this student — PrairieLearn's "no courses" home, smartPhysics with no
+ * enrolment (roadmap I46).
+ *
+ * A sibling of `SourceDisabled`, never a subclass: the `instanceof` chain in
+ * `syncOneSource` must keep them apart. `disabled` means nobody configured it
+ * and printed "Off" beside a switch that was on; `empty` means the student did,
+ * the read succeeded, and the answer is none. It arms no backoff, so joining a
+ * course flips it to `ok` on the next poll with no click.
+ */
+export class SourceEmpty extends Error {}
+
+/**
+ * §6's ranking of the two failure kinds, worst last: a page that changed is
+ * worse than a site having a bad afternoon (health.ts's `TROUBLE_RANK` orders
+ * them the same way).
+ */
+function worstAdapterState(failed: readonly AdapterOutcome[]): "parse_error" | "network_error" {
+  return failed.some((adapter) => adapter.state === "parse_error") ? "parse_error" : "network_error";
+}
+
 export async function syncOneSource(source: Source, deps: SyncDeps): Promise<SourceOutcome> {
   const plan = PLANS[source];
   if (!plan) return { source, state: "disabled", items: [], requests: 0 };
@@ -483,11 +617,39 @@ export async function syncOneSource(source: Source, deps: SyncDeps): Promise<Sou
 
   const ms = () => Date.now() - startedAt;
   try {
-    const items = await plan(counting);
-    return { source, state: "ok", items, requests, ms: ms() };
+    const { items, adapters, scope } = await plan(counting);
+    const failed = adapters?.filter((adapter) => adapter.state !== "ok") ?? [];
+    if (adapters && failed.length > 0) {
+      // Some adapters answered and some did not: not `ok` (worker rule 2 — the
+      // dot must not say every course site was read), and the answered rows go
+      // through, for `applySync` to replace per adapter.
+      return {
+        source,
+        state: worstAdapterState(failed),
+        items,
+        adapters,
+        error:
+          `${failed.length} of ${adapters.length} course sites failed — ` +
+          failed.map((adapter) => `${adapter.id}: ${adapter.error}`).join("; "),
+        requests,
+        ms: ms(),
+      };
+    }
+    return {
+      source,
+      state: "ok",
+      items,
+      ...(adapters ? { adapters } : {}),
+      ...(scope ? { scope } : {}),
+      requests,
+      ms: ms(),
+    };
   } catch (err) {
     if (err instanceof SourceDisabled) {
       return { source, state: "disabled", items: [], error: err.message, requests, ms: ms() };
+    }
+    if (err instanceof SourceEmpty) {
+      return { source, state: "empty", items: [], error: err.message, requests, ms: ms() };
     }
     if (err instanceof NeedsLogin) {
       // `page.url` — what we asked for — rather than `finalUrl`, which is
@@ -616,20 +778,88 @@ export interface SyncPlan {
  * about *that* source, and the commonest reason a failing source is worth
  * asking again. Neither an alarm nor a popup opening is a person asking.
  */
-/**
- * Sources whose page lists only what is still ahead. PrairieTest's home page
- * shows *upcoming* reservations and *open* booking windows — its own empty
- * sentence is "You don't have any upcoming reservations" — so an exam leaves it
- * once it has been sat, and a window leaves it once it has closed.
- */
-const LISTS_ONLY_UPCOMING: ReadonlySet<Source> = new Set<Source>(["prairietest"]);
-
-/** When a held item stops being something its page would still list. */
+/** When a held PrairieTest row stops being something its page would still list. */
 function heldUntil(item: RawItem): number | undefined {
   const raw = item.kind === "booking" ? item.extra?.["windowEnd"] : item.dueAt;
   if (raw === undefined) return undefined;
   const at = Date.parse(raw);
   return Number.isNaN(at) ? undefined : at;
+}
+
+/**
+ * The earliest instant Canvas's planner still lists, read off the very URL the
+ * loop fetches (`canvas.plannerUrl`), so the guard and the fetch cannot
+ * disagree about the window (mutation rule 3).
+ *
+ * `start_date` is a bare date; UTC midnight of it is the earliest edge any
+ * interpretation of that date can have (America/Chicago's midnight is later),
+ * so a row due before it is off the page whichever way Canvas reads it.
+ * `undefined` when the URL no longer carries one — then nothing is judged gone.
+ */
+function canvasPlannerStart(at: number): number | undefined {
+  const date = /[?&]start_date=(\d{4}-\d{2}-\d{2})(?:&|$)/.exec(canvas.plannerUrl(new Date(at)))?.[1];
+  return date === undefined ? undefined : Date.parse(`${date}T00:00:00Z`);
+}
+
+/**
+ * Per source: would its page still list this held row, now?
+ *
+ * The N→0 guard below asks this of every row a source held. A source with no
+ * entry keeps past work on its page (Gradescope, a course site), so for it
+ * every row is still listed and any N→0 trips the guard.
+ *
+ * - **PrairieTest** lists only upcoming reservations and *open* booking
+ *   windows — its own empty sentence is "You don't have any upcoming
+ *   reservations" — so an exam leaves once sat and a window once closed.
+ * - **Canvas**'s planner is a window, now−7d..now+60d (SPEC §4.1). A row due
+ *   before its trailing edge has left the page by design, so a term break
+ *   read as "Canvas looks different" and never cleared (open-bugs 2). An
+ *   undated row stays listed: planner rows are always dated, so an undated
+ *   one is the likelier story of a parser gone wrong.
+ * - **PrairieLearn**'s rows belong to course instances, and the home page is
+ *   the authority on which it lists. A row from an instance the home no longer
+ *   lists — a closed term — has left the page; one from a listed instance has
+ *   not. Without the scope (no home read), every row is still listed.
+ */
+type StillListed = (item: RawItem, at: number, scope: ReadonlySet<string> | undefined) => boolean;
+
+const STILL_LISTED: Partial<Record<Source, StillListed>> = {
+  prairietest: (item, at) => {
+    const until = heldUntil(item);
+    return until === undefined || until > at;
+  },
+  canvas: (item, at) => {
+    const due = item.dueAt === undefined ? Number.NaN : Date.parse(item.dueAt);
+    const start = canvasPlannerStart(at);
+    if (Number.isNaN(due) || start === undefined) return true;
+    return due >= start;
+  },
+  prairielearn: (item, _at, scope) =>
+    scope === undefined || scope.has(item.sourceId.split(":")[0]!),
+};
+
+/**
+ * The rows `source` held that its page should still be listing now — the
+ * evidence behind the N→0 guard, and what the console names when it fires.
+ */
+export function stillExpected(
+  source: Source,
+  raw: Record<string, RawItem>,
+  now: string,
+  scope?: readonly string[],
+): RawItem[] {
+  // `sourcePrefix`, not a hand-spelled `${source}:` (open-bugs 20): one copy of
+  // the prefix rule. Dropping the colon survives a mutation check — no source
+  // name is a prefix of another today — which is the unreachable defence the
+  // helper's own comment records, kept for the same reason.
+  const held = Object.entries(raw)
+    .filter(([key]) => key.startsWith(sourcePrefix(source)))
+    .map(([, item]) => item);
+  const listed = STILL_LISTED[source];
+  if (!listed) return held;
+  const at = Date.parse(now);
+  const inScope = scope === undefined ? undefined : new Set(scope);
+  return held.filter((item) => listed(item, at, inScope));
 }
 
 /**
@@ -640,29 +870,22 @@ function heldUntil(item: RawItem): number | undefined {
  * an exam, it says unable to connect instead of connected."* One booked exam,
  * sat, gone from the page: 1→0, and the guard called it `parse_error`. It never
  * cleared either, because a failed sync keeps the old rows, so every later sync
- * was 1→0 again.
+ * was 1→0 again. Canvas over a term break was the same shape, and so was
+ * PrairieLearn when a closed term's instance left the home in the same sync a
+ * new instance with nothing published appeared.
  *
- * So for a source that lists only upcoming things, 0 is expected once every
- * row it held is past its time. One row still ahead, or one with no time to
- * judge by, and the guard still fires — that row should still be on the page,
- * and a parser returning nothing is the likelier story. Every other source
- * keeps past work on its page, so for them any N→0 still trips it.
+ * So 0 is expected once every row it held has left the page by that page's own
+ * rule (`STILL_LISTED`). One row the page should still list, or one with no
+ * time to judge by, and the guard still fires — a parser returning nothing is
+ * the likelier story.
  */
 export function vanishedUnexpectedly(
   source: Source,
   raw: Record<string, RawItem>,
   now: string,
+  scope?: readonly string[],
 ): boolean {
-  const held = Object.entries(raw)
-    .filter(([key]) => key.startsWith(`${source}:`))
-    .map(([, item]) => item);
-  if (held.length === 0) return false;
-  if (!LISTS_ONLY_UPCOMING.has(source)) return true;
-  const at = Date.parse(now);
-  return held.some((item) => {
-    const until = heldUntil(item);
-    return until === undefined || until > at;
-  });
+  return stillExpected(source, raw, now, scope).length > 0;
 }
 
 function overridesBackoff(trigger: SyncTrigger): boolean {
@@ -805,16 +1028,29 @@ export function applySync(
      * Keyed on N→0 rather than on emptiness, so Canvas's legitimately empty
      * planner (0→0 on this account) stays green.
      */
-    const result: SourceOutcome =
-      outcome.state === "ok" &&
-      outcome.items.length === 0 &&
-      vanishedUnexpectedly(source, raw, now)
-        ? {
-            ...outcome,
-            state: "parse_error",
-            error: `${source}: 0 items where it previously had some`,
-          }
-        : outcome;
+    let result: SourceOutcome = outcome;
+    const heldBefore = keysOf(source).length;
+    if (outcome.state === "ok" && outcome.items.length === 0 && heldBefore > 0) {
+      const expected = stillExpected(source, raw, now, outcome.scope);
+      if (expected.length > 0) {
+        const named = expected
+          .slice(0, 3)
+          .map((item) => `${JSON.stringify(item.title)}${item.dueAt ? ` (due ${item.dueAt})` : ""}`)
+          .join(", ");
+        const more = expected.length > 3 ? `, +${expected.length - 3} more` : "";
+        result = {
+          ...outcome,
+          state: "parse_error",
+          error: `${source}: 0 items where it previously had some — still expected ${named}${more}`,
+        };
+        console.warn(`[sync] ${result.error}`);
+      } else {
+        // The other branch (worker rule 5): 0 accepted, and why.
+        console.log(
+          `[sync] ${source}: 0 items after ${heldBefore} — every held row has left the page by its own rule`,
+        );
+      }
+    }
     applied.push(result);
 
     // Neither branch below fits: the success branch would claim `ok`, and the
@@ -826,11 +1062,96 @@ export function applySync(
       next.sources[source] = {
         ...status,
         state: "disabled",
-        lastAttemptAt: now,
+        lastAttemptAt: plan.at,
         lastError: result.error,
         consecutiveFailures: 0,
       };
       delete next.backoffUntil[source];
+      continue;
+    }
+
+    /*
+     * Read fine, and the page itself says there is nothing for this student
+     * (roadmap I46). Not the failure branch — nothing failed, so no failure is
+     * counted and no backoff armed, and the next poll reads it again — and not
+     * `ok` either, which would claim something was read.
+     *
+     * The rows go: the page says there is nothing, and keeping them would be a
+     * claim it does not make. Logged when there were any, because a false
+     * empty deletes rows and has to be diagnosable from the console.
+     * `lastSuccessAt` is stamped because the fetch and the read *did* succeed.
+     */
+    if (result.state === "empty") {
+      const held = keysOf(source).length;
+      dropItemsOf(source);
+      if (held > 0) console.log(`[sync] ${source}: empty — dropped ${held} row(s) it previously held`);
+      next.sources[source] = {
+        ...status,
+        state: "empty",
+        lastAttemptAt: plan.at,
+        lastSuccessAt: now,
+        lastError: result.error,
+        loginUrl: undefined,
+        consecutiveFailures: 0,
+      };
+      delete next.backoffUntil[source];
+      continue;
+    }
+
+    /*
+     * Some course sites answered and some did not (roadmap I47). Rows are
+     * replaced per adapter: an answered adapter's rows are this sync's, a failed
+     * adapter's previous rows stay and count as seen — the failing-source rule,
+     * one adapter down. Rows under `site:` that belong to neither (an adapter
+     * no longer enabled) go, as the ok branch has always done.
+     *
+     * The source is a failure, since not everything was read: the worst
+     * adapter's kind, with `lastError` naming each failed adapter and how many
+     * of its rows are being kept, and §6's ladder as for any failure.
+     */
+    const failedAdapters = result.adapters?.filter((adapter) => adapter.state !== "ok") ?? [];
+    if (result.state !== "ok" && failedAdapters.length > 0) {
+      const kept = new Map<string, number>();
+      for (const key of keysOf(source)) {
+        const owner = failedAdapters.find((adapter) => key.startsWith(adapterPrefix(adapter.id)));
+        if (owner) {
+          seenThisSync.add(key);
+          kept.set(owner.id, (kept.get(owner.id) ?? 0) + 1);
+        } else {
+          delete raw[key];
+        }
+      }
+      for (const item of result.items) {
+        const key = memberKey(item.source, item.sourceId);
+        raw[key] = item;
+        seenThisSync.add(key);
+      }
+      for (const adapter of result.adapters ?? []) {
+        if (adapter.state === "ok") {
+          console.log(`[sync] ${source}: ${adapter.id} answered — ${adapter.items.length} row(s) replaced`);
+        } else {
+          console.warn(
+            `[sync] ${source}: ${adapter.id} failed (${adapter.state}) — kept ${kept.get(adapter.id) ?? 0} row(s) from its last read`,
+          );
+        }
+      }
+      const failures = status.consecutiveFailures + 1;
+      next.sources[source] = {
+        ...status,
+        state: result.state,
+        lastAttemptAt: plan.at,
+        lastError:
+          `${failedAdapters.length} of ${result.adapters!.length} course sites failed — ` +
+          failedAdapters
+            .map(
+              (adapter) =>
+                `${adapter.id}: ${adapter.error} (kept ${kept.get(adapter.id) ?? 0} row(s))`,
+            )
+            .join("; "),
+        loginUrl: undefined,
+        consecutiveFailures: failures,
+      };
+      next.backoffUntil[source] = nextAttemptAt(failures, now);
       continue;
     }
 
@@ -845,7 +1166,10 @@ export function applySync(
       next.sources[source] = {
         ...status,
         state: "ok",
-        lastAttemptAt: now,
+        // The attempt's start, not the apply: a sign-in that finished during
+        // the fetches is newer than this attempt, and `sourcesToRecheck` must
+        // see it that way (open-bugs 3). `lastSuccessAt` is the write instant.
+        lastAttemptAt: plan.at,
         lastSuccessAt: now,
         lastError: undefined,
         consecutiveFailures: 0,
@@ -856,7 +1180,7 @@ export function applySync(
       next.sources[source] = {
         ...status,
         state: result.state,
-        lastAttemptAt: now,
+        lastAttemptAt: plan.at,
         lastError: result.error,
         // Cleared, not merged, when this attempt was not a logout: a stale URL
         // from a previous 401 would offer "Sign in" over a network error.

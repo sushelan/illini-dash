@@ -18,6 +18,7 @@ import type {
   StoreV1,
   Suggestion,
 } from "../sources/types.js";
+import { isSourceState } from "../sources/types.js";
 import { isOlderThan } from "./dates.js";
 import { isInstant } from "./parsing.js";
 import { isGcalState, type GcalState } from "./gcal-auth.js";
@@ -702,7 +703,15 @@ export function migrate(stored: unknown, now: string = new Date().toISOString())
   for (const source of ALL_SOURCES) {
     const existing = value.sources?.[source];
     if (existing && typeof existing === "object") {
-      sources[source] = { ...defaultStatus(source), ...existing, source };
+      const merged = { ...defaultStatus(source), ...existing, source };
+      // House rule 5: a string is not a state. A value this build has no word
+      // for — written by a newer build, or by nothing — would reach the screen
+      // as a raw enum and sort as NaN in `sourceRows`. `pending` is the honest
+      // fallback: `displayState` re-derives what it can from `lastAttemptAt`.
+      sources[source] = {
+        ...merged,
+        state: isSourceState(merged.state) ? merged.state : "pending",
+      };
     }
   }
 

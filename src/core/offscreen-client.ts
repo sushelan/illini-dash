@@ -6,6 +6,7 @@
 import type { OffscreenRequest, ParseResponse } from "../messages.js";
 import type { GradescopeCourse } from "../sources/gradescope.js";
 import type { SmartPhysicsCourse } from "../sources/smartphysics.js";
+import type { HomeReading } from "../sources/prairielearn.js";
 import type { Adapter } from "../sources/types.js";
 import type { Candidate } from "./detect.js";
 import type { ParserId } from "../sources/registry.js";
@@ -64,6 +65,13 @@ export async function parseGradescopeDashboard(html: string): Promise<Gradescope
 export async function parseSmartPhysicsCourses(html: string): Promise<SmartPhysicsCourse[]> {
   const response = await ask({ target: "offscreen", type: "parse-smartphysics-courses", html });
   if ("smartPhysicsCourses" in response) return response.smartPhysicsCourses;
+  throw new Error("offscreen document returned the wrong shape");
+}
+
+/** PrairieLearn's student home (§4.3 step 1): course instances, or "none". */
+export async function parsePrairieLearnHome(html: string): Promise<HomeReading> {
+  const response = await ask({ target: "offscreen", type: "parse-prairielearn-home", html });
+  if ("prairieLearnHome" in response) return response.prairieLearnHome;
   throw new Error("offscreen document returned the wrong shape");
 }
 

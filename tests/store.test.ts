@@ -695,3 +695,29 @@ describe("Google Calendar's stored block", () => {
     expect(store.gcal.state).toBe("never");
   });
 });
+
+describe("a stored source state is validated, not trusted", () => {
+  // House rule 5: `typeof x === "string"` is not validation. A state string
+  // this build has no word for (a newer build's, or a corrupted store) would
+  // render as a raw enum and sort as NaN in `sourceRows`; `pending` is the
+  // fallback that claims nothing (worker rule 2).
+  it("keeps every state in SOURCE_STATES, including the new empty", () => {
+    for (const state of ["ok", "needs_login", "parse_error", "network_error", "disabled", "empty", "pending"]) {
+      const store = migrate({
+        schemaVersion: 2,
+        sources: { prairielearn: { source: "prairielearn", enabled: true, state, consecutiveFailures: 0 } },
+      });
+      expect(store.sources.prairielearn.state, state).toBe(state);
+    }
+  });
+
+  it("resets a state it has no word for to pending", () => {
+    for (const state of ["bogus", "", "OK", 3, null, undefined]) {
+      const store = migrate({
+        schemaVersion: 2,
+        sources: { prairielearn: { source: "prairielearn", enabled: true, state, consecutiveFailures: 0 } },
+      });
+      expect(store.sources.prairielearn.state, String(state)).toBe("pending");
+    }
+  });
+});

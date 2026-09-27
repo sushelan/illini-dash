@@ -50,6 +50,161 @@ export function isLoginResponse(
 }
 
 /* -------------------------------------------------------------------------- */
+/* The student home page (§4.3 step 1)                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What the `/pl/` home says about this student's courses.
+ *
+ * `none` is a *positive* reading — the page printed its own empty state — and
+ * never "no rows were found". Sushi, 2026-09-27: *"prairielearn also shows
+ * unable to read when theres no classes/assignments on there."* The old step 1
+ * regex-scanned the whole body and called zero hits a parse error, so every
+ * student with no current PrairieLearn course (every CS student over a break,
+ * since closed instances leave the list) got "Couldn't read" and §6's backoff.
+ */
+export type HomeReading =
+  | { kind: "courses"; courseInstanceIds: string[]; invitations: number }
+  | {
+      kind: "none";
+      reason: "no-courses" | "instructor-only" | "invitations-only";
+      invitations?: number;
+    };
+
+/**
+ * The hydrated region the student cards render into.
+ *
+ * `<Hydrate>` emits **two** elements carrying `data-component="HomeCards"`: a
+ * `<script type="application/json" data-component-props>` holding the props,
+ * and then the `<div>` holding the server-rendered markup. The script comes
+ * first, so `querySelector` alone would hand back the script — which has no
+ * element children, so every home page would read as "neither a table nor an
+ * empty state". The region is the first one that is not a script.
+ */
+const HOME_CARDS = '[data-component="HomeCards"]';
+/** The heading varies with `hasInstructorCourses` (StudentCoursesCard.tsx). */
+const STUDENT_TABLE =
+  'table[aria-label="Courses"], table[aria-label="Courses with student access"]';
+/**
+ * An enrolment link, anchored at both ends so an instructor link
+ * (`/pl/course_instance/{id}/instructor`) cannot match, and a foreign host
+ * cannot either.
+ */
+const STUDENT_LINK = /^(?:https:\/\/us\.prairielearn\.com)?\/pl\/course_instance\/(\d+)\/?$/;
+/**
+ * An invitation row: the semantic hook, not `tr.table-warning`, which is a
+ * colour class (parser rule 3).
+ */
+const INVITATION = 'input[name="__action"][value="accept_invitation"]';
+/** EmptyStateCards' student card, on its two smallest elements (parser rule 6). */
+const EMPTY_TITLE = "Students";
+const EMPTY_TEXT = "Add a course and start learning.";
+/** StudentCoursesCard's own empty body, when the student has no table. */
+const NO_COURSES_BODY = /^No courses found(?: with student access)?\./;
+const COURSES_HEADINGS = new Set(["Courses", "Courses with student access"]);
+
+function homeRegion(doc: Document): Element {
+  const region = Array.from(doc.querySelectorAll(HOME_CARDS)).find(
+    (element) => element.tagName.toLowerCase() !== "script",
+  );
+  if (!region) {
+    throw new ParseError('home: no HomeCards region (data-component="HomeCards")');
+  }
+  return region;
+}
+
+/**
+ * §4.3 step 1 as amended 2026-09-27: the course instances this student is
+ * enrolled in, read from the *student* Courses table only.
+ *
+ * Scoped to the hydrated region, which is what excludes the instructor card
+ * structurally — it is rendered outside `<Hydrate>`, and its links (current
+ * instances and every "Older instances" one) are `/instructor` pages, never
+ * enrolments. The props `<script>` inside the region's sibling holds course ids
+ * too and is never read.
+ *
+ * The table is consulted before any empty-state marker, so a course *titled*
+ * "Add a course and start learning." is one course (parser rule 12).
+ */
+export function parseHome(doc: Document): HomeReading {
+  const region = homeRegion(doc);
+
+  const table = region.querySelector(STUDENT_TABLE);
+  if (table) {
+    const rows = Array.from(table.querySelectorAll("tbody > tr"));
+    // Parser rule 2: a table whose rows stopped matching is a redesign.
+    if (rows.length === 0) throw new ParseError("home: Courses table has no rows");
+
+    const courseInstanceIds: string[] = [];
+    const keys = new KeyGuard();
+    let invitations = 0;
+    for (const row of rows) {
+      if (row.querySelector(INVITATION)) {
+        invitations += 1;
+        continue;
+      }
+      const id = Array.from(row.querySelectorAll("a[href]"))
+        .map((link) => STUDENT_LINK.exec(link.getAttribute("href") ?? "")?.[1])
+        .find((match) => match !== undefined);
+      if (id === undefined) {
+        throw new ParseError(
+          `home: course row without a /pl/course_instance/{id} link: ${textOf(row).slice(0, 80)}`,
+        );
+      }
+      keys.claim(id, `course instance ${id}`);
+      courseInstanceIds.push(id);
+    }
+    if (courseInstanceIds.length === 0) {
+      return { kind: "none", reason: "invitations-only", invitations };
+    }
+    return { kind: "courses", courseInstanceIds, invitations };
+  }
+
+  const cards = Array.from(region.querySelectorAll(".card"));
+
+  // EmptyStateCards: the page PrairieLearn renders for a student with no
+  // course at all. Both strings, both exact, each on its own element. Never
+  // "Add course": that button is in the healthy card's header too.
+  const emptyState = cards.some(
+    (card) =>
+      textOf(card.querySelector(".card-title")) === EMPTY_TITLE &&
+      textOf(card.querySelector(".card-text")) === EMPTY_TEXT,
+  );
+  if (emptyState) return { kind: "none", reason: "no-courses" };
+
+  // StudentCoursesCard with no table: its own "No courses found" body, read
+  // from a direct child so a sentence anywhere deeper cannot stand in for it.
+  for (const card of cards) {
+    const heading = textOf(card.querySelector(".card-header h2"));
+    if (!COURSES_HEADINGS.has(heading)) continue;
+    const body = Array.from(card.children).find((child) => child.classList.contains("card-body"));
+    if (body && NO_COURSES_BODY.test(textOf(body))) {
+      return {
+        kind: "none",
+        reason: heading === "Courses with student access" ? "instructor-only" : "no-courses",
+      };
+    }
+  }
+
+  // Silent empty is the worst outcome (parser rule 2).
+  throw new ParseError("home: HomeCards region has neither a Courses table nor an empty-state card");
+}
+
+/** The sentence `lastError` carries for each empty reading, so no UI invents one. */
+export function emptyReason(reading: Extract<HomeReading, { kind: "none" }>): string {
+  switch (reading.reason) {
+    case "no-courses":
+      return "PrairieLearn lists no courses for you";
+    case "instructor-only":
+      return "PrairieLearn lists no courses with student access — you have instructor access only";
+    case "invitations-only": {
+      const n = reading.invitations ?? 0;
+      return `PrairieLearn has ${n} course invitation${n === 1 ? "" : "s"} you have not accepted`;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* The access-details schedule (§4.3 primary)                                  */
 /* -------------------------------------------------------------------------- */
 

@@ -231,7 +231,11 @@ interface Item {
 interface SourceStatus {
   source: Source;
   enabled: boolean;
-  state: "ok" | "needs_login" | "parse_error" | "network_error" | "disabled";
+  state: "ok" | "needs_login" | "parse_error" | "network_error" | "disabled"
+       | "empty"      // AMENDED 2026-09-27: read fine, and the page itself says there is
+                      // nothing for this student (PrairieLearn's no-courses home,
+                      // smartPhysics with no enrolment). No backoff; re-read every poll.
+       | "pending";   // AMENDED: enabled, not yet attempted.
   lastAttemptAt?: string;
   lastSuccessAt?: string;
   lastError?: string;      // short, human-readable
@@ -448,8 +452,15 @@ Known limitations:
 
 Fetch plan:
 1. `GET https://us.prairielearn.com/pl/` → student home lists enrolled course
-   instances with links `/pl/course_instance/{id}`. Take all; the list is already
-   current-term biased. Per-course toggles handle stragglers.
+   instances with links `/pl/course_instance/{id}`. **AMENDED 2026-09-27**
+   (docs/prairielearn-findings.md, "The student home page"): take the links in the
+   *student* Courses table only (`table[aria-label="Courses"]` or `"Courses with student
+   access"`, inside the `data-component="HomeCards"` region). The instructor card's
+   `/pl/course_instance/{id}/instructor` links and its "Older instances" are not
+   enrolments, and an invitation row has no link. The list is already current-term
+   biased; per-course toggles handle stragglers. PrairieLearn's own empty-state card
+   ("No courses found…", or the "Students / Add a course and start learning." card) is
+   state `empty`, not a parse error; a region with neither a table nor that card is.
 2. `GET /pl/course_instance/{id}/assessments` → one table headed "Assessments" with
    columns: badge, name, **Available credit**, **Score**. Rows are grouped under bold
    heading rows that are the course's own groupings (`Module 4. Floating Point`,
@@ -785,6 +796,7 @@ runSync(trigger):
       raw = parseAll(pages)                    // via offscreen document
       replace this source's raw items in store (atomic per source)
       mark ok
+    catch SourceEmpty: mark empty(reason), drop this source's rows, no backoff  // AMENDED 2026-09-27
     catch ParseError: mark parse_error(message), backoff
     catch NetworkError: mark network_error, backoff
   items = dedupe(allRaw, overrides)

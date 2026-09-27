@@ -11,6 +11,7 @@ import type { Gate0Result } from "./gate0.js";
 import type { ParserId } from "./sources/registry.js";
 import type { GradescopeCourse } from "./sources/gradescope.js";
 import type { SmartPhysicsCourse } from "./sources/smartphysics.js";
+import type { HomeReading } from "./sources/prairielearn.js";
 import type { SyncTrigger } from "./core/sync.js";
 import type { CourseSummary } from "./core/overrides.js";
 import type { SetupRow } from "./core/setup.js";
@@ -276,6 +277,7 @@ export type OffscreenRequest =
   | { target: "offscreen"; type: "parse"; parserId: ParserId; html: string; page: PageCtx }
   | { target: "offscreen"; type: "parse-gradescope-dashboard"; html: string }
   | { target: "offscreen"; type: "parse-smartphysics-courses"; html: string }
+  | { target: "offscreen"; type: "parse-prairielearn-home"; html: string }
   | {
       target: "offscreen";
       type: "run-adapter";
@@ -306,6 +308,9 @@ export type ParseResponse =
   // Named separately from `courses` so the two cannot be confused at the
   // boundary: both are "a list of courses" and neither is the other's shape.
   | { ok: true; smartPhysicsCourses: SmartPhysicsCourse[] }
+  // PrairieLearn's home yields a reading — course instances, or the page's own
+  // statement that there are none — not items (§4.3 step 1, roadmap I46).
+  | { ok: true; prairieLearnHome: HomeReading }
   | { ok: true; candidates: Candidate[]; reason?: string }
   | { ok: false; error: SerializedError };
 

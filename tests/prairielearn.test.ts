@@ -16,6 +16,8 @@ import {
   parseAvailableCell,
   parseCreditCell,
   parseCreditSchedule,
+  emptyReason,
+  parseHome,
 } from "../src/sources/prairielearn.js";
 import { wallClockToIso } from "../src/core/dates.js";
 import { formatDue } from "../src/core/grouping.js";
@@ -1004,5 +1006,242 @@ describe("isLoginResponse", () => {
       true,
     );
     expect(isLoginResponse(200, page.url, fixtureHtml)).toBe(false);
+  });
+});
+
+/**
+ * §4.3 step 1 as amended 2026-09-27 (roadmap I46). Sushi: *"prairielearn also
+ * shows unable to read when theres no classes/assignments on there."*
+ *
+ * Every fixture here is **constructed, not a capture** — built from
+ * PrairieLearn master's templates (fixtures/prairielearn/README.md). No `/pl/`
+ * home capture exists yet; the ask is recorded in PROGRESS.md.
+ */
+describe("parseHome (constructed from upstream templates)", () => {
+  const home = (name: string) =>
+    docFrom(
+      readFileSync(new URL(`../fixtures/prairielearn/${name}`, import.meta.url), "utf8"),
+    );
+  /** A region holding `inner`, with the props script first, as `<Hydrate>` emits it. */
+  const region = (inner: string) =>
+    docFrom(
+      `<html><body><script type="application/json" data-component="HomeCards" data-component-props>{}</script>` +
+        `<div data-component="HomeCards" class="js-hydrated-component">${inner}</div></body></html>`,
+    );
+  const table = (rows: string) =>
+    `<div class="card mb-4"><div class="card-header"><h2>Courses</h2></div>` +
+    `<table aria-label="Courses"><tbody>${rows}</tbody></table></div>`;
+  const row = (href: string, label = "CS 1: x, Fall 2026") =>
+    `<tr><td><a href="${href}">${label}</a></td></tr>`;
+
+  it("reads the student table only: three enrolments and one invitation", () => {
+    const reading = parseHome(home("home-courses-CONSTRUCTED.html"));
+    expect(reading).toEqual({
+      kind: "courses",
+      courseInstanceIds: ["224254", "224300", "224301"],
+      invitations: 1,
+    });
+  });
+
+  it("never reads an instructor link, an older instance, or the props script", () => {
+    // 301 and 299 are the instructor card's current and "Older instances"
+    // links; 999999 and 777777 are only inside the props JSON. The old body
+    // regex returned 301 and 299 (pl-empty finding 2) and would fetch them.
+    const html = readFileSync(
+      new URL("../fixtures/prairielearn/home-courses-CONSTRUCTED.html", import.meta.url),
+      "utf8",
+    );
+    // The traps are really in the fixture, or this test proves nothing.
+    for (const trap of ["/pl/course_instance/301/instructor", "/pl/course_instance/299/instructor", "999999", "/pl/course_instance/777777"]) {
+      expect(html).toContain(trap);
+    }
+    const reading = parseHome(docFrom(html));
+    expect(reading.kind).toBe("courses");
+    const ids = reading.kind === "courses" ? reading.courseInstanceIds : [];
+    for (const id of ["301", "299", "999999", "777777"]) expect(ids).not.toContain(id);
+  });
+
+  it("reads PrairieLearn's own empty-state cards as no courses", () => {
+    expect(parseHome(home("home-empty-CONSTRUCTED.html"))).toEqual({
+      kind: "none",
+      reason: "no-courses",
+    });
+  });
+
+  it("reads 'No courses found with student access' as instructor-only", () => {
+    expect(parseHome(home("home-instructor-only-CONSTRUCTED.html"))).toEqual({
+      kind: "none",
+      reason: "instructor-only",
+    });
+  });
+
+  it("reads a plain 'No courses found.' body as no courses", () => {
+    const doc = region(
+      `<div class="card mb-4"><div class="card-header"><h2>Courses</h2></div>` +
+        `<div class="card-body">No courses found. Use the "Add course" button to add one.</div></div>`,
+    );
+    expect(parseHome(doc)).toEqual({ kind: "none", reason: "no-courses" });
+  });
+
+  it("counts a course titled with the empty-state sentence as a course (rule 12)", () => {
+    // 224300 is "CS 199: Add a course and start learning., Fall 2026" and 224301
+    // is titled "Students": both markers' words, inside a real row.
+    const reading = parseHome(home("home-courses-CONSTRUCTED.html"));
+    expect(reading.kind === "courses" && reading.courseInstanceIds).toContain("224300");
+    expect(reading.kind === "courses" && reading.courseInstanceIds).toContain("224301");
+  });
+
+  describe("fails loud rather than reading nothing", () => {
+    it("throws when the HomeCards region is gone", () => {
+      expect(() => parseHome(docFrom("<html><body><table aria-label=\"Courses\"><tbody>" + row("/pl/course_instance/1") + "</tbody></table></body></html>"))).toThrow(ParseError);
+    });
+
+    it("never takes the props script for the region", () => {
+      // `<Hydrate>` puts the script first. A script-only page has no region.
+      const doc = docFrom(
+        `<html><body><script type="application/json" data-component="HomeCards" data-component-props>{"x":1}</script></body></html>`,
+      );
+      expect(() => parseHome(doc)).toThrow(/no HomeCards region/);
+      // And with both present, the div is read.
+      expect(parseHome(region(table(row("/pl/course_instance/5"))))).toMatchObject({
+        courseInstanceIds: ["5"],
+      });
+    });
+
+    it("reads nothing outside the HomeCards region", () => {
+      // Deliberately unrealistic: no real home has a "Courses" table or a
+      // Students empty-state card outside the hydrated region. They are here
+      // because the region scoping is otherwise indistinguishable from the
+      // aria-label and heading checks (parser rule 10) — every real shape
+      // outside the region already fails those.
+      const outside =
+        `<div class="card"><table aria-label="Courses"><tbody><tr><td><a href="/pl/course_instance/888">x</a></td></tr></tbody></table></div>` +
+        `<div class="card"><h3 class="card-title">Students</h3><p class="card-text">Add a course and start learning.</p></div>`;
+      const page = (inner: string) =>
+        docFrom(
+          `<html><body>${outside}<div data-component="HomeCards">${inner}</div></body></html>`,
+        );
+      expect(parseHome(page(table(row("/pl/course_instance/5"))))).toMatchObject({
+        courseInstanceIds: ["5"],
+      });
+      expect(
+        parseHome(
+          page(
+            `<div class="card"><div class="card-header"><h2>Courses with student access</h2></div>` +
+              `<div class="card-body">No courses found with student access.</div></div>`,
+          ),
+        ),
+      ).toEqual({ kind: "none", reason: "instructor-only" });
+    });
+
+    it("throws on a Students card whose sentence is different", () => {
+      const doc = region(
+        `<div class="card"><h3 class="card-title">Students</h3><p class="card-text">Something new.</p></div>`,
+      );
+      expect(() => parseHome(doc)).toThrow(/neither a Courses table nor an empty-state card/);
+    });
+
+    it("matches the empty-state sentence exactly, not by containment", () => {
+      // Deliberately unrealistic: the sentence plus more. A loosened
+      // `includes("Add a course")` would call this page empty.
+      const doc = region(
+        `<div class="card"><h3 class="card-title">Students</h3>` +
+          `<p class="card-text">Add a course and start learning. Your 3 courses are loading.</p></div>`,
+      );
+      expect(() => parseHome(doc)).toThrow(ParseError);
+    });
+
+    it("needs the Students title as well as the sentence", () => {
+      const doc = region(
+        `<div class="card"><h3 class="card-title">Instructors</h3>` +
+          `<p class="card-text">Add a course and start learning.</p></div>`,
+      );
+      expect(() => parseHome(doc)).toThrow(ParseError);
+    });
+
+    describe("the 'No courses found' body is read exactly where it is written", () => {
+      // Deliberately unrealistic inputs (parser rule 10): every real home
+      // either has this body as the card's direct child, under a Courses
+      // heading, opening with the sentence — or has no such body at all. A
+      // looser reading is indistinguishable on real pages, so these separate it.
+      const card = (heading: string, body: string) =>
+        region(`<div class="card"><div class="card-header"><h2>${heading}</h2></div>${body}</div>`);
+
+      it("must open with the sentence", () => {
+        expect(() =>
+          parseHome(card("Courses", `<div class="card-body">Loading. No courses found.</div>`)),
+        ).toThrow(ParseError);
+      });
+
+      it("must be the card's own body, not one nested deeper", () => {
+        expect(() =>
+          parseHome(
+            card("Courses", `<div class="news"><div class="card-body">No courses found.</div></div>`),
+          ),
+        ).toThrow(ParseError);
+      });
+
+      it("must sit under a Courses heading", () => {
+        expect(() =>
+          parseHome(card("Announcements", `<div class="card-body">No courses found.</div>`)),
+        ).toThrow(ParseError);
+      });
+    });
+
+    it("throws when every row's link is an instructor link", () => {
+      const doc = region(table(row("/pl/course_instance/301/instructor")));
+      expect(() => parseHome(doc)).toThrow(/course row without/);
+    });
+
+    it("throws on a Courses table with no rows", () => {
+      expect(() => parseHome(region(table("")))).toThrow(/no rows/);
+    });
+
+    it("throws on two rows for one course instance (KeyGuard)", () => {
+      const doc = region(table(row("/pl/course_instance/7") + row("/pl/course_instance/7/")));
+      expect(() => parseHome(doc)).toThrow(/duplicate course instance 7/);
+    });
+  });
+
+  it("calls a table of invitations only a state, not a course list", () => {
+    const invite =
+      `<tr class="table-warning"><td><span>CS 411: DB, Fall 2026</span>` +
+      `<form method="POST"><input type="hidden" name="__action" value="accept_invitation" /></form></td></tr>`;
+    expect(parseHome(region(table(invite + invite)))).toEqual({
+      kind: "none",
+      reason: "invitations-only",
+      invitations: 2,
+    });
+  });
+
+  it("gives each empty reading its own sentence", () => {
+    expect(emptyReason({ kind: "none", reason: "no-courses" })).toBe(
+      "PrairieLearn lists no courses for you",
+    );
+    expect(emptyReason({ kind: "none", reason: "instructor-only" })).toBe(
+      "PrairieLearn lists no courses with student access — you have instructor access only",
+    );
+    expect(emptyReason({ kind: "none", reason: "invitations-only", invitations: 1 })).toBe(
+      "PrairieLearn has 1 course invitation you have not accepted",
+    );
+    expect(emptyReason({ kind: "none", reason: "invitations-only", invitations: 3 })).toBe(
+      "PrairieLearn has 3 course invitations you have not accepted",
+    );
+  });
+});
+
+describe("an assessments page with no assessments", () => {
+  it("is an empty list, not a parse error", () => {
+    // Upstream studentAssessments always renders the <thead>; a course with
+    // nothing published yet is that header alone. Constructed fixture.
+    const html = readFileSync(
+      new URL("../fixtures/prairielearn/assessments-empty-CONSTRUCTED.html", import.meta.url),
+      "utf8",
+    );
+    const items = parseAssessments(docFrom(html), {
+      url: `${PRAIRIELEARN_ORIGIN}/pl/course_instance/224301/assessments`,
+      fetchedAt: page.fetchedAt,
+    });
+    expect(items).toEqual([]);
   });
 });

@@ -8,6 +8,7 @@
 
 import { currentTermCourses } from "./sources/gradescope.js";
 import { parseCourseList as parseSmartPhysicsCourseList } from "./sources/smartphysics.js";
+import { parseHome as parsePrairieLearnHome } from "./sources/prairielearn.js";
 import { getParser } from "./sources/registry.js";
 import { runAdapter } from "./sources/site.js";
 import { noCandidateReason, searchCandidates } from "./core/detect.js";
@@ -30,6 +31,10 @@ chrome.runtime.onMessage.addListener(
         // Same reason as the Gradescope dashboard: the enrolment list yields
         // courses, not RawItems.
         sendResponse({ ok: true, smartPhysicsCourses: parseSmartPhysicsCourseList(doc) });
+      } else if (message.type === "parse-prairielearn-home") {
+        // Same reason again: the home page yields course instances or the
+        // page's own "no courses" statement, never RawItems.
+        sendResponse({ ok: true, prairieLearnHome: parsePrairieLearnHome(doc) });
       } else if (message.type === "run-adapter") {
         // §4.5's runner needs the adapter alongside the DOM, which the RawItem
         // protocol does not carry, so it gets its own op.
