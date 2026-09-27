@@ -86,3 +86,23 @@ for (const kind of ["theme", "viewport"]) test(`gate rejects mislabeled ${kind} 
     assert.ok(f.check().some((e) => e.includes("mismatched capture metadata")));
   } finally { f.clean(); }
 });
+
+/*
+ * The acceptance allowlist must name every message the stub answers.
+ *
+ * `preview-data.ts` handles requests in a chain of `req.type === "…"` branches
+ * and, under `?acceptance=1`, refuses anything outside a second, hand-typed
+ * `known` set. The two lists were written apart and drifted: `override`,
+ * `set-course-name` and the Google Calendar messages were handled and refused,
+ * so a held press on Hide answered "Preview does not simulate override" over a
+ * row that stayed. A list spelled twice is a list a test has to hold together.
+ */
+test("the acceptance allowlist names exactly the message types the stub handles", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, "preview-data.ts"), "utf8");
+  const handled = new Set([...source.matchAll(/req\.type === "([a-z-]+)"/g)].map((m) => m[1]));
+  const block = /const known = new Set\(\[([\s\S]*?)\]\);/.exec(source);
+  assert.ok(block, "the `known` set is declared as a literal array");
+  const listed = new Set([...block[1].matchAll(/"([a-z-]+)"/g)].map((m) => m[1]));
+  assert.deepEqual([...handled].sort(), [...listed].sort());
+});

@@ -2,13 +2,378 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2680 tests) all pass. Three tests in
-`popup-draw.test.ts` read `Date.now()` and fail whenever the timeline rail is not drawn —
-the Sunday evening of 2026-09-20, and again at 23:43 on 2026-09-23 (on clean `main` too).
-They still have no pinned clock.
+`npm run build`, `npm run typecheck`, `npm test` (3000 tests) all pass, at any hour: the
+three `popup-draw.test.ts` tests that read `Date.now()` and failed every evening from 22:00
+have had their clock pinned since 2026-09-27, and the suite no longer depends on the
+machine's load or locale or on the last build.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## The clean run of 1.3.2, and what it found — 2026-09-27
+
+*"do a clean run of the current dist so far in illini-due and check roadmap-ideas, i want to
+improve the user experience as well as fix all the bugs so far. prairielearn also shows
+unable to read when theres no classes/assignments on there."*
+
+The baseline was clean: typecheck, 2710 of 2711 tests (the miss a wall-clock bound), no
+console errors in any popup state, dark first. Ten read-only finders then walked the build
+with one lens each — known open items, the roadmap, the live popup and Settings in headless
+Chrome, the 1.3.2 diff, the PrairieLearn design, the suite, the sync loop's state, the copy,
+the keyboard — and returned 118 findings. The planned three-refuters-per-finding stage was
+cut (the 2026-09-19 lesson: a verifier fleet is insurance nobody asked for); the
+load-bearing claims were checked by hand against the code instead, and two of them turned
+out to be the gate-class defects below. Eight coding lanes in disjoint files, one build at
+the end, and the real popup measured once. Findings deferred are listed under "Open" at the
+end of these entries; the ones only a browser can settle are under "Still Sushi's".
+
+Build, typecheck and all 3000 tests pass (2711 before this batch); `npm run test:ui-workflow` 19 of 19. Version 1.3.3. G4/G5 unchanged.
+
+## PrairieLearn with no course is "No courses", not "Couldn't read" — 2026-09-27
+
+*"prairielearn also shows unable to read when theres no classes/assignments on there."*
+
+§4.3 step 1 was a regex over the whole `/pl/` body for `/pl/course_instance/(\d+)`
+(`sync.ts:308`), and zero hits threw `ParseError` → `parse_error`: "Couldn't read" on the
+setup screen and in Settings, "PrairieLearn looks different" in the footer, a red `!` on
+the badge, and §6's 30→240-minute ladder. PrairieLearn keeps an instance on the student's
+home only while the date is inside it (`home.sql`), so every CS student meets this over a
+term break, and a Gies or LAS student meets it the day they sign in. The same regex swept
+up the instructor card's `/course_instance/{id}/instructor` links and its "Older
+instances", so a TA fetched every instance they ever staffed. There was no capture of the
+home page at all, healthy or empty; the sync test served the assessments page as the home.
+
+PrairieLearn is open source, and its templates say what the page prints. A student with no
+course gets two cards ("Students" / "Add a course and start learning." / an "Add course"
+button, "Instructors" / a request-course link); a student with instructor access and no
+student course gets a "Courses with student access" card whose body opens "No courses
+found"; a healthy page renders `table[aria-label="Courses"]` of
+`/pl/course_instance/{id}` links inside a `data-component="HomeCards"` region. The
+assessments page always renders its table with a header, so a course with nothing on it
+is `[]`, not a throw — pinned now.
+
+**What changed.** A pure `parseHome(doc)` in `src/sources/prairielearn.ts`: the first
+non-script `HomeCards` region (the hydration props `<script>` carries the same attribute
+and comes first — the design missed that and would have thrown on every page), the student
+table first so a course *titled* "Add a course and start learning." is a course (rule 12),
+invitation rows counted but not fetched, links matched by an anchored pattern that
+`/instructor` cannot pass, `KeyGuard`, then the two empty shapes by exact text on the
+smallest element (rule 6), else `ParseError` (rule 2). A new source state **`empty`**
+(`SOURCE_STATES` in `types.ts`, `SourceEmpty` beside `SourceDisabled` in `sync.ts`): read
+fine, and the page positively says there is nothing — no failure counted, no backoff, the
+rows it held dropped and logged, `lastSuccessAt` stamped, re-read every poll so joining a
+course flips it to `ok` unaided, and re-read after a navigation on prairielearn.com the way
+a login is. It was not `disabled`: measured against every consumer, `disabled` while
+enabled printed "Off" beside a switch that was on, "Checking…" forever on the setup
+screen, and "No sources are switched on" when it was the only source — an instruction to
+turn on a source that is on. smartPhysics with no enrolment now reports `empty` too; "no
+course sites are enabled" stays `disabled`.
+
+Every surface reads it (Lane B): kept out of "n of m" and out of `failing`; the footer
+says "nothing to read" when every enabled source is empty and takes its clock from
+checkable plus empty; the badge is blue with "PrairieLearn lists no courses for you"; the
+empty state says so; the stale notice skips it; the Sources tab says **No courses** with a
+**Turn off** button (`{ kind: "off" }` in `actionFor`, the button in `shell.ts` saying
+"Turning off…" and routing a refusal through the correction path); Settings' chip is grey.
+`STATE_WORD` is compile-checked against `SourceState` and `STATE_PHRASE` is the one table
+of verbs for the badge, footer, pill, empty state, setup summary and Sources notice. The
+store validates a stored state (`isSourceState`; an unknown one becomes `pending`, which
+`displayState` re-derives from `lastAttemptAt`).
+
+Fixtures are **constructed from PrairieLearn master**, four of them, each labelled in
+`fixtures/prairielearn/README.md` with the rows that are deliberately unrealistic (an
+out-of-region "Courses" table, a props script planted with a joined path, the adversarial
+title). Production may lag master; the one capture that settles it is under "Still
+Sushi's". `docs/prairielearn-findings.md` has the home-page section; SPEC §3, §4.3 step 1
+and §6 are rewritten in place; roadmap I46 is partial (PrairieTest's "no CBTF course"
+shape still needs a capture from a student who has none — the mechanism is one `throw new
+SourceEmpty` in its missing-card branch).
+
+Mutations: 60 count-asserted over `sync.ts` and `prairielearn.ts`, 53 dead on the first
+run; six survivors were untested or order-bound and died once the input existed; two of the
+design's planned mutations could not fail against its planned tests (region scoping is
+masked by the exact aria-labels; the loosened marker is never reached while a table is
+present) and are killed by deliberately unrealistic inputs, labelled as such; one stays,
+the prefix colon in `stillExpected`, unreachable while no source name prefixes another.
+34 more over `health.ts`, `names.ts`, `setup.ts`, `options/dom.ts` and `observer-ui.ts`,
+all dead. The store guard's mutation died. Still owed: a full review of the sync-loop
+change, per the review policy.
+
+## One failing course site no longer loses its rows; Canvas may be empty over a break — 2026-09-27
+
+**A gate-class defect, found by reading the code behind roadmap I47.** `syncSites`
+returned `ok` with the surviving adapters' rows when one adapter among several failed,
+and `applySync`'s ok branch dropped every `site:` row before re-adding the survivors — so
+the failed course's deadlines vanished behind a green dot until its next successful read,
+with only a `console.warn` to say so. With nine registry adapters and two courses split
+across two pages by design, a transient 5xx on one half of ECE 411 removed its MPs and
+kept its exams. The test "isolates one failing adapter from the others" asserted `ok` and
+was pinning the defect (worker rule 6); it is rewritten. `syncSites` now returns each
+adapter's answer; `applySync` replaces rows per adapter for the ones that answered, keeps
+and marks seen the failed one's, records the worst adapter's kind (parse over network)
+with `lastError` "1 of 2 course sites failed — cs998-fa26: Failed to fetch (kept 5
+row(s))", and arms §6's ladder as for any failure. Both branches are logged per adapter.
+Adapters are fetched through one pool per host (worker rule 9) instead of one at a time.
+No store schema change: per-adapter status in Settings › Course websites is still to do.
+
+**Canvas over a term break.** The N→0 guard's PrairieTest-only exemption is now a
+per-source "would the page still list this row" rule (`STILL_LISTED`): Canvas's trailing
+edge is read off `plannerUrl`'s own `start_date`, so the guard and the fetch cannot drift;
+an undated held row still trips it; PrairieLearn's rule is "its instance is still on the
+home". When the guard fires, `lastError` names the rows it is still waiting on; when it
+accepts a zero it says so in the console. Gradescope keeps "any N→0 trips".
+
+**`lastAttemptAt` is the attempt's start** (`plan.at`) on every branch, so a sign-in that
+finishes during the fetches is re-checked on return — the 2026-09-12 clean-profile defect,
+which had been reintroduced for any sign-in that overlapped a sync. `health.ts`'s comment
+that it is "stamped when the sync starts" was wrong and is now true; the code was brought
+to the comment.
+
+## A sync asked for during a sync was dropped, and every Open made a new tab — 2026-09-27
+
+Carried in PROGRESS as *"Still open — PrairieLearn and PrairieTest have a delay to show
+connected"*. The worker's gate was `if (running) { await running; return { skipped: true
+} }`: a second request was not queued, not coalesced and not logged. PrairieLearn's and
+PrairieTest's login pages are on their own hosts, so the login page's own load fires a
+recheck that finds them still signed out, and the post-SSO landing's recheck arrives while
+that one is in flight and is dropped; the popup's open-sync swallowed its own login
+recheck the same way, and `syncAfterEnable`'s manual sync after a switch was dropped
+behind a plan made before the switch. Canvas signs in on login.illinois.edu, so its only
+navigation on its own host is the one after login — which is why only PL and PT lagged.
+
+`src/core/sync-gate.ts` runs one sync at a time and turns a request made mid-run into one
+follow-up, coalesced to the strongest trigger (manual > recheck > install > alarm),
+started after the run settles and planned against the store as it is then. A `popup`
+request is answered by the run in flight (its debounce would skip the follow-up). Every
+branch logs. `src/core/tabs.ts` (I60) focuses the tab already showing a page (same origin,
+path and query; the fragment ignored; the current window preferred) and otherwise opens
+one; a tab Chrome returns without a URL never matches, so no `tabs` permission is needed.
+Sign in, Open, ⌘-click, the reminder click, the Piazza post and the PrairieTest reserve
+link route through it; calendar templates, extension pages, middle-click and "Open all
+sign-in pages" (deliberately background tabs) do not. 25 mutations, all dead once the one
+untested case (an alarm during a run is followed up) had a test.
+
+## Every surface reads a source's state through one table — 2026-09-27
+
+The setup screen's chip said **Connected** for a source whose latest attempt had failed,
+and counted it in "All N connected", because both read `lastSuccessAt` (a Gradescope that
+read once and failed since); `tests/setup.test.ts` pinned it. The chip is now core
+`setupChip` (`displayState` + `STATE_WORD` + `toneOf`), `connected` counts `ok` or
+`empty`, and "Checking…" is drawn only on the sources the running plan attempts — the
+worker publishes the plan's `attempting` list in session storage and logs both the
+attempted and the resting branches. The summary names what each source still needs ("1 of
+5 connected. Sign in to Gradescope. PrairieLearn didn't answer.") instead of promising
+sign-in pages for sources that need none. The first-run group switch reads the worker's
+refusal: it puts the box back, says why, and does not refresh (UI rules 2 and 4).
+
+One vocabulary: the badge says "didn't answer" / "looks different" like the footer instead
+of "could not be read"; the Sources notice says "needs you to sign in · last read 13 hours
+ago" instead of "signed you out 13 hours ago", a moment the extension does not know; the
+setup screen says "Off" like Settings (one state with two names on two screens is what the
+2026-09-19 change removed; `empty` now gives the screen its own word for "on, nothing
+there"); Piazza and Campuswire say "Couldn't read" and "Waiting for a feed" on the Sources
+tab as in Settings; "No sites are switched on"; and the footer no longer says "syncing…"
+beside the Sync button's own "Syncing…" (the busy word belongs on the control, UI rule 4).
+"items" stays where the count includes bookings and events.
+
+## Settings reports every refused press on its own row — 2026-09-27
+
+Driven with real held presses under the acceptance stub: the Gradescope switch, a course
+switch, the "24 hours" chip and a course rename all sprang back with no sentence anywhere.
+Eleven sites were `void send(…).then(refreshOptions)`; Settings had never adopted
+`core/outcome.ts`. On a hand-typed hidden row, **Unhide was painted under Trash** (two bare
+buttons in one grid cell; the irreversible action sat exactly where the safe one appeared
+to be). "Prepare report" and "Read this page" left "Fetching…" on screen for good with the
+button live. Quiet-hours validation landed 1674px below its row. A stale worker drew two
+banners with the same sentence, the second naming code fields.
+
+The decisions moved out of `options.ts` into four linkedom-reachable modules:
+`options/actions.ts` (`applyChange`: `actionOutcome`, restore the control, the reason in
+the row's own hint, no redraw on a refusal; buttons say "Applying…", switches get
+`aria-busy` rather than `disabled` so keyboard focus stays), `options/flows.ts` (`runFlow`
+for Prepare report, Read this page, Reset and both exports: disabled and relabelled while
+working, a rejection in the status line, a wrong-shaped answer named on screen — worker
+rule 8), `options/rows.ts` (the tidy row's two buttons in one `.srow2--actions`; labelled
+quiet-hours boxes; a labelled "How often to sync" select), `options/wording.ts` (the
+header built from `sourceRows`' own chip words instead of the pill's "All 5 OK"; one stale
+banner naming sections, raw fields on its title). Copy: "sign in" for "log in", "sync" for
+"check", the help paragraph lists its reasons instead of "three dead ends", the Google
+Calendar lede stops saying "Off until you turn it on." while it is on. The course-site ×
+keeps its glyph and gets a 24x24 hit area at 0.7 opacity. A refused removal restores ×
+instead of "Remove" (found on the way). 27 mutations, all dead. Left alone: `renderGcal`'s
+live switch on a stale worker (a peer session's uncommitted function); refusal persistence
+across an unrelated storage-change redraw. Measured in the real Settings document at 900px: Unhide at x 758–812 and Trash at 818–863 on the hand-typed hidden row, no intersection, both inside one `.srow2--actions`; every course-site × is 24x24 at opacity 0.7.
+
+## The popup from the keyboard — 2026-09-27
+
+Real CDP key sequences recorded where focus landed. Enter on Sync now, a banner's Sign in
+or Undo after any redraw, the Alerts and deadline-screen buttons, and every menu entry that
+closes its own menu left focus on `<body>`; Escape from a row menu stranded it on the
+tabIndex −1 ⋯, so ↑↓ stopped; Tab inside a menu walked out of the document, and from the
+rename box it took the typed name with it; a typed deadline with no link could be reached
+but not opened; every row announced as "… More actions" because the ⋯ `<button>` was nested
+inside the `<a class=row>`. `tests/focus.test.ts` asserted that Sync now gets no focus
+request, which pinned the first defect; Sync now was also `disabled` while syncing, so it
+could not hold focus at all.
+
+The card is a `div.row` with the same classes; the title is the ring stop (an `<a href>`,
+or a `span role=button` when there is no URL) and the ⋯ its sibling with `aria-haspopup`;
+the stop's `aria-label` carries the row's facts; Enter, Space, "." and Shift+F10 work on
+both shapes and mouse behaviour is unchanged, so no CSS selector moved. `focus.ts` has a
+`control` request for any rebuilt button plus one copy of the roving rule; `focusKeptIn`
+restores focus inside the three draws that rebuild the banners, footer and status (ZIP
+rule 1); Sync now uses `aria-disabled`/`aria-busy`; `closeMenus` hands focus back when
+the panel had it; Tab and Shift+Tab walk and wrap inside a menu and the rename box is in
+the ring. One hidden `#announce` live region, written once per changed sentence, carries
+refusals, "Deleted …", "Applying…" and sync start and end (`#status` is rebuilt every draw
+and a refusal is re-emitted per draw, so a live `#status` would re-announce it every
+minute). The month grid is one Tab stop with arrows, Home, End and a sentence per cell.
+The add panel is a named modal dialog that wraps Tab. Focus order follows the DOM
+(`popup.html`: footer after the header, tab strip last; the CSS `order`s keep the picture).
+A refusal in `#status` wraps instead of being clipped to "…refused that chang…". Tooltips
+say ⌘ or Ctrl by platform and name the source rather than its storage key; the editor says
+"the Alerts tab". The three rail tests in `popup-draw.test.ts` failed every evening from
+22:00 because now+1h fell into "By end of day"; the clock is pinned (Date only) and the
+file passes at a faked 23:00, 23:30, 09:00 and the DST Sunday. 38 mutations, all dead
+(one order-bound, one masked by a default equal to today's label, one mis-applied at
+count 0 and re-run). Measured in the real popup at 400x600, dark, with CDP key events: from the top, Tab walks Open full view → More → Settings → the sources strip → Sync now → the banner's Sign in, then the rows, then the tab strip last, which is the visual order; on a row, "." opens the menu with focus on its first item, Tab moves inside it, Escape returns to the row and ArrowDown moves to the next row; a refusal in `#status` measures 282px wide at 282px available and two lines tall, is repeated in `#announce`, and the pressed Turn off is back and enabled.
+
+## What the popup shows, placed, coloured and worded — 2026-09-27
+
+The last Exams card's ⋯ sat under the floating + at every scroll position (the 2026-09-22
+fix gave Week 43px and Month 55px and never reached this tab; the stress dataset passed
+only because its last card is taller): `#view > .exam-stack:last-child` carries 62px, and
+`tests/popup-clearance.test.ts` pins it like the other two. The empty Day, Alerts and Exams
+shapes put the + on the message; they carry the same real document height below the last
+thing drawn. Late cards on Alerts own their "Mark done" and "Hide" (a footer behind a
+hairline, CSS only). The week's card on the day a late window closes said only "19h late";
+`weekCardStatus` prints "late until 5:00 PM" / "80% until 11:59 PM" there, through the one
+late-window formatter, and the Today band is unchanged because it already draws the window
+on a second line. A row a Piazza post moved to a bare day said "The course site gives a
+date but no time"; `timeAuthor` / `timeNoteFor` name the post, the student or the source,
+and Alerts stops printing the observer's invented 11:59 PM as if stated ("Fri, Sep 25 ·
+end of day"). Light mode: the Exams tab's accent ink was a fill colour at 2.9:1 and is
+4.97:1 now, still terracotta; a `--warn-ink` fixes the warn count and the "Ambiguous date
+text" chip. The full view's tab strip was packed into the left 234px because the Classical
+`.tab { padding: 0 2px }` outranked the full-view rule; 96px tracks now, centred, with the
+badge hung off the icon. `tests/popup-clearance.test.ts` resolves any property through
+every sheet, composites washes and asserts contrast ratios.
+
+**A finding that was wrong, kept as a lesson.** open-bugs #15 called `#view .row-overdue
+{ border-color: var(--err) }` doubly dead. It is live: it loses only the left edge to the
+course rule and wins the other three by order; deleting it would have silently greyed
+three edges of every overdue plain-design card. It stays, with the correction beside it,
+and both halves are pinned by the cascade test. 37 mutations: 33 dead on the first run, one
+redundant guard deleted, one untested tone guard given a deliberately unrealistic test.
+Measured in the real popup at 400x600, dark: on the reference Exams tab at maximum scroll the last card's ⋯ is at y 420–448 and the + at 495–535 (47px clear; the element under the ⋯'s centre is the ⋯); at the popup's own height (261px on an empty Day) the message ends at 150, the + sits at 156–196 and the tab strip at 208–261, and Alerts and Exams measure the same way; every Late card contains its two buttons; in light mode the lowest text contrast on Exams is 4.85:1 and on Alerts 4.85:1; the full view at 1000x700 opens Month with today on screen, grid rows of 127–188px rather than one stretched height, and five 96px tabs centred with the badge at the icon's edge.
+
+## The suite's verdict depends on the code, not the machine — 2026-09-27
+
+Three `toBeLessThan(2_000)` bounds (`skeleton.test.ts` ×2, `detect.test.ts` ×1) measured
+the machine: the 12,000-element page takes 1.4–1.6 s alone and 2.2 s under another suite.
+A time *ratio* was tried and rejected — a linear search read 9.66× under two concurrent
+suites, and without the memo the real page only reached 5.66×, so no threshold separates
+load from a quadratic. Each test now counts whole-document `querySelectorAll` walks, the
+unit of the O(n²) the 2026-09-20 memo removed (112→196 with it, 743→2,915 without), with a
+10 s hang guard. 25 tests in five files failed under `LANG=en_GB`; `vitest.config.ts` pins
+`LANG`/`LC_ALL` beside `TZ` for the suite only (a student in Britain seeing 21:00 is
+correct; whether the popup should always print en-US is a product question, below).
+`tests/site.test.ts` read `dist/adapters/registry.json`, so a bare `npx vitest run`
+answered about the last build; it now reads `build.mjs`'s copy line and the worker's
+`getURL` from source. And §3.2's weekday cross-check was dead for every site adapter: the
+grammar consumed "Tue Sep 01" / "09/03 Thu." / "(Sun)" and passed `undefined` to
+`inferYear`. With no year the weekday now picks the adjacent year ("Wed 12/15" → 2027); a
+weekday no candidate matches, a stated year the weekday contradicts, or two weekdays that
+disagree leave the row undated with `unparsedDate` (parser rule 1); an invented row in
+`cs374a-fa2026-homeworks-adversarial.html` pins it and the README says so. 9 mutations,
+all dead.
+
+## Reminders: buttons, a week-out exam lead, a last-day booking nag, an alarm budget — 2026-09-27
+
+`reschedule` armed one alarm per (item, lead) with no cap; Chrome refuses an extension's
+501st, and the loop would have thrown mid-way with nothing on screen. `armable(plans,
+400)` arms the soonest and the worker logs the overflow (I28). Toasts had no buttons:
+deadline toasts now carry **Snooze 1h** and **Done** (the student's tick, not a hide) and
+booking nags **Snooze 1h**; the body is Open; Chrome allows two. A snooze writes
+`notified.snoozeUntil`, `planNotifications` plans one `snooze` lead from it under quiet
+hours and never past the deadline, and `recordFired` spends it (I13). Exams get a `7d`
+lead ("CS 357: Quiz 1 is in a week", with date, room and length), off a stated instant
+only; a booking's `dueAt` is its window start, so it gets no countdown (I18). On the last
+day of a CBTF window every booking toast says "Last day to book a seat", a `bookingLast`
+toast fires at 18:00 once, the nag stops at the window's end, and one "Missed the
+reservation window" notice fires if the item is still there, never repeated (I40). The
+2h, late2h, bookingLast and snooze toasts set `requireInteraction`. Toasts, the .ics and
+the Google link name the course through `courseLabel` like every other surface (they had
+the renamed *title* already; only the course label was raw). The morning-of toast said
+"due Friday, Sep 26" on Friday; it counts calendar days now. The .ics carries the late
+window as a second event, and the push and the export share one `exportLegs` so they
+cannot drift again (I66). §7 amendments recorded: a student-requested snooze lead; an
+exam 7d lead; a second booking toast on the last day; no nag after the window and one
+missed notice; `requireInteraction` on the last lead. 39 mutations, all dead (two
+untested cases given tests, one redundant case deleted, one mis-applied at count 2 and
+re-run). Left alone: I26's morning digest (replacing per-lead toasts amends §7 and needs
+a store field), a Settings toggle for the 7d lead, §4.4's three-day "missed" row
+(retention, and a VERIFY on whether PrairieTest keeps past-window cards). On a Mac,
+Chrome's toasts hide the buttons behind the chevron; `docs/beta-install.md` says so.
+
+## Open after the clean run — not fixed, and why
+
+- **Google Calendar (six findings), left for the session that owns that code.** A peer
+  session has uncommitted work in `gcal-auth.ts`, `gcal-client.ts`, `store.ts` and
+  `renderGcal`, so nothing here touched them. Found: a calendar deleted in Google is never
+  recreated although the "Calendar gone" chip says the next sync will (`calendarId` is
+  cleared only by Disconnect, so every push 404s at the first insert forever — one pure
+  `forgetMissingCalendar` in `store.ts` called from the `calendar-missing` branch fixes
+  it); an interrupted first push settles to `never`, which Settings draws as "Off" beside
+  a switch that is on (settle to `declined`); `accountOf` refuses `creator.self === false`
+  on a secondary calendar where the creator is never self; `learnAccount`'s three
+  decisions live in the worker; the lane's coalescing drops the second caller's consent
+  window; two events with one tag collapse in `listEvents`. Details in the finders' JSON
+  under the session scratchpad and in the 2026-09-25 entry's own "not observed" list.
+- **Per-adapter status in Settings › Course websites** (I47's UI half): the loop now keeps
+  a failed adapter's rows and names it in `lastError`; a per-adapter row needs a store
+  field.
+- **Gradescope at a term boundary** still trips the N→0 guard (any N→0), by design until
+  a rule for its dashboard is written.
+- **PrairieTest for a student with no CBTF course** (the open VERIFY): one `throw new
+  SourceEmpty` in the missing-card branch once a capture says what that page prints.
+- **§3.2's year rule never subtracts** ("Dec 15" read on Jan 3 lands a year ahead): a spec
+  amendment, Sushi's call.
+- **Whether the popup should always print en-US** or follow the student's locale: the
+  suite is pinned to en-US; the product question is open.
+- **Fresh install on a dark machine paints Settings light** (`DEFAULT_MODE` "light",
+  recorded 2026-09-19 as a decision) while "Match my system" is offered in Appearance.
+- **The one-shot-quiz false positive** stands (2026-09-18).
+- **Roadmap decisions still open:** I33 defer/snooze on a row (amends §7's daily nag),
+  I24 registrar deadlines, I10 side panel, I26 morning digest.
+- **Wave 2 candidates, no decision needed:** the "opens at" chip on a dated row (I36), the
+  deadline screen's per-source disagreement and age lines (I32, I12), a PrairieLearn row
+  whose credit popover failed and reads 40% disappearing under hide-done (I37 residual —
+  the honest fallback is `not_submitted` plus `unparsedSchedule`), the public ECE 391
+  exams page as a second registry entry (its "7-9PM CST" clock range needs the grammar
+  first), Canvas's coverage caveat on the popup's Sources view and first-run screen, an
+  Outlook deep link (I67), per-page isolation for hosted sources (one archived Gradescope
+  course's 404 fails the whole source), a three-week grace on `currentTermCode` before
+  2027-01-01 (I57), Canvas's undated external-tool rows as a "Lives elsewhere" group
+  (I82/I44), the PrairieTest post-exam rows with no reservation link (unverified capture).
+
+## Still Sushi's — after the clean run
+
+- **One capture: `https://us.prairielearn.com/pl/`** via Settings › Developer › Fixture
+  capture, signed in, scrubbed. The home parser and all three home fixtures are constructed
+  from PrairieLearn master, and production may lag it; this is the healthy shape the
+  parser must never mistake for empty. After downloading, search the file for
+  `data-component="HomeCards"` and `aria-label="Courses`. Both present: production matches
+  master, the constructed fixtures stand, and the capture replaces one. Only the
+  aria-label: production predates the React hydration; the region anchor moves to the
+  student table. Neither: send the file; the selectors are re-derived from it before
+  anything ships. Do **not** press "Remove course" on PrairieLearn to manufacture the
+  empty page; it unenrols you. The empty shape itself needs a student who has signed in and
+  has no course — a Gies/LAS tester, or any CS tester between terms.
+- Load the build and, with the popup open on the Week tab, press Tab twice and ArrowRight
+  once: focus should land on the Month tab, and the Sources tab's Turn off should not
+  appear on any source that has courses. (A one-minute check; everything else in this
+  batch was measured in the real preview document.)
 
 ## Rename a deadline, and rename its course, from the row menu — 2026-09-26
 
@@ -780,8 +1145,11 @@ commits, on top of 0f74bc2.
   `docs/ece411-findings.md` stands. Calendar: 90 rows of 93 (two `(time TBA)` rows are
   filtered, two `Fall Break` rows are character-identical and share a key).
 - **Still open.** The calendar's `(11:59pm)` and `7:00pm- 9:00pm` clocks inside `<dd>`
-  text; a trailing weekday is consumed but not cross-checked against the date; ECE 391's
-  exams page has no entry (a registry edit, not a decision).
+  text; ECE 391's exams page has no entry (a registry edit, not a decision). A weekday
+  printed before or after the date is cross-checked against it since 2026-09-27 (§3.2):
+  with no year it picks the matching adjacent year via `inferYear`; with a stated year,
+  or two weekdays that disagree, the contradiction leaves the row undated with
+  `unparsedDate`.
 - **Verified by Sushi in the real options page, 2026-09-20**: CS 425 `8 of 8 rows have a
   date this can read.` with the right instants and `Read from` text; ECE 374 A homeworks
   and GPS `11 of 11` each at 21:00 with the `defaultTime` note. Two papercuts in what he
@@ -2501,8 +2869,9 @@ tested or documented as unreachable.
   page to build it from.
 - `runAdapter` hard-codes `kind: "assignment"`, so ECE 411's midterms are labelled
   assignments; an adapter-level `kind` is the missing field.
-- `npm test` in a fresh checkout fails one test until `npm run build` has produced
-  `dist/adapters/registry.json`.
+- A bare `npx vitest run` no longer depends on the last build (fixed 2026-09-27):
+  `tests/site.test.ts` checks `build.mjs`'s copy of `adapters/` and the worker's
+  `getURL("adapters/registry.json")` from source instead of reading `dist/`.
 
 **Amendments recorded this day:** §4.3 (partial score, above); §4.5 (three new adapter
 fields, `docs/adapters.md`); §3.1/§3 (`manual` source keyed by an opaque id, `RawItem.url`
@@ -3972,7 +4341,7 @@ One defect, and one superseded claim:
 | 16 — adapters 2 and 3 | **Half done.** ECE 310 shipped (13 homeworks, verified by running the shipped runner over a real capture). A third is cheap now — see "Adapters" below. |
 | 17 — Canvas term filter | **Done**, see the resolved decision above. |
 | 18 — non-CS first look | Not started. Publisher-host naming + a Canvas "No date" section. |
-| 19 — PL/PT "not used by you" | Not started; the cheap half needs nothing from Sushi. |
+| 19 — PL/PT "not used by you" | **PrairieLearn done 2026-09-27** (state `empty`, "No courses", one-click Turn off; see the entry at the top). PrairieTest waits on a capture from a student with no CBTF course. |
 | 20 — first-run page | Not started. |
 | 21 — run G4 | Sushi's. |
 

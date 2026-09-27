@@ -488,7 +488,13 @@ const sources = {
       // path cannot occur in, because `sourcesToRecheck` debounces it. Dating
       // it `now` made the harness the only place that bug could not be seen.
       : { source: "gradescope", enabled: true, state: "needs_login", lastAttemptAt: new Date(now - 2 * 60_000).toISOString(), lastSuccessAt: new Date(now - 40 * 3600_000).toISOString(), lastError: "401 at https://www.gradescope.com/login", consecutiveFailures: 2 },
-  prairielearn: { source: "prairielearn", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+  // `?fail=plempty`: PrairieLearn read fine and positively lists no course for
+  // this student (state `empty`, 2026-09-27). Neither a failure nor a switched-off
+  // source, and unreachable in the harness until now — which is how a state can
+  // ship with a chip nobody has looked at.
+  prairielearn: query.get("fail") === "plempty"
+    ? { source: "prairielearn", enabled: true, state: "empty", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), lastError: "PrairieLearn lists no courses for you", consecutiveFailures: 0 }
+    : { source: "prairielearn", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   prairietest: { source: "prairietest", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   smartphysics: { source: "smartphysics", enabled: true, state: "ok", lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
   // `?fail=sitelogin`: the course-website source signed out. Its own state, not
@@ -616,10 +622,14 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
           rows: [
             { source: "canvas", label: "Canvas", hint: "Every UIUC course",
               enabled: true, status: { ...sources.canvas, state: "ok" } },
+            // The same statuses the rest of the page reads, so `?fail=` reaches
+            // this screen too. Hard-coded rows with no `lastAttemptAt` drew
+            // "Checking…" on every source whatever the state, which is how a
+            // chip could ship without anyone having looked at it (2026-09-27).
             { source: "gradescope", label: "Gradescope", hint: "Most CS, ECE and Math courses",
-              enabled: true, status: { source: "gradescope", enabled: true, state: "needs_login", consecutiveFailures: 1 } },
+              enabled: true, status: sources.gradescope },
             { source: "prairielearn", label: "PrairieLearn", hint: "CS and ECE homework and quizzes",
-              enabled: true, status: { source: "prairielearn", enabled: true, state: "pending", consecutiveFailures: 0 } },
+              enabled: true, status: sources.prairielearn },
             { source: "prairietest", label: "PrairieTest", hint: "Exams booked at the CBTF",
               enabled: false, status: { source: "prairietest", enabled: false, state: "disabled", consecutiveFailures: 0 } },
             { source: "smartphysics", label: "smartPhysics", hint: "PHYS 211, 212, 213 and 214 only",
@@ -1054,11 +1064,23 @@ if (query.has("acceptance")) {
   };
   const events: Record<string, unknown>[] = [];
   host.__UI_ACCEPTANCE__ = { dataset: dataset ?? "stress", events };
+  /*
+   * Every `req.type` the stub above answers. It was a second, hand-typed list
+   * and lacked `override`, `set-course-name` and the three Google Calendar
+   * messages — so no acceptance journey could ever cover Hide, Mark done,
+   * Rename or a course rename, the controls the 2026-09-19 pass found defects
+   * in, and each answered "Preview does not simulate …" over a row that did
+   * not change. `scripts/ui-acceptance.test.mjs` now holds this list against
+   * the handler branches, so the two spellings cannot drift apart silently
+   * (UI house rule 7, one level up).
+   */
   const known = new Set([
     "get-state", "get-options-state", "get-setup", "get-adapters", "ping", "sync",
     "add-manual-item", "edit-manual-item", "delete-manual-item", "complete-setup",
     "remove-local-adapter", "add-local-adapter", "set-adapter-enabled", "detect-adapter",
     "get-diagnostics", "export", "open-full-view",
+    "override", "set-course-name",
+    "gcal-connect", "gcal-disconnect", "gcal-push-now",
   ]);
   const original = host.chrome.runtime.sendMessage;
   host.chrome.runtime.sendMessage = async (req) => {

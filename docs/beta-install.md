@@ -74,7 +74,12 @@ Sign in to Canvas, Gradescope, PrairieLearn and PrairieTest in this browser if y
 not already. The extension can only read what you can read.
 
 **If you do not use one of them** — plenty of people never touch PrairieTest — open
-Settings with the gear icon and switch that source off. It stops being counted.
+Settings with the gear icon and switch that source off. It stops being counted. If
+PrairieLearn shows **No courses**, that is PrairieLearn's own answer for your account
+this term: leave it on if you expect to join a course, or press Turn off.
+
+**Reminders have Snooze and Done buttons.** On a Mac, Chrome's toasts hide the buttons
+behind the small chevron at the toast's corner; hover the toast to find it.
 
 **If you take PHYS 211, 212, 213 or 214**, switch **smartPhysics** on in Settings. It is
 off by default because most people are not in those courses, and it would otherwise sit
