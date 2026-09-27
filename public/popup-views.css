@@ -212,6 +212,39 @@
  */
 body[data-view="day"] #view > .tsection:last-child { margin-bottom: 58px; }
 
+/*
+ * The same room under an empty state (popup-live #9, 2026-09-27).
+ *
+ * With nothing due the document is short — 221px measured on an empty Day —
+ * and Chrome sizes the popup to it, so the "+" (52px above the pinned chrome,
+ * `placeQuickFab`) landed inside `#view`, level with "Nothing due in the next
+ * 60 days." (y 116–156 against a `#view` of 73–168), and on an empty Alerts or
+ * Exams over the message's own card. The rows' fix is real document height
+ * below the last thing drawn, and it is the only lever here too: a pixel of
+ * `min-height` on `html`/`body` is the popup-sizing trap, and a fixed element
+ * contributes no height at all.
+ *
+ * One rule per empty shape, each sized so its *ink* clears the button by at
+ * least Day's 16px:
+ *
+ *   - `.empty` and its sign-in buttons (`popup.ts`'s empty branch, for Day,
+ *     Week and Month alike): the sentence has 24px of its own padding under
+ *     it and the buttons 20, so 48 puts ≥ 72 / 68 between ink and strip in the
+ *     view with no `#view` padding (Month) and more in the other two.
+ *   - `.view-note`, the empty exam board: a bordered card on a tab whose
+ *     `#view` has no bottom padding, so the full 68.
+ *   - `.needsyou--clear`, the empty Alerts card: inside `.screen`, which
+ *     already gives 14 below it, so 54.
+ *
+ * Unscoped by design, like Day's 58 above: the "+" is on every tab in every
+ * design. `#view >` so none of these reaches the month agenda's own `.empty`,
+ * which sits inside `.mday-list` and is cleared by that card's 55.
+ */
+#view > .empty:last-child,
+#view > .empty--actions:last-child { margin-bottom: 48px; }
+#view > .view-note:last-child { margin-bottom: 68px; }
+#view > .needsyou:last-child > .needsyou--clear:last-child { margin-bottom: 54px; }
+
 /* ==========================================================================
  * The No date tab (D3, mock 2c), and the Exams board
  * ====================================================================== */

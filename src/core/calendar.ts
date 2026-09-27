@@ -26,7 +26,13 @@
  */
 
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
-import { countdown, liveDeadline, missedDeadline, withinOverdueWindow } from "./grouping.js";
+import {
+  countdown,
+  creditWindowText,
+  liveDeadline,
+  missedDeadline,
+  withinOverdueWindow,
+} from "./grouping.js";
 import { courseDepartment } from "./names.js";
 import { extractCourseCode } from "./normalize.js";
 import { unreadableDeadline } from "./quality.js";
@@ -1263,6 +1269,33 @@ export function weekStatus(item: Item, now: Date): string {
   if (tone === "overdue") return countdown(missedDeadline(item)!.at, now);
   if (anchor.assumed) return "EOD";
   return new Date(anchor.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * The week card's word, which differs from `weekStatus` on one row: overdue
+ * work whose late window is still open (popup-live #5, 2026-09-27).
+ *
+ * The week places a row by `anchorOf` — the window still open — so such a row
+ * sits on the card of the day the window *closes*. `weekStatus` would print how
+ * late it is ("19h late"), which is the Late band's question and is answered
+ * there; on a day card the only claim is "this is the day", and the row said
+ * nothing about why it was on it. So the card says what that day is, in the
+ * one late-window spelling (`creditWindowText`, without the weekday the card
+ * already shows): "80% until 11:59 PM", "late until 5:00 PM". It stays red —
+ * `itemTone` still says overdue — so "late" is not lost, only the count.
+ *
+ * `live.at !== missed.at` is §4.3's fallback shape: a row with no `dueAt`
+ * whose window has closed has the window as its *missed* instant too, and
+ * "until" a time already gone would be a promise the source withdrew.
+ */
+export function weekCardStatus(item: Item, now: Date): string {
+  const status = weekStatus(item, now);
+  if (itemTone(item, now) !== "overdue") return status;
+  const live = liveDeadline(item, now);
+  // No `live.late` test: on an overdue row a live instant that is not the
+  // missed one can only be the window (mutation rule 2 — it was redundant).
+  if (live === undefined || live.at === missedDeadline(item)?.at) return status;
+  return creditWindowText(item, new Date(live.at), "clock");
 }
 
 /* -------------------------------------------------------------------------- */

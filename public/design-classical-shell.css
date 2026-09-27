@@ -13,9 +13,7 @@ html[data-design="classical"] .wordmark {
   letter-spacing: -.01em;
   color: var(--brand-mark);
 }
-html[data-design="classical"] .bar { order: -2; }
 html[data-design="classical"] #footer {
-  order: -1;
   position: static;
   min-height: 28px;
   padding: 3px 16px;
@@ -211,3 +209,48 @@ html[data-design="classical"] .sug-actions .btn:not(.btn-primary) { color: var(-
  * that does not own the design's §1 tokens.
  * ====================================================================== */
 html[data-design="classical"] .banner-line { padding-inline: 16px; } /* was 12, from ui.css; the page gutter is 16 */
+
+/*
+ * The full view's tab strip (popup-live #4, 2026-09-27).
+ *
+ * `popup.css` sizes the full view's tabs content-first (`.view-full .tab {
+ * flex: none; padding: 0 16px }`, (0,2,0)), and this design's `.tab { padding:
+ * 0 2px }` at (0,2,1) beats the padding — so at 1000 and 1280px wide the five
+ * tabs shrank to their 38–44px icon columns, packed into x 8–234, labels
+ * touching, and the absolutely placed count ("12" on Alerts, "1" on Exams) at
+ * `right: 9px` of a 41px tab landed on the icon. A fixed track per tab, centred,
+ * is the popup's strip at the full view's size: the popup's fifths are ~76px,
+ * and 96 fits "Month" at 13.5px with the count clear of the glyph.
+ *
+ * `.view-full` is the marker the page sets from its own URL, never a width
+ * query (see the top of `popup.css`). (0,3,1)/(0,4,1) beat every `.tab` rule
+ * in this design; measure `getComputedStyle(tab).width` rather than trusting
+ * that (ZIP rule 5).
+ */
+html[data-design="classical"].view-full .tabs {
+  justify-content: center;
+  gap: 8px;
+}
+html[data-design="classical"].view-full .tab {
+  flex: 0 0 96px;
+  padding: 0 8px;
+}
+/* Against the icon's centre rather than the tab's edge, so the count sits at
+   the glyph's top right at any tab width: the icon is 20px, so +12 is 2px of
+   air. */
+html[data-design="classical"].view-full .tab .chip-count {
+  right: auto;
+  left: calc(50% + 12px);
+}
+
+/*
+ * The warn ink as *text* (popup-live #7, 2026-09-27). `--warn` #8a5a15 is the
+ * light palette's amber, and on its own 13% wash it measured 4.07:1 for the
+ * 9px count on the selected Exams tab and 4.33:1 for the 9.5px "Ambiguous date
+ * text" chip. #7a4f10 is the same hue a step down: 4.89:1 on the selected tab,
+ * 5.60:1 on an unselected one, 5.22:1 on the chip's wash. Dark passes already
+ * (0 elements under 4.5:1 in the sweep), so there it is `--warn` unchanged.
+ */
+html[data-design="classical"] { --warn-ink: #7a4f10; }
+html[data-design="classical"].is-dark { --warn-ink: var(--warn); }
+html[data-design="classical"] .tab .chip-count.is-warn { color: var(--warn-ink); }

@@ -47,6 +47,7 @@ import {
   quietDay,
   visibleItems,
   weekContents,
+  weekCardStatus,
   weekStatus,
   weekDays,
 } from "../src/core/calendar.js";
@@ -1994,6 +1995,74 @@ describe("weekStatus (brief D5, mock 1b)", () => {
 
   it("says nothing for a row with nothing to place", () => {
     expect(weekStatus(item({ title: "undated" }), NOW)).toBe("");
+  });
+});
+
+/*
+ * popup-live #5 (2026-09-27). The week places a row by `anchorOf` — the window
+ * the student can still use — so a Gradescope homework missed on Saturday at
+ * 5 PM with a late window to the *next* Saturday sits on next Saturday's card.
+ * `weekStatus` counts from the missed deadline ("19h late"), which is right in
+ * the Late band where Day draws it (with "late until Sat 5:00 PM" under it) and
+ * wrong on a card whose only claim is *this day*: the row read "19h late" six
+ * days early with nothing saying that day is the cutoff. PROGRESS 2026-09-21,
+ * Sushi: "it should say when the 80% due date is."
+ */
+describe("weekCardStatus: the row on the day its late window closes", () => {
+  // NOW is Thursday 2026-09-10, 6:00 PM.
+  const homework = (partial: Partial<Item> = {}) =>
+    item({ title: "Homework 2", dueAt: at(2026, 8, 9, 17, 0), lateDueAt: at(2026, 8, 16, 17, 0), ...partial });
+
+  it("says when the window closes, in the one late-window spelling", () => {
+    // No credit figure (Gradescope states none), so "late until", the same
+    // words Day's detail line draws — without the weekday the card already has.
+    expect(weekCardStatus(homework(), NOW)).toBe(
+      `late until ${new Date(2026, 8, 16, 17, 0).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`,
+    );
+  });
+
+  it("names the credit the window still pays when a source states it", () => {
+    const pl = homework({ members: [member({ creditRemaining: "80" })] });
+    expect(weekCardStatus(pl, NOW)).toMatch(/^80% until /);
+  });
+
+  it("leaves Day's Late band its count from the missed deadline", () => {
+    // `weekStatus` is also the Today Late band's word; that band carries the
+    // window on its own second line, so it keeps "how late".
+    expect(weekStatus(homework(), NOW)).toBe("1d late");
+  });
+
+  it("counts lateness once the window has closed too", () => {
+    // Both instants behind: the row is placed on the missed day and the count
+    // is the whole answer.
+    const closed = homework({ lateDueAt: at(2026, 8, 10, 12, 0) });
+    expect(weekCardStatus(closed, NOW)).toBe(weekStatus(closed, NOW));
+    expect(weekCardStatus(closed, NOW)).toBe("1d late");
+  });
+
+  it("does not promise a window that closed on the §4.3 fallback shape", () => {
+    // No `dueAt`: the window is the only instant, so it is also the missed one.
+    // Past it, "late until" would name a cutoff that has gone.
+    const fallback = item({ lateDueAt: at(2026, 8, 9, 12, 0) });
+    expect(itemTone(fallback, NOW)).toBe("overdue");
+    expect(weekCardStatus(fallback, NOW)).toBe("1d late");
+  });
+
+  it("changes nothing on a row that is not overdue", () => {
+    const open = item({ dueAt: at(2026, 8, 12, 21, 0) });
+    expect(weekCardStatus(open, NOW)).toBe(weekStatus(open, NOW));
+    const onlyReduced = item({ lateDueAt: at(2026, 8, 16, 23, 59) });
+    expect(weekCardStatus(onlyReduced, NOW)).toBe("late ok");
+    expect(weekCardStatus(homework({ done: true }), NOW)).toBe("done");
+  });
+
+  it("changes only overdue work — not an event, however its dates read", () => {
+    // Deliberately unrealistic (parser rule 10): no source gives an event a
+    // late window. It is the one input that separates the tone guard from the
+    // instant comparison below it, and an event is never "late until" anything.
+    const event = item({ kind: "event", dueAt: at(2026, 8, 9, 17, 0), lateDueAt: at(2026, 8, 16, 17, 0) });
+    expect(weekCardStatus(event, NOW)).toBe(weekStatus(event, NOW));
+    expect(weekCardStatus(event, NOW)).not.toMatch(/until/);
   });
 });
 

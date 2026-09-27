@@ -484,11 +484,50 @@ function creditPercentFor(item: Item, until: Date): string | undefined {
  *
  * Where no percentage is known — Gradescope states a late date and never a
  * credit — the old wording stands rather than a number being invented for it
- * (worker rule 3).
+ * (worker rule 3). *
+ * **The one spelling of the window** (copy-audit #15, 2026-09-27). It was spelled
+ * eight ways across the row, the week, the deadline screen, the toast and the
+ * two exports. Everything that names the window as a *time* asks this, the
+ * reminders (`schedule.ts`) included. The two exports carry `LATE_LEG_NOTE`
+ * (`ics.ts`) instead: an event's own start and end already are the window's
+ * close, and on an all-day `timeAssumed` event this would print the invented
+ * 11:59 PM.
  */
-export function creditWindowText(item: Item, until: Date): string {
+export function creditWindowText(
+  item: Item,
+  until: Date,
+  form: "day" | "clock" = "day",
+): string {
   const credit = creditPercentFor(item, until);
-  return `${credit === undefined ? "late" : `${credit}%`} until ${clockOf(until)}`;
+  // "clock" is for a surface that has already written the day beside the row —
+  // the week's day card — where "Sat" again is noise in a 72px column.
+  const when =
+    form === "clock"
+      ? until.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      : clockOf(until);
+  return `${credit === undefined ? "late" : `${credit}%`} until ${when}`;
+}
+
+/**
+ * The date on a "Found in a post" row (copy-audit #11, 2026-09-27).
+ *
+ * A post that named a day and no hour gets 23:59 from the observer, marked
+ * `timeAssumed`. This printed it as "Fri, Sep 26, 11:59 PM" — the one surface
+ * that showed the invented hour as if the post had stated it (worker rule 3).
+ * The row's "end of day" is the same words `renderRow` uses for the same fact.
+ */
+export function suggestionDueText(at: string, timeAssumed: boolean): string {
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) return "—";
+  const day = when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  if (timeAssumed) return `${day} · end of day`;
+  return when.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -673,7 +712,9 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
       ?.extra?.["creditRemaining"];
     return {
       primary: clockOf(due),
-      detail: credit ? `${credit}% credit remaining` : "late deadline",
+      // "late window", not "late deadline": §4.3 — a reduced-credit window is
+      // not a due date and is never worded as one (copy-audit #15).
+      detail: credit ? `${credit}% credit remaining` : "late window",
     };
   }
 

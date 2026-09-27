@@ -12,6 +12,7 @@ import {
   startOfDay,
 } from "../../../core/calendar.js";
 import { reservationVerified } from "../../../core/reservation.js";
+import { chromeTabs, focusOrOpen } from "../../../core/tabs.js";
 import type { Item } from "../../../sources/types.js";
 import { icon, type IconName } from "../../icons.js";
 import { safeUrl, viewEl } from "../state.js";
@@ -96,6 +97,10 @@ export function renderExamsView(
       if (title) {
         title.textContent = item.title.replace(/^Book a slot:\s*/i, "");
         title.title = item.title;
+        // The stop's accessible name starts with the title too (`renderRow`),
+        // so a screen reader would still hear the prefix the text just lost.
+        const name = title.getAttribute("aria-label");
+        if (name !== null) title.setAttribute("aria-label", name.replace(/^Book a slot:\s*/i, ""));
       }
       if (mock) {
         // "not booked" is a warning, not a clock: the mock puts
@@ -371,7 +376,7 @@ function reserveButton(item: Item): HTMLElement | undefined {
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    chrome.tabs.create({ url });
+    void focusOrOpen(url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
   });
   return button;
 }

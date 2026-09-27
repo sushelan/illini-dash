@@ -2,7 +2,7 @@
  * The week, as seven day cards (brief D5, mock 1b).
  *
  * `[DOW / date]` in a 44px column, the day's deadlines beside it as compact
- * cards, and one status word per row — `weekStatus`, which is the whole
+ * cards, and one status word per row — `weekCardStatus`, which is the whole
  * right-hand column here: `done`, `late ok`, `1d late`, `EOD`, or the clock. A
  * day with nothing says "Nothing due"; today's card is tinted and captioned.
  *
@@ -11,7 +11,7 @@
  * day adding something to it. The per-day "+" went on 2026-09-19 (see below).
  */
 
-import { allTimed, dayKey, quietDay, weekContents, weekStatus } from "../../../core/calendar.js";
+import { allTimed, dayKey, quietDay, weekCardStatus, weekContents } from "../../../core/calendar.js";
 import type { Item } from "../../../sources/types.js";
 import { WEEK_MODE, anchorDate, dateNavEl, state, viewEl } from "../state.js";
 import { renderRow } from "../rows.js";
@@ -83,7 +83,10 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
         box.append(
           renderRow(item, now, undefined, undefined, colours, {
             compact: true,
-            status: weekStatus(item, now),
+            // `weekCardStatus`, not `weekStatus`: on the day a late window
+            // closes the card says so ("late until 5:00 PM") rather than only
+            // how late the row already is (popup-live #5).
+            status: weekCardStatus(item, now),
           }),
         );
       }

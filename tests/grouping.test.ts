@@ -10,6 +10,7 @@ import {
   liveDeadline,
   missedDeadline,
   sectionFor,
+  suggestionDueText,
   type SectionName,
 } from "../src/core/grouping.js";
 import { DEFAULT_SETTINGS } from "../src/core/store.js";
@@ -895,5 +896,67 @@ describe("missedDeadline: banded by what you missed, planned by what is left", (
       late: true,
     });
     expect(sectionFor(noPopover, NOW)).toBe("This week");
+  });
+});
+
+/*
+ * copy-audit #15 (2026-09-27): the late / reduced-credit window was spelled
+ * eight ways — "late deadline", "late ok", "N% credit remaining", "late until",
+ * "reduced credit", "Reduced-credit deadline." — so a student saw a different
+ * noun for the same window on each surface. `creditWindowText` is the one
+ * formatter; these pin its two forms and the noun the passed-window branch uses.
+ */
+describe("one spelling of the late window (copy-audit #15)", () => {
+  const until = new Date(Date.parse(at(2026, 8, 10, 23, 59)));
+  const sixty = item({ members: [member("not_submitted", { creditRemaining: "60" })] });
+
+  it("drops the weekday where the day is already written beside it", () => {
+    // The week card is a day's card: "Thu" again inside it is noise, and the
+    // week's 72px column cannot afford it.
+    expect(creditWindowText(sixty, until, "clock")).toBe("60% until 11:59 PM");
+    expect(creditWindowText(item(), until, "clock")).toBe("late until 11:59 PM");
+  });
+
+  it("keeps the weekday by default, which every other surface draws", () => {
+    expect(creditWindowText(sixty, until)).toBe("60% until Thu 11:59 PM");
+  });
+
+  it("calls a closed window with no credit figure a late window, not a late deadline", () => {
+    // §4.3: a reduced-credit window is not a due date and must not be worded as
+    // one. This is the §4.3 fallback shape (no `dueAt`) after its window closed.
+    const closed = item({ lateDueAt: at(2026, 8, 9, 12), members: [member("not_submitted")] });
+    expect(formatDue(closed, NOW).detail).toBe("late window");
+    expect(formatDue(closed, NOW).detail).not.toContain("deadline");
+  });
+});
+
+/*
+ * copy-audit #11 (2026-09-27): a post that said only "Friday" became a
+ * suggestion row reading "Fri, Sep 26, 11:59 PM" — the invented hour printed as
+ * if stated, with the disclaimer only in a tooltip. Every other surface refuses
+ * that (worker rule 3): rows print "end of day", the week "EOD", the deadline
+ * screen never shows the clock.
+ */
+describe("suggestionDueText (copy-audit #11)", () => {
+  const friday = new Date(2026, 8, 25, 23, 59).toISOString();
+  const day = new Date(2026, 8, 25).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  it("never prints the hour this extension made up", () => {
+    expect(suggestionDueText(friday, true)).toBe(`${day} · end of day`);
+    expect(suggestionDueText(friday, true)).not.toMatch(/11:59/);
+  });
+
+  it("prints a stated hour as the post stated it", () => {
+    expect(suggestionDueText(friday, false)).toMatch(/11:59/);
+    expect(suggestionDueText(friday, false).startsWith(day)).toBe(true);
+  });
+
+  it("says nothing it cannot read", () => {
+    expect(suggestionDueText("not a date", true)).toBe("—");
+    expect(suggestionDueText("not a date", false)).toBe("—");
   });
 });

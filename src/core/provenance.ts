@@ -56,9 +56,49 @@ export const SOURCE_TIME_NOTE =
 /** The same fact inside an exported event, which is read far from the popup. */
 export const SOURCE_TIME_NOTE_ALL_DAY =
   "The course site gives a date but no time. This is filed as an all-day event; check the course page for the real cutoff.";
+/**
+ * A Piazza or Campuswire post named a day and no hour (copy-audit #4,
+ * 2026-09-27). `dedupe` carries the post's `timeAssumed` onto the row it moves,
+ * so the course-site sentence was sending the student to a page that says
+ * nothing of the kind — including inside an exported event, read far from here.
+ */
+export const POST_TIME_NOTE = "The post gives a day but no time. Check the post for the cutoff.";
+export const POST_TIME_NOTE_ALL_DAY =
+  "The post gives a day but no time. This is filed as an all-day event; check the post for the real cutoff.";
 /** Sushi's own words for his own row: there is no page to go and look at. */
 export const OWN_TIME_NOTE = "No time specified.";
 export const OWN_TIME_NOTE_ALL_DAY = "No time specified. This is filed as an all-day event.";
+
+/** Who left the hour out: the one fact every assumed-time sentence turns on. */
+export type TimeAuthor = "student" | "post" | "source";
+
+const TIME_NOTE: Record<TimeAuthor, Record<"short" | "allDay", string>> = {
+  student: { short: OWN_TIME_NOTE, allDay: OWN_TIME_NOTE_ALL_DAY },
+  post: { short: POST_TIME_NOTE, allDay: POST_TIME_NOTE_ALL_DAY },
+  source: { short: SOURCE_TIME_NOTE, allDay: SOURCE_TIME_NOTE_ALL_DAY },
+};
+
+/**
+ * Whose day-without-an-hour this row's instant is.
+ *
+ * The row's own if the student typed it; the correction's author if one moved
+ * it — `dedupe` takes `timeAssumed` from the correction when there is one, so
+ * the flag is a fact about whoever wrote the instant — and otherwise the source.
+ * `dateOrigin`'s answer, so "who moved it" and "who left the time out" cannot
+ * disagree about the same `movedBy`.
+ */
+export function timeAuthor(item: Item): TimeAuthor {
+  if (isStudentsOwn(item)) return "student";
+  const origin = dateOrigin(item);
+  if (origin === "announcement") return "post";
+  if (origin === "student-override") return "student";
+  return "source";
+}
+
+/** The sentence for an author, for a caller with no `Item` — a suggestion. */
+export function timeNoteFor(author: TimeAuthor, form: "short" | "allDay" = "short"): string {
+  return TIME_NOTE[author][form];
+}
 
 /**
  * Why this instant carries a 23:59 nobody stated.
@@ -72,8 +112,7 @@ export const OWN_TIME_NOTE_ALL_DAY = "No time specified. This is filed as an all
  * fourth builds a string with it.
  */
 export function assumedTimeNote(item: Item, form: "short" | "allDay" = "short"): string {
-  if (isStudentsOwn(item)) return form === "allDay" ? OWN_TIME_NOTE_ALL_DAY : OWN_TIME_NOTE;
-  return form === "allDay" ? SOURCE_TIME_NOTE_ALL_DAY : SOURCE_TIME_NOTE;
+  return timeNoteFor(timeAuthor(item), form);
 }
 
 /* -------------------------------------------------------------------------- */

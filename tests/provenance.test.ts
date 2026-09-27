@@ -17,7 +17,11 @@ import {
   OWN_TIME_NOTE_ALL_DAY,
   SOURCE_TIME_NOTE,
   SOURCE_TIME_NOTE_ALL_DAY,
+  POST_TIME_NOTE,
+  POST_TIME_NOTE_ALL_DAY,
   assumedTimeNote,
+  timeAuthor,
+  timeNoteFor,
   dateOrigin,
   isStudentsOwn,
   movedHeading,
@@ -83,6 +87,61 @@ describe("assumedTimeNote", () => {
     const sourced = item({ members: [member("prairielearn")] });
     expect(assumedTimeNote(sourced)).toBe(SOURCE_TIME_NOTE);
     expect(assumedTimeNote(sourced, "allDay")).toBe(SOURCE_TIME_NOTE_ALL_DAY);
+  });
+});
+
+/*
+ * copy-audit #4 (2026-09-27). `dedupe` takes `timeAssumed` from the *post* when
+ * a Piazza or Campuswire post moved a row and named only a day, and the row
+ * still said "The course site gives a date but no time. Check the course page"
+ * — on the tooltip, the deadline screen and inside both exported events, read
+ * far from the popup with no course page that says anything of the kind.
+ */
+describe("assumedTimeNote names who left the time out", () => {
+  const byPost = (postId: string) =>
+    item({
+      members: [member("gradescope")],
+      dueAt: iso(23, 59, 25),
+      timeAssumed: true,
+      movedBy: { reason: "Piazza post 2026-09-24", from: iso(17), postId },
+    });
+
+  it("blames the post, not the course site, for a day a post gave", () => {
+    const moved = byPost("piazza:abc123:42");
+    expect(timeAuthor(moved)).toBe("post");
+    expect(assumedTimeNote(moved)).toBe(POST_TIME_NOTE);
+    expect(assumedTimeNote(moved, "allDay")).toBe(POST_TIME_NOTE_ALL_DAY);
+    expect(assumedTimeNote(moved)).not.toContain("course");
+    expect(assumedTimeNote(moved, "allDay")).not.toContain("course");
+  });
+
+  it("gives the student's own words when 'Give it a date' named only a day", () => {
+    // `movedBy` with the student's post id is the student, however many
+    // sources report the row.
+    const own = byPost(STUDENT_POST_ID);
+    expect(timeAuthor(own)).toBe("student");
+    expect(assumedTimeNote(own)).toBe(OWN_TIME_NOTE);
+  });
+
+  it("keeps the course-site sentence for a source's own bare date", () => {
+    const sourced = item({ members: [member("prairielearn")], timeAssumed: true });
+    expect(timeAuthor(sourced)).toBe("source");
+    expect(assumedTimeNote(sourced)).toBe(SOURCE_TIME_NOTE);
+  });
+
+  it("does not blame a post for a date the source merely changed", () => {
+    // `movedFrom` alone is the source printing a new date: no post involved.
+    const changed = item({ members: [member("gradescope")], movedFrom: iso(11), timeAssumed: true });
+    expect(timeAuthor(changed)).toBe("source");
+  });
+
+  it("is one table: every surface asks timeNoteFor, including a suggestion", () => {
+    // Alerts' "Found in a post" rows have no Item to ask about; their author
+    // is a post by construction.
+    expect(timeNoteFor("post")).toBe(POST_TIME_NOTE);
+    expect(timeNoteFor("source", "allDay")).toBe(SOURCE_TIME_NOTE_ALL_DAY);
+    expect(timeNoteFor("student", "allDay")).toBe(OWN_TIME_NOTE_ALL_DAY);
+    expect(new Set([POST_TIME_NOTE, SOURCE_TIME_NOTE, OWN_TIME_NOTE]).size).toBe(3);
   });
 });
 

@@ -12,7 +12,15 @@ html[data-design="classical"] {
    * The mock's reservation state is its tertiary ramp, not its error ramp:
    * `text-on-tertiary-container` for the ink and a solid `bg-tertiary-fixed`
    * chip for "Action Required". Overdue red stays reserved for late work. */
-  --ex-alert:     #df6e50;  /* mock on-tertiary-container */
+  /* #ae4a2e, not the mock's on-tertiary-container #df6e50 (popup-live #7,
+   * 2026-09-27). #df6e50 is a *fill* ink: as 12px text it measured 2.93:1 on
+   * the booking card (#f7f3eb) for the course code and 3.08:1 on the page
+   * (#fdf9f1) for "Not booked", against 4.5 required. Same hue family, taken
+   * down the ramp until it reads as text: 4.97:1 on the card, 5.24:1 on the
+   * page, and still a terracotta rather than the overdue red --err #ba1a1a
+   * that V04 moved this screen off. Dark is untouched — #ffb4a2 already
+   * passes at 10.3:1 / 9.6:1. */
+  --ex-alert:     #ae4a2e;
   --ex-badge-bg:  #ffdbd2;  /* mock bg-tertiary-fixed */
   --ex-badge-ink: #3c0800;  /* mock text-on-tertiary-fixed */
 }
@@ -329,3 +337,32 @@ html[data-design="classical"] #view .exam-stack .row--code { color: var(--primar
  * tracking-wider text-on-tertiary-container`. */
 html[data-design="classical"] #view .row-booking .row--code { color: var(--ex-alert); }
 html[data-design="classical"] #view .exam-reserve--dot { display: none; }
+
+/*
+ * Room under the last card for the floating "+" (popup-live #1, 2026-09-27).
+ *
+ * The defect Week and Month were fixed for on 2026-09-22 (the long note in
+ * `design-classical-week.css`), on the one tab that fix did not reach. Measured
+ * on the reference dataset at 400x600 dark, scrolled as far as the document
+ * goes: the last card's ⋯ at [351,482,375,510], the "+" at [348,495,388,535] —
+ * `elementFromPoint` at the ⋯'s centre answered the "+", so Mark done and Hide
+ * on the last exam could only be reached through the deadline screen. The
+ * stress dataset passed only because its last card is taller.
+ *
+ * The same arithmetic. The "+" hangs with its top 52px above the pinned strip
+ * (12px floor + 40px button, `placeQuickFab`); at maximum scroll the space
+ * between the last card's box and the strip is the card's own 6px margin
+ * (`#view .row`, `design-classical.css`) — `.exam-stack` is a flex column, so
+ * that margin stays inside it — and `#view` has no bottom padding on this tab.
+ * The three views clear the button by Day's 16px of air, so 6 + X − 52 = 16:
+ * **X = 62**. Against the card box rather than the ⋯, as Week's 43 is against
+ * the row box, so the whole card — its Taken tag included — clears the button.
+ *
+ * `:last-child` because every draw builds a new `.exam-stack` (the stale
+ * `:has()` in `popup-views.css` cannot happen here), and the empty board is a
+ * `.view-note`, not a stack, so it takes its own rule in `popup-views.css`.
+ * (1,4,2), above anything a shared sheet says about `.exam-stack` short of an id.
+ */
+html[data-design="classical"] body[data-view="exams"] #view > .exam-stack:last-child {
+  margin-bottom: 62px;
+}

@@ -269,9 +269,14 @@ html[data-design="classical"] #view .wrow .row-done .row--title {
   text-decoration: line-through;
   opacity: .6;
 }
+/* 120, not 72 (2026-09-27, popup-live #5): the card now says when a late
+   window closes — "80% until 11:59 PM" — and at 72 that clipped to "80% un".
+   A cap, not a width: every other word here ("11:59 PM", "EOD", "4h late")
+   measures well under 72 and its row is unchanged; only a row carrying the
+   window gives its title the difference, and the title already ellipses. */
 html[data-design="classical"] #view .wrow .row--when {
   flex: none;
-  gap: 0; max-width: 72px;
+  gap: 0; max-width: 120px;
   font-size: 10.5px;
 }
 html[data-design="classical"] #view .wrow .row--rel { display: none; }

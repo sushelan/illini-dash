@@ -15,6 +15,7 @@
  */
 
 import { observerRows } from "../../core/observer-ui.js";
+import { chromeTabs, focusOrOpen } from "../../core/tabs.js";
 import { app, state } from "./state.js";
 import { openOptions, showStatus } from "./shell.js";
 
@@ -52,7 +53,7 @@ export function renderObserverRows(now: Date): HTMLElement[] {
       if (row.label === "Reload instructions") showStatus(row.detail);
       else if (row.action === "configure") openOptions("sec-sources");
       else if (row.action === "retry") void app.runSync();
-      else void chrome.tabs.create({ url: row.url });
+      else void focusOrOpen(row.url, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
     });
     line.append(button);
 

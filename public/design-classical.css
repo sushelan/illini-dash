@@ -336,8 +336,6 @@ html[data-design="classical"] body {
   display: flex;
   flex-direction: column;
 }
-html[data-design="classical"] #footer { order: 1; }
-html[data-design="classical"] #tabs { order: 2; }
 html[data-design="classical"] .bar {
   background: var(--bg);
   border-bottom: 1px solid var(--line);

@@ -40,7 +40,10 @@ import {
 import { sourceAlertCount } from "../../../core/health.js";
 import { courseLabel } from "../../../core/names.js";
 import { postUrl } from "../../../core/post-link.js";
+import { suggestionDueText } from "../../../core/grouping.js";
+import { timeNoteFor } from "../../../core/provenance.js";
 import { unreadableDeadline } from "../../../core/quality.js";
+import { chromeTabs, focusOrOpen } from "../../../core/tabs.js";
 import { icon } from "../../icons.js";
 import type { Item, Source, SourceStatus, Suggestion } from "../../../sources/types.js";
 import { app, state, viewEl } from "../state.js";
@@ -265,23 +268,19 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
     title.title = suggestion.title;
     head.append(chip, title);
 
-    const when = new Date(suggestion.at);
     const due = document.createElement("span");
     due.className = "row--due";
-    due.textContent = Number.isNaN(when.getTime())
-      ? "—"
-      : when.toLocaleString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        });
-    if (suggestion.timeAssumed) {
+    // `=== true`: a suggestion is data from another build (worker rule 8), and
+    // an absent flag is "stated", which is what it always meant here.
+    const assumed = suggestion.timeAssumed === true;
+    // "end of day" rather than the 11:59 PM the observer filled in — the words
+    // every other surface uses for an hour nobody stated (copy-audit #11).
+    due.textContent = suggestionDueText(suggestion.at, assumed);
+    if (assumed) {
       // Worker rule 3 at the surface: the post named a day, this code named the
       // hour, and the row must not present the two as the same kind of fact.
       due.classList.add("row--assumed");
-      due.title = "The post gives a day but no time. 11:59 PM is this extension's guess.";
+      due.title = timeNoteFor("post");
     }
 
     const actions = document.createElement("span");
@@ -296,8 +295,9 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
      * page from the id the observer recorded, the sentence *is* the link.
      *
      * A `<button>` rather than an `<a href>`: a popup that follows a link in
-     * place navigates the popup, and `chrome.tabs.create` is what every other
-     * "open the source" control here uses. Where there is no page — a pasted
+     * place navigates the popup, and `focusOrOpen` (the tab already showing
+     * it, else a new one) is what every other "open the source" control here
+     * uses. Where there is no page — a pasted
      * post — it stays the plain span it always was rather than a dead control.
      */
     const href = postUrl(suggestion.postId);
@@ -307,7 +307,7 @@ function renderSuggestions(suggestions: readonly Suggestion[]): HTMLElement {
       open.type = "button";
       open.className = "link needsyou--from";
       open.addEventListener("click", () => {
-        void chrome.tabs.create({ url: href });
+        void focusOrOpen(href, chromeTabs()).catch((err: unknown) => console.warn("[tabs] open failed:", err));
       });
       provenance = open;
     } else {
