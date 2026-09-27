@@ -13,6 +13,7 @@ import { runParseSelftest } from "./core/parse-selftest.js";
 import {
   parseGradescopeDashboard,
   parseHtml,
+  parsePrairieLearnHome,
   parseSmartPhysicsCourses,
   runAdapterInOffscreen,
 } from "./core/offscreen-client.js";
@@ -32,11 +33,15 @@ import { dedupeInput, editManualItem, newManualItem } from "./core/manual.js";
 import { buildDiagnostics } from "./core/diagnostics.js";
 import { badgeFor, sourcesToRecheck, statusAfterEnable, type NavigatedAt } from "./core/health.js";
 import { sourceForUrl } from "./core/origins.js";
-import { needsSetup, opensOnInstall, setupRows } from "./core/setup.js";
+import { needsSetup, opensOnInstall, setupRows,
+  ATTEMPTING_KEY,
+} from "./core/setup.js";
 import { detectInOffscreen } from "./core/offscreen-client.js";
 import { htmlForAuthoring } from "./core/author.js";
 import { guessCourseCode, SITE_TIMEZONE } from "./core/detect.js";
 import { createStoreQueue } from "./core/queue.js";
+import { createSyncGate } from "./core/sync-gate.js";
+import { chromeTabs, focusOrOpen } from "./core/tabs.js";
 import {
   acceptSuggestion,
   courseSummaries,
@@ -129,10 +134,17 @@ import {
   MIN_POLL_MINUTES,
 } from "./core/store.js";
 import {
+  applySnooze,
+  armable,
+  buttonAction,
   notificationContent,
+  notificationId,
   parseAlarmName,
   planNotifications,
+  recordFired,
+  requiresInteraction,
   shouldFireNow,
+  toastButtons,
   type Lead,
 } from "./core/schedule.js";
 import {
@@ -220,6 +232,7 @@ const deps: SyncDeps = {
   parseHtml: (source, html, page) => parseHtml(source as ParserId, html, page),
   parseGradescopeDashboard,
   parseSmartPhysicsCourses,
+  parsePrairieLearnHome,
   runAdapter: runAdapterInOffscreen,
   enabledAdapters,
   keptCourses: () => keptCourseIds,
@@ -350,9 +363,6 @@ const withStore = createStoreQueue();
 /** Pushes and Disconnect, one at a time (`core/gcal-lane.ts`). */
 const gcalLane = createGcalLane();
 
-/** One sync at a time: two overlapping runs would race on the same store. */
-let running: Promise<void> | null = null;
-
 /**
  * A source has just been switched on, so go and read it.
  *
@@ -401,14 +411,19 @@ async function setSyncing(value: boolean): Promise<void> {
   await chrome.storage.session.set({ [SYNCING_KEY]: value }).catch(() => undefined);
 }
 
-async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
-  if (running) {
-    await running;
-    return { skipped: true };
-  }
-  let skipped = false;
+/**
+ * One whole sync: the registry refresh, the loop, Piazza, then the calendar.
+ *
+ * Only ever called by `syncGate` (`core/sync-gate.ts`), which runs one at a
+ * time and turns a request that arrives mid-run into a follow-up instead of
+ * dropping it — the recheck after a PrairieLearn sign-in was the one dropped.
+ */
+async function runOnce(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
+  // The setup screen draws "Checking…" only on the sources this run's plan
+  // attempts (worker rule 2); a stale list from the previous run says nothing.
+  void chrome.storage.session.remove(ATTEMPTING_KEY).catch(() => undefined);
   void setSyncing(true);
-  running = (async () => {
+  try {
     // Outside every hold, because it fetches: `syncOnce` below is the rule for
     // everything in this worker now — read in a short section, fetch with the
     // queue free, write in a short section.
@@ -418,10 +433,20 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
       withStore,
       load: loadStore,
       save: saveStore,
-      onPlanned: (store) => {
+      onPlanned: (store, plan) => {
         // Read before the fetches run: the loop is pure over its deps.
         keptCourseIds = new Set(store.overrides.keptCourses);
         lastSetAsideCourses = store.setAsideCourses;
+        // Published for the setup screen's "Checking…" chips, and logged in
+        // both branches (worker rule 5): which sources this run reads, and
+        // which are resting in §6's ladder.
+        void chrome.storage.session
+          .set({ [ATTEMPTING_KEY]: { attempting: plan.skipped ? [] : plan.attempt } })
+          .catch(() => undefined);
+        console.log(
+          `[sync] plan: attempting ${plan.attempt.join(", ") || "nothing"}` +
+            (plan.resting.length ? `; resting ${plan.resting.join(", ")}` : ""),
+        );
       },
       // §4.1's term filter ran during the fetches and its result has to outlive
       // them; the loop must not write the store itself (worker rule 4).
@@ -429,7 +454,6 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
         fresh.setAsideCourses = lastSetAsideCourses;
       },
     });
-    skipped = result.skipped;
     if (!result.skipped) {
       // §7's alarms are derived from the item list, so they are rebuilt whenever
       // it changes — a deadline that moved, or an item that was submitted,
@@ -463,21 +487,28 @@ async function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
     await runPiazza(trigger).catch((err: unknown) => {
       console.warn("[piazza] the run itself failed:", err);
     });
-  })().finally(() => {
+    /*
+     * The calendar follows the list, and follows it after the sync has written.
+     *
+     * `gcalPush` takes the queue for each of its own writes. Started from inside
+     * a section it would deadlock against it, and started before the apply it
+     * would project the pre-sync list; started here it reads what this sync just
+     * wrote.
+     */
+    if (!result.skipped) gcalPushAfter("sync");
+    return { skipped: result.skipped };
+  } finally {
+    // A queued follow-up starts as soon as this settles and sets it true again.
     void setSyncing(false);
-    running = null;
-  });
-  await running;
-  /*
-   * The calendar follows the list, and follows it after the sync has written.
-   *
-   * `gcalPush` takes the queue for each of its own writes. Started from inside
-   * a section it would deadlock against it, and started before the apply it
-   * would project the pre-sync list; started here it reads what this sync just
-   * wrote.
-   */
-  if (!skipped) gcalPushAfter("sync");
-  return { skipped };
+    void chrome.storage.session.remove(ATTEMPTING_KEY).catch(() => undefined);
+  }
+}
+
+const syncGate = createSyncGate(runOnce);
+
+/** Every caller's way in. Never drops a request: see `core/sync-gate.ts`. */
+function sync(trigger: SyncTrigger): Promise<{ skipped: boolean }> {
+  return syncGate.request(trigger);
 }
 
 /**
@@ -532,7 +563,19 @@ async function reschedule(): Promise<void> {
   const store = await loadStore();
   await refreshBadge();
   const planned = planNotifications(store.items, store.settings, new Date());
-  const wanted = new Set(planned.map((p) => p.alarmName));
+  // I28: Chrome refuses an extension's 501st alarm; arm the soonest within
+  // budget (`armable` decides the cap and the order — worker rule 1). Using
+  // `armed` for `wanted` also clears a far-future alarm that fell out of
+  // budget, which frees a slot.
+  const { armed, overflow } = armable(planned);
+  if (overflow > 0) {
+    console.warn(
+      `[notify] ${overflow} reminder(s) beyond the alarm budget; armed the soonest ${armed.length}, the rest re-plan on a later sync`,
+    );
+  } else {
+    console.log(`[notify] ${armed.length} reminder(s) planned, all within the alarm budget`);
+  }
+  const wanted = new Set(armed.map((p) => p.alarmName));
 
   for (const alarm of await chrome.alarms.getAll()) {
     if (alarm.name.startsWith("notify:") && !wanted.has(alarm.name)) {
@@ -540,7 +583,7 @@ async function reschedule(): Promise<void> {
     }
   }
 
-  for (const plan of planned) {
+  for (const plan of armed) {
     // `fireAt` already carries the quiet-hours deferral, *including* for §7's
     // "Chrome was closed" catch-up — which is precisely the case it was computed
     // for. Branching on `overdue` instead threw that away and woke people at
@@ -574,10 +617,12 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
     return;
   }
 
-  const content = notificationContent(item, lead, new Date());
-  const notificationId = `${itemId}:${lead}:${Date.now()}`;
-  notificationTargets.set(notificationId, content.url);
-  await chrome.notifications.create(notificationId, {
+  // The course as the student renamed it, like the popup (copy-audit #3).
+  const content = notificationContent(item, lead, new Date(), store.overrides.courseNames ?? {});
+  const id = notificationId(itemId, lead, new Date());
+  notificationTargets.set(id, content.url);
+  const buttons = toastButtons(lead);
+  await chrome.notifications.create(id, {
     type: "basic",
     iconUrl: chrome.runtime.getURL("icon128.png"),
     title: content.title,
@@ -585,14 +630,17 @@ async function fireNotification(itemId: string, lead: Lead): Promise<void> {
     // Chrome's small third line: which site this came from. A student with five
     // sources had to open the popup to find out where to go and do the thing.
     ...(content.contextMessage ? { contextMessage: content.contextMessage } : {}),
+    // I13: Snooze / Done on the toast itself; which leads carry which buttons
+    // and which toast has to be dismissed by hand are decided in core.
+    ...(buttons.length > 0 ? { buttons: buttons.map((b) => ({ title: b.title })) } : {}),
+    requireInteraction: requiresInteraction(lead),
   });
 
   const at = new Date().toISOString();
-  item.notified = { ...item.notified, [lead]: at };
-  // The leads this one replaced are recorded as handled without a toast of
-  // their own, or the next pass plans them again and the burst returns one
-  // reminder at a time.
-  for (const replaced of plan.superseded) item.notified[replaced] = at;
+  // Stamps the lead and everything it superseded (or the next pass plans them
+  // again and the burst returns one reminder at a time), and spends a fired
+  // snooze.
+  item.notified = recordFired(item.notified, plan, at);
   console.log(
     `[notify] fired ${lead} for "${item.title}"` +
       (plan.superseded.length > 0 ? ` (superseding ${plan.superseded.join(", ")})` : ""),
@@ -613,10 +661,47 @@ chrome.notifications.onClicked.addListener((notificationId) => {
     }
     // Leave the toast up rather than clearing the only remaining pointer to it.
     if (!url) return;
-    await chrome.tabs.create({ url });
+    // I60: the tab already showing the deadline, if there is one (`core/tabs.ts`).
+    await focusOrOpen(url, chromeTabs());
     notificationTargets.delete(notificationId);
     await chrome.notifications.clear(notificationId);
   })();
+});
+
+// I13: the toast's own buttons. Which button means what is `buttonAction`, in
+// core; the snooze write goes through the queue and `reschedule` runs outside
+// the hold (worker rule 4); Done is the student's own tick through the same
+// queued override path every other tick takes. Every branch logs (rule 5).
+chrome.notifications.onButtonClicked.addListener((id, buttonIndex) => {
+  void (async () => {
+    const action = buttonAction(id, buttonIndex, new Date());
+    if (!action) {
+      console.warn(`[notify] button ${buttonIndex} on ${id}: not a reminder button, ignored`);
+      return;
+    }
+    if (action.kind === "done") {
+      console.log(`[notify] Done pressed for ${action.itemId}`);
+      await applyOverride({ kind: "done", itemId: action.itemId });
+    } else {
+      let found = false;
+      await withStore(async () => {
+        const store = await loadStore();
+        const item = store.items.find((candidate) => candidate.id === action.itemId);
+        if (!item) return;
+        found = true;
+        item.notified = applySnooze(item.notified, new Date(action.until));
+        await saveStore(store);
+      });
+      console.log(
+        found
+          ? `[notify] snoozed ${action.itemId} until ${action.until}`
+          : `[notify] snooze pressed for ${action.itemId}, which is no longer in the list`,
+      );
+      await reschedule();
+    }
+    notificationTargets.delete(id);
+    await chrome.notifications.clear(id);
+  })().catch((error: unknown) => console.warn(`[notify] button ${buttonIndex} on ${id} failed`, error));
 });
 
 /**
@@ -1431,7 +1516,7 @@ async function piazzaBody(
 /**
  * One Piazza run at a time, whichever path asked for it.
  *
- * `sync()` has its own `running` guard, and two paths went round it: the
+ * `sync()` has its own gate (`core/sync-gate.ts`), and two paths went round it: the
  * `tabs.onUpdated` re-check on piazza.com and `set-observer-enabled`. Two runs
  * put eight requests in flight at a host whose pool is four (worker rule 9),
  * both computed the same `sinceNr`, and both fetched the same bodies. A student
