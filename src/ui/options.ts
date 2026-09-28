@@ -1530,7 +1530,7 @@ async function renderOptions(): Promise<void> {
   // Chrome's own switch, which one click in any toast flips. While it is off,
   // every reminder is created and dropped, so this section would otherwise
   // describe settings that cannot possibly take effect.
-  if (state.notificationsBlocked) {
+  if (state.notificationsBlocked && !state.notificationsWarningDismissed) {
     const banner = el("div", undefined, "banner-line banner-err");
     banner.append(
       icon("warning"),
@@ -1540,6 +1540,15 @@ async function renderOptions(): Promise<void> {
         "banner-line--text",
       ),
     );
+    const dismiss = el("button", "Don't show again", "btn btn-quiet btn-sm");
+    dismiss.addEventListener("click", () => {
+      void send({ type: "dismiss-notifications-warning" })
+        .then(refreshOptions)
+        .catch((error: unknown) => {
+          setWarning("draw", error instanceof Error ? error.message : String(error));
+        });
+    });
+    banner.append(dismiss);
     banner.style.borderRadius = "8px";
     banner.style.marginBottom = "10px";
     reminders.append(banner);

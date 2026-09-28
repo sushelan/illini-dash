@@ -183,6 +183,12 @@ export function normalizeOptionsState<T>(raw: unknown): NormalizedOptionsState<T
     missing.push("settings");
     state["settings"] = { ...DEFAULT_SETTINGS };
   }
+  // This is a write-only preference for hiding an optional warning. An older
+  // worker can safely mean "not dismissed" without making the whole page stale.
+  state["notificationsWarningDismissed"] =
+    isRecord(raw) && typeof raw["notificationsWarningDismissed"] === "boolean"
+      ? raw["notificationsWarningDismissed"]
+      : false;
   return { state: state as T, missing };
 }
 
@@ -197,6 +203,10 @@ export function normalizePopupState<T>(raw: unknown): NormalizedOptionsState<T> 
   const { state, missing } = fill<Record<string, unknown>>(raw, POPUP_STATE_FIELDS);
   const settings = (raw as Record<string, unknown> | undefined)?.["settings"];
   state["settings"] = isRecord(settings) ? { ...DEFAULT_SETTINGS, ...settings } : { ...DEFAULT_SETTINGS };
+  state["notificationsWarningDismissed"] =
+    isRecord(raw) && typeof raw["notificationsWarningDismissed"] === "boolean"
+      ? raw["notificationsWarningDismissed"]
+      : false;
   return { state: state as T, missing };
 }
 

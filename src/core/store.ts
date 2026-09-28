@@ -112,6 +112,8 @@ export function normalizeQuietHours(value: Settings["quietHours"]): Settings["qu
 }
 
 export interface StoreV1Plus extends StoreV1 {
+  /** The student chose not to see the blocked-notifications warning again. */
+  notificationsWarningDismissed: boolean;
   /** §5.4: consecutive syncs in which an undated raw item was not seen. */
   misses: Record<string, number>;
   lastSyncAt?: string;
@@ -563,6 +565,7 @@ function defaultStatus(source: Source): SourceStatus {
 export function emptyStore(): StoreV1Plus {
   return {
     schemaVersion: SCHEMA_VERSION,
+    notificationsWarningDismissed: false,
     raw: {},
     items: [],
     sources: Object.fromEntries(ALL_SOURCES.map((s) => [s, defaultStatus(s)])) as Record<
@@ -724,6 +727,10 @@ export function migrate(stored: unknown, now: string = new Date().toISOString())
 
   return {
     schemaVersion: SCHEMA_VERSION,
+    notificationsWarningDismissed:
+      typeof value.notificationsWarningDismissed === "boolean"
+        ? value.notificationsWarningDismissed
+        : false,
     raw: isRecord(value.raw)
       ? Object.fromEntries(Object.entries(value.raw).filter(([, item]) => isUsableRaw(item)))
       : {},

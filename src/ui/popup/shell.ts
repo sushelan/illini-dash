@@ -886,19 +886,26 @@ interface Banner {
 export function renderBanners(stateIn: {
   sources: Record<Source, SourceStatus>;
   notificationsBlocked: boolean;
+  notificationsWarningDismissed: boolean;
   items: Item[];
 }): void {
   bannersEl.replaceChildren();
   const banners: Banner[] = [];
 
-  if (stateIn.notificationsBlocked) {
+  if (stateIn.notificationsBlocked && !stateIn.notificationsWarningDismissed) {
     banners.push({
       tone: "err",
       glyph: "warning",
       text: "Chrome is blocking reminders, so nothing will notify you",
       action: {
-        label: "How to fix",
-        run: () => chrome.runtime.openOptionsPage(),
+        label: "Don't show again",
+        run: () => {
+          void send({ type: "dismiss-notifications-warning" })
+            .then(() => app.refresh())
+            .catch((error: unknown) => {
+              showStatus(error instanceof Error ? error.message : String(error));
+            });
+        },
       },
     });
   }

@@ -261,6 +261,10 @@ if (dataset === "stress") {
  * that one click on chrome://extensions was the fix (worker rule 8).
  */
 const stale = query.has("stale");
+// `?notifications=blocked` exercises the warning without changing reminder data;
+// `?notifications-warning-dismissed` starts after the permanent dismissal.
+const notificationsBlockedPreview = query.get("notifications") === "blocked";
+let notificationsWarningDismissed = query.has("notifications-warning-dismissed");
 /**
  * `?piazza=read` — Piazza after a sync that actually read something.
  *
@@ -706,7 +710,8 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
                 },
           },
           gcal: previewGcal(),
-          notificationsBlocked: false,
+          notificationsBlocked: notificationsBlockedPreview,
+          notificationsWarningDismissed,
         };
         // An older worker does not have the field at all — this is the exact
         // shape that threw, so the preview reproduces the omission rather than
@@ -785,12 +790,17 @@ if ((dataset === "reference" || dataset === "empty") && !query.has("fail")) {
         // happy path is one nobody reads on the unhappy one; `?stale=1` is
         // where that state belongs.
         return { type: "state",
-          observers: { piazza: { enabled: false, state: "pending" }, campuswire: { enabled: false } }, items, sources, notificationsBlocked: false,
+          observers: { piazza: { enabled: false, state: "pending" }, campuswire: { enabled: false } }, items, sources, notificationsBlocked: notificationsBlockedPreview,
                  suggestions: PREVIEW_SUGGESTIONS,
                  courseNames: stale ? undefined : previewCourseNames,
                  settings: { leadTimes: ["24h", "2h"], quietHours: { start: 23, end: 8 },
                              hideSubmitted: true, remindNotForCredit: false, pollMinutes: 30 },
-                 lastSyncAt: new Date().toISOString() };
+                 lastSyncAt: new Date().toISOString(),
+                 notificationsWarningDismissed };
+      }
+      if (req.type === "dismiss-notifications-warning") {
+        notificationsWarningDismissed = true;
+        return { type: "ok" };
       }
       return { type: "ok" };
     },
@@ -1058,7 +1068,7 @@ if (query.has("acceptance")) {
     "get-state", "get-options-state", "get-setup", "get-adapters", "ping", "sync",
     "add-manual-item", "edit-manual-item", "delete-manual-item", "complete-setup",
     "remove-local-adapter", "add-local-adapter", "set-adapter-enabled", "detect-adapter",
-    "get-diagnostics", "export", "open-full-view",
+    "get-diagnostics", "export", "open-full-view", "dismiss-notifications-warning",
   ]);
   const original = host.chrome.runtime.sendMessage;
   host.chrome.runtime.sendMessage = async (req) => {

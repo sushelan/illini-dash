@@ -47,6 +47,12 @@ describe("a committed schemaVersion 1 store", () => {
     // reminder switch. A store missing them must not lose the rest.
     expect(store.overrides.doneKeys).toEqual([]);
     expect(store.settings.remindNotForCredit).toBe(false);
+    expect(store.notificationsWarningDismissed).toBe(false);
+  });
+
+  it("keeps the permanent warning dismissal", () => {
+    expect(migrate({ notificationsWarningDismissed: true }).notificationsWarningDismissed).toBe(true);
+    expect(migrate({ notificationsWarningDismissed: "yes" }).notificationsWarningDismissed).toBe(false);
   });
 
   it("drops a half-written raw entry instead of passing it on as real", () => {
