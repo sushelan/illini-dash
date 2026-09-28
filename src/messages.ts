@@ -95,6 +95,7 @@ export type Request =
   | { type: "set-adapter-enabled"; adapterId: string; enabled: boolean }
   | { type: "refresh-registry" }
   | { type: "test-notification" }
+  | { type: "dismiss-notifications-warning" }
   /*
    * Google Calendar (§8.3). Three messages, no decisions in the worker:
    * `core/gcal.ts` decides what goes on the calendar, `core/gcal-auth.ts`
@@ -170,6 +171,7 @@ export type Response =
        * surface goes on looking healthy.
        */
       notificationsBlocked: boolean;
+      notificationsWarningDismissed: boolean;
     }
   | { type: "synced"; skipped: boolean; outcomes: { source: Source; state: string }[] }
   | {
@@ -178,6 +180,7 @@ export type Response =
       courseNames: Record<string, string>;
       settings: Settings;
       notificationsBlocked: boolean;
+      notificationsWarningDismissed: boolean;
       sources: Record<Source, SourceStatus>;
       courses: CourseSummary[];
       overrides: Overrides;

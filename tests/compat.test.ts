@@ -22,6 +22,7 @@ function current(): Record<string, unknown> {
     type: "options-state",
     settings: { ...DEFAULT_SETTINGS, pollMinutes: 45 },
     notificationsBlocked: false,
+    notificationsWarningDismissed: false,
     sources: { canvas: { source: "canvas", enabled: true, state: "ok" } },
     courses: [{ key: "CS424", label: "CS 424", itemCount: 3, sources: ["canvas"] }],
     overrides: {},
@@ -210,6 +211,7 @@ describe("normalizePopupState", () => {
       sources: { canvas: { source: "canvas", enabled: true, state: "ok" } },
       settings: { ...DEFAULT_SETTINGS },
       notificationsBlocked: false,
+      notificationsWarningDismissed: false,
       courseNames: {},
       suggestions: [],
       observers: { piazza: { enabled: false }, campuswire: { enabled: false } },
@@ -233,7 +235,13 @@ describe("normalizePopupState", () => {
     // `suggestions` joined them with the post observer: the Attention tab reads
     // `.length` on it to draw its count, so a worker from before that field
     // existed would throw after the tabs were drawn and before the list was.
-    expect([...missing].sort()).toEqual(["courseNames", "items", "observers", "sources", "suggestions"]);
+    expect([...missing].sort()).toEqual([
+      "courseNames",
+      "items",
+      "observers",
+      "sources",
+      "suggestions",
+    ]);
     expect(state["items"]).toEqual([]);
     expect(state["sources"]).toEqual({});
   });

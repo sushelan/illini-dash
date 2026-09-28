@@ -2,10 +2,16 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2680 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2707 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and fail whenever the timeline rail is not drawn —
 the Sunday evening of 2026-09-20, and again at 23:43 on 2026-09-23 (on clean `main` too).
 They still have no pinned clock.
+
+## Blocked reminder warning dismissal — 2026-09-26
+
+Popup and Settings now offer “Don't show again” for Chrome's blocked-notifications warning.
+The dismissal is persisted separately from notification settings, so reminders keep their
+existing behavior. G4 and G5 remain Sushi's browser gates.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**

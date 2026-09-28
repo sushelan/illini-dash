@@ -1973,6 +1973,7 @@ chrome.runtime.onMessage.addListener(
               lastSyncAt: store.lastSyncAt,
               courseNames: store.overrides.courseNames,
               suggestions: store.suggestions,
+              notificationsWarningDismissed: store.notificationsWarningDismissed,
             }) as const,
         ).then(async (state) => ({ ...state, notificationsBlocked: await notificationsBlocked() })),
       );
@@ -2264,6 +2265,7 @@ chrome.runtime.onMessage.addListener(
           type: "options-state",
           settings: store.settings,
           notificationsBlocked: await notificationsBlocked(),
+          notificationsWarningDismissed: store.notificationsWarningDismissed,
           sources: store.sources,
           courses: courseSummaries(store.raw, store.overrides),
           courseNames: store.overrides.courseNames,
@@ -2283,6 +2285,15 @@ chrome.runtime.onMessage.addListener(
     }
     if (request?.type === "update-settings") {
       return answer(applySettings(request.settings).then(() => ({ type: "ok" }) as const));
+    }
+    if (request?.type === "dismiss-notifications-warning") {
+      return answer(
+        withStore(async () => {
+          const store = await loadStore();
+          store.notificationsWarningDismissed = true;
+          await saveStore(store);
+        }, "dismiss-notifications-warning").then(() => ({ type: "ok" }) as const),
+      );
     }
     if (request?.type === "set-observer-enabled") {
       const { observer, enabled } = request;
