@@ -114,18 +114,7 @@ function cellByHeader(
   attribute?: string,
   grids: GridCache = new Map(),
 ): string | undefined {
-  const table = row.closest("table");
-  if (!table) return undefined;
-  const headers = headerIndex(table, grids);
-  const grid = gridFor(row, grids);
-  if (!grid) return undefined;
-  for (const name of wanted.split("|")) {
-    const index = resolveColumn(headers, name);
-    if (index === undefined) continue;
-    // Through the grid, so a rowspan in an earlier row — or a colspan in the
-    // header — moves the column rather than shifting this row's cells under it.
-    const cell = cellAt(grid, row, index);
-    if (!cell) continue;
+  for (const cell of cellsByHeader(row, wanted, grids)) {
     if (attribute) {
       const node = cell.querySelector(`[${attribute}]`);
       const value = node?.getAttribute(attribute) ?? cell.getAttribute(attribute);
@@ -136,6 +125,29 @@ function cellByHeader(
     if (text) return text;
   }
   return undefined;
+}
+
+/** The single header-to-cell decision shared by ordinary fields and status. */
+function cellsByHeader(row: Element, wanted: string, grids: GridCache): Element[] {
+  const table = row.closest("table");
+  if (!table) return [];
+  const headers = headerIndex(table, grids);
+  const grid = gridFor(row, grids);
+  if (!grid) return [];
+  const cells: Element[] = [];
+  for (const name of wanted.split("|")) {
+    const index = resolveColumn(headers, name);
+    if (index === undefined) continue;
+    // Through the grid, so a rowspan in an earlier row — or a colspan in the
+    // header — moves the column rather than shifting this row's cells under it.
+    const cell = cellAt(grid, row, index);
+    if (cell) cells.push(cell);
+  }
+  return cells;
+}
+
+function cellElementByHeader(row: Element, wanted: string, grids: GridCache): Element | undefined {
+  return cellsByHeader(row, wanted, grids)[0];
 }
 
 /**
@@ -385,6 +397,12 @@ const DATE_FORMATS: Record<string, RegExp> = {
   // Sep 11 · September 11 at 11:59pm · Tue, Sep 8 · Friday, September 4 at 18:00
   "MMM d, h:mm a": new RegExp(
     `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?` +
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
+    "i",
+  ),
+  // Oct 1, 2026 — explicit year, with no time stated.
+  "MMM d, yyyy": new RegExp(
+    `^${WEEK_FIRST}(?:${WEEKDAY})?${CLOCK_FIRST}(?<month>${MONTHS})[a-z]*\\.?\\s+(?<day>\\d{1,2})(?:st|nd|rd|th)?,?\\s+(?<year>\\d{4})` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
@@ -1067,6 +1085,7 @@ function previousSiblingMatching(row: Element, spec: string): string | undefined
 export type DueReader =
   | { kind: "whole" }
   | { kind: "label"; labels: string }
+  | { kind: "prefix"; prefix: string }
   | { kind: "phrase"; keywords: string };
 
 /**
@@ -1091,6 +1110,7 @@ export function dueLocatorOf(adapter: Adapter): DueLocator {
  */
 export function dueReaderOf(adapter: Adapter): DueReader {
   if (adapter.dueLabel) return { kind: "label", labels: adapter.dueLabel };
+  if (adapter.duePrefix) return { kind: "prefix", prefix: adapter.duePrefix };
   if (adapter.duePhrase) return { kind: "phrase", keywords: adapter.duePhrase };
   return { kind: "whole" };
 }
@@ -1127,6 +1147,13 @@ export interface DueLocation {
  */
 function readDue(located: string, reader: DueReader): Omit<DueLocation, "hookSeen" | "raw"> {
   if (reader.kind === "whole") return { readerSeen: true, texts: [located] };
+  if (reader.kind === "prefix") {
+    const prefix = escapeRegex(reader.prefix.trim());
+    const match = new RegExp(`^${prefix}(?:\\s*:\\s*|\\s+)(.+)$`, "i").exec(located.trim());
+    // The selector hook exists for this row, so a missing/unreadable prefix is
+    // a field problem: keep the lesson and let date parsing record the raw text.
+    return match ? { readerSeen: true, texts: [match[1]!.trim()] } : { readerSeen: true, texts: [located] };
+  }
   if (reader.kind === "label") {
     const matched = matchDueLabel(located, reader.labels);
     return matched
@@ -1500,6 +1527,50 @@ function guardSlotHitRate(
   }
 }
 
+interface GradebookStatus {
+  kind: NonNullable<Adapter["kind"]> | "event";
+  status: RawItem["status"];
+  scorePercent?: number;
+  unparsed?: string;
+}
+
+/** Read completion through the table's named header, never a positional cell. */
+function gradebookStatusForRow(
+  adapter: Adapter,
+  row: Element,
+  grids: GridCache,
+): GradebookStatus {
+  const config = adapter.gradebook;
+  const defaultKind = adapter.kind ?? "assignment";
+  if (!config) return { kind: defaultKind, status: "unknown" };
+
+  const cell = cellElementByHeader(row, config.percentColumn, grids);
+  if (!cell) {
+    throw new ParseError(
+      `adapter ${adapter.id}: row has no cell under gradebook column ${JSON.stringify(config.percentColumn)}`,
+    );
+  }
+  const value = textOf(cell).replace(/\s+/g, " ").trim();
+  if (value.toLowerCase() === config.ungradedText.replace(/\s+/g, " ").trim().toLowerCase()) {
+    // Ungraded rows have no submission requirement. Keep their deadline, but
+    // don't put them in assignment completion or overdue-work sections.
+    return { kind: "event", status: "unknown" };
+  }
+
+  const match = /^(\d+(?:\.\d+)?|\.\d+)%$/.exec(value);
+  if (!match) return { kind: defaultKind, status: "unknown", unparsed: value };
+  const percent = Number(match[1]);
+  if (!Number.isFinite(percent) || percent < 0) {
+    return { kind: defaultKind, status: "unknown", unparsed: value };
+  }
+  if (percent >= 100) return { kind: defaultKind, status: "graded" };
+  return {
+    kind: defaultKind,
+    status: "not_submitted",
+    ...(percent > 0 ? { scorePercent: percent } : {}),
+  };
+}
+
 /**
  * Runs one adapter over one fetched page.
  *
@@ -1514,6 +1585,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   }
 
   const items: RawItem[] = [];
+  const itemRows = rows.flatMap((parent) =>
+    adapter.itemRows
+      ? Array.from(parent.querySelectorAll(adapter.itemRows)).map((row) => ({ row, dueRow: parent }))
+      : [{ row: parent, dueRow: parent }],
+  );
   const keys = new KeyGuard();
   const codes = extractCourseCodes(adapter.courseCode);
   // One grid per table for the whole run. `formTableGrid` walks every cell, and
@@ -1537,6 +1613,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       }
     }
   }
+  if (adapter.gradebook && !headerExists(rows[0]!, adapter.gradebook.percentColumn, grids)) {
+    throw new ParseError(
+      `adapter ${adapter.id}: no gradebook column headed ${JSON.stringify(adapter.gradebook.percentColumn)} in this table`,
+    );
+  }
 
   const reader = dueReaderOf(adapter);
   const locator = dueLocatorOf(adapter);
@@ -1547,7 +1628,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   let sawDueReader = false;
   let sawDueHook = false;
   let sawTitleFrom = false;
-  for (const row of rows) {
+  for (const { row, dueRow } of itemRows) {
     const located = locateTitle(row, adapter, grids);
     // The `continue` stays: a header row legitimately has no title cell.
     if (!located.text) continue;
@@ -1569,7 +1650,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      * one (every checkpoint still TBD) is a normal week, not a redesign. That
      * is the same reason `sawTitledRow` is keyed on titles, not items.
      */
-    const due = locateDue(row, adapter, grids);
+    const due = locateDue(dueRow, adapter, grids);
     if (due.readerSeen) sawDueReader = true;
     if (due.hookSeen) sawDueHook = true;
     /*
@@ -1694,6 +1775,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       adapter.url,
       adapter.url,
     );
+    const completion = gradebookStatusForRow(adapter, row, grids);
 
     /** The deadline this row produced, which is what its events are named after. */
     let deadlineTitle: string | undefined;
@@ -1725,6 +1807,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
       // own field and is recorded, rather than passing as "the page gave none".
       if (parsed?.unparsedTime) extra["unparsedTime"] = parsed.unparsedTime;
       if (codes.length > 1) extra["altCodes"] = codes.join(" ");
+      if (completion.unparsed !== undefined) {
+        extra["unparsedStatus"] = completion.unparsed.slice(0, 120);
+        console.warn(`[${adapter.id}] unreadable completion value:`, completion.unparsed);
+      }
+      if (completion.scorePercent !== undefined) extra["scorePercent"] = String(completion.scorePercent);
 
       items.push({
         source: "site",
@@ -1736,10 +1823,10 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         // what every entry written before `kind` existed meant. An exam page
         // says so: `examBoard` filters on `kind === "exam"`, so without it a
         // course with two midterms had an empty Exams tab (§4.5).
-        kind: adapter.kind ?? "assignment",
+        kind: completion.kind,
         dueAt,
         url,
-        status: "unknown",
+        status: completion.status,
         extra,
         fetchedAt: page.fetchedAt,
       });
@@ -1822,8 +1909,10 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
    * producing deadlines.
    */
   if (reader.kind !== "whole" && !sawDueReader) {
-    const what = reader.kind === "label" ? "due label" : "due phrase";
-    const spec = reader.kind === "label" ? reader.labels : reader.keywords;
+    const what =
+      reader.kind === "label" ? "due label" : reader.kind === "prefix" ? "due prefix" : "due phrase";
+    const spec =
+      reader.kind === "label" ? reader.labels : reader.kind === "prefix" ? reader.prefix : reader.keywords;
     throw new ParseError(
       `adapter ${adapter.id}: ${rows.length} rows, none carried a ${what} ${JSON.stringify(spec)}`,
     );

@@ -33,7 +33,7 @@ re-review that takes days (§0 decision 4).
   attribute instead of the text: `time@datetime`, `a@href`.
 - `dateFormat` is chosen from a closed set, not supplied. An adapter cannot provide a
   pattern, so a bad registry entry can produce a wrong selector but never arbitrary
-  matching behaviour. Currently: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d`.
+  matching behaviour. Currently: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d` and `MMM d, yyyy`.
 
   Each is start-anchored and carries the optional bits real pages put around a date: a
   weekday in front, a weekday **after** it — `09/24, Thursday 11.59 PM`, `08/27 Thu¹` —
@@ -56,6 +56,16 @@ re-review that takes days (§0 decision 4).
   stayed empty for a course that has two midterms in it.
 - `term` expires the adapter — the options page hides adapters from other terms, so a
   stale one disappears on its own rather than quietly fetching last year's page.
+- `duePrefix` strips one declared literal prefix from a date cell, such as `Due Oct 1,
+  2026`; it matches only at the start and is not combined with `dueLabel` or `duePhrase`.
+- `loginPath` is the exact same-host path of a signed-out landing page, when the site
+  returns 200 there without a title that identifies it as a login page. It is checked
+  before parsing so an expired session reports `needs_login`.
+- `gradebook: { percentColumn, ungradedText }` reads completion through a named table
+  header. Numeric values below 100 remain incomplete; values of at least 100 are done;
+  a positive partial value also supplies `extra.scorePercent` for the row's “N% so far”
+  detail; the declared ungraded label becomes an event because it requires no submission.
+  `duePrefix`, `loginPath` and `gradebook` require extension 1.5.0.
 
 Six more fields arrived in 1.1.0. All are optional, and no entry carries all of them:
 `duePrev` and `dueSlot` are two more answers to the question `columns.due` answers, and
@@ -217,10 +227,11 @@ answer: running it would mean reading the date out of whichever hook the old cod
 understand, which is a wrong deadline rather than a missing one.
 
 An entry carries the version that introduced its fields, and nobody has to remember which
-build learned `duePrev`: `requiredVersionFor` returns `1.2.0` when an entry uses
-`clauses`, `1.1.0` when it uses `duePrev`, `duePhrase`, `dueSlot`, `titleSlot`,
-`titleBefore` or `defaultTime`, and `0.1.0` otherwise, and the search writes it onto
-every proposal. **So a new field means a manifest bump.** Until one ships, no build has the code the entry needs: every installed
+build learned `duePrev`: `requiredVersionFor` returns `1.5.0` when an entry uses
+`duePrefix` or `gradebook`, `1.3.1` for the CS 341 week-prefix date grammar,
+`1.2.0` when an entry uses `clauses`, `1.1.0` when it uses `duePrev`, `duePhrase`,
+`dueSlot`, `titleSlot`, `titleBefore` or `defaultTime`, and `0.1.0` otherwise; the search
+writes it onto every proposal. **So a new field means a manifest bump.** Until one ships, no build has the code the entry needs: every installed
 copy reads it at the next daily refresh and refuses it as `unknown field`, which is the
 right answer and not a substitute for shipping the version that can run it.
 
@@ -591,11 +602,11 @@ selectors written by a stranger, and a human reading the paste is that check.
 
 ## Seeding another one
 
-§4.5 asks for 2–3 seed adapters. Eight ship: `cs424-fa26`, `ece310-fa26`, `ece391-fa26`,
+§4.5 asks for 2–3 seed adapters. Ten ship: `cs424-fa26`, `ece310-fa26`, `ece391-fa26`,
 `ece411-fa26-mp`, `ece411-fa26-exams`, `cs425-fa26`, `cs374a-fa26-hw` and
-`cs374a-fa26-gps`, each written against a real captured page. The last three declare
-`minExtensionVersion: "1.1.0"`, so a 1.0.0 install drops those three by name and keeps
-the other five.
+`cs374a-fa26-gps`, `cs341-fa26` and `cs128-fa26-lessons`, each written against a real
+captured page. Entries declare the minimum version required by their fields; an older
+install drops an entry with the required version in its reason.
 
 **Delivery is live as of 2026-09-10.** The registry is published at
 `https://raw.githubusercontent.com/sushelan/illini-dash/main/adapters/registry.json`

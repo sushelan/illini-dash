@@ -411,7 +411,15 @@ async function syncSites(deps: SyncDeps): Promise<RawItem[]> {
       // an SSO host — verified against a real one — so a plain `status >= 400`
       // would report an expired session as a broken adapter and back off
       // instead of telling the student to log in (§0 rule 2).
-      if (looksLoggedOut(page.status, page.finalUrl, page.body)) throw new NeedsLogin(page);
+      const finalUrl = new URL(page.finalUrl);
+      const adapterOrigin = new URL(adapter.url).origin;
+      const onAdapterLoginPath =
+        adapter.loginPath !== undefined &&
+        finalUrl.origin === adapterOrigin &&
+        finalUrl.pathname === adapter.loginPath;
+      if (looksLoggedOut(page.status, page.finalUrl, page.body) || onAdapterLoginPath) {
+        throw new NeedsLogin(page);
+      }
       if (page.status >= 400) throw new HttpStatusError(page.status, adapter.url);
       const rows = await deps.runAdapter(adapter, page.body, { url: page.finalUrl, fetchedAt });
       items.push(...rows);

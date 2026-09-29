@@ -978,6 +978,36 @@ describe("course-site adapters in the loop (§4.5)", () => {
     expect(store.sources.site.loginUrl).toBe(ADAPTER.url);
   });
 
+  it("uses an adapter's exact login path without mistaking its healthy page for login", async () => {
+    // CS 128 redirects a signed-out API request to /auth, whose title does not
+    // say Login or Sign in. The stable signal is its exact final pathname.
+    const loginAdapter = { ...ADAPTER, loginPath: "/auth" };
+    const response = (finalUrl: string) =>
+      deps({
+        async enabledAdapters() {
+          return [loginAdapter] as never;
+        },
+        async fetchPage(url) {
+          return { url, finalUrl, status: 200, body: SITE_HTML };
+        },
+      });
+
+    const signedOut = await runSync(
+      enableSite(emptyStore()),
+      "alarm",
+      response("https://courses.grainger.illinois.edu/auth?return_to=%2Fapi"),
+    );
+    expect(signedOut.store.sources.site.state).toBe("needs_login");
+    expect(signedOut.store.sources.site.loginUrl).toBe(ADAPTER.url);
+
+    const signedIn = await runSync(
+      enableSite(emptyStore()),
+      "alarm",
+      response(ADAPTER.url),
+    );
+    expect(signedIn.store.sources.site.state).toBe("ok");
+  });
+
   it("clears the recorded page when the next failure is not a login", async () => {
     // Otherwise a stale 401 leaves a "Sign in" button over a network error,
     // which is worse than no button: it sends the student to sign into a

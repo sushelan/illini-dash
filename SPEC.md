@@ -660,12 +660,15 @@ interface Adapter {
   term: string;                  // "fa26" — adapters expire; the UI hides stale ones
   url: string;                   // page to fetch
   hostPattern: string;           // "https://courses.grainger.illinois.edu/*" for optional permission
+  loginPath?: string;            // exact same-host signed-out landing path, if needed
   rows: string;                  // CSS selector for one row/entry
   title: string;                 // selector relative to row; "@attr" suffix allowed
   due: string;                   // selector relative to row
   link?: string;                 // optional selector; default = adapter.url
   dateFormat: string;            // token format, e.g. "MMM d, h:mm a" or "yyyy-MM-dd"
   timezone: string;              // "America/Chicago"
+  duePrefix?: string;            // literal date prefix, e.g. "Due Oct 1, 2026"
+  gradebook?: { percentColumn: string; ungradedText: string }; // optional automatic completion
   filter?: { include?: string; exclude?: string };  // regexes applied to title text
   minExtensionVersion: string;
 }
@@ -679,6 +682,11 @@ Runner rules:
 - Adapters are **data**. There is no expression language, no JS, no eval. If a site
   needs logic (e.g. dates in one column and times in another), extend the schema with
   a new declarative field rather than embedding code.
+- A `loginPath` is matched by exact pathname on the adapter's own host before parsing.
+  A `gradebook` reads a named percentage column: values at or above 100 are `graded`,
+  lower numeric values are `not_submitted` (a positive partial score is shown as
+  `scorePercent`), and the declared ungraded label is an event that does not require
+  submission. The due-date reader strips only the exact declared `duePrefix`.
 - The built-in `adapters/registry.json` is bundled with the extension. Once a day the
   worker fetches the same file from
   `https://raw.githubusercontent.com/{you}/illini-dash/main/adapters/registry.json`,

@@ -112,6 +112,14 @@ const BASE_RULES: Rule[] = [
     replacement: "$1" + "00000000-0000-4000-8000-000000000000",
   },
   {
+    // Some authenticated course pages expose a per-response session id in a
+    // meta tag. It is not parser input and must not be kept in a fixture.
+    label: "session id (meta)",
+    pattern:
+      /(<meta[^>]*name=["']sess-id["'][^>]*content=["'])[^"']*(["'])/gi,
+    replacement: "$1SCRUBBED$2",
+  },
+  {
     // Session/CSRF material. Not PII, but it should not be committed either.
     label: "csrf token (meta)",
     pattern:

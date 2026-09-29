@@ -36,6 +36,7 @@ const DATE_FLAGS: Record<string, string> = {
 const SOFT_FLAGS: Record<string, string> = {
   unparsedReleaseDate: "release date",
   unparsedTime: "time of day",
+  unparsedStatus: "completion status",
   creditMismatch: "credit cell disagrees with the schedule",
   unknownStatus: "submission status",
   idFallback: "assignment id",

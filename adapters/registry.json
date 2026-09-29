@@ -168,6 +168,29 @@
       "dateFormat": "yyyy-MM-dd",
       "timezone": "America/Chicago",
       "minExtensionVersion": "1.3.1"
+    },
+    {
+      "$comment": "The signed-in gradebook fragment supplies lesson titles, due dates and percentages. Full credit is done, partial/zero credit is incomplete, and Ungraded needs no submission. MPs and tests remain with PrairieLearn/PrairieTest. See docs/cs128-findings.md.",
+      "id": "cs128-fa26-lessons",
+      "label": "CS 128 daily lessons",
+      "courseCode": "CS128",
+      "term": "fa26",
+      "url": "https://cs128.org/api/category_gradebook?category_id=80",
+      "hostPattern": "https://cs128.org/*",
+      "loginPath": "/auth",
+      "rows": "tbody tr:has(a[href*='/2026c/'])",
+      "title": ".fw-semibold",
+      "due": ".text-muted.small",
+      "duePrefix": "Due",
+      "link": "a[href*='/2026c/']@href",
+      "kind": "assignment",
+      "gradebook": {
+        "percentColumn": "Percent",
+        "ungradedText": "Ungraded"
+      },
+      "dateFormat": "MMM d, yyyy",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.5.0"
     }
   ]
 }
