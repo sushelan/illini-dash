@@ -411,6 +411,8 @@ export interface Adapter {
   term: string;
   url: string;
   hostPattern: string;
+  /** Exact path used by this adapter's signed-out landing page, if it stays on-host. */
+  loginPath?: string;
   rows: string;
   /**
    * A selector for repeated items inside each row. The outer row supplies the
@@ -456,6 +458,8 @@ export interface Adapter {
    */
   clauses?: string;
   due: string;
+  /** A literal prefix on the located date, e.g. `Due Sep 29, 2026`. */
+  duePrefix?: string;
   link?: string;
   /**
    * Column *headers* to read instead of CSS selectors, for a table that has a
@@ -473,6 +477,13 @@ export interface Adapter {
    * ambiguous.
    */
   columns?: { title: string; due: string; link?: string };
+  /**
+   * A gradebook percent column used to infer automatic completion. Rows with
+   * `ungradedText` do not require a submission and are emitted as events;
+   * numeric percentages below 100 remain incomplete (positive partial values
+   * also populate `extra.scorePercent`), and 100 or more is done.
+   */
+  gradebook?: { percentColumn: string; ungradedText: string };
   /**
    * `|`-separated labels for a page that writes its deadlines as `label: value`
    * lines rather than table cells — ECE 411's Sphinx page, whose MPs are a

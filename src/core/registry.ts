@@ -100,14 +100,17 @@ const KNOWN_FIELDS = {
   term: true,
   url: true,
   hostPattern: true,
+  loginPath: true,
   rows: true,
   itemRows: true,
   title: true,
   splitTitle: true,
   clauses: true,
   due: true,
+  duePrefix: true,
   link: true,
   columns: true,
+  gradebook: true,
   dueLabel: true,
   duePhrase: true,
   duePrev: true,
@@ -182,9 +185,13 @@ const FIELDS_ADDED_IN_1_2 = ["clauses"] as const;
 /** Nested item rows were added in 1.4.0. */
 const FIELDS_ADDED_IN_1_4 = ["itemRows"] as const;
 
+/** CS128's gradebook/status, date-prefix and login-path readers were added in 1.5.0. */
+const FIELDS_ADDED_IN_1_5 = ["duePrefix", "gradebook", "loginPath"] as const;
+
 /** The lowest extension version that can run this entry. */
 export function requiredVersionFor(entry: object): string {
   const record = entry as Record<string, unknown>;
+  if (FIELDS_ADDED_IN_1_5.some((field) => record[field] !== undefined)) return "1.5.0";
   if (FIELDS_ADDED_IN_1_4.some((field) => record[field] !== undefined)) return "1.4.0";
   if (FIELDS_ADDED_IN_1_2.some((field) => record[field] !== undefined)) return "1.2.0";
   return FIELDS_ADDED_IN_1_1.some((field) => record[field] !== undefined) ? "1.1.0" : "0.1.0";
@@ -243,6 +250,15 @@ export function validateAdapter(
     return fail("bad itemRows");
   }
   if (a["link"] !== undefined && !isPlainString(a["link"])) return fail("bad link");
+  if (
+    a["loginPath"] !== undefined &&
+    (!isPlainString(a["loginPath"], 200) || !/^\/(?!\/)[A-Za-z0-9/_-]*$/.test(a["loginPath"]))
+  ) {
+    return fail("bad loginPath");
+  }
+  if (a["duePrefix"] !== undefined && !isPlainString(a["duePrefix"], 80)) {
+    return fail("bad duePrefix");
+  }
   // A literal separator, and a short one: it is remote data applied to every row.
   if (a["splitTitle"] !== undefined && !isPlainString(a["splitTitle"], 8)) {
     return fail("bad splitTitle");
@@ -347,6 +363,25 @@ export function validateAdapter(
     }
   }
 
+  const gradebook = a["gradebook"];
+  if (gradebook !== undefined) {
+    if (typeof gradebook !== "object" || gradebook === null || Array.isArray(gradebook)) {
+      return fail("bad gradebook");
+    }
+    const g = gradebook as Record<string, unknown>;
+    if (!isPlainString(g["percentColumn"], 120)) {
+      return fail("gradebook.percentColumn must be a header name");
+    }
+    if (!isPlainString(g["ungradedText"], 80)) {
+      return fail("gradebook.ungradedText must be non-empty");
+    }
+    for (const key of Object.keys(g)) {
+      if (!["percentColumn", "ungradedText"].includes(key)) {
+        return fail(`unknown gradebook.${key}`);
+      }
+    }
+  }
+
   /*
    * The list-shaped page's three fields. Remote data that decides which line of
    * a list is a deadline, what it is called and what hour it lands at, so each
@@ -435,6 +470,9 @@ export function validateAdapter(
   }
   if (dueLabel !== undefined && duePhrase !== undefined) {
     return fail("dueLabel and duePhrase both read the date out of the located text; declare one");
+  }
+  if (a["duePrefix"] !== undefined && (dueLabel !== undefined || duePhrase !== undefined)) {
+    return fail("duePrefix cannot be combined with dueLabel or duePhrase");
   }
   /*
    * And two rules cutting one cell is the same mistake one field over.

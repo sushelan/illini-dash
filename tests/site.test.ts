@@ -46,9 +46,9 @@ import {
 } from "../src/core/registry.js";
 import { EXTENSION_VERSION } from "../src/build-info.js";
 import { normalizeTitle } from "../src/core/normalize.js";
-import { dedupe } from "../src/core/dedupe.js";
+import { dedupe, isItemDone } from "../src/core/dedupe.js";
 import { examBoard } from "../src/core/calendar.js";
-import { ParseError, type Adapter, type PageCtx } from "../src/sources/types.js";
+import { ParseError, type Adapter, type Item, type PageCtx } from "../src/sources/types.js";
 
 const doc = (html: string) => parseHTML(html).document as unknown as Document;
 const fixture = doc(
@@ -89,6 +89,9 @@ describe("parseAdapterDate", () => {
     );
     expect(parseAdapterDate("9/11 11:59 pm", "M/d", "America/Chicago", ref)).toBe(
       "2026-09-11T23:59:00-05:00",
+    );
+    expect(parseAdapterDate("Oct 1, 2026", "MMM d, yyyy", "America/Chicago", ref)).toBe(
+      "2026-10-01T23:59:00-05:00",
     );
   });
 
@@ -349,6 +352,13 @@ describe("the minExtensionVersion gate", () => {
     // The author of a new entry is the person least able to remember which
     // build learned `duePrev`, so the number is derived rather than typed.
     expect(requiredVersionFor({ rows: "tr", due: "." })).toBe("0.1.0");
+    expect(requiredVersionFor({ rows: "tr", duePrefix: "Due" })).toBe("1.5.0");
+    expect(
+      requiredVersionFor({
+        rows: "tr",
+        gradebook: { percentColumn: "Percent", ungradedText: "Ungraded" },
+      }),
+    ).toBe("1.5.0");
     for (const field of [
       "duePrev",
       "duePhrase",
@@ -705,10 +715,11 @@ describe("the bundled registry", () => {
     ]);
     // Each says which version to update to, and CS 425 is the one that says
     // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field. CS 341
-    // says 1.3.1, which learned to read a date behind "Week 8 ·".
+    // says 1.3.1, which learned to read a date behind "Week 8 ·"; CS 128
+    // requires 1.5.0 for the named gradebook status column and exact due prefix.
     expect(rejected[0]).toContain("needs extension 1.2.0, this is 1.0.0");
     expect(rejected[3]).toContain("needs extension 1.3.1, this is 1.0.0");
-    expect(rejected[4]).toContain("needs extension 1.4.0, this is 1.0.0");
+    expect(rejected[4]).toContain("needs extension 1.5.0, this is 1.0.0");
     for (const line of rejected.slice(1, 3)) {
       expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
     }
@@ -3196,74 +3207,185 @@ describe("CS 341: a date behind the course week", () => {
   });
 });
 
-describe("CS 128 daily lessons, against the signed-in lessons capture", () => {
+describe("CS 128 daily gradebook lessons, against the signed-in API capture", () => {
   const registry = JSON.parse(
     readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8"),
   ) as { adapters: Adapter[] };
   const adapter = registry.adapters.find((a) => a.id === "cs128-fa26-lessons")!;
-  const page = doc(
-    readFileSync(new URL("../fixtures/sites/cs128-fa26-lessons.html", import.meta.url), "utf8"),
+  const fixtureMarkup = readFileSync(
+    new URL("../fixtures/sites/cs128-fa26-gradebook.html", import.meta.url),
+    "utf8",
   );
+  // Test-only scores are invented and deliberately do not reproduce the
+  // signed-in account's completion pattern. The committed fixture keeps the
+  // grade cells as placeholders so it contains no student grades.
+  const syntheticPercentages = [
+    37, 0, 62, 100, "Ungraded", 100, 0, 100, 80, 100, "Ungraded", 100, 55, 0,
+    100, 75, 100, 0, 100, 66, "Ungraded", 100, 0, 100, 92, 100, "Ungraded", 0,
+  ] as const;
+  const gradebookPage = () => {
+    const parsed = doc(fixtureMarkup);
+    const rows = [...parsed.querySelectorAll("tbody tr")];
+    rows.forEach((row, index) => {
+      const cells = row.querySelectorAll("td");
+      const value = syntheticPercentages[index];
+      if (value === undefined) throw new Error(`no synthetic percentage for row ${index}`);
+      cells[1]!.textContent = value === "Ungraded" ? "—" : `${value}.00/100.00`;
+      cells[2]!.textContent = value === "Ungraded" ? value : `${value}.00%`;
+    });
+    return parsed;
+  };
+  const page = gradebookPage();
   const ctx: PageCtx = { url: adapter.url, fetchedAt: "2026-09-29T18:00:00.000Z" };
 
-  it("requires the nested-row runner introduced in 1.4.0", () => {
-    expect(requiredVersionFor(adapter)).toBe("1.4.0");
+  it("requires the gradebook, date-prefix and login-path readers introduced in 1.5.0", () => {
+    expect(requiredVersionFor(adapter)).toBe("1.5.0");
     expect(validateAdapter(adapter).adapter).toBeDefined();
-    expect(validateAdapter(adapter, "1.3.2").reason).toContain("needs extension 1.4.0");
-    expect(validateAdapter({ ...adapter, titleSlot: 0 }).reason).toContain(
-      "itemRows requires row-relative title and due selectors",
-    );
+    expect(validateAdapter(adapter, "1.4.0").reason).toContain("needs extension 1.5.0");
+    expect(adapter.loginPath).toBe("/auth");
   });
 
-  it("emits all 28 lessons with the date on their containing day card", () => {
+  it("emits the 28 lesson rows with exact dates and links", () => {
     const items = runAdapter(adapter, page, ctx);
     expect(items).toHaveLength(28);
     expect(items.map((item) => item.title)).toEqual([
-      "Classes and Invariants",
-      "Initialization and Interface Design",
-      "Operator overloading: non-member functions",
       "Operator overloading: member functions",
-      "Input and Output Streams",
-      "Unit Testing with Catch2",
-      "Line-by-Line Debugging",
-      "Version Control with Git",
+      "Operator overloading: non-member functions",
+      "Initialization and Interface Design",
+      "Classes and Invariants",
       "Build Systems with Make",
-      "References and Argument Passing",
-      "Structs",
+      "Version Control with Git",
+      "Line-by-Line Debugging",
+      "Unit Testing with Catch2",
+      "Input and Output Streams",
+      "Command-line Arguments",
       "Navigating the Command Line",
       "Command-line Compilation and Execution",
-      "Command-line Arguments",
-      "Vectors",
-      "Strings",
-      "Vector of Vectors",
+      "Structs",
+      "References and Argument Passing",
       "Sets",
       "Maps",
-      "Selection",
-      "Iteration",
-      "Declaring, Defining, and Calling Functions",
+      "Strings",
+      "Vector of Vectors",
+      "Vectors",
       "The Preprocessor, the Linker, and Overloading",
-      "Playground & Question System",
-      "Howdy, World!",
-      "Objects, types, and values",
-      "Type conversions",
+      "Declaring, Defining, and Calling Functions",
+      "Iteration",
+      "Selection",
       "Expressions and statements",
+      "Type conversions",
+      "Objects, types, and values",
+      "Howdy, World!",
+      "Playground & Question System",
     ]);
+    expect(items.map((item) => item.dueAt)).toEqual([
+      "2026-10-01T23:59:00-05:00",
+      "2026-09-30T23:59:00-05:00",
+      "2026-09-29T23:59:00-05:00",
+      "2026-09-28T23:59:00-05:00",
+      "2026-09-25T23:59:00-05:00",
+      "2026-09-24T23:59:00-05:00",
+      "2026-09-23T23:59:00-05:00",
+      "2026-09-22T23:59:00-05:00",
+      "2026-09-21T23:59:00-05:00",
+      "2026-09-17T23:59:00-05:00",
+      "2026-09-16T23:59:00-05:00",
+      "2026-09-16T23:59:00-05:00",
+      "2026-09-15T23:59:00-05:00",
+      "2026-09-14T23:59:00-05:00",
+      "2026-09-10T23:59:00-05:00",
+      "2026-09-10T23:59:00-05:00",
+      "2026-09-09T23:59:00-05:00",
+      "2026-09-09T23:59:00-05:00",
+      "2026-09-08T23:59:00-05:00",
+      "2026-09-03T23:59:00-05:00",
+      "2026-09-02T23:59:00-05:00",
+      "2026-09-01T23:59:00-05:00",
+      "2026-08-31T23:59:00-05:00",
+      "2026-08-27T23:59:00-05:00",
+      "2026-08-26T23:59:00-05:00",
+      "2026-08-25T23:59:00-05:00",
+      "2026-08-24T23:59:00-05:00",
+      "2026-08-24T23:59:00-05:00",
+    ]);
+    expect(items.filter((item) => item.status === "graded")).toHaveLength(11);
+    expect(items.filter((item) => item.status === "not_submitted")).toHaveLength(13);
+    expect(items.filter((item) => item.status === "unknown")).toHaveLength(4);
+    expect(items.filter((item) => item.kind === "event").map((item) => item.title)).toEqual([
+      "Build Systems with Make",
+      "Navigating the Command Line",
+      "Declaring, Defining, and Calling Functions",
+      "Howdy, World!",
+    ]);
+    expect(items.filter((item) => item.kind === "assignment" && item.status === "graded")).toHaveLength(11);
+    expect(items.find((item) => item.title === "Operator overloading: member functions")?.status).toBe(
+      "not_submitted",
+    );
     expect(
-      items.filter((item) => item.dueAt === "2026-09-09T23:59:00-05:00").map((i) => i.title),
-    ).toEqual(["Strings", "Vector of Vectors"]);
+      items.find((item) => item.title === "Operator overloading: member functions")?.extra?.["scorePercent"],
+    ).toBe("37");
+    expect(items.find((item) => item.title === "Operator overloading: non-member functions")?.status).toBe(
+      "not_submitted",
+    );
     expect(
-      items.filter((item) => item.dueAt === "2026-09-10T23:59:00-05:00").map((i) => i.title),
-    ).toEqual(["Sets", "Maps"]);
-    expect(items.every((item) => item.dueAt !== undefined)).toBe(true);
-    expect(items.every((item) => item.kind === "event")).toBe(true);
+      items.find((item) => item.title === "Operator overloading: non-member functions")?.extra?.["scorePercent"],
+    ).toBeUndefined();
+    expect(items.find((item) => item.title === "Classes and Invariants")?.status).toBe("graded");
     expect(items.every((item) => item.extra?.["timeAssumed"] === "true")).toBe(true);
     expect(items.every((item) => item.url?.startsWith("https://cs128.org/2026c/"))).toBe(true);
     expect(new Set(items.map((item) => item.sourceId)).size).toBe(28);
   });
 
-  it("fails loudly when day cards remain but no lesson items match", () => {
-    expect(() => runAdapter({ ...adapter, itemRows: ".lesson-gone" }, page, ctx)).toThrow(
-      /none matched title/,
+  it("records an unreadable percentage on that row without dropping its neighbors", () => {
+    const broken = gradebookPage();
+    const first = broken.querySelector("tbody tr");
+    first?.querySelectorAll("td")[2]?.replaceChildren("Pending");
+    const items = runAdapter(adapter, broken, ctx);
+    expect(items).toHaveLength(28);
+    expect(items[0]?.status).toBe("unknown");
+    expect(items[0]?.extra?.["unparsedStatus"]).toBe("Pending");
+    expect(items[1]?.status).toBe("not_submitted");
+  });
+
+  it("feeds full and partial credit into the extension's done filter", () => {
+    const items = runAdapter(adapter, page, ctx);
+    const asItem = (title: string): Item => {
+      const member = items.find((item) => item.title === title)!;
+      return {
+        id: member.sourceId,
+        members: [member],
+        courseCode: "CS128",
+        courseLabel: "CS128",
+        title: member.title,
+        kind: member.kind,
+        dueAt: member.dueAt,
+        url: member.url,
+        status: member.status,
+        hidden: false,
+        done: false,
+        notified: {},
+      };
+    };
+    expect(isItemDone(asItem("Classes and Invariants"))).toBe(true);
+    expect(isItemDone(asItem("Operator overloading: member functions"))).toBe(false);
+    expect(isItemDone(asItem("Operator overloading: non-member functions"))).toBe(false);
+  });
+
+  it("keeps a row when its due prefix stops matching, and records the unreadable date", () => {
+    const changed = gradebookPage();
+    changed.querySelector("tbody tr .text-muted.small")!.textContent = "Deadline Oct 1, 2026";
+    const items = runAdapter(adapter, changed, ctx);
+    expect(items).toHaveLength(28);
+    expect(items[0]?.dueAt).toBeUndefined();
+    expect(items[0]?.extra?.["unparsedDate"]).toBe("Deadline Oct 1, 2026");
+  });
+
+  it("fails loudly when the gradebook percent header or lesson rows disappear", () => {
+    const noPercent = gradebookPage();
+    noPercent.querySelector("thead th:nth-child(3)")!.textContent = "Completion";
+    expect(() => runAdapter(adapter, noPercent, ctx)).toThrow(/no gradebook column headed "Percent"/);
+    expect(() => runAdapter({ ...adapter, rows: "tbody tr:has(a[href*='/missing/'])" }, page, ctx)).toThrow(
+      /no rows matched/,
     );
   });
 });

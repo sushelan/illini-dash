@@ -137,6 +137,9 @@ export interface DetectedRow {
 export interface Candidate {
   /** A CSS selector for this page's rows, as the adapter would carry. */
   rows: string;
+  /** Optional fields carried through when a candidate already has them. */
+  duePrefix?: string;
+  gradebook?: { percentColumn: string; ungradedText: string };
   /** Nested repeated items when the row itself is a dated group. */
   itemRows?: string;
   /**
@@ -195,6 +198,7 @@ type AdapterIdentity =
   | "term"
   | "url"
   | "hostPattern"
+  | "loginPath"
   | "timezone"
   | "minExtensionVersion";
 
@@ -215,10 +219,12 @@ const READ_FIELDS = {
   itemRows: "itemRows",
   title: "title",
   due: "due",
+  duePrefix: "duePrefix",
   link: "link",
   splitTitle: "splitTitle",
   clauses: "clauses",
   columns: "columns",
+  gradebook: "gradebook",
   dueLabel: "dueLabel",
   duePhrase: "duePhrase",
   duePrev: "duePrev",

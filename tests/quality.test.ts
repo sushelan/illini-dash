@@ -49,6 +49,7 @@ describe("qualityFlags", () => {
       "unparsedSchedule",
       "unparsedCredit",
       "unparsedReleaseDate",
+      "unparsedStatus",
       "creditMismatch",
       "unknownStatus",
       "idFallback",

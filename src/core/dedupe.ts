@@ -733,9 +733,10 @@ export function isItemDone(item: Item): boolean {
    * `unknown` abstains. It is not a source saying the work is outstanding, it
    * is a source with nothing to say, and `every` counted the two the same.
    *
-   * A course-site row is *always* `unknown` (§4.5: a schedule page states a
-   * deadline and never a submission), so every Gradescope submission that
-   * merged with one was permanently unfinished — Sushi's CS 425 HW1, submitted
+   * Schedule-only course-site rows remain `unknown`; a gradebook-backed adapter
+   * may report `graded` or `not_submitted` when the page exposes completion.
+   * Before that distinction, every Gradescope submission that merged with a
+   * course-site row was permanently unfinished — Sushi's CS 425 HW1, submitted
    * on Gradescope, drawn in the Late band at 45m late (2026-09-21). It also
    * silenced nothing: §7 goes on reminding about work that is handed in, and
    * "hide submitted" could never hide it.
