@@ -81,6 +81,14 @@ describe("scrubHtml", () => {
     expect(report.counts["csrf token (form input)"]).toBe(1);
   });
 
+  it("blanks a session id in a meta tag but keeps the tag shape", () => {
+    const { html, report } = scrubHtml(
+      `<meta name="sess-id" content="2::private-session-value" />`,
+    );
+    expect(html).toBe(`<meta name="sess-id" content="SCRUBBED" />`);
+    expect(report.counts["session id (meta)"]).toBe(1);
+  });
+
   it("escapes regex metacharacters in a supplied name", () => {
     const { html } = scrubHtml(`<p>a.c and abc</p>`, { name: "a.c" });
     expect(html).toBe(`<p>STUDENT and abc</p>`);

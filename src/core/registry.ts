@@ -101,6 +101,7 @@ const KNOWN_FIELDS = {
   url: true,
   hostPattern: true,
   rows: true,
+  itemRows: true,
   title: true,
   splitTitle: true,
   clauses: true,
@@ -178,9 +179,13 @@ const FIELDS_ADDED_IN_1_1 = [
  */
 const FIELDS_ADDED_IN_1_2 = ["clauses"] as const;
 
+/** Nested item rows were added in 1.4.0. */
+const FIELDS_ADDED_IN_1_4 = ["itemRows"] as const;
+
 /** The lowest extension version that can run this entry. */
 export function requiredVersionFor(entry: object): string {
   const record = entry as Record<string, unknown>;
+  if (FIELDS_ADDED_IN_1_4.some((field) => record[field] !== undefined)) return "1.4.0";
   if (FIELDS_ADDED_IN_1_2.some((field) => record[field] !== undefined)) return "1.2.0";
   return FIELDS_ADDED_IN_1_1.some((field) => record[field] !== undefined) ? "1.1.0" : "0.1.0";
 }
@@ -233,6 +238,9 @@ export function validateAdapter(
 
   for (const field of ["label", "courseCode", "term", "rows", "title", "due", "timezone"]) {
     if (!isPlainString(a[field])) return fail(`missing ${field}`);
+  }
+  if (a["itemRows"] !== undefined && !isPlainString(a["itemRows"], 200)) {
+    return fail("bad itemRows");
   }
   if (a["link"] !== undefined && !isPlainString(a["link"])) return fail("bad link");
   // A literal separator, and a short one: it is remote data applied to every row.
@@ -415,6 +423,15 @@ export function validateAdapter(
   }
   if (a["columns"] !== undefined && a["titleSlot"] !== undefined) {
     return fail("columns.title and titleSlot both locate the title cell; declare one");
+  }
+  if (
+    a["itemRows"] !== undefined &&
+    (a["columns"] !== undefined ||
+      a["dueSlot"] !== undefined ||
+      a["duePrev"] !== undefined ||
+      a["titleSlot"] !== undefined)
+  ) {
+    return fail("itemRows requires row-relative title and due selectors");
   }
   if (dueLabel !== undefined && duePhrase !== undefined) {
     return fail("dueLabel and duePhrase both read the date out of the located text; declare one");

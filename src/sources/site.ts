@@ -1514,6 +1514,11 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   }
 
   const items: RawItem[] = [];
+  const itemRows = rows.flatMap((parent) =>
+    adapter.itemRows
+      ? Array.from(parent.querySelectorAll(adapter.itemRows)).map((row) => ({ row, dueRow: parent }))
+      : [{ row: parent, dueRow: parent }],
+  );
   const keys = new KeyGuard();
   const codes = extractCourseCodes(adapter.courseCode);
   // One grid per table for the whole run. `formTableGrid` walks every cell, and
@@ -1547,7 +1552,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
   let sawDueReader = false;
   let sawDueHook = false;
   let sawTitleFrom = false;
-  for (const row of rows) {
+  for (const { row, dueRow } of itemRows) {
     const located = locateTitle(row, adapter, grids);
     // The `continue` stays: a header row legitimately has no title cell.
     if (!located.text) continue;
@@ -1569,7 +1574,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      * one (every checkpoint still TBD) is a normal week, not a redesign. That
      * is the same reason `sawTitledRow` is keyed on titles, not items.
      */
-    const due = locateDue(row, adapter, grids);
+    const due = locateDue(dueRow, adapter, grids);
     if (due.readerSeen) sawDueReader = true;
     if (due.hookSeen) sawDueHook = true;
     /*

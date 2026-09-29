@@ -137,6 +137,8 @@ export interface DetectedRow {
 export interface Candidate {
   /** A CSS selector for this page's rows, as the adapter would carry. */
   rows: string;
+  /** Nested repeated items when the row itself is a dated group. */
+  itemRows?: string;
   /**
    * Header names, which survive a course adding a column (house rule 3).
    *
@@ -210,6 +212,7 @@ type ReadFields = Exclude<keyof Adapter, AdapterIdentity>;
  */
 const READ_FIELDS = {
   rows: "rows",
+  itemRows: "itemRows",
   title: "title",
   due: "due",
   link: "link",

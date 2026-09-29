@@ -2,13 +2,24 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (2680 tests) all pass. Three tests in
+`npm run build`, `npm run typecheck`, `npm test` (2710 tests) all pass. Three tests in
 `popup-draw.test.ts` read `Date.now()` and fail whenever the timeline rail is not drawn —
 the Sunday evening of 2026-09-20, and again at 23:43 on 2026-09-23 (on clean `main` too).
 They still have no pinned clock.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## CS 128 daily lessons — 2026-09-29
+
+Added a signed-in, scrubbed capture of `/lessons` and an adapter that emits one event per
+lesson, reading the date from its day card. MPs/tests remain with PrairieLearn/PrairieTest.
+The runner gained version-gated `itemRows` support (1.4.0) for multiple items under one
+parent date. The scrubber now blanks CS128's session-id meta tag, with a regression test.
+The fixture covers 28 links, including multi-lesson dates. See `docs/cs128-findings.md`.
+
+Amendments: captured CS128 markup requires each `.lesson-item` to inherit its date from
+the containing day card; the previous adapter schema could not express this relationship.
 
 ## Rename a deadline, and rename its course, from the row menu — 2026-09-26
 

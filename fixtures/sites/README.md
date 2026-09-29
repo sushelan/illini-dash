@@ -1,19 +1,18 @@
 # `fixtures/sites/` — the course pages the §4.5 runner is tested against
 
-Every file here is either an unmodified `curl` capture of a **public** course page or a
-file *derived* from one. The derived files are deliberately unrealistic; each says so in
-a banner comment at the top of its own `<body>`, and each row that is invented is listed
-below as well (parser rule 10).
+Every file here is either a captured course page or a file *derived* from one. Public
+pages are kept verbatim; signed-in captures are scrubbed and read before they are added.
+The derived files are deliberately unrealistic; each says so in a banner comment at the
+top of its own `<body>`, and each row that is invented is listed below as well (parser
+rule 10).
 
-## Why the captures are committed unscrubbed
+## Why public captures are committed verbatim
 
-`npm run scrub` exists for pages behind a login, where a capture carries the student's
-name, NetID, section, submission history or a session token. **None of these pages is
-behind a login.** They are the same bytes any anonymous visitor gets, and the only
-identifiers on them are things the course publishes to the whole class: a Gradescope
-course id and self-enrolment code, a MediaSpace channel id, a PrairieLearn course
-instance id, a Google Form link, a Box share link, and the instructors' names in a
-copyright footer.
+`npm run scrub` exists for pages behind a login, where a capture can carry the student's
+name, NetID, section, submission history or a session token. Most files below are public
+captures and remain verbatim. `cs128-fa26-lessons.html` is the exception: it came from a
+signed-in page; the student name, CS128 session id and CSRF token were scrubbed. No NetID
+was supplied for that capture.
 
 Scrubbing them anyway would be actively harmful, for two reasons the project has already
 paid for:
@@ -45,6 +44,7 @@ forgotten.
 | `cs374a-fa2026-homeworks.html` | `…/cs374al1/fa2026/homeworks.html` | 2026-09-18 | `<dl class="calendar">`; the date is the `<dt>` **before** each `<dd>` |
 | `cs374a-fa2026-gps.html` | `…/cs374al1/fa2026/gps.html` | 2026-09-18 | same shape, every link off-origin |
 | `cs341-fa2026-home.html` | `cs341.cs.illinois.edu/` | 2026-09-24 | two "Latest Assignments" cards; the date sits behind the course week, `Due: Week 8 · 2026-10-12 23:59` |
+| `cs128-fa26-lessons.html` | `cs128.org/lessons` (signed in) | 2026-09-29 | 24 day cards across week rows; 28 `.lesson-item` links; scrubbed |
 | `cs374a-fa2026-calendar.html` | `…/cs374al1/fa2026/calendar.html` | 2026-09-18 | fifteen `<dl>`s, 93 pairs — **fixture only, no registry entry** |
 
 `fixtures/site/ece391-schedule.html` (singular `site/`) is a separate older directory

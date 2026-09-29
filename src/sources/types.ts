@@ -412,6 +412,12 @@ export interface Adapter {
   url: string;
   hostPattern: string;
   rows: string;
+  /**
+   * A selector for repeated items inside each row. The outer row supplies the
+   * date; each matching descendant supplies one title/link. Used when one day
+   * card contains several lessons.
+   */
+  itemRows?: string;
   title: string;
   /**
    * A literal separator that splits one cell into several deadlines (§4.5:

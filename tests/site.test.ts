@@ -701,12 +701,14 @@ describe("the bundled registry", () => {
       "cs374a-fa26-hw",
       "cs374a-fa26-gps",
       "cs341-fa26",
+      "cs128-fa26-lessons",
     ]);
     // Each says which version to update to, and CS 425 is the one that says
     // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field. CS 341
     // says 1.3.1, which learned to read a date behind "Week 8 ·".
     expect(rejected[0]).toContain("needs extension 1.2.0, this is 1.0.0");
     expect(rejected[3]).toContain("needs extension 1.3.1, this is 1.0.0");
+    expect(rejected[4]).toContain("needs extension 1.4.0, this is 1.0.0");
     for (const line of rejected.slice(1, 3)) {
       expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
     }
@@ -3191,5 +3193,77 @@ describe("CS 341: a date behind the course week", () => {
       ]);
       for (const item of items) expect(item.extra?.["timeAssumed"]).toBeUndefined();
     });
+  });
+});
+
+describe("CS 128 daily lessons, against the signed-in lessons capture", () => {
+  const registry = JSON.parse(
+    readFileSync(new URL("../adapters/registry.json", import.meta.url), "utf8"),
+  ) as { adapters: Adapter[] };
+  const adapter = registry.adapters.find((a) => a.id === "cs128-fa26-lessons")!;
+  const page = doc(
+    readFileSync(new URL("../fixtures/sites/cs128-fa26-lessons.html", import.meta.url), "utf8"),
+  );
+  const ctx: PageCtx = { url: adapter.url, fetchedAt: "2026-09-29T18:00:00.000Z" };
+
+  it("requires the nested-row runner introduced in 1.4.0", () => {
+    expect(requiredVersionFor(adapter)).toBe("1.4.0");
+    expect(validateAdapter(adapter).adapter).toBeDefined();
+    expect(validateAdapter(adapter, "1.3.2").reason).toContain("needs extension 1.4.0");
+    expect(validateAdapter({ ...adapter, titleSlot: 0 }).reason).toContain(
+      "itemRows requires row-relative title and due selectors",
+    );
+  });
+
+  it("emits all 28 lessons with the date on their containing day card", () => {
+    const items = runAdapter(adapter, page, ctx);
+    expect(items).toHaveLength(28);
+    expect(items.map((item) => item.title)).toEqual([
+      "Classes and Invariants",
+      "Initialization and Interface Design",
+      "Operator overloading: non-member functions",
+      "Operator overloading: member functions",
+      "Input and Output Streams",
+      "Unit Testing with Catch2",
+      "Line-by-Line Debugging",
+      "Version Control with Git",
+      "Build Systems with Make",
+      "References and Argument Passing",
+      "Structs",
+      "Navigating the Command Line",
+      "Command-line Compilation and Execution",
+      "Command-line Arguments",
+      "Vectors",
+      "Strings",
+      "Vector of Vectors",
+      "Sets",
+      "Maps",
+      "Selection",
+      "Iteration",
+      "Declaring, Defining, and Calling Functions",
+      "The Preprocessor, the Linker, and Overloading",
+      "Playground & Question System",
+      "Howdy, World!",
+      "Objects, types, and values",
+      "Type conversions",
+      "Expressions and statements",
+    ]);
+    expect(
+      items.filter((item) => item.dueAt === "2026-09-09T23:59:00-05:00").map((i) => i.title),
+    ).toEqual(["Strings", "Vector of Vectors"]);
+    expect(
+      items.filter((item) => item.dueAt === "2026-09-10T23:59:00-05:00").map((i) => i.title),
+    ).toEqual(["Sets", "Maps"]);
+    expect(items.every((item) => item.dueAt !== undefined)).toBe(true);
+    expect(items.every((item) => item.kind === "event")).toBe(true);
+    expect(items.every((item) => item.extra?.["timeAssumed"] === "true")).toBe(true);
+    expect(items.every((item) => item.url?.startsWith("https://cs128.org/2026c/"))).toBe(true);
+    expect(new Set(items.map((item) => item.sourceId)).size).toBe(28);
+  });
+
+  it("fails loudly when day cards remain but no lesson items match", () => {
+    expect(() => runAdapter({ ...adapter, itemRows: ".lesson-gone" }, page, ctx)).toThrow(
+      /none matched title/,
+    );
   });
 });

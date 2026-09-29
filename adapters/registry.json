@@ -168,6 +168,24 @@
       "dateFormat": "yyyy-MM-dd",
       "timezone": "America/Chicago",
       "minExtensionVersion": "1.3.1"
+    },
+    {
+      "$comment": "The signed-in Lessons page groups lessons under day cards; itemRows emits one event per lesson while reading the date from its containing day card. MPs and tests are already tracked through PrairieLearn/PrairieTest. See docs/cs128-findings.md.",
+      "id": "cs128-fa26-lessons",
+      "label": "CS 128 daily lessons",
+      "courseCode": "CS128",
+      "term": "fa26",
+      "url": "https://cs128.org/lessons",
+      "hostPattern": "https://cs128.org/*",
+      "rows": "#lessons .row.mb-3.rounded.border.lh-sm > .col-md-2",
+      "itemRows": ".lesson-item",
+      "title": "a",
+      "due": "p.mb-2",
+      "link": "a@href",
+      "kind": "event",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "minExtensionVersion": "1.4.0"
     }
   ]
 }
