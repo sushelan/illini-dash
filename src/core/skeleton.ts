@@ -24,6 +24,9 @@
 
 import { ParseError, type Adapter } from "../sources/types.js";
 import {
+  DASHED_MONTH_DAY,
+  DAY_FIRST_DATE,
+  dateRole,
   headerIndex,
   locateDue,
   MIN_DATED_ROWS,
@@ -292,9 +295,17 @@ const MIN_LABELLED_SHARE = 0.5;
  */
 const DATE_SHAPED = new RegExp(
   String.raw`\b\d{1,2}/\d{1,2}\b|\b\d{4}-\d{1,2}-\d{1,2}\b|` +
-    String.raw`\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b`,
+    String.raw`\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|` +
+    // `MM-dd` and `d MMM` are spelled once, in `site.ts`, and only borrowed
+    // here with their group names taken off; a second spelling would drift.
+    `\\b(?:${unnamed(DASHED_MONTH_DAY)})|\\b(?:${unnamed(DAY_FIRST_DATE)})`,
   "i",
 );
+
+/** A pattern fragment with its named groups made anonymous, to reuse in another. */
+function unnamed(fragment: string): string {
+  return fragment.replace(/\(\?<([a-zA-Z]\w*)>/g, "(?:");
+}
 
 /** Headings a list can take its rows' names from — what `titleFrom` points at. */
 const HEADINGS = "h1, h2, h3, h4";
@@ -313,19 +324,38 @@ function directItems(list: Element): Element[] {
  * it, because it is the one that cannot drift when a section is moved.
  */
 function headingFor(list: Element): { element: Element; spec: string } | undefined {
+  let nearest: Element | undefined;
+  for (let node = previousInDocumentOrder(list); node; node = previousInDocumentOrder(node)) {
+    if (node.matches(HEADINGS) && !droppedAncestor(node)) {
+      nearest = node;
+      break;
+    }
+  }
   for (const scope of ["section", "article"]) {
     const container = list.closest(scope);
     const heading = container?.querySelector(HEADINGS);
     if (heading && !droppedAncestor(heading)) {
+      /*
+       * The section's own heading, unless the rows sit in a block of their own
+       * that has a nearer one. CS 357's quiz page is one `<section>` headed
+       * "Quizzes" holding seven cards, each with its own `<h4>Quiz 1: …</h4>`
+       * above its dated lines; the section's first heading named all seven rows
+       * "Quizzes" (2026-10-01). Where the nearest heading *is* the section's —
+       * ECE 411's `section > h3` — the scoped spelling stays, because it is
+       * the one that survives the section being moved.
+       */
+      if (
+        nearest !== undefined &&
+        nearest !== heading &&
+        container!.contains(nearest) &&
+        nearest.parentElement?.contains(list)
+      ) {
+        return { element: nearest, spec: nearest.tagName.toLowerCase() };
+      }
       return { element: heading, spec: `${scope} >> ${heading.tagName.toLowerCase()}` };
     }
   }
-  for (let node = previousInDocumentOrder(list); node; node = previousInDocumentOrder(node)) {
-    if (node.matches(HEADINGS) && !droppedAncestor(node)) {
-      return { element: node, spec: node.tagName.toLowerCase() };
-    }
-  }
-  return undefined;
+  return nearest ? { element: nearest, spec: nearest.tagName.toLowerCase() } : undefined;
 }
 
 /** The same backwards walk `site.ts` uses, for the same linkedom reason. */
@@ -910,10 +940,14 @@ export function datedRows(
   if (due.length > 0) {
     label = due.join("|");
   } else {
-    let shared: { label: string; n: number } | undefined;
+    // Most rows first; on a tie, the label that names an event over one that
+    // names its start (`dateRole`) — CS 357's `CBTF registration starts` and
+    // `CBTF quizzes during the period` date the same seven cards.
+    let shared: { label: string; n: number; role: number } | undefined;
     for (const [name, n] of datedLabels) {
       if (n < MIN_SHARED_LABEL_ROWS) continue;
-      if (!shared || n > shared.n) shared = { label: name, n };
+      const role = dateRole(name);
+      if (!shared || n > shared.n || (n === shared.n && role > shared.role)) shared = { label: name, n, role };
     }
     label = shared?.label;
   }

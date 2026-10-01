@@ -33,7 +33,17 @@ re-review that takes days (§0 decision 4).
   attribute instead of the text: `time@datetime`, `a@href`.
 - `dateFormat` is chosen from a closed set, not supplied. An adapter cannot provide a
   pattern, so a bad registry entry can produce a wrong selector but never arbitrary
-  matching behaviour. Currently: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d`.
+  matching behaviour. Currently: `yyyy-MM-dd`, `MMM d, h:mm a`, `M/d`, `MM-dd`, `d MMM`.
+
+  `MM-dd` (ECE 220's MPs, `10-04 (extended)`) is two digits each side, a real month, and
+  refuses anything after it that makes it a clock or a longer number — `10-12pm`,
+  `10-11:30`, `01-02-03`. It is its own format rather than a spelling `M/d` learned,
+  because `12-14` as a lecture range still reads as December 14: only a page that
+  declares it gets it. `d MMM` (CS 357's `10 Dec - 16 Dec`) spells every month name out
+  and lets no letter follow, so `10 Decimal places` is not December 10. Neither shape is
+  in `site.ts`'s `DATE_SHAPED`, which `firstDateIn` scans word by word through prose.
+  A clock **range** gives its start, and a start with no meridiem borrows the end's the
+  way a reader would: `7.00-8.20pm` is 19:00, `11.30-12.45pm` is 11:30.
 
   Each is start-anchored and carries the optional bits real pages put around a date: a
   weekday in front, a weekday **after** it — `09/24, Thursday 11.59 PM`, `08/27 Thu¹` —
@@ -69,6 +79,22 @@ re-review that takes days (§0 decision 4).
   other kind keeps it for every row. This is what makes exams work for a page nobody
   wrote an `-exams` entry for: every page a student adds, and every homework entry whose
   page also lists the midterms.
+
+  Three more shapes put the name and the date in one text, and the runner reads each
+  (2026-10-01, from the 30-site probe). **Name, then date**, where the title *is* the
+  due text read whole: `Midterm 1 (Sep 30 Wed 7:00pm-9:30pm, in Siebel 1404)` (CS 473),
+  `Exam 1 Sep. 21 Mon 7:00-8:15pm` (ECE 329), `Final (TBA)`. The formats read from the
+  front, so these parsed as nothing; `sittingSentence` takes the date that comes
+  *straight after* the name — at most one `(`, `:`, `,`, `@`, dash, `on` or `at` between
+  — and titles the row by the name alone, before the filter sees it. A date further
+  along is never taken: `Midterm 1 (covers through Oct 1)` stays undated. **Date, then
+  name**, in one cell: `Oct 15 MIDTERM (in class)` (CS 461) is titled by the words after
+  the date (`afterLeadingDate`, measured with the parser), but only when those words name
+  a sitting, so no homework row is retitled. **A sitting dated by its week**: CS 440's
+  date column says `Dec 14-18` and the row says `Our final … will be on Thurs Dec 17`; a
+  row the entry files as an exam or quiz takes the day its own sentence names *inside*
+  the span the cell states (`dayWithinSpan`). A day outside that week, a single-day
+  cell, and a homework row all keep the cell's date.
 - `term` expires the adapter — the options page hides adapters from other terms, so a
   stale one disappears on its own rather than quietly fetching last year's page.
 
@@ -295,6 +321,14 @@ re-resolved on every parse, so an added column costs nothing. Alternatives are s
 by `|`, because the same column is called different things across courses and an adapter
 should not need editing when only the wording differs.
 
+The alternatives are resolved against **each row's own table**, which is what lets one
+entry read two tables headed differently: CS 128's syllabus is proposed as `rows` of two
+selectors joined by `,` and `"due": "cbtf end date|due date-time"`. The search joins
+tables only where each table's due column says deadline, the tables share a date format,
+and every alternative names a column in exactly one of them (`siblingTables` in
+`core/detect.ts`). A table's header row — `<thead>`, the first all-`<th>` row, or a
+first row that is mostly `<th>` — is never itself an item, even when `rows` matches it.
+
 Matched **exactly** after whitespace and case are normalised — never by substring. The
 ECE 310 page is its own counterexample: its schedule table has a column headed
 `Assessment Due` whose cells hold `HW1`, while its homework table has `Due Date` whose
@@ -345,9 +379,10 @@ Three fields cover it, all optional:
   a declared label throws, naming the labels, exactly like a named column that has left
   the table.
 
-  The matched label is also **appended to the title**, minus a trailing `Due`, `Date`
-  or `Due Date` (which every dated line carries and so names nothing — ECE 310's exams
-  were titled `Midterm Exam 1 Date` until `Date` joined the list). That is what makes `mp_pipeline CP1`,
+  The matched label is also **appended to the title**, minus a trailing `Due`, `Date`,
+  `Due Date` or `Time` (which every dated line carries and so names nothing — ECE 310's exams
+  were titled `Midterm Exam 1 Date` until `Date` joined the list, and ECE 313's
+  `Midterm Exam I Time` until `Time` did). That is what makes `mp_pipeline CP1`,
   `CP2` and `CP3` three items: §3.1 hashes the title, so without it the three checkpoints
   share one `sourceId` and `KeyGuard` keeps one of them.
 
@@ -364,6 +399,11 @@ Three fields cover it, all optional:
   start. The search is anchored on the word `Time`, exactly as `statedTimeInText` is
   anchored on `due`: a room number is a number too, and an unanchored search finds
   `ECEB 1002` first.
+
+  Last of all, a range closed by a meridiem anywhere in the text — ECE 329's
+  `7:00-8:15pm`, CS 440's `during the 8-11am timeslot` — gives its start, lending the
+  meridiem only where that keeps the range in order (`11-1pm` starts at 11am). A room
+  (`1404`) and a chapter range (`3-5`) end in no meridiem and are not read.
 
   Without a `Time:` label, the clock a sentence **introduces** is read — the first one
   after `at`, `@` or a label's colon: ECE 391's `Midterm Exam 1 at 7pm`, CS 374 A's
@@ -589,6 +629,14 @@ shown, and it saves under its own id (`…-exams-local`), so saving it after the
 reading of the same page does not replace that one. Where the exam's name is buried in a
 longer cell (PHYS 435's `Hour Exam I Solutions Review Lectures 1-13`) or filed under a
 `Date:` label (ECE 310), it finds nothing, and those courses have hand-written entries.
+Three more ways in (2026-10-01): a list whose items name a sitting and then date it
+(`sentenceExamTrialFor` — CS 473, ECE 329; at least `MIN_DATED_ROWS` of them, like any
+reading); a date column whose own cells name the sitting after the date (CS 461); and a
+`Label: date` line nested as the *first* bullet under an item naming the sitting, read
+from the enclosing items with `due: "li"` and the label (ECE 313's `Midterm Exam I:` /
+`Time: Oct 12, 7-8:30 PM`). Not yet: CS 421 puts each exam's name and date in two
+different table rows, and CS 225's cards date the registration window first and the
+exam window under an `Exam Availability` label with no colon.
 
 **Exams are the commonest second page.** As of 2026-10-01 every course with exam dates
 on its site has an `-exams` entry with `"kind": "exam"`: `cs424-fa26-exams`,

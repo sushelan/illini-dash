@@ -35,20 +35,25 @@
 
 import { shortHash } from "./dates.js";
 import {
+  afterLeadingDate,
   clauseEvents,
+  dateRole,
   headerIndex,
   SITTING_EXCLUDE,
   SITTING_INCLUDE,
   sittingKind,
+  sittingSentence,
   locateDue,
   locateTitle,
   MIN_DATED_ROWS,
   MIN_DATED_SHARE,
   parseAdapterDate,
+  parseAdapterDateParts,
   PLACEHOLDER_WORDS,
   runAdapter,
   statedTimeInText,
   supportedDateFormats,
+  titleBefore,
   titleSeparatorAt,
 } from "../sources/site.js";
 import { requiredVersionFor, validateAdapter } from "./registry.js";
@@ -295,11 +300,76 @@ export function selectorForTable(table: Element, doc: Document): string {
     const within: Element[] = [...container!.querySelectorAll("table")];
     const index = within.indexOf(table);
     if (within.length === 1) return `#${containerId} table`;
-    if (index >= 0) return `#${containerId} table:nth-of-type(${index + 1})`;
+    const spelled = `#${containerId} table:nth-of-type(${index + 1})`;
+    if (index >= 0 && namesOnly(spelled, table, tables)) return spelled;
   }
 
   const index = tables.indexOf(table);
-  return index <= 0 ? "table" : `table:nth-of-type(${index + 1})`;
+  const positional = index <= 0 ? "table" : `table:nth-of-type(${index + 1})`;
+  if (namesOnly(positional, table, tables)) return positional;
+  return pathSelector(table, tables) ?? positional;
+}
+
+/**
+ * Whether `selector` matches `table` and no other table on the page.
+ *
+ * Asked of the page's tables with `matches` rather than with a fresh
+ * `querySelectorAll`: every spelling here ends in a table, so only a table can
+ * match it, and the inventory asks once per table per step — a whole-document
+ * walk each time is the growth `skeleton.test.ts` pins against.
+ */
+function namesOnly(selector: string, table: Element, tables: readonly Element[]): boolean {
+  try {
+    return tables.every((other) => other.matches(selector) === (other === table));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Table internals, never a step of a path: `tr:nth-of-type(2) td:nth-of-type(1)`
+ * is two more positions to go stale between a nested table and the table
+ * around it, and the descendant combinator already reaches through them.
+ */
+const TABLE_INTERNAL = new Set(["TBODY", "THEAD", "TFOOT", "TR", "TD", "TH"]);
+
+/** `tag.class:nth-of-type(k)` among its own siblings. */
+function stepOf(element: Element): string {
+  let k = 1;
+  for (let node = element.previousElementSibling; node; node = node.previousElementSibling) {
+    if (node.tagName === element.tagName) k += 1;
+  }
+  return `${tagWithClass(element)}:nth-of-type(${k})`;
+}
+
+/**
+ * The shortest ancestor path that names this table and nothing else.
+ *
+ * `:nth-of-type` counts an element among its *siblings*, so the document-wide
+ * index the fallback above writes names a different table — or none — on any
+ * page whose tables are not all siblings. CS 421 nests each schedule in a
+ * layout table and CS 128 wraps two of its nine in a `div.table-responsive`;
+ * on both, `table:nth-of-type(4)` matched the wrong rows and the search never
+ * saw the schedule. Built upward until the page agrees it names exactly this
+ * table, joined by descendant combinators so a `<tbody>` the browser inserts
+ * cannot break it. Still a positional spelling, and no better than the one it
+ * replaces at surviving a redesign — but it names the table it was measured on.
+ */
+function pathSelector(table: Element, tables: readonly Element[]): string | undefined {
+  const ends = [tagWithClass(table), stepOf(table)];
+  const prefix: string[] = [];
+  for (let node: Element | null = table; node && node.tagName !== "HTML"; node = node.parentElement) {
+    if (node !== table) {
+      if (TABLE_INTERNAL.has(node.tagName)) continue;
+      const id = node.getAttribute("id");
+      prefix.unshift(id && SAFE_TOKEN.test(id) ? `#${id}` : node.tagName === "BODY" ? "body" : stepOf(node));
+    }
+    for (const end of ends) {
+      const selector = [...prefix, end].join(" ");
+      if (namesOnly(selector, table, tables)) return selector;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -309,9 +379,9 @@ export function selectorForTable(table: Element, doc: Document): string {
  * deadline. A bare `… tr` matches the `<thead>` row too, and `columns.title` of
  * "Exercises" then reads `<th>Exercises</th>` — an undated item literally titled
  * *Exercises*, with the words "Due Date" where its date should be, that no
- * course ever set. A table with no `<tbody>` has no better spelling to offer,
- * and there the runner does read the header row: that is why the count under a
- * proposal is the *runner's*, so "2 of 5" says so on screen.
+ * course ever set. A table with no `<tbody>` has no better spelling to offer;
+ * there the runner leaves the header row out itself (`cellByHeader`), and the
+ * count under a proposal is still the *runner's*, so the two cannot disagree.
  *
  * The same rule `core/skeleton.ts` prints for the on-device model, and what the
  * hand-written `ece310-fa26` entry uses (`#homework table.timetable tbody tr`).
@@ -468,6 +538,13 @@ export function searchCandidates(
     // The inventory measured a different document, or the page moved under it.
     if (rows.length !== structure.count) continue;
 
+    // Exams that name themselves before their date, which no hook below reads.
+    const sentence = sentenceExamTrialFor(structure, rows, timezone, reference);
+    if (sentence) {
+      const outcome = runCandidate(sentence.trial, doc, reference, timezone);
+      if (outcome.ok) ran.push({ ...outcome, datedRows: sentence.rows });
+    }
+
     for (const evidence of structure.locators) {
       const refuse = (reason: string): void => {
         refused.push({
@@ -497,8 +574,15 @@ export function searchCandidates(
       }
 
       // Before the "due" check below, which is about deadlines: an exam row
-      // says no "due", and the lecture column is exactly where its date is.
-      const exam = examTrialFor(structure, evidence, rows, grids);
+      // says no "due", and the lecture column is exactly where its date is —
+      // CS 425's midterm is held on its lecture's date. Unless the sitting rows
+      // *themselves* say otherwise: ECE 220's schedule writes `Quiz due 09/07 -
+      // 09/10` beside a lecture dated 09-08, and the exams reading put all seven
+      // quiz windows on lecture days (2026-10-01). The same disagreement test,
+      // counted on the rows that name a sitting only.
+      const exam = sittingRowsContradict(structure, evidence, rows, grids, timezone, reference)
+        ? undefined
+        : examTrialFor(structure, evidence, rows, grids, timezone, reference);
       if (exam) {
         const outcome = runCandidate(exam, doc, reference, timezone);
         if (outcome.ok) ran.push({ ...outcome, datedRows: evidence.datedAt.map((at) => rows[at]!) });
@@ -555,7 +639,8 @@ export function searchCandidates(
 
   withDefaultTime(ran, doc, reference, timezone);
   withClauses(ran, doc, reference, timezone, grids);
-  const candidates = dedupe(ran.sort(byRank));
+  ran.push(...siblingTables(dueColumnsFirst(ran.sort(byRank)), doc, reference, timezone, grids));
+  const candidates = dedupe(dueColumnsFirst(ran.sort(byRank)));
   const nearest =
     candidates.length > 0
       ? undefined
@@ -597,6 +682,11 @@ const SPECIFICITY: Record<LocatorKind | "free", number> = {
 
 function byRank(a: Ran, b: Ran): number {
   return (
+    // A page's deadlines before its exams-only reading, whatever the counts:
+    // TAM 212's thirty-six quiz rows (each window repeated per day) outnumber
+    // its thirteen homeworks, and the homework is what a student adding the
+    // page came for. `shownCandidates` keeps the exams reading in view anyway.
+    Number(isExamsOnly(a.candidate)) - Number(isExamsOnly(b.candidate)) ||
     b.candidate.dated - a.candidate.dated ||
     b.candidate.dated / Math.max(1, b.candidate.total) -
       a.candidate.dated / Math.max(1, a.candidate.total) ||
@@ -604,6 +694,147 @@ function byRank(a: Ran, b: Ran): number {
     a.count - b.count ||
     a.candidate.rows.length - b.candidate.rows.length
   );
+}
+
+/**
+ * What a date column's header says the date is: the deadline, the start, or
+ * neither.
+ *
+ * CS 128's MP table is `# | Release Date-Time | Due Date-Time | Points`, and
+ * both date columns read all eleven rows — so `byRank` had nothing to separate
+ * them and the release column, being first, was offered first: every MP a week
+ * early. ECE 220's labs table is `Day | Labs | Submission due date`, where the
+ * `Day` column dates two more rows (the help sessions) and won on count, two
+ * days early on every lab. The header is the page saying which date is which.
+ */
+function dueHeaderRank(candidate: Candidate): number {
+  const header = locatorKindOf(candidate) === "header" ? candidate.columns?.due : undefined;
+  return header === undefined ? 1 : dateRole(header);
+}
+
+/**
+ * Within one table's column readings, the deadline column before the others.
+ *
+ * Only among readings of the **same rows** by a named column, and only by
+ * reordering them in the places `byRank` already gave them: across tables or
+ * kinds, "this header says due" says nothing about which reading of the page
+ * is the schedule, and the count is still the better witness there. Inside one
+ * table it is the page's own label against a count the label explains — the
+ * extra rows a `Day` column dates are the days nothing was due.
+ */
+function dueColumnsFirst(ranked: Ran[]): Ran[] {
+  const groups = new Map<string, number[]>();
+  for (const [at, outcome] of ranked.entries()) {
+    if (locatorKindOf(outcome.candidate) !== "header") continue;
+    const key = `${outcome.candidate.rows}\0${isExamsOnly(outcome.candidate)}`;
+    groups.set(key, [...(groups.get(key) ?? []), at]);
+  }
+  const out = [...ranked];
+  for (const places of groups.values()) {
+    const members = places
+      .map((at) => ranked[at]!)
+      .sort((a, b) => dueHeaderRank(b.candidate) - dueHeaderRank(a.candidate));
+    places.forEach((at, index) => {
+      out[at] = members[index]!;
+    });
+  }
+  return out;
+}
+
+/**
+ * The table a candidate's rows are in, read off its first row.
+ *
+ * Not "the one table every row is in": a reading whose rows span two tables
+ * resolves its columns against the first one's header (`headerExists`), so as
+ * a member of a join it is that table's reading — and its other rows are
+ * either the second table's, read the same way, or rows it never titled. A
+ * check that every row agreed was written here first and changed no join on
+ * any page: removed rather than kept as a second thing to read.
+ */
+function firstTable(selector: string, doc: Document): Element | undefined {
+  try {
+    return doc.querySelector(selector)?.closest("table") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * One reading across several tables that each hold a page's deadlines.
+ *
+ * CS 421 keeps its MPs and its web assignments in two tables headed `MP No.`
+ * and `WA No."`; CS 128's syllabus keeps quizzes and MPs in two of its nine,
+ * headed `Name | … | CBTF End Date` and `# | … | Due Date-Time`. Every table
+ * read on its own, so the search offered each — and a page saves one adapter,
+ * keyed by its address, so taking one cost the other: eleven MPs or thirteen
+ * quizzes, never both. No single column name covers them, which is why the
+ * inventory's one group over all nine tables found nothing to read.
+ *
+ * So the best deadline reading of each table is joined: the rows as a selector
+ * list, and each column as `|` alternatives, which `cellByHeader` resolves per
+ * row against that row's own table. Three conditions keep it honest. Each
+ * table's due column must *say* deadline (`dateRole` says deadline) — a lecture
+ * table's `Date` column is not homework, and joining it would file every
+ * lecture as an assignment ahead of the real list. They must share a date
+ * format, because an adapter declares one. And every alternative must name a
+ * column in exactly one of the tables, so no row can fall through from its own
+ * empty cell to another table's column name that happens to exist here too.
+ * Offered beside the single-table readings, never instead of them.
+ */
+function siblingTables(
+  ranked: readonly Ran[],
+  doc: Document,
+  reference: string,
+  timezone: string,
+  grids: GridCache,
+): Ran[] {
+  const picked = new Map<Element, Ran>();
+  for (const outcome of ranked) {
+    const candidate = outcome.candidate;
+    if (locatorKindOf(candidate) !== "header" || isExamsOnly(candidate)) continue;
+    if (candidate.clauses || candidate.splitTitle || !candidate.columns) continue;
+    const table = firstTable(candidate.rows, doc);
+    if (!table || picked.has(table)) continue;
+    picked.set(table, outcome);
+  }
+  const members = [...picked].filter(
+    ([, outcome]) => dueHeaderRank(outcome.candidate) === 2,
+  );
+  if (members.length < 2) return [];
+  const format = members[0]![1].candidate.dateFormat;
+  const joined = members.filter(([, outcome]) => outcome.candidate.dateFormat === format);
+  if (joined.length < 2) return [];
+
+  const unique = (values: string[]): string[] => [...new Set(values)];
+  const titles = unique(joined.map(([, outcome]) => outcome.candidate.columns!.title));
+  const dues = unique(joined.map(([, outcome]) => outcome.candidate.columns!.due));
+  for (const [table] of joined) {
+    const headers = headerIndex(table, grids);
+    for (const names of [titles, dues]) {
+      if (names.filter((name) => headers.has(name)).length !== 1) return [];
+    }
+  }
+  // A link is a title column's name, so it resolves only in its own table —
+  // a table with none gets the page's address, as it would on its own.
+  const linked = unique(
+    joined.flatMap(([, outcome]) => outcome.candidate.columns!.link ?? []),
+  ).join("|");
+  const times = unique(joined.map(([, outcome]) => outcome.candidate.defaultTime ?? ""));
+  const trial: Trial = {
+    rows: joined.map(([, outcome]) => outcome.candidate.rows).join(", "),
+    columns: {
+      title: titles.join("|"),
+      due: dues.join("|"),
+      ...(linked ? { link: linked } : {}),
+    },
+    title: "td:nth-child(1)",
+    due: "td:nth-child(2)",
+    dateFormat: format,
+    ...(times.length === 1 && times[0] ? { defaultTime: times[0] } : {}),
+  };
+  const outcome = runCandidate(trial, doc, reference, timezone);
+  if (!outcome.ok) return [];
+  return [{ ...outcome, datedRows: joined.flatMap(([, member]) => member.datedRows) }];
 }
 
 /**
@@ -713,15 +944,56 @@ function disagreements(
   timezone: string,
   reference: string,
   grids: GridCache,
+  only?: ReadonlySet<number>,
 ): number {
   const byColumn = instantsByRow(rows, column, timezone, reference, grids);
   const bySentence = instantsByRow(rows, spoken, timezone, reference, grids);
   let differ = 0;
   for (const [at, instant] of bySentence) {
+    if (only !== undefined && !only.has(at)) continue;
     const other = byColumn.get(at);
     if (other !== undefined && other !== instant) differ += 1;
   }
   return differ;
+}
+
+/**
+ * Whether a column hook's dates are contradicted on the very rows an exams
+ * reading would keep — the rows with a cell that names a sitting — by the date
+ * those rows state after a keyword. A column that does not say "due" only; one
+ * that does is the page's own word, as for `searchCandidates`' deadline check.
+ */
+function sittingRowsContradict(
+  structure: RepeatedStructure,
+  evidence: LocatorEvidence,
+  rows: readonly Element[],
+  grids: GridCache,
+  timezone: string,
+  reference: string,
+): boolean {
+  const column = evidence.kind === "slot" || (evidence.kind === "header" && !DUE_WORD_RE.test(evidence.spec));
+  if (!column) return false;
+  return structure.locators.some((other) => {
+    if (other.kind !== "phrase" || other.cell === undefined) return false;
+    const cell = other.cell;
+    /*
+     * Only the rows whose *sitting* is in the phrase's own cell — the row
+     * stating its own window, ECE 220's `Quiz due 09/07 - 09/10`. Any other row
+     * is not contradicting its date at all: PHYS 486's `10/8 | … | MIDTERM 1`
+     * sits under a Homework cell spanning down from the row above ("due 10/7"),
+     * and counting that cell as the midterm's word lost both midterms
+     * (found by the 2026-10-01 before/after sweep).
+     */
+    const sittings = new Set(
+      other.datedAt.filter((at) => {
+        const row = rows[at]!;
+        const slot =
+          "slot" in cell ? cell.slot : headerIndex(row.closest("table") ?? row, grids).get(cell.header);
+        return slot !== undefined && sittingKind(textOf(cellOf(row, slot, grids))) !== undefined;
+      }),
+    );
+    return sittings.size > 0 && disagreements(rows, evidence, other, timezone, reference, grids, sittings) > 0;
+  });
 }
 
 /** The instant each of an evidence's dated rows reads to, under its own hook and format. */
@@ -773,11 +1045,21 @@ function trialFor(
       dueSlot,
       dated,
       grids,
+      evidence.format,
     );
     if (!title) return undefined;
     const linked = dated.some((row) => cellOf(row, title.slot, grids)?.querySelector("a[href]"));
+    /*
+     * The column's own header states the hour: CS 421's is `Due at 23:59 CT
+     * (11:59pm CT) on:` over cells that read `Sep 2, 2026`. That is the page's
+     * `defaultTime` for this column, said where the column is, and outside the
+     * rows `statedDefaultTime` would look for it in prose — on a page whose
+     * header sits inside the row selector it is never found there at all.
+     */
+    const clocks = new Set(clocksIn(evidence.spec));
     return {
       ...base,
+      ...(clocks.size === 1 ? { defaultTime: [...clocks][0]! } : {}),
       columns: {
         title: title.key,
         due: evidence.spec,
@@ -911,6 +1193,8 @@ function examTrialFor(
   evidence: LocatorEvidence,
   rows: readonly Element[],
   grids: GridCache,
+  timezone: string,
+  reference: string,
 ): Trial | undefined {
   const dated = evidence.datedAt.map((at) => rows[at]!);
   // No `kind`: each row says whether it is an exam or a quiz (`sittingKind`),
@@ -922,11 +1206,19 @@ function examTrialFor(
     filter: { include: SITTING_INCLUDE, exclude: SITTING_EXCLUDE },
   };
   const isSitting = (text: string): boolean => sittingKind(text) !== undefined;
+  // The date's own cell names the sitting when the name follows the date in
+  // it — CS 461's `Oct 15 MIDTERM (in class)` — which the runner reads as the
+  // words after the date (`afterLeadingDate`), so this asks the same.
+  const namesSitting = (text: string, own: boolean): boolean =>
+    own
+      ? isSitting(afterLeadingDate(text, evidence.format, timezone, reference) ?? "")
+      : isSitting(text);
   const examColumn = (dueSlot: number, slots: readonly number[]): number | undefined => {
     let best: { slot: number; n: number } | undefined;
     for (const slot of slots) {
-      if (slot === dueSlot) continue;
-      const n = dated.filter((row) => isSitting(textOf(cellOf(row, slot, grids)))).length;
+      const n = dated.filter((row) =>
+        namesSitting(textOf(cellOf(row, slot, grids)), slot === dueSlot),
+      ).length;
       if (n > 0 && (!best || n > best.n)) best = { slot, n };
     }
     return best?.slot;
@@ -961,6 +1253,7 @@ function examTrialFor(
     return { ...base, dueSlot, titleSlot, title: "td", due: "td" };
   }
 
+  if (evidence.kind === "label" && !evidence.cell) return labelledExamTrial(base, evidence, dated);
   if (evidence.cell || evidence.kind === "label" || evidence.kind === "phrase") return undefined;
 
   // A row with no cells is named by its own text, cut at a separator when the
@@ -976,18 +1269,124 @@ function examTrialFor(
   };
 }
 
+/**
+ * A labelled date line nested under the item that names the sitting.
+ *
+ * ECE 313 writes `<li>Midterm Exam I:<ul><li>Time: Oct 12, 7-8:30 PM</li>…`.
+ * The label reading dates the inner lines and titles them by the heading over
+ * the list — four rows called `Midterm Exams: Time`, filed as homework. The
+ * name is the enclosing item's own line, so this reads the *enclosing* items:
+ * titled at their colon, dated by their first nested line's label.
+ *
+ * Refused when any of those exams has its dated line *after* another bullet:
+ * `due: "li"` reads an item's first nested line and nothing else, so the
+ * reading would skip that exam in silence — a list missing a midterm and
+ * looking complete. An item that names no sitting (a review session) is not
+ * this reading's row and is not asked. A page with no such item at all is
+ * refused by running it: the filter keeps nothing.
+ */
+function labelledExamTrial(
+  base: Omit<Trial, "title" | "due">,
+  evidence: LocatorEvidence,
+  dated: readonly Element[],
+): Trial | undefined {
+  const sittings = dated.flatMap((row) => {
+    const item = row.parentElement?.closest("li");
+    return item && sittingKind(titleBefore(textOf(item), TITLE_SEPARATOR)) ? [{ row, item }] : [];
+  });
+  if (sittings.some(({ row, item }) => item.querySelector("li") !== row)) return undefined;
+  return {
+    ...base,
+    title: ".",
+    titleBefore: TITLE_SEPARATOR,
+    due: "li",
+    dueLabel: evidence.spec,
+  };
+}
+
+/**
+ * A group whose sittings carry their date in their own line, after the name:
+ * CS 473's `Midterm 1 (Sep 30 Wed 7:00pm-9:30pm, in Siebel 1404)`, ECE 329's
+ * `Exam 1 Sep. 21 Mon 7:00-8:15pm`.
+ *
+ * No locator in `skeleton.ts` dates these — the formats read from the front,
+ * and the front is the exam's name — so the evidence loop never offers them,
+ * and both pages said "Nothing on that page looked like a schedule" over two
+ * and four dated midterms. Asked of the row's text with the runner's own test
+ * (`sittingSentence`), counted under one format by majority as `probe` does,
+ * and held to `MIN_DATED_ROWS` like every other reading.
+ */
+function sentenceExamTrialFor(
+  structure: RepeatedStructure,
+  rows: readonly Element[],
+  timezone: string,
+  reference: string,
+): { trial: Trial; rows: Element[] } | undefined {
+  const read: { row: Element; formats: string[] }[] = [];
+  for (const row of rows) {
+    if (row.tagName === "TR" || row.tagName === "TD" || row.tagName === "TH") continue;
+    const sentence = sittingSentence(textOf(row));
+    if (!sentence) continue;
+    const formats = supportedDateFormats().filter(
+      (format) => parseAdapterDateParts(sentence.rest, format, timezone, reference) !== undefined,
+    );
+    if (formats.length > 0) read.push({ row, formats });
+  }
+  let format = "";
+  let best = 0;
+  for (const name of supportedDateFormats()) {
+    const n = read.filter((entry) => entry.formats.includes(name)).length;
+    if (n > best) {
+      best = n;
+      format = name;
+    }
+  }
+  if (best < MIN_DATED_ROWS) return undefined;
+  return {
+    trial: {
+      rows: structure.selector,
+      title: ".",
+      due: ".",
+      dateFormat: format,
+      time: ".",
+      filter: { include: SITTING_INCLUDE, exclude: SITTING_EXCLUDE },
+    },
+    rows: read.filter((entry) => entry.formats.includes(format)).map((entry) => entry.row),
+  };
+}
+
 interface Column {
   key: string;
   slot: number;
 }
 
 /**
+ * A header that names the deadline itself, as a title column's header.
+ *
+ * TAM 210's schedule is `Week | Day | Date | Lecture | … | Quiz | Assignment
+ * Due Dates | Discussion`, and the HW names live under the seventh. Scored on
+ * cells alone the Discussion column won — a `rowspan` repeats it down every
+ * day and links it every week — so a schedule of fourteen homeworks was
+ * offered as thirty-six discussion sections. The page's own header is the
+ * better witness to which column names the work.
+ */
+const DEADLINE_TITLE_HEADER = /\b(?:due|deadlines?|assignments?|homeworks?)\b/i;
+
+/** Filler a schedule writes where a column has nothing that week: "No Discussion". */
+const FILLER_CELL = /^no\b/i;
+
+/**
  * The column most likely to be an assignment name.
  *
  * Not the first column: plenty of schedules lead with a week number or a date.
- * Preferred in order — a column whose cells link somewhere (a course site links
- * the assignment), then the leftmost column with substantial text. A column
- * whose cells are mostly empty or numeric is never it.
+ * Preferred in order — a column whose header says it holds the deadlines
+ * (`DEADLINE_TITLE_HEADER`), then a row-header column (`<th>` cells on rows
+ * that are otherwise `<td>`, which is HTML's own word for "this row's name":
+ * CS 421's `<th>MP1</th>`, CS 128's `<th scope="row">MP 0</th>`), then a
+ * column whose cells link somewhere (a course site links the assignment), then
+ * the leftmost column with substantial text. A column whose cells are mostly
+ * empty, numeric, filler or dates is never it — a date there is another date
+ * column, and a row titled "Sep 2, 2026" is not named.
  *
  * Addressed by **grid slot** and reached through `cellAt`, so it answers the
  * same cell the runner will: counting a row's children puts every column after
@@ -998,28 +1397,61 @@ function pickTitleColumn(
   dueSlot: number,
   rows: readonly Element[],
   grids: GridCache,
+  format?: string,
 ): Column | undefined {
-  let best: { column: Column; score: number } | undefined;
+  let best: { column: Column; rank: number[] } | undefined;
 
   for (const column of columns) {
     if (column.slot === dueSlot) continue;
     let filled = 0;
     let linked = 0;
+    let rowHeaders = 0;
+    let dates = 0;
+    const names = new Set<string>();
     for (const row of rows) {
       const cell = cellOf(row, column.slot, grids);
       const text = textOf(cell);
       // A bare number is a week or a unit, never an assignment name.
-      if (text.length < 2 || /^\d+$/.test(text)) continue;
+      if (text.length < 2 || /^\d+$/.test(text) || FILLER_CELL.test(text)) continue;
+      if (format && parseAdapterDate(text, format, SITE_TIMEZONE, TITLE_DATE_REFERENCE)) {
+        dates += 1;
+        continue;
+      }
       filled += 1;
+      names.add(text.toLowerCase());
       if (cell?.querySelector("a[href]")) linked += 1;
+      if (cell?.tagName === "TH") rowHeaders += 1;
     }
-    if (filled === 0) continue;
-    // A link is worth more than position, and position breaks the tie.
-    const score = filled + linked * 2 - column.slot * 0.01;
-    if (!best || score > best.score) best = { column, score };
+    // Mostly dates is another date column, whatever its header says: CS 421's
+    // own due column would otherwise title its rows by the three cells that
+    // read "Quiz Sep 10, 2026" rather than as a date.
+    if (filled === 0 || dates >= filled) continue;
+    const rank = [
+      Number(DEADLINE_TITLE_HEADER.test(column.key)),
+      Number(rowHeaders * 2 > filled),
+      // A name tells rows apart. CS 446's lecture table links `[Slides]` on
+      // every row, and scored on links that column titled 27 lectures
+      // identically; a column that says one thing on most rows is a resource
+      // link, not what the row is called.
+      Number(names.size * 2 > filled),
+      // A link is worth more than position, and position breaks the tie.
+      filled + linked * 2 - column.slot * 0.01,
+    ];
+    if (!best || outranks(rank, best.rank)) best = { column, rank };
   }
 
   return best?.column;
+}
+
+/** Only the year depends on it, and only whether a cell parses is asked. */
+const TITLE_DATE_REFERENCE = "2026-01-01T00:00:00.000Z";
+
+/** Lexicographic: the first key that differs decides. */
+function outranks(a: readonly number[], b: readonly number[]): boolean {
+  for (let at = 0; at < a.length; at += 1) {
+    if (a[at] !== b[at]) return a[at]! > b[at]!;
+  }
+  return false;
 }
 
 /**
@@ -1266,7 +1698,9 @@ function withDefaultTime(
   if (!defaultTime) return;
 
   for (const [index, outcome] of ran.entries()) {
-    if (!outcome.assumed) continue;
+    // A column whose header stated its hour keeps it: that is nearer the rows
+    // than any sentence elsewhere on the page.
+    if (!outcome.assumed || outcome.candidate.defaultTime) continue;
     const again = runCandidate(
       { ...trialOf(outcome.candidate), defaultTime },
       doc,

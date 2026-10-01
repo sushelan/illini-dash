@@ -1,0 +1,623 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+<head>
+  <meta http-equiv="Pragma" CONTENT="no-cache">
+
+  <title>CS 421 (Fall 2026): mps</title>
+  <link rel="shortcut icon" href="../lambda.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../default.css" type="text/css"
+        media="all">
+</head>
+
+<body>
+
+  <table border="0" width="100%" cellpadding="3">
+    <tr>
+      <td>
+        <table class="title" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center" class="title">
+              <big class="title">CS 421: Programming Languages and Compilers</big>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="nav" align="center">
+                  <a href="./">main</a>
+                    &nbsp;::&nbsp;
+                  <a href="policy.html">policy</a>
+                    &nbsp;::&nbsp;
+                  <a href="lectures">lectures</a>
+                    &nbsp;::&nbsp;
+                  mps
+                    &nbsp;::&nbsp;
+                  <a href="exams">exams</a>
+                    &nbsp;::&nbsp;
+                  <a href="project.html">unit project</a>
+                    &nbsp;::&nbsp;
+                  <a href="resources">resources</a>
+                    &nbsp;::&nbsp;
+                  <a href="faq.html">faq</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+<!------------------------------------------------
+         ---- BEGIN Machine Problems ----
+-------------------------------------------------->
+  <p><strong>Note:</strong> All assignments, MPs and WAs, are done in
+    <a href="http://prairielearn.engr.illinois.edu/"> 
+      PrairieLearn
+    </a>.
+    MPs additionally require you to click on <b>Open workspace</b> to
+    open a new browser tab running VSCode.  There are instructions on
+    each question telling you how to do this.  Quizzes on the MPs are
+    done in PrairieLearn, but entered through
+    <a href="https://us.prairietest.com/">
+      PrairieTest
+    </a>.
+    For some events in PrairieTest, students will be required to
+    self-register.  Please watch for this requirement.
+  </p>
+  <p>
+    <strong>  
+      Note: MPs 2, 5, and 8 are assessed by an
+      in-class quiz on the due date, and receive no value for the
+      submissions in PrarieLearn outside of those quizzes.  The
+      quizzes will be selections of portions of the assignments.
+      Practice quizzes will be provided, but they too will be
+      selections of portions of the assignments.
+    </strong>
+  </p>
+
+  <p>
+    <strong>Note:</strong>
+    The late penalty is the PrairieLearn Late Submission policy, which
+    caps your total score at 80%.  It is not 80% of the number of
+    points you earn.  Doing extra credit can only lift your score to
+    80%, and will count for nothing after you have got to 80%.
+  </p>
+
+<Table border="0" class="module" width="100%" cellspacing="0" cellpadding="4">
+  <tr>
+    <th class="module_title">Machine Problems for Fall 2026</th>
+  </tr>
+  <tr>
+    <td>
+    <table class=schedule border=0 cellpadding=2 cellspacing=5 rules=all width="100%">
+      <tr>
+        <th width="6%">MP No.:<br/> Link:</th>
+        <th width="28%">Topic:</th>
+        <th width="20%">Issued:</th>
+        <th width="20%">Due at 23:59 CT <br/>(11:59pm CT) on:</th>
+        <th width="20%">Automatic extension<br/>(with 20% penalty)<br/>
+          until 23:59pm CT (11:59pm CT) on:</th>
+      </tr>
+
+    <tr>
+      <th>MP1</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          OCaml: Basic OCaml
+        </a>
+      </td>
+      <td align="center">Aug 25, 2026</td>
+      <td align="center">Sep 2, 2026</td> <!-- was Sep 1 -->
+      <td align="center">Sep 4, 2026</td>
+    </tr>
+
+    <tr>
+      <th>MP2</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/"> 
+          Pattern Matching and Recursion
+        </a>
+      </td>
+      <td align="center">Sep 1, 2026</td>
+      <td align="center">Quiz Sep 10, 2026</td>
+      <td align="center">None</td>
+    </tr>
+
+      <tr>
+        <th>MP3</th>
+        <td>
+          <a href="http://prairielearn.engr.illinois.edu/">
+            Patterns of Recursion, Higher-order Functions
+          </a>
+        </td>  
+     <td align="center">Sep 8, 2026</td>
+      <td align="center">Sep 15, 2026</td>
+      <td align="center">Sep 17, 2026</td>
+    </tr>
+
+  <tr>
+     <th>MP4</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         Continuations and Continuation-Passing Style
+       </a>
+     </td>
+     <td align="center">Sep 15, 2026</td>
+     <td align="center">Sep 22, 2026</td>
+     <td align="center">Sep 24, 2026</td>
+  </tr>
+  
+    <tr>
+      <th>MP5</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          Working with ADTs: Implementing CPS Transformation
+        </a>
+      </td>
+      <td align="center">Sep 22, 2026</td>
+      <td align="center">Quiz on Sep 29, 2026 (or maybe Oct 6)</td>
+      <td align="center">None</td>
+    </tr>
+
+    <tr>
+     <th>MP6</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         A Unification-Based Type Inferencer
+       </a>
+     </td>
+     <td align="center">Oct 6, 2026</td>
+     <td align="center">Oct 20, 2026</td>
+     <td align="center">Oct 22, 2026</td>
+    </tr>
+
+    <tr>
+     <th>MP7</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         Unification Algorithm
+       </a>
+     </td>
+     <td align="center">Oct 13, 2026</td>
+     <td align="center">Quiz on Oct 27, 2026</td>
+     <td align="center">None</td>
+    </tr>
+
+    <tr>
+     <th>MP8</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         A Lexer for PicoML
+       </a>
+     </td>
+     <td align="center">Oct 22, 2026</td>
+     <td align="center">Nov 3, 2026</td>
+     <td align="center">Nov 5, 2026</td>
+    </tr>
+
+
+    <tr>
+     <th>MP9</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+       A Parser for PicoML
+       </a>
+     </td>
+     <td align="center">Nov 3, 2026</td>
+     <td align="center">Nov 17, 2026</td>
+     <td align="center">Nov 19, 2026</td>
+    </tr>
+
+    <tr>
+     <th>MP10</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         An Evaluator for PicoML
+       </a>
+     </td>
+     <td align="center">Nov 10, 2026</td>
+     <td align="center">Dec 1, 2026</td>
+     <td align="center">Dec 3, 2026</td>
+    </tr>
+
+    <tr>
+     <th>MP11</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         A Transition Semantics Evaluator for CPS
+       </a>
+     </td>
+     <td align="center">Nov 17, 2026</td>
+     <td align="center">Dec 8, 2026</td>
+     <td align="center">Dec 9, 2026 (%10 penalty)</td>
+    </tr>
+
+  </table>
+  </td>
+  </tr>
+
+  </table>
+  </td>
+  </tr>
+</table>
+
+<!------------------------------------------------
+---- END Machine Problems
+-------------------------------------------------->
+
+<br />
+
+
+<!------------------------------------------------
+---- BEGIN Web Assignment Problems
+-------------------------------------------------->
+
+
+<table border="0" class="module" width="100%" cellspacing="0" cellpadding="4">
+  <tr>
+    <th class="module_title">Web Assignment (WA) Problems for Fall 2026</th>
+  </tr>
+  <tr>
+    <td>
+    <table class=schedule border=0 cellpadding=2 cellspacing=5 rules=all width="100%">
+      <tr>
+        <td width="7%">WA No."</td>
+        <th width="29%">Topic:</th>
+        <th width="21%">Issued:</th>
+        <th width="21%">Due at 23:59 CT (11:59pm CT) on:</th>
+        <th width="21%">Automatic extension<br>(with 20% penalty)<br>until 23:59
+  CT (11:59pm CT) on:</th>
+      </tr>
+
+    <tr>
+      <th>WA1</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          Evaluation and Evironments
+        </a>
+      </td>
+      <td align="center">Aug 27, 2026</td>
+      <td align="center">Sep 3, 2026</td>
+      <td align="center">Sep 5, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA2</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          Order of Evaluation
+        </a>
+      </td>
+      <td align="center">Sep 3, 2026</td>
+      <td align="center">Sep 10, 2026</td>
+      <td align="center">Sep 12, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA3XC</th>
+      <td>Extra Credit:
+        <a href="http://prairielearn.engr.illinois.edu/">
+          Evaluating the Application of a Function
+        </a>
+      </td>
+      <td align="center">Sep 10, 2026</td>
+      <td align="center">Sep 17, 2026</td>
+      <td align="center">Dec 9, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA4</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          CSP Transformation; Working with Mathematical Specifications
+        </a>
+      </td>
+      <td align="center">Sep 17, 2026</td>
+      <td align="center">Oct 1, 2026</td>
+      <td align="center">Oct 3, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA5</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+          Polymorphic Type Derivation
+        </a>
+      </td>
+      <td align="center">Oct 1, 2026</td>
+      <td align="center">Oct 8, 2026</td>
+      <td align="center">Oct 10, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA6</th>
+      <td><a href="http://prairielearn.engr.illinois.edu/">
+          Incremental Unification Algorithm
+        </a>
+      </td>
+      <td align="center">Oct 8, 2026</td>
+      <td align="center">Oct 22, 2026</td>
+      <td align="center">Oct 24, 2026</td>
+    </tr>
+
+    <tr>
+      <th>WA7</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         Regular Expressions
+       </a>
+     </td>
+     <td align="center">Oct 20, 2026</td>
+     <td align="center">Oct 29, 2026</td>
+     <td align="center">Oct 31, 2026</td>
+    </tr>
+
+    <tr>
+     <th>WA8</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+         Parse Trees <!--, Ambiguous Grammars-->
+     </td>
+     <td align="center">Oct 29, 2026</td>
+     <td align="center">Nov 5, 2026</td>
+     <td align="center">Nov 7, 2026</td>
+    </tr>
+
+    <tr>
+     <th>WA9</th>
+     <td>
+       <a href="http://prairielearn.engr.illinois.edu/">
+          Natural and Transition Semantics
+       </a>
+     </td>
+    <td align="center">Nov 5, 2026</td>
+     <td align="center">Nov 19, 2026</td>
+     <td align="center">Nov 21, 2026</td>
+    </tr>
+
+      <th>WA10</th>
+      <td>
+        <a href="http://prairielearn.engr.illinois.edu/">
+         Lambda Calculus 
+        </a>
+      </td>
+      <td align="center">Nov 19, 2026</td>
+      <td align="center">Dec 3, 2026</td>
+      <td align="center">Dec 5, 2026</td>
+</tr>
+
+    <tr>
+     <th>WA11</th>
+     <td><a href="http://prairielearn.engr.illinois.edu/">Hoare Logic</a></td>
+     <td align="center">Dec 1, 2026</td>
+     <td align="center"><b>Dec 9, 2026</b></td>
+     <td align="center">None</td>
+    </tr>
+  </table>
+  </td>
+  </tr>
+
+  </table>
+  </td>
+  </tr>
+</table>
+
+
+<!------------------------------------------------
+---- END Homework Problems
+-------------------------------------------------->
+
+<br />
+
+<!------------------------------------------------
+---- BEGIN Instructions for Submitting Assignments
+-------------------------------------------------->
+
+    <table class="instructions" border=0 cellpadding=4 cellspacing=0
+  rules=all width="100%">
+      <tr>
+        <th class="module_title">
+          <a name="submissionInstructions">
+            Instructions for Submitting Assignments   <!-- -- This needs
+            revision below here!-->
+          </a>
+        </th>
+      </tr>
+      <tr>
+        <td>
+          <ul>
+            <li>All assignments, both MPs and WAs, will be available through
+            <a href="http://prairielearn.engr.illinois.edu/">PrairieLearn</a>
+            and will be collected there.
+        </li>
+            <li>
+              When you do an MP in PrairieLearn, you will do your work
+              for each problem in a VSCode Workspace.  The
+              introductory webpage for the problem gives you
+              instructions for how to do the problem, including the
+              problem statement.  To actually do the problem, you will
+              need to click the button "Open workspace", which will
+              open a new tab in your browser running the VSCode
+              editor/programming environment.  It will present you
+              with a directory, the ability to open and edit files in
+              that directory, and an ability to start a terminal
+              window, running linux, in which you can run ocaml, to
+              build and test your code.
+
+              The directory provided will contain a file with a name
+              (typically <tt><i>problem</i>.ml</tt>
+              (or <tt><i>problem</i>.mll</tt> or <tt><i>problem</i>.mly</tt>))
+              <!--that is the same name as the file you must
+              submit,--> and infrastructure to help you test your
+              code.  The file <tt><i>problem</i>.ml</tt> is just a
+              stub.  To build your answer, you need to delete or
+              comment out the stub code and add your own.  The next
+              section <a href="#guideForMPs">Guide for Doing MPs</a>
+              contains further information about how to test your
+              code.
+              <br/>
+              Before submitting an MP assignment, you <b>MUST</b> make
+              sure that your MP
+              <b>
+                compiles with the student grading script
+              </b>
+              supplied with the assignment.
+              <b>
+                If your MP fails to compile with the student grading script,
+                your assignment will get NO CREDIT.  There will be no partial
+                credit for assignments that fail to compile.
+              </b>
+            </li>
+            
+            <li>
+              You may do multiple commits of either the MPs or the
+              WAs.  Your score will be the best of all your
+              submissions, but the score of late submissions will have
+              a late penalty applied, meaning it will only help your
+              assignment score if the best score you received was less
+              than 80% before the on-time due date.  Work submitted
+              before the late deadline will not be subject to the late
+              penalty, but work submitted after will.
+            </li>  
+      </ul>
+    </td>
+  </tr>
+</table>
+
+<!------------------------------------------------
+---- BEGIN Guide for Doing MPs
+-------------------------------------------------->
+
+<table border=
+"0" class="module" width="100%" cellspacing="0" cellpadding="4">
+  <tr>
+    <th class="module_title"><a name="guideForMPs">Guide for Doing MPs</a></th>
+  </tr>
+  <tr>
+    <td>
+      A guide for how to attack an MP:
+      <ol>
+        <li>
+          For each problem in the assignment, go into the VSCode
+          Workstation for the problem, and start a terminal window.
+          To make sure you have all the necessary pieces, in that
+          terminal window, start by
+          executing <b><tt>make</tt></b>. This will create the grader
+          executable.  Still in the terminal window, run the
+          executable (<b><tt>./grader</tt></b>). Examine the failing
+          test cases for places where errors were produced by your
+          code.  At this point, everything should compile, but the
+          score will be 0.
+        </li>
+
+        <li>
+          Read and understand the problem from the assignment on which
+          you wish to begin working.  (Usually, working from top to
+          bottom makes most sense.)  There is a <b><tt>tests</tt></b>
+          file in this directory. This is an important file containing
+          a partial set of test cases; you'll want to add more cases
+          to test your code more thoroughly.  Reread the problem from
+          the main webpage for the problem, examining any sample
+          output given.  Open the <b><tt>tests</tt></b> file in the
+          <b><tt>WORKSPACE</tt></b> directory.  Review the test cases
+          given for that problem.  Add your own test cases by
+          following the same pattern as of the existing test
+          cases. Try to get a good coverage of your function's
+          behavior.  You should even try to have enough cases to
+          guarantee that you will catch any errors. (This is not
+          always possible, but a desirable goal.)  And yes, test cases
+          should be written even before starting the implementation of
+          your function. This is a good software development practice.
+        </li>
+
+        <li>If necessary, reread the statement of the problem once more.
+          Place your code for the solution
+          in <b><tt><i>problem</i>.ml</tt></b>
+          (or <b><tt><i>problem</i>.mll</tt></b>
+          or <b><tt><i>problem</i>.mly</tt></b> as specified by the assignment
+          instructions) replacing the stub found there for it.  Implement your
+          function.  Try to do this in a step-wise fashion.  When you think
+          you have a solution (or enough of a part of one to compile and be
+          worth testing), save you work and execute <b><tt>make</tt></b> and
+          the
+          <b><tt>./grader</tt></b> again.  Examine the passing and failing test cases
+          again.  Each failure is an instance where your code failed to give
+          the right output for the given input, and you will need to examine
+          your code to figure out why.  When you are finished making a round
+          of corrections, run <b><tt>make</tt></b>, followed by <b><tt>./grader</tt></b>
+          again.  Continue until you find no more errors.  Consider submitting
+          your partial result so that you will at least get credit for what
+          you have accomplished so far, in case something happens to interfere
+          with your completing the rest of the assignment.  You can submit one
+          problem at a time in earlier assignments.  In later assignments,
+          problems tend to be pieces of functions.  It is still worth your
+          while to do incremental submissions.
+        </li>
+
+        <li>When your code no longer generates any errors for the problem on
+          which you were working, return to steps 3) and 4) to proceed with
+          the next problem you wish to solve, until there are no more problems
+          to be solved.  Each problem is submitted in PrairieLearn
+          indepentantly of the others, but some later assignments have only
+          one problem.
+        </li>
+
+        <li>When you have finished all problems (or given up and left the
+          problem with the stub version originally provided), you will need to
+          submit your code to PrairieLearn.
+        </li>
+      </ol> 
+    </td>
+  </tr>
+</table>
+
+    <br />
+
+<table border=
+"0" class="module" width="100%" cellspacing="0" cellpadding="4">
+  <tr>
+    <th class="module_title"><span name="debugging">Interactive Debugging</a></th>
+  </tr>
+  <tr>
+    <td>
+In addition to running "make" and "grader", you probably want to test
+and debug your code interactively at the top level:
+
+<ol>
+
+<li> Enter the directory with your source file.
+
+  <li> Type <b><tt>ocaml</tt></b> at the command line.
+
+  <li> Type <b><tt>#load "common.cmo";;</tt></b> at the OCaml prompt,
+if there is such a file inthe WORKSPACE directory. (This loads in the
+common stuff that we give you in compiled form by default).
+
+  <li> Type <b><tt>#use "<i>problem</i>.ml";;</tt></b> at the OCaml
+    prompt, where <tt><i>problem</i></tt> is the name of the problem,
+    which is typically the name function being implemented.  This
+    loads in your code, and adds the functions you have defined to the
+    identifiers recognized at top level.
+</li>
+
+<li> Type in commands followed by '<b><tt>;;</tt></b>' at the OCaml
+  prompt to test your code interactively.  Anything that you can do in
+  a code file, you can do interactively.  For example, you can define
+  identifiers using '<b><tt>let x = </tt></b>...', etc...
+</li>
+
+  <li> With each MP, you will be given a solution in compiled form.
+  You may interactively test the solution to a problem, after having
+  loaded <b><tt>"common.cmo"</tt></b> if there is one, by loading the
+  solution file by typing <b><tt>#load "solution.cmo";;</tt></b>.
+  After that, if you are supposed to write a function called, say
+  <b><tt>splat</tt></b>, and wish to find out what it does on an
+  input, say <b><tt>39.2</tt></b>, you may execute the solution's
+  version of <b><tt>splat</tt></b> by typing <b><tt>Solution.splat
+  39.2;;</tt></b>.  Notice the capitalization.
+</li>
+
+</ol>
+
+
+</body>
+</html>

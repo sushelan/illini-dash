@@ -37,6 +37,11 @@ export interface TableGrid {
    * thousand times over and the pinned bound went from 337ms to 1.2s.
    */
   headers?: Map<string, number>;
+  /**
+   * The row `headers` was read from, set beside it. A column read of this row
+   * is the header's own words, never an item (`cellByHeader`).
+   */
+  headerRow?: Element;
 }
 
 /** Grids are built once per table and reused across every row of it. */

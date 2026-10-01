@@ -178,9 +178,18 @@ const FIELDS_ADDED_IN_1_1 = [
  */
 const FIELDS_ADDED_IN_1_2 = ["clauses"] as const;
 
+/**
+ * Date formats 1.3.4 learned: ECE 220's `10-04` and CS 357's `10 Dec`. A field
+ * an older build does not know it refuses as unknown; a format it does not know
+ * it refuses as `unsupported dateFormat`, which reads like a typo in the entry
+ * rather than "update the extension" — so the floor names the version.
+ */
+const FORMATS_ADDED_IN_1_3_4 = ["MM-dd", "d MMM"] as const;
+
 /** The lowest extension version that can run this entry. */
 export function requiredVersionFor(entry: object): string {
   const record = entry as Record<string, unknown>;
+  if ((FORMATS_ADDED_IN_1_3_4 as readonly unknown[]).includes(record["dateFormat"])) return "1.3.4";
   if (FIELDS_ADDED_IN_1_2.some((field) => record[field] !== undefined)) return "1.2.0";
   return FIELDS_ADDED_IN_1_1.some((field) => record[field] !== undefined) ? "1.1.0" : "0.1.0";
 }

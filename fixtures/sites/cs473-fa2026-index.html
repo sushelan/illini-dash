@@ -1,0 +1,323 @@
+<html>
+<head>
+	<title>CS 473 (Fall 2026): Algorithms</title>
+</head>
+<body bgcolor="#FFFFFF" link="#FF161B" text="#000000" vlink="#8B1E26">
+<h2>CS 473 (Fall 2026)</h2>
+
+<h2>Algorithms</h2>
+
+<hr>
+<h3>Instructor</h3>
+
+<a href="http://tmc.web.engr.illinois.edu">Timothy Chan</a> (tmc "at" illinois.edu)
+
+<h3>TAs</h3>
+
+Harshul Sagar (harshul4), Yuancheng Yu (yyu51)
+
+
+<h3>CAs</h3>
+
+Ian Chen (ianchen3), Ajitesh Dasaratha (asd11), Zhiyuan Ma (zm25), Navid Tajkhorshid (navidt)
+
+
+<h3>Lecture Time/Place</h3>
+
+<p>Tue &amp; Thu 2:00pm-3:15pm, Loomis Lab 151</p>
+
+<h3>Office Hours</h3>
+
+<ul>
+	<li>Mon 4:00-5:00 Yuancheng</li>
+	<li>Tue 3:30-4:30 Timothy</li>
+	<li>Wed 1:00-2:00 Harshul</li>
+</ul>
+
+<p>(starting Aug 30 onward).  All office hours are held in the open study space in the basement of Siebel (unless stated otherwise).  Check Ed for the latest updates to the office hours.</p>
+
+
+<h3>Administrivia</h3>
+
+<ul>
+	<li><a href="policies.html">Policies</a></li>
+        <li><a href="integrity.html">Academic Integrity</a></li>
+	<li><a href="https://www.gradescope.com/courses/1366098">Gradescope</a> (entry code: G75KW6)</li>
+	<li><a href="https://edstem.org/us/courses/103138/discussion">Ed Discussion</a> (<a href="https://edstem.org/us/join/pGCuC2">join link</a>) 
+for Q&amp;A and announcements and for contacting course staff</li>
+	<!-- <li><a href="??">Discord</a> -->
+</ul>
+
+<h3>Homework</h3>
+
+<ul>
+<li> <a href="hw0.pdf">Homework 0</a> (not graded) [<a href="secure/sol0.pdf">solutions</a>] 
+<li> <a href="hw1.pdf">Homework 1</a> [<a href="hw1.tex">.tex</a>] (due Sep 10 Thu 10am)  [<a href="secure/sol1.pdf">solutions</a>]
+<li> <a href="hw2.pdf">Homework 2</a> [<a href="hw2.tex">.tex</a>] (due Sep 17 Thu 10am) [<a href="secure/sol2.pdf">solutions</a>]
+<li> <a href="hw3.pdf">Homework 3</a> [<a href="hw3.tex">.tex</a>] (due Sep 24 Thu 10am) (9/20: fixed typo in HW3.1 "H_L+1" -> "H_R+1") [<a href="secure/sol3.pdf">solutions</a>]
+<li> <a href="hw4.pdf">Homework 4</a> [<a href="hw4.tex">.tex</a>] (due Oct 8 Thu 10am)
+<li> Homework 5 (due Oct 15 Thu 10am)
+<li> Homework 6 (due Oct 22 Thu 10am)
+<li> Homework 7 (due Oct 29 Thu 10am)
+
+<li> Homework 8 (due Nov 12 Thu 10am)
+<li> Homework 9 (due Nov 19 Thu 10am)
+<li> Homework 10 (due Dec 3 Thu 10am)
+</ul>
+
+
+
+
+<!--
+	<li><a href="hw0.pdf">Homework 0</a> (not graded) [<a href="secure/sol0.pdf">solutions</a>] </li>
+	<li><a href="hw1.pdf">Homework 1</a> [<a href="hw1.tex">.tex</a>] (due Feb 6 Thu 10am) [<a href="secure/sol1.pdf">solutions</a>]</li>
+	<li><a href="hw2.pdf">Homework 2</a> [<a href="hw2.tex">.tex</a>] (due Feb 13 Thu 10am) <small>(2/10: changed infinities to 0 in HW2.1a,b)</small> [<a href="secure/sol2.pdf">solutions</a>]</li>
+</li>
+	<li><a href="hw3.pdf">Homework 3</a> [<a href="hw3.tex">.tex</a>] (due Feb 20 Thu 10am) <small>(2/15:
+correct typo in HW3.2 example and space bounds in HW3.3(a,b))</small>  [<a href="secure/sol3.pdf">solutions</a>]
+</li>
+	<li><a href="hw4.pdf">Homework 4</a> [<a href="hw4.tex">.tex</a>] (due Mar 6 Thu 10am)  [<a href="secure/sol4.pdf">solutions</a>]</li>
+	<li><a href="hw5.pdf">Homework 5</a> [<a href="hw5.tex">.tex</a>] (due Mar 13 Thu 10am) [<a href="secure/sol5.pdf">solutions</a>]</li>
+	<li><a href="hw6.pdf">Homework 6</a> [<a href="hw6.tex">.tex</a>] (due Mar 27 Thu 10am) <small>(3/24:
+important corrections to the bounds in HW6.2(b) and (c))</small> [<a href="secure/sol6.pdf">solutions</a>]</li>
+</li>
+	<li><a href="hw7.pdf">Homework 7</a> [<a href="hw7.tex">.tex</a>] (due Apr 3 Thu 10am) [<a href="secure/sol7.pdf">solutions</a>]</li>
+	<li><a href="hw8.pdf">Homework 8</a> [<a href="hw8.tex">.tex</a>] (due Apr 17 Thu 10am) [<a href="secure/sol8.pdf">solutions</a>]</li>
+	<li><a href="hw9.pdf">Homework 9</a> [<a href="hw9.tex">.tex</a>] (due Apr 24 Thu 10am) [<a href="secure/sol9.pdf">solutions</a>] </li>
+	<li><a href="hw10.pdf">Homework 10</a> [<a href="hw10.tex">.tex</a>] (due May 1 Thu 10am)  [<a href="secure/sol10.pdf">solutions</a>]  </li>
+
+-->
+
+
+<h3>Exams</h3>
+
+<ul>
+<li> Midterm 1 (Sep 30 Wed 7:00pm-9:30pm, in Siebel 1404)
+<p>
+	<ul>
+
+		<li><strong>Instructions:</strong> Except for the cheat sheets (see below), exams are closed-everything. In particular: No medically unnecessarily electronic devices are allowed in exams, including smart watches and headphones/earbuds.</li>
+		<li><strong>Cheat sheets:</strong> You may bring one double-sided 8.5" x 11"; sheet of paper with anything you like written on both sides, with your name and NetID written on the upper right corner. (Two single-sided sheets are okay.) You must write your own cheat sheets by hand on paper, unless you have a documented writing disability. No printing or photocopying. We may not return or scan the cheat sheets, so if you want to keep a copy, you should photocopy or scan your cheat sheet before the exam.</li>
+		<li>All exams are strictly confidential for at least 24 hours, or until all conflict exams have been taken. Do not discuss your exam with anyone, in person or online.</li>
+		<li><strong>Coverage:</strong> The exam will cover everything up to and including Sep 17's lecture (in particular, material corresponding to HW0-HW3, including prerequisite material, divide-and-conquer, and dynamic programming... but no randomized algorithms).</li>
+<!-- <li> I will provide some practice exam questions and a past sample midterm soon... -->
+		<li>  <a href="secure/practice_mid1.pdf">Some practice exam questions</a> (we don't provide official solutions, but we may go over some of them in the review session) </li>
+<li><a href="secure/past_mid1.pdf">a past midterm</a> 
+<!-- (I'll provide solutions by the end of Friday) -->
+with <a href="secure/past_mid1_sol.pdf">solutions</a> 
+</li>
+<li><a href="secure/another_past_mid1.pdf">another past midterm</a> 
+<!-- (I'll provide solutions at the end of Friday) -->
+with <a href="secure/another_past_mid1_sol.pdf">solutions</a> 
+</li>
+		<li><strong>Conflict exams:</strong> Conflict exams (on Oct 1 Thu) will be offered only to students with a valid reason. To get permission, you must fill in <a href="https://forms.illinois.edu/sec/975199310">this form</a> before Sep 25 Fri 2:00pm. (For DRES students, please email Timothy (tmc).) </li>
+<li> Timothy will have an extra office hour on Friday Sep 25 at 2pm-3pm in his office Siebel 3230 
+	</ul>
+<p>
+
+
+
+<li> Midterm 2 (Nov 4 Wed 7:00pm-9:30pm)
+<li> Final (TBA)
+</ul>
+
+
+<!--
+
+
+<ul>
+<li>Midterm 1 (Feb 24 Mon 7:00pm-9:00pm, in Siebel 1404)
+[<a href="secure/mid1.pdf">exam</a> and <a href="secure/sol_mid1.pdf">solutions</a>]
+
+
+<p>
+	<ul>
+
+		<li><strong>Instructions:</strong> Except for the cheat sheets (see below), exams are closed-everything. In particular: No medically unnecessarily electronic devices are allowed in exams, including smart watches and headphones/earbuds.</li>
+		<li><strong>Cheat sheets:</strong> You may bring one double-sided 8.5" x 11"; sheet of paper with anything you like written on both sides, with your name and NetID written on the upper right corner. (Two single-sided sheets are okay.) You must write your own cheat sheets by hand on paper, unless you have a documented writing disability. No printing or photocopying. We may not return or scan the cheat sheets, so if you want to keep a copy, you should photocopy or scan your cheat sheet before the exam.</li>
+		<li>All exams are strictly confidential for at least 24 hours, or until all conflict exams have been taken. Do not discuss your exam with anyone, in person or online.</li>
+		<li><strong>Coverage:</strong> The exam will cover everything up to and including Feb 14's lecture (in particular, material corresponding to HW0-HW3, including prerequisite material, divide-and-conquer, and dynamic programming... but no randomized algorithms).</li>
+		<li>  <a href="secure/practice_mid1.pdf">Some practice exam questions</a> (we don't provide official solutions, but we may go over some of them in the review session) </li>
+<li><a href="secure/past_mid1.pdf">a past midterm</a> with <a href="secure/past_mid1_sol.pdf">solutions</a>
+</li>
+		<li><strong>Conflict exams:</strong> Conflict exams (on Feb 25 Tue) will be offered only to students with a valid reason. To get permission, you must fill in <a href="https://forms.illinois.edu/sec/788345213">this form</a> before Feb 19 Wednesday 2:00pm. (For DRES students, please email Timothy (tmc) ASAP.) </li>
+<li> Timothy will have an extra office hour on Friday Feb 21 at 4pm-5pm in his office Siebel 3230, and will cancel his office hour on Tuesday Feb 25
+	</ul>
+<p>
+
+
+<li>Midterm 2 (Apr 7 Mon 7pm-9pm, in Siebel 1404)
+[<a href="secure/mid2.pdf">exam</a> and <a href="secure/sol_mid2.pdf">solutions</a>]
+
+
+<p>
+	<ul>
+
+		<li><strong>Instructions:</strong> Except for the cheat sheets (see below), exams are closed-everything. In particular: No medically unnecessarily electronic devices are allowed in exams, including smart watches and headphones/earbuds.</li>
+		<li><strong>Cheat sheets:</strong> You may bring one double-sided 8.5" x 11"; sheet of paper with anything you like written on both sides, with your name and NetID written on the upper right corner. (Two single-sided sheets are okay.) You must write your own cheat sheets by hand on paper, unless you have a documented writing disability. No printing or photocopying. We may not return or scan the cheat sheets, so if you want to keep a copy, you should photocopy or scan your cheat sheet before the exam.</li>
+		<li>All exams are strictly confidential for at least 24 hours, or until all conflict exams have been taken. Do not discuss your exam with anyone, in person or online.</li>
+		<li><strong>Coverage:</strong> The exam will cover everything
+from Feb 19 to Apr 2's lectures (randomized algorithms and matching/flows).</li>
+		<li> 
+<a href="secure/practice_mid2.pdf">Some practice exam questions</a> (we don't provide official solutions, but we may go over some of them in the review session) </li>
+<li><a href="secure/past_mid2.pdf">a past midterm</a> with <a href="secure/past_mid2_sol.pdf">solutions</a>
+</li>
+		<li><strong>Conflict exams:</strong> Conflict exams (on Apr 8 Tue) will be offered only to students with a valid reason. To get permission, you must fill in <a href="https://forms.illinois.edu/sec/349669877">this form</a> before March 28 Wednesday 5:00pm. (Note: conflict exam cancelled as one one signed up for it.)</li>
+<li> Timothy will have an extra office hour on Friday Apr 4 at 4pm-5pm in his office Siebel 3230, and will cancel his office hour on Tuesday Apr 8 in the basement of Siebel.</li>
+	</ul>
+<p>
+
+
+<li>Final Exam (May 9 Fri 1:30pm-4:30pm, in 4029 Campus Instructional Facility)
+[<a href="secure/sol_fin.pdf">solutions</a>]
+<p>
+	<ul>
+		<li><strong>Instructions:</strong> Except for the cheat sheets (see below), exams are closed-everything. In particular: No medically unnecessarily electronic devices are allowed in exams, including smart watches and headphones/earbuds.</li>
+		<li><strong>Cheat sheets:</strong> You may bring <b>two</b> double-sided 8.5&quot; x 11&quot; sheet of paper with anything you like written on both sides, with your name and NetID written on the upper right corner. (Four single-sided sheets are okay.) You must write your own cheat sheets by hand on paper, unless you have a documented writing disability. No printing or photocopying. We may not return or scan the cheat sheets, so if you want to keep a copy, you should photocopy or scan your cheat sheet before the exam.</li>
+		<li>All exams are strictly confidential for at least 24 hours, or until all conflict exams have been taken. Do not discuss your exam with anyone, either in person or online.</li>
+		<li><strong>Coverage:</strong> 
+the final exam will be <b>cumulative</b>, though there will be greater emphasis on post-midterm-2 material</li>
+		<li>  <a href="secure/practice_fin.pdf">Some practice exam questions</a> (we don&#39;t provide official solutions, but we may go over some of them in the review session) </li>
+<li><a href="secure/past_fin.pdf">a past final exam</a> with <a href="secure/past_fin_sol.pdf">solutions</a>
+</li>
+		<li><strong>Conflict exams:</strong> 
+ Conflict final exams will be offered only for one of the official reasons stated in the <a href="https://studentcode.illinois.edu/article3/part2/3-201">student code</a> (for example, another final exam scheduled at the same time, or three consecutive final exams in a 24-hour period, or religious accommodations, or illness). To get permission, you must email Timothy (tmc) directly no later than May 2 Friday 2pm.</li>
+<li> Timothy will still have office hour on May 6 Tuesday 3:00-4:00, and will also have an extra office hour on
+May 8 Thursday 3:00-4:00.</li>
+	</ul>
+<p>
+
+</ul>
+
+-->
+
+
+<h3>About the Course</h3>
+
+<p>CS 473 (also cross-listed as Math 473 and CSE 414) is an algorithms course aimed at advanced undergraduates and graduate students in computer science and related disciplines. The course covers a wide range of topics in algorithm design and analysis, including the following:</p>
+
+<ul>
+	<li>Divide-and-conquer (such as FFT)</li>
+	<li>Dynamic programming</li>
+	<li>Randomized algorithms</li>
+	<li>Optimization: matching, network flow, linear programming</li>
+	<li>NP-completeness and reductions</li>
+	<li>Approximation algorithms</li>
+</ul>
+
+<p><i>Prerequisites</i>: CS/ECE 374 or equivalent, or graduate standing (see <a href="https://courses.engr.illinois.edu/cs473/fa2024/prereqs.html">things you should already know</a>)
+
+<p>[Note: grad students who have <b>not</b> taken a theory-oriented algorithms course at the level of  CS 374 may be interested instead in the new <a href="https://courses.grainger.illinois.edu/CS498M14/fa2026/">CS498M24 "MCS Algorithms" course</a> this semester.]
+
+<h3>Lectures</h3>
+
+<p>Although lectures will be recorded, it is expected that students will attend most of the lectures. Recordings may be accessed on <a href="https://mediaspace.illinois.edu/channel/channelid/415967302">mediaspace</a> for registered students. I will provide scribbles from class, and some links to relevant resources, below. There is no textbook, but <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/">Jeff&#39;s book and notes</a> are excellent. (Other useful general resources can be found <a href="https://courses.engr.illinois.edu/cs473/fa2024/resources.html">here</a>.) </p>
+
+<p></p>
+
+<ul>
+
+<li> <a href="notes/lec08_25_26.pdf">Aug 25</a>: <i>Divide-and-conquer</i>. Closest pair and Shamos's algorithm.<br>
+	<small>[Ref: <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/book/01-recursion.pdf">Jeff&#39;s notes on recursion</a> and Sec 5.4 of <a href="https://link-springer-com.proxy2.library.illinois.edu/content/pdf/10.1007/978-1-4612-1098-6_5">Preparata and Shamos's book</a>]</small> 
+<p>
+<li> <a href="notes/lec08_27_26.pdf">Aug 27</a> and <a href="notes/lec09_01_26.pdf">Sep 1</a>: Polynomial multiplication (convolution), FFT, and applications (to string matching with don't cares).
+<br>
+<small>[Ref: <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/notes/A-fft.pdf">Jeff&#39;s notes</a> or <a href="https://people.eecs.berkeley.edu/~vazirani/algorithms/chap2.pdf">Dasgupta, Papadimitriou, and Vazirani's book</a>; <a href="http://doi.org.proxy2.library.illinois.edu/10.1016/j.ipl.2006.08.002"> Clifford and Clifford&#39;s paper</a>]</small>
+<p>
+<li> <a href="notes/lec09_03_26.pdf">Sep 3</a>: Matrix multiplication.<br>
+	<small>[Ref: <a href="https://people.eecs.berkeley.edu/~vazirani/algorithms/chap2.pdf">Dasgupta, Papadimitriou, and Vazirani's book</a>; see <a href="https://arxiv.org/abs/2608.16884">this</a> for the latest result]</small> 
+<p>
+<li> <a href="notes/lec09_08_26.pdf">Sep 8</a>: <i>Dynamic programming</i>. Example: line break problem.<br>
+	<small>[Ref: <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/book/03-dynprog.pdf">Jeff's book</a>; some <a href="DP_tips.pdf">general tips about DP</a> I wrote for CS374 which may still be useful]</small> 
+<p>
+<li><a href="notes/lec09_10_26.pdf">Sep 10</a>: Longest common subsequence (LCS), with linear space or slightly subquadratic time.<br>
+	<small>[Ref: see Sec D.1-D.2 of <a href="https://courses.engr.illinois.edu/cs473/fa2022/notes/D-adv-dynprog.pdf">Jeff&#39;s notes</a> on Chowdhury and Ramachandran&#39;s space saving trick and the four-Russians speedup]</small>
+<p>
+<li><a href="notes/lec09_15_26.pdf">Sep 15</a>: Max-perimeter subpolygon, and speedup via Monge property.<br>
+	<small>[Ref: <a href="https://doi.org/10.1137/0603055">F. Yao&#39;s paper</a>]</small>
+<p>
+<li><a href="notes/lec09_17_26.pdf">Sep 17</a>: Optimal binary search trees (and Monge again). Subset sum (and convolution).<br>
+	<small>[Ref:  Sec D.4 of <a href="https://courses.engr.illinois.edu/cs473/fa2022/notes/D-adv-dynprog.pdf">Jeff&#39;s notes</a>]</small>
+<p>
+<li><a href="notes/lec09_22_26.pdf">Sep 22</a> and <a href="notes/lec09_24_26.pdf">Sep 24</a>: <i>Randomized algorithms</i>. Primality testing (Miller-Rabin).</br>
+<small>[Ref: Sec 14.6 of <a href="https://doi-org.proxy2.library.illinois.edu/10.1017/CBO9780511814075">Motwani and Raghavan&#39;s book</a>; Chris Caldwell&#39;s <a href="https://primes.utm.edu/"> PrimePages</a>; the <a href="https://www.jstor.org/stable/pdf/3597229.pdf"> AKS paper</a>]</small> 
+<p>
+<li> Sep 29: <a href="secure/scribbles09_29_26.pdf">Optional midterm 1 review</a> (no lecture, but we will go over some selected problems, e.g., from <a href="secure/practice_mid1.pdf">here</a>).
+<p>
+
+
+
+<!--
+<li><a href="notes/lec02_19_25.pdf">Feb 19</a>: <i>Randomized algorithms</i>.  
+<p>
+<li> <a href="secure/scribbles02_21_25.pdf">Feb 21</a>: Optional midterm 1 review (no lecture, but we will go over some selected questions from <a href="secure/practice_mid1.pdf">here</a>).
+<p>
+<li> <a href="notes/lec02_26_25.pdf">Feb 26</a>: Primality testing (Miller-Rabin).<br>
+<small>[Ref: Sec 14.6 of <a href="https://doi-org.proxy2.library.illinois.edu/10.1017/CBO9780511814075">Motwani and Raghavan&#39;s book</a>; Chris Caldwell&#39;s <a href="https://primes.utm.edu/"> PrimePages</a>; the <a href="https://www.jstor.org/stable/pdf/3597229.pdf"> AKS paper</a>]</small> 
+	<p>
+	<li><a href="notes/lec02_28_25.pdf">Feb 28</a>: String matching (Rabin-Karp).<br>
+	<small>[Ref: Ch7 of <a href="https://doi-org.proxy2.library.illinois.edu/10.1017/CBO9780511814075">Motwani and Raghavan&#39;s book</a>, or <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/notes/07-strings.pdf">Jeff&#39;s notes</a>]</small>
+	<p>
+	<li><a href="notes/lec03_05_25.pdf">Mar 5</a> and <a href="notes/lec03_07_25.pdf">Mar 7</a>: Hashing (universal, perfect, ...).<br>
+	<small>[Ref: Sec 8.4 of Motwani and Raghavan, or <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/notes/05-hashing.pdf"> Jeff&#39;s notes</a>]</small> 
+	<p> 
+        <li> <a href="notes/lec03_12_25.pdf">Mar 12</a>: Min enclosing circle  (Seidel-Welzl and randomized incremental algorithms).<br>
+	<small>[Ref: <a href="http://link.springer.com.proxy2.library.illinois.edu/chapter/10.1007/BFb0038202">Welzl&#39;s paper</a> (and Sec 5.1 of Cormen-Leiserson-Rivest-Stein on the &quot;hiring problem&quot;)]</small> 
+	<p>
+        <li> <a href="notes/lec03_14_25.pdf">Mar 14</a>: Median finding (Floyd-Rivest and random sampling). <i>Optimization...</i><br>
+	<small>[Ref: Sec 3.3 and 4.1 of Motwani and Raghavan]</small>
+        <p>
+        <li> Mar 19 and 21: Spring break.
+        <p>
+        <li> <a href="notes/lec03_26_25.pdf">Mar 26</a>: Max bipartite matching (Hungarian method, and Hopcroft-Karp (briefly)).<br>
+	<small>[Ref: <a href="https://sarielhp.org/teach/notes/algos/files/32_matchings.pdf">Sariel&#39;s notes</a> on matching]</small>
+        <p>
+        <li> <a href="notes/lec03_28_25.pdf">Mar 28</a>: Max flow (Ford-Fulkerson)...<br>
+<small>[Ref: <a href="http://jeffe.cs.illinois.edu/teaching/algorithms/book/10-maxflow.pdf">Jeff&#39;s book</a>] </small> 
+        <p>
+	<li><a href="notes/lec04_02_25.pdf">Apr 2</a>: Max flow cont&#39;d (Edmonds-Karp).<br>
+	<small>[Ref: for your amusement, the <a href="https://doi.org/10.48550/arXiv.2203.00671">over-100-pages breakthrough paper by Chen, Kyng, Liu, Peng, Gutenberg, and Sachdeva (2022)</a>] </small>
+<p>
+<li> <a href="secure/scribbles04_04_25.pdf">Apr 4</a>: Optional midterm 2 review <b>in room W109 TH Turner Hall</b> (no lecture, but we will go over some selected questions from <a href="secure/practice_mid2.pdf">here</a>).
+<p>
+<li><a href="notes/lec04_09_25.pdf">Apr 9</a>: Linear programming (simplex algorithm).<br>
+	<small>[Ref: <a href="https://sarielhp.org/teach/notes/algos/files/20_lp.pdf">Ch 20</a> of Sariel&#39;s notes] </small></li>
+<p>
+<li><a href="notes/lec04_11_25.pdf">Apr 11</a>: Linear programming (duality).<br>
+	<small>[Ref: <a href="https://sarielhp.org/teach/notes/algos/files/21_lp_II.pdf">Ch 21</a> of Sariel&#39;s notes] </small>
+<p>
+<li><a href="notes/lec04_16_25.pdf">Apr 16</a> and <a href="notes/lec04_18_25.pdf">Apr 18</a>: <i>NP-hardness and reductions</i>.<br>
+	<small>[Ref: <a href="https://jeffe.cs.illinois.edu/teaching/algorithms/book/12-nphard.pdf">Jeff's book</a>
+or <a href="https://people.eecs.berkeley.edu/~vazirani/algorithms/chap8.pdf">Dasgupta, Papadimitriou, and Vazirani's book</a>;
+also see <a href="https://people.csail.mit.edu/virgi/eccentri.pdf">Vassilevska Williams' survey</a> if you are interested in reductions in "fine-grained complexity"]
+</small></li>
+<p>
+<li><a href="notes/lec04_23_25.pdf">Apr 23</a>: <i>Approximation algorithms</i>.  Vertex cover.<br>
+<small>[Ref: <a href="https://jeffe.cs.illinois.edu/teaching/algorithms/notes/J-approx.pdf">Jeff's notes</a>
+or <a href="https://people.eecs.berkeley.edu/~vazirani/algorithms/chap9.pdf">Dasgupta, Papadimitriou, and Vazirani's book</a>]</small>
+<p>
+<li><a href="notes/lec04_25_25.pdf">Apr 25</a>: Metric TSP (by MST and Christofides).<br>
+<small>[Ref: Sec 3.2 of <a href="https://ics.uci.edu/~vazirani/book.pdf">Vazirani's book</a>;
+and for your amusement, <a href="https://arxiv.org/pdf/2007.01409">breakthrough paper by Karlin, Klein, and Oveis Gharan (2021)</a>]</small>
+<p>
+<li><a href="notes/lec04_30_25.pdf">Apr 30</a>: Disjoint unit squares/geometric independent set (Hochbaum-Maass).<br>
+<small>[Ref: see original <a href=
+"http://doi.acm.org/10.1145/2455.214106">paper</a>]</small>
+<p>
+<li><a href="notes/lec05_02_25.pdf">May 2</a>: MAX-SAT (Goemans-Williamson, by LP relaxation + randomized rounding).<br>
+<small>[Ref: Ch 16 of <a href="https://ics.uci.edu/~vazirani/book.pdf">
+Vazirani's book</a> of Sec 3.2 of <a href="https://doi-org.proxy2.library.illinois.edu/10.1017/CBO9780511814075">Motwani and Raghavan's book</a>]</small>
+<p>
+<li><a href="secure/scribbles05_07_25.pdf">May 7</a>: Final review (no lecture, but we will go over some selected questions from <a href="secure/practice_fin.pdf">here</a>). 
+
+-->
+
+
+<p>
+	</ul>
+
+
+<p></p>
+
+<hr /></body>
+</html>

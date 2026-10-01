@@ -2,13 +2,59 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (3062 tests) all pass, at any hour: the
+`npm run build`, `npm run typecheck`, `npm test` (3163 tests) all pass, at any hour: the
 three `popup-draw.test.ts` tests that read `Date.now()` and failed every evening from 22:00
 have had their clock pinned since 2026-09-27, and the suite no longer depends on the
 machine's load or locale or on the last build.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## The 30-site check, fixed — 2026-10-01, 1.3.4
+
+*"fix the 30-site check"*. Three lanes in their own worktrees — the date grammar, the
+deadline proposer's tables and columns, the exams reading — merged in one integration
+branch, with four fixes only the merge could show, then a before/after sweep of every
+downloaded page (~150) through the proposer and the runner.
+
+**Sweep, main → 1.3.4:** pages with any reading 19 → 27; exam rows 12 → 29; quiz rows
+117 → 189. No page lost an exam or quiz row except header rows read as items.
+
+- **Grammar** (`site.ts`): `MM-dd` (ECE 220's MPs, 0 → 12), `d MMM` (CS 357's
+  `10 Dec`), and a clock range read off the date (`Thu 10/01 at 7.00-8.20pm` → 19:00;
+  the end of a range is consumed, so `7:00pm-9:00pm` no longer leaves an
+  `unparsedTime`). `requiredVersionFor` sends an entry using either format to 1.3.4, so
+  an older build says "update" instead of "unsupported dateFormat".
+- **Tables** (`detect.ts`, `table-grid.ts`): CS 421 (nested tables, row-header `<th>`)
+  0 → 17 of 20; CS 128's nine sibling tables joined when each due column says
+  due/deadline/end, 0 → 24; TAM's title column is "Assignment Due Dates", not
+  "Discussion"; a due/end column outranks release/start/day on a tie (CS 128 a week
+  early, ECE 220 labs two days early); a table's header row is never an item.
+- **Exams** (`site.ts`, `detect.ts`): an exam named before its date (CS 473, ECE 329),
+  a date leading its cell (CS 461), a date the row states inside a week-range column
+  (CS 440's final, Dec 14 → Dec 17 08:00), nested `Time:` labels (ECE 313).
+- **At merge:**
+  - `dateRole` (`site.ts`) is the one deadline/start vocabulary for headers *and*
+    labels; CS 357 read `CBTF registration starts` until the label tie went to the
+    window. The heading for a row is the nearest one inside the rows' own block
+    (each CS 357 card's `<h4>`), not the section's.
+  - The exams reading defers to a sitting row's own stated date (ECE 220's
+    `Quiz due 09/07 - 09/10` beside lecture `09-08`) — counted only where the date is in
+    the sitting's own cell. The first version counted any cell and lost PHYS 486's
+    midterms to a Homework cell spanning down from the row above; the sweep found it.
+  - Deadline readings rank before the exams-only one (TAM 212: 13 homeworks vs 36 quiz
+    rows).
+  - Every lane test and the merge's own are mutation-checked; one guard (a heading's
+    parent) was redundant and deleted.
+- **Two fixtures had secrets** in their markup: ECE 313's Zoom links and a plaintext
+  meeting password, and CS 446's office-hours `pwd=` token. Replaced with `REDACTED`;
+  merged as one squashed commit so the lanes' unredacted commits never reach `main`.
+
+**Still not read:** CS 421's exams (title and date in alternating rows), CS 225's exam
+cards (`Exam Availability` with no colon), CS 461's schedule as deadlines (a calendar
+grid, each cell its own date), CS 446's assignment-only reading (dropped as a subset of
+the wider one), PHYS 225 and CS 222 (JavaScript), and the logins. A quiz window spanning
+two TAM rows still appears once per day (Sushi: leave it).
 
 ## Why the exams did not appear — 2026-10-01
 

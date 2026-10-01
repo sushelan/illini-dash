@@ -11,7 +11,15 @@
 import { inferYear, isRealWallClock, monthIndex, wallClockToIso, weekdayOf } from "../core/dates.js";
 import { extractCourseCodes } from "../core/normalize.js";
 import { KeyGuard, escapeRegex, sameOriginHttpsUrl, textOf } from "../core/parsing.js";
-import { cellAt, columnOf, formTableGrid, gridFor, rowIndex, type GridCache } from "../core/table-grid.js";
+import {
+  cellAt,
+  columnOf,
+  formTableGrid,
+  gridFor,
+  rowIndex,
+  type GridCache,
+  type TableGrid,
+} from "../core/table-grid.js";
 
 // Re-exported so a caller that wants to run the locators can pass a cache
 // without also knowing where the grid lives. `runAdapter` owns one per run.
@@ -60,10 +68,12 @@ export function headerIndex(table: Element, grids: GridCache = new Map()): Map<s
     // Some pages skip <thead>; the first row that is all <th> is the header.
     [...table.querySelectorAll("tr")].find(
       (row) => row.querySelector("th") && !row.querySelector("td"),
-    );
+    ) ??
+    mostlyHeaderFirstRow(grid);
   const map = new Map<string, number>();
   grid.headers = map;
   if (!headerRow) return map;
+  grid.headerRow = headerRow;
   /*
    * The **grid slot**, not the header cell's position among its siblings.
    *
@@ -84,6 +94,24 @@ export function headerIndex(table: Element, grids: GridCache = new Map()): Map<s
     if (label && !map.has(label)) map.set(label, slot);
   }
   return map;
+}
+
+/**
+ * The table's first row, when more of its cells are `<th>` than `<td>`.
+ *
+ * CS 421's WA table opens `<td>WA No."</td><th>Topic:</th><th>Issued:</th>
+ * <th>Due at 23:59 CT …</th>…` — a header row with one cell mistyped, which
+ * the all-`<th>` rule above refuses, leaving a table with no header to name
+ * and every column unreadable. Only the *first* row, and only by majority:
+ * its body rows open with a row-header `<th>MP1</th>` and four `<td>`s, and a
+ * body row is never the header because it has a `<th>` in it.
+ */
+function mostlyHeaderFirstRow(grid: TableGrid): Element | undefined {
+  const first = [...grid.index].find(([, y]) => y === 0)?.[0];
+  if (!first) return undefined;
+  const cells = [...first.children];
+  const th = cells.filter((cell) => cell.tagName === "TH").length;
+  return th > cells.length - th ? first : undefined;
 }
 
 /**
@@ -119,6 +147,13 @@ function cellByHeader(
   const headers = headerIndex(table, grids);
   const grid = gridFor(row, grids);
   if (!grid) return undefined;
+  /*
+   * The header row read through its own column names is the header's words —
+   * an item titled "Labs" with "Day" where its date should be (ECE 220, PHYS
+   * 325). A table with no `<tbody>` has no row selector that leaves it out, so
+   * it is left out here, where every column read goes through.
+   */
+  if (grid.headerRow === row) return undefined;
   for (const name of wanted.split("|")) {
     const index = resolveColumn(headers, name);
     if (index === undefined) continue;
@@ -292,6 +327,45 @@ const CLOCK_FIRST = `(?:${TIME_BEFORE}[\\s,]*(?:on|@)?[\\s,]*)?`;
  */
 const WEEK_FIRST = `(?:week\\s+\\d{1,2}\\s*[·•|,:–—-]\\s*)?`;
 
+/**
+ * `MM-DD`, the way ECE 220's MP table writes every deadline: `10-04 (extended)`.
+ *
+ * A dash between two numbers is far more often a range than a date — lectures
+ * `1-13`, a session `7-9pm`, `10-12pm`, `10-11:30` — so this reads one only in
+ * the narrowest shape that page uses: **two** digits each side, a month that
+ * exists (01–12) and a day that could (01–31), and nothing after it that makes
+ * it a clock or a longer run of numbers (`10-12pm`, `10-11:30`, `01-02-03`,
+ * `10-04.5`). `12-14` as a lecture range still reads as December 14; that is
+ * why this is a format of its own, chosen for a page, rather than a spelling
+ * `M/d` learned for every page that already declares it.
+ *
+ * Exported for `core/skeleton.ts`'s `DATE_SHAPED`, so the shape the search
+ * calls a date and the shape the runner reads cannot drift apart (mutation
+ * house rule 3). The group names are stripped there.
+ */
+export const DASHED_MONTH_DAY =
+  `(?<month>0[1-9]|1[0-2])-(?<day>0[1-9]|[12]\\d|3[01])` +
+  `(?![\\d:]|[.\\-–—/]\\d|\\s*(?:am|pm|a\\.m|p\\.m|noon)\\b)`;
+
+/**
+ * A month name spelled exactly, for the position where `[a-z]*` is not safe.
+ *
+ * `MMM d` can afford `${MONTHS}[a-z]*` because a number has to follow it. After
+ * a number nothing does, so `10 Decimal places` would read as December 10 —
+ * every spelling is listed and a letter may not follow it (parser rule 6).
+ */
+const MONTH_EXACT =
+  "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?" +
+  "|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+
+/**
+ * `10 Dec`, `1st September`: the day first, as CS 357's quiz page writes its
+ * windows (`CBTF quizzes during the period: 10 Dec - 16 Dec`). Exported for
+ * the same reason as `DASHED_MONTH_DAY`.
+ */
+export const DAY_FIRST_DATE =
+  `(?<day>\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?<month>${MONTH_EXACT})\\.?(?![a-z])`;
+
 /** One wall-clock reading: what a page stated, or what an adapter defaults to. */
 export interface Clock {
   hour: number;
@@ -399,6 +473,18 @@ const DATE_FORMATS: Record<string, RegExp> = {
   // 9/11 · 9/11/2026 · 09/04 @ 11:59pm · Tue 9/8 · 09/24, Thursday 11.59 PM · 11.59 PM 9/13
   "M/d": new RegExp(
     `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}(?<month>\\d{1,2})/(?<day>\\d{1,2})(?:/(?<year>\\d{2,4}))?` +
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
+    "i",
+  ),
+  // 10-04 · 10-04 (extended) · Thu 10-01 at 7:00pm — two digits each side, see DASHED_MONTH_DAY
+  "MM-dd": new RegExp(
+    `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}${DASHED_MONTH_DAY}` +
+      `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
+    "i",
+  ),
+  // 10 Dec · 1st September at 5pm · Thu, 10 Dec
+  "d MMM": new RegExp(
+    `^${WEEK_FIRST}(?:${WEEKDAY_LEAD})?${CLOCK_FIRST}${DAY_FIRST_DATE}` +
       `${WEEKDAY_AFTER}(?:${SEP}${TIME})?`,
     "i",
   ),
@@ -555,8 +641,10 @@ export function labelSuffix(label: string): string {
   // `Date` is the same noun as `Due`: ECE 310's syllabus files each exam's
   // `Date: Wednesday, September 30th, 7-9pm` under the exam's name, and keeping
   // the label titled them `Midterm Exam 1 Date`.
+  // `Time` is the same noun again: ECE 313 files each exam's `Time: Oct 12,
+  // 7-8:30 PM` under the exam's own line, which is the whole name.
   return label
-    .replace(/\s*\b(?:due(?:\s+date)?|date)\b\s*$/i, "")
+    .replace(/\s*\b(?:due(?:\s+date)?|date|time)\b\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -634,6 +722,13 @@ const PENDING_AT_START = new RegExp(`^(?:${PLACEHOLDER_WORDS})\\b`, "i");
  * imported, because `skeleton.ts` imports this file and a value import back
  * would be a runtime cycle. Exported so the search reads it from here instead
  * of keeping a third copy.
+ *
+ * `MM-dd` and `d MMM` are deliberately **not** here, though `skeleton.ts`'s
+ * copy has them. This one is also `firstDateIn`'s scanner, which tries every
+ * word of a sentence: `Lectures 12-14 cover…` and `HW 1 may be late` would
+ * stop it in front of a lecture range or a verb, ahead of the real date later
+ * in the clause. Those two shapes are read where a page puts them in a cell of
+ * their own, which is the only place either has been seen.
  */
 export const DATE_SHAPED = new RegExp(
   `^(?:${WEEKDAY})?(?:\\d{1,2}[:.]\\d{2}\\s*(?:am|pm)?[\\s,]*(?:on|@)?[\\s,]*|\\d{1,2}\\s*(?:am|pm)[\\s,]*(?:on|@)?[\\s,]*)?` +
@@ -924,7 +1019,35 @@ export function clockFromText(text: string): { hour: number; minute: number } | 
   if (one) return readClock(one[1]!, one[2], one[3]);
   // Reached only without a `Time:` label: a label captures a clock-shaped
   // segment, which one of the two above always matches and answers for.
-  return introducedClock(trimmed);
+  return introducedClock(trimmed) ?? meridiemRange(trimmed);
+}
+
+/**
+ * A clock range that ends in a meridiem, anywhere in a sentence, as its start.
+ *
+ * The last resort, and the only clock read with nothing introducing it. ECE
+ * 329 writes `Exam 1 Sep. 21 Mon 7:00-8:15pm`, where the grammar sees an
+ * ambiguous `7:00`; CS 440 writes `sometime during the 8-11am timeslot`. Both
+ * were exams landing at an invented 23:59. A *range closed by am/pm* is safe
+ * to read bare where a lone number is not: a room is `1404`, a chapter range is
+ * `3-5`, and neither ends in a meridiem.
+ *
+ * The meridiem is lent to the start only where that keeps the range in order:
+ * `11-1pm` starts at 11am, not 11pm.
+ */
+const MERIDIEM_RANGE = new RegExp(
+  `(?<![\\d:])${CLOCK}\\s*${DASH}\\s*(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)\\b`,
+  "i",
+);
+function meridiemRange(text: string): { hour: number; minute: number } | undefined {
+  const match = MERIDIEM_RANGE.exec(text);
+  if (!match) return undefined;
+  const end = readClock(match[4]!, match[5], match[6]);
+  if (match[3] !== undefined) return readClock(match[1]!, match[2], match[3]);
+  const lent = readClock(match[1]!, match[2], match[6]);
+  if (!end || !lent) return lent;
+  if (lent.hour * 60 + lent.minute <= end.hour * 60 + end.minute) return lent;
+  return readClock(match[1]!, match[2], "am");
 }
 
 export function supportedDateFormats(): string[] {
@@ -996,6 +1119,40 @@ function statedWeekday(name: string | undefined): string | undefined {
     : undefined;
 }
 
+/**
+ * The end of a clock range the format stopped in front of, and what it settles.
+ *
+ * ECE 220 writes its midterms as `Thu 10/01 at 7.00-8.20pm`. `TIME` reads
+ * `7.00` and stops: no meridiem, so the start is ambiguous, and `-8.20pm` is
+ * left behind looking like an unread clock — the row was refused outright and
+ * the exams table never proposed. A range written with one meridiem lends it
+ * to the start, which is what the page means; `clockFromText` does the same
+ * for `7-9PM`. Lent the way a reader would, not blindly: `11.30-12.45pm` starts
+ * at 11:30, because a start that would land after its own end is on the other
+ * side of noon.
+ *
+ * The end is consumed whether or not it settles anything, so `7:00pm-9:00pm`
+ * and `09:00-10:30` stop reporting their end as an unparsed time. An end with
+ * no meridiem (`7.00-8.20`) settles nothing, and the start stays ambiguous.
+ */
+const RANGE_END = /^\s*(?:[-–—]|to)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?(?![a-z\d:])\.?/i;
+
+function rangeEnd(written: ClockGroups, rest: string): { written: ClockGroups; rest: string } {
+  if (written.hour === undefined) return { written, rest };
+  const end = RANGE_END.exec(rest);
+  if (!end) return { written, rest };
+  const consumed = rest.slice(end[0].length);
+  const meridiem = end[3]?.toLowerCase();
+  if (!written.ambiguous || meridiem === undefined) return { written, rest: consumed };
+  const pm = meridiem === "pm" ? 12 : 0;
+  const endAt = ((Number(end[1]) % 12) + pm) * 60 + Number(end[2] ?? 0);
+  // No `% 12` on the start: a `12` that lands at 24 is past any end and wraps
+  // to noon below, which is where `12:00-1:00pm` starts.
+  let hour = written.hour + pm;
+  if (hour * 60 + written.minute > endAt) hour = (hour + 12) % 24;
+  return { written: { ...written, hour, ambiguous: false }, rest: consumed };
+}
+
 export function parseAdapterDateParts(
   raw: string,
   format: string,
@@ -1019,8 +1176,7 @@ export function parseAdapterDateParts(
 
   // TIME has three alternatives and the ambiguity rule is shared with
   // `announce.ts`, so both live in `clockGroups`.
-  const written = clockGroups(g);
-  const rest = raw.trim().slice(match[0].length);
+  const { written, rest } = rangeEnd(clockGroups(g), raw.trim().slice(match[0].length));
   /*
    * A clock the grammar stopped short of. ECE 310 prints `Wednesday, September
    * 30th, 7-9pm`; the formats read no ranges, so the date parsed, the exam
@@ -1373,6 +1529,30 @@ export function splitClauses(text: string, separator: string): string[] {
  * release: an event on that day is a line in the student's list for something
  * that needs no attendance and no submission, next to eight that do.
  */
+/**
+ * What a label or a column header says its date is: the deadline (2), the
+ * start of something (0), or neither (1).
+ *
+ * CS 128's MP table is `# | Release Date-Time | Due Date-Time | Points`, and
+ * both date columns read all eleven rows — so the proposer had nothing to
+ * separate them and the release column, being first, was offered first: every
+ * MP a week early. ECE 220's labs table is `Day | Labs | Submission due date`,
+ * where `Day` dates two more rows and won on count, two days early on every
+ * lab. CS 357's cards carry `CBTF registration starts: 27 Aug` above `CBTF
+ * quizzes during the period: 08 Sep - 10 Sep`, and the label search took the
+ * first — the day booking opens, not the quiz. One vocabulary for headers and
+ * labels (mutation rule 3), here because `core/skeleton.ts` cannot import the
+ * proposer.
+ */
+export const DEADLINE_WORDS = /\b(?:due|deadlines?|ends?|closes?)\b/i;
+const START_WORDS =
+  /\b(?:release[sd]?|start(?:s|ed)?|opens?|issued|assigned|out|begins?|day|registration|register)\b/i;
+
+export function dateRole(text: string): 0 | 1 | 2 {
+  if (DEADLINE_WORDS.test(text)) return 2;
+  return START_WORDS.test(text) ? 0 : 1;
+}
+
 export const RELEASE_WORDS = /\b(?:released?|out|posted|available)\b/i;
 
 /** What the words in front of a clause's date call it, and where the date starts. */
@@ -1729,7 +1909,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
             page.fetchedAt,
           )
         : undefined;
-    const dueTexts = clause ? readDue(clause.text, reader).texts : due.texts;
+    let dueTexts = clause ? readDue(clause.text, reader).texts : due.texts;
     /*
      * The name, when the name and the date are the same cell.
      *
@@ -1739,10 +1919,40 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
      * places (the assignments page's `[MP1 Specification Document]:` head) the
      * title is already the row's name and nothing is cut.
      */
-    const named =
+    let named =
       clause && due.raw !== undefined && normalizeLabel(cell) === normalizeLabel(due.raw)
         ? clause.text
         : cell;
+
+    /*
+     * A sitting whose name and date share one text, in either order.
+     *
+     * Only where the title *is* the due text, read whole: that is the one case
+     * where the date is part of the name, and the name would otherwise carry
+     * it into the filter, the kind and the `sourceId`. Date first — CS 461's
+     * `Oct 15 MIDTERM (in class)` — the name is the words after it, and only
+     * when those name a sitting, so no deadline row is retitled. Name first —
+     * CS 473's `Midterm 1 (Sep 30 Wed 7:00pm…)` — the date is read from where
+     * the name ends (`sittingSentence`), since the start-anchored formats
+     * cannot read it from the front.
+     */
+    let fromSentence = false;
+    if (
+      reader.kind === "whole" &&
+      !clause &&
+      due.raw !== undefined &&
+      normalizeLabel(cell) === normalizeLabel(due.raw)
+    ) {
+      const after = afterLeadingDate(cell, adapter.dateFormat, adapter.timezone, page.fetchedAt);
+      const sentence = after === undefined ? sittingSentence(cell) : undefined;
+      if (after !== undefined && sittingKind(after)) {
+        named = after;
+      } else if (sentence) {
+        named = sentence.name;
+        dueTexts = [sentence.rest];
+        fromSentence = true;
+      }
+    }
 
     // §4.5: one cell can hold several events. Split first, then filter, so a
     // filter can reject one half of `HW5 Due; HW6 Out` and keep the other —
@@ -1787,6 +1997,31 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         dueText = text;
         break;
       }
+    }
+
+    /*
+     * A sitting dated by its week: the day its own sentence names in that week
+     * is the sitting's (`dayWithinSpan`). Rows the adapter files as exams or
+     * quizzes only — a homework row's sentence names release days and demos.
+     */
+    if (parsed && dueText !== undefined && !fromSentence) {
+      const kind = kindOfRow(adapter, named);
+      const within =
+        kind === "exam" || kind === "quiz"
+          ? dayWithinSpan(named, dueText, parsed, adapter, page.fetchedAt, statedElsewhere)
+          : undefined;
+      if (within) {
+        parsed = within.parsed;
+        dueText = within.text;
+        fromSentence = true;
+      }
+    }
+    // Read out of a sentence, what follows the date is the rest of the sentence
+    // — `, in Siebel 1404)` — not a clock the grammar failed on. It is one only
+    // while the instant still has no stated hour.
+    if (parsed?.unparsedTime && fromSentence && !parsed.timeAssumed) {
+      const { unparsedTime: _rest, ...kept } = parsed;
+      parsed = kept;
     }
     // What the row *offered*, for the "nothing here parsed" record below. The
     // first hook rather than the last: it is the one a reader would look at.
@@ -1997,7 +2232,8 @@ function readTimeCell(row: Element, spec: string): string | undefined {
  * a row about the sitting rather than the sitting: review, solutions, practice,
  * grades, a formula sheet, a schedule, a policy, a mock.
  */
-export const SITTING_INCLUDE = String.raw`^(?:(?!due|lecture|reading|pre|no|miss)[a-z-]+ ){0,2}(mid-?term|final|quiz|exam)(?: exam)?(?: ?#?(?:\d+|[ivx]+)\b)?(?: re(?:take|try))?(?: ?(?:[(:,@]|- |(?:at|on|due|mon|tue|wed|thu|fri) ).*)?$`;
+const SITTING_NAME = String.raw`(?:(?!due|lecture|reading|pre|no|miss)[a-z-]+ ){0,2}(mid-?term|final|quiz|exam)(?: exam)?(?: ?#?(?:\d+|[ivx]+)\b)?(?: re(?:take|try))?`;
+export const SITTING_INCLUDE = String.raw`^${SITTING_NAME}(?: ?(?:[(:,@]|- |(?:at|on|due|mon|tue|wed|thu|fri) ).*)?$`;
 export const SITTING_EXCLUDE = String.raw`\b(?:review|solution|practice|prep|grade|releas|score|sheet|feedback|schedul|polic|mock)`;
 const SITTING_INCLUDE_RE = new RegExp(SITTING_INCLUDE, "i");
 const SITTING_EXCLUDE_RE = new RegExp(SITTING_EXCLUDE, "i");
@@ -2013,6 +2249,104 @@ export function sittingKind(title: string): "exam" | "quiz" | undefined {
   const match = SITTING_INCLUDE_RE.exec(text);
   if (!match || SITTING_EXCLUDE_RE.test(text)) return undefined;
   return match[1]!.toLowerCase() === "quiz" ? "quiz" : "exam";
+}
+
+/**
+ * A sitting's name with its date straight after it: `Midterm 1 (Sep 30 Wed
+ * 7:00pm-9:30pm, in Siebel 1404)` on CS 473, `Exam 1 Sep. 21 Mon 7:00-8:15pm`
+ * on ECE 329, `Final (TBA)`.
+ *
+ * The date formats are start-anchored, so a line that names its exam before
+ * dating it parsed as nothing, and both pages' midterms never reached the
+ * Exams tab. This is the one shape where the row's own words say which date is
+ * the sitting's: the name, at most one introducer (`(`, `:`, `,`, `@`, a dash,
+ * `on`, `at`), and then the date — or a TBA. A date further on is not taken:
+ * `Midterm 1 (covers through Oct 1)` is a sentence about the exam, and its
+ * date is not the sitting's.
+ *
+ * `name` is what the row is titled by, so the room and the clock — which the
+ * course edits — never reach the `sourceId`.
+ */
+const SITTING_LEAD = new RegExp(
+  `^(${SITTING_NAME})\\s*(?:[(:,@–—-]\\s*)?(?:(?:on|at)\\s+)?` +
+    // DATE_SHAPED without its anchor, or a placeholder: the date has to be here.
+    `(?=${DATE_SHAPED.source.slice(1)}|(?:${PLACEHOLDER_WORDS})\\b)`,
+  "i",
+);
+export function sittingSentence(text: string): { name: string; rest: string } | undefined {
+  const squashed = text.replace(/\s+/g, " ").trim();
+  const match = SITTING_LEAD.exec(squashed);
+  if (!match) return undefined;
+  return { name: match[1]!.trim(), rest: squashed.slice(match[0].length) };
+}
+
+/**
+ * The words after a cell's leading date, when the cell *is* the date and the
+ * name: CS 461's `<span>Oct 15</span><br/><strong>MIDTERM</strong> (in class)`
+ * reads `Oct 15 MIDTERM (in class)`, and the sitting is `MIDTERM (in class)`.
+ *
+ * Measured with the parser rather than a pattern of this file's own: the date
+ * ends at the shortest run of words that parses to the instant the whole text
+ * does, so a clock written after the day (`Oct 15 7pm Midterm`) stays part of
+ * the date. Undefined when the text does not lead with a date or has nothing
+ * after it.
+ */
+export function afterLeadingDate(
+  text: string,
+  format: string,
+  timezone: string,
+  reference: string,
+): string | undefined {
+  const words = text.replace(/\s+/g, " ").trim().split(" ");
+  const whole = parseAdapterDateParts(words.join(" "), format, timezone, reference);
+  if (!whole) return undefined;
+  for (let n = 1; n < words.length; n += 1) {
+    const head = parseAdapterDateParts(words.slice(0, n).join(" "), format, timezone, reference);
+    if (head?.iso !== whole.iso) continue;
+    return words.slice(n).join(" ").replace(/^[\s,;:·•|–—-]+/, "") || undefined;
+  }
+  return undefined;
+}
+
+/**
+ * A day range in a date cell — `Dec 14-18`, `10/5-10/9`, `Sep 28 - Oct 2` —
+ * and not a clock range (`7-9pm`, `7:00-8:15`) or an ISO date (`2026-12-14`).
+ */
+const DAY_SPAN = /(?<![\d-])\d{1,2}\s*(?:[-–—]|to)\s*(?:[a-z]{3,9}\.?\s*)?(?:\d{1,2}\/)?\d{1,2}\b(?!\s*(?::\d|am\b|pm\b))/i;
+/** How far past a span's first day its last can be: a week. */
+const SPAN_DAYS = 6;
+
+/**
+ * The day a sitting's own sentence names inside the week its date cell spans.
+ *
+ * CS 440's schedule dates a row by its week — `Dec 14-18` — and the row says
+ * `Our final (= Quiz 7) will be on Thurs Dec 17, sometime during the 8-11am
+ * timeslot`. The cell's reading is the 14th, three days early. A day the row
+ * states *within* that week is the same claim made precisely; a day outside it
+ * is something else the sentence mentions, and the cell stands.
+ */
+function dayWithinSpan(
+  sentence: string,
+  cell: string,
+  start: AdapterDate,
+  adapter: Adapter,
+  reference: string,
+  statedElsewhere: Clock | undefined,
+): { parsed: AdapterDate; text: string } | undefined {
+  if (!DAY_SPAN.test(cell)) return undefined;
+  const dayOf = (iso: string): number => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / 86_400_000;
+  const first = dayOf(start.iso);
+  for (let at = 0; at < sentence.length; at += 1) {
+    // After a space or an opening bracket: `Final (Dec 17, 8am)`.
+    if (at > 0 && !/[\s(]/.test(sentence[at - 1]!)) continue;
+    const text = sentence.slice(at);
+    if (!DATE_SHAPED.test(text)) continue;
+    const parsed = parseAdapterDateParts(text, adapter.dateFormat, adapter.timezone, reference, statedElsewhere);
+    if (!parsed) continue;
+    const offset = dayOf(parsed.iso) - first;
+    if (offset >= 0 && offset <= SPAN_DAYS) return { parsed, text };
+  }
+  return undefined;
 }
 
 /**

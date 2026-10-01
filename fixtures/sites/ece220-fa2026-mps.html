@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/ece220/fa2026/libs/highlight/styles/a11y-light.min.css">
+   
+  <link rel="stylesheet" href="/ece220/fa2026/css/franklin.css">
+<link rel="stylesheet" href="/ece220/fa2026/css/poole_hyde.css">
+<!-- style adjustments -->
+<style>
+  html {font-size: 17px;}
+  .franklin-content {position: relative; padding-left: 8%; padding-right: 5%; line-height: 1.35em;}
+  @media (min-width: 940px) {
+    .franklin-content {width: 100%; margin-left: auto; margin-right: auto;}
+  }
+  @media (max-width: 768px) {
+    .franklin-content {padding-left: 6%; padding-right: 6%;}
+  }
+</style>
+<link rel="icon" href="/ece220/fa2026/assets/favicon.png">
+
+   <title>Machine Problems</title>  
+</head>
+<body>
+<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <!--<h2 style="text-align: center;"><a href="/ece220/fa2026/">ECE 220</a></h2>-->
+      <img src="/ece220/fa2026/assets/ailogo.png" alt="ECE 220 Logo" class="sidebar-logo">
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item " style="text-align:center;font-variant:small-caps;" href="/ece220/fa2026/">HOME</a>
+
+      <p class="sidebar-nav-item-head">Schedule</p>
+
+      <a class="sidebar-nav-item "
+	      href="/ece220/fa2026/schedule/course_schedule/">Course Schedule</a>
+      <a class="sidebar-nav-item "
+	      href="/ece220/fa2026/schedule/course_timings/">Times & Office Hours</a>
+      <a class="sidebar-nav-item "
+	      href="/ece220/fa2026/lectures/">Lecture Slides</a>
+      <p class="sidebar-nav-item-head">Assignments</p>
+      <a class="sidebar-nav-item " href="/ece220/fa2026/assignments/labs/">Labs</a>
+      <a class="sidebar-nav-item active" href="/ece220/fa2026/assignments/mps/">MPs</a>
+      <!--<a class="sidebar-nav-item {{ispage /assignments/honors/*}}active{{end}}" href="/ece220/fa2026/assignments/honors/">Honors</a>-->
+      <p class="sidebar-nav-item-head">Evaluation</p>
+      <a class="sidebar-nav-item " href="/ece220/fa2026/pages/gradescope/">Gradescope</a>
+      <a class="sidebar-nav-item " href="/ece220/fa2026/evaluation/exams/">Exams</a>
+      <a class="sidebar-nav-item " href="/ece220/fa2026/evaluation/quizzes/">Quizzes</a>
+      <p class="sidebar-nav-item-head">Pages</p>
+      <a class="sidebar-nav-item " href="/ece220/fa2026/secure/forum/">Discussion forum</a>
+      <a class="sidebar-nav-item "href="/ece220/fa2026/pages/staff/">Staff</a>
+      <a class="sidebar-nav-item "href="/ece220/fa2026/pages/toolchain/">Toolchain</a>
+      <a class="sidebar-nav-item "href="/ece220/fa2026/pages/resources/">Resources</a>
+      <a class="sidebar-nav-item "href="/ece220/fa2026/pages/programming_competition/">Programming competition</a>
+      <!-- <a class="sidebar-nav-item {{ispage /pages/chatbot/*}}active{{end}}"href="/ece220/fa2026/pages/chatbot/">GPT Chat</a> -->
+      </nav>
+  </div>
+</div>
+<div class="content container">
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="machine_problems_mps"><a href="#machine_problems_mps" class="header-anchor">Machine Problems &#40;MPs&#41;</a></h1>
+<p>There will be <strong>programming assignments &#40;MPs&#41; roughly every week</strong> that is worth 100 points each. <strong>There&#39;s no deadline extension for COVID related or other medical and non-medical related circumstance. Instead, the lowest of MP1 - MP11 score will be dropped.</strong> </p>
+<p><em>MPs will be distributed on Thursdays and are due &#40;by computer hand-in via Github&#41; at <strong>10.00 pm</strong> on the due date &#40;typically the following Thursday&#41;.</em></p>
+<p>If you are working in a group, each group member must turn in his/her own copy of code in Github. We cannot grade your partner&#39;s copy as yours. Mention your group members by NetID near the top using comments: </p>
+<pre><code class="language-assembly">; partners: itabrah2, tmoon, ubhowmik
+;</code></pre>
+<p>or </p>
+<pre><code class="language-c">/*partners: itabrah2, tmoon, ubhowmik */
+#include &lt;stdio.h&gt;</code></pre>
+<div class="note"><div class="title">&#9888;&#65039; Note</div>
+<div class="content">It is <strong>your</strong> responsibility to ensure the latest code submission is the version <strong>you</strong> want graded. Mistakes with Git handling may not be addressable via regrades&#33;</div></div>
+<p><strong>Late submissions:</strong> You can turn in the assignments late until Saturday &#40;48 hours after the deadline&#41; and get a penalty of 2 points for each hour late. </p>
+<h2 id="mp_schedule"><a href="#mp_schedule" class="header-anchor">MP Schedule </a></h2>
+<p>The following assignments will use the EWS laboratory environment. The first two will require you to write LC-3 assembly language, while the remaining will require you to write C code. Some of the assignments may build from week to week. </p>
+<div class="ita-table"><table>
+<thead>
+  <tr>
+<th>Machine Problem</th>
+<th>Submission due date</th>
+<th>Points</th>
+</tr><tr><td><a href="/ece220/fa2026/secure/mps/mp01">MP 01 - Printing histogram</a></td><td>09-03</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp02">MP 02 - Stack calculator</a></td><td>09-10</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp03">MP 03 - Pascal&#39;s triangle</a></td><td>09-17</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp04">MP 04 - Debugging with GDB</a></td><td>09-24</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp05">MP 05 - Codebreaker</a></td><td>10-04 &#40;extended&#41;</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp06">MP 06 - Game of Life</a></td><td>10-08</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp07">MP 07 - Sudoku Solver</a></td><td>10-15</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp08">MP 08 - 2048</a></td><td>10-22</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp09">MP 09 - Maze</a></td><td>10-29</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp10">MP 10 - Sparse Matrix</a></td><td>11-12</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp11">MP 11 - Introduction to C&#43;&#43;</a></td><td>11-19</td><td>100 pts</td></tr><tr><td><a href="/ece220/fa2026/secure/mps/mp12">MP 12 - Anagrams</a></td><td>12-10 &#40;extended, no drop&#41;</td><td>100 pts</td></tr>  </tbody>
+</table>
+</div>
+<h1 id="mp_regrades"><a href="#mp_regrades" class="header-anchor">MP Regrades</a></h1>
+<p>Grades for MPs will be released on Canvas and on Github, usually by the <em>second</em> Monday after they are due.</p>
+<p>You can check the full breakdown of the autograder results and grade on Github &#40;when available&#41; at</p>
+<pre><code class="language-text">https://github.com/illinois-cs-coursework/&#91;ttYY&#93;_ece220_&#91;netid&#93;/tree/grade/&#91;mpX&#93;/grade.txt</code></pre>
+<p>Replace <code>&#91;ttYY&#93;</code>, <code>&#91;netid&#93;</code> and <code>&#91;mpX&#93;</code> as appropriate. </p>
+<p>If you believe there was a mistake in the autograder, an edge case that was missed, or an issue with submission/Canvas, submit a regrade request by submitting to the corresponding assignment on Gradescope.</p>
+<p>Be specific about the issue, and explain why you believe you deserve partial credit.</p>
+<p><strong>Generally speaking, the deadline to submit an MP regrade request will be one week after grades are released.</strong></p>
+<p><strong>Example:</strong> MP 1 is due January 29th. Regrades can be requested starting February 9th, and will need to be submitted by February 16th deadline.</p>
+<pre><code class="language-julia">January               February               March
+Su Mo Tu We Th Fr Sa  Su Mo Tu We Th Fr Sa  Su Mo Tu We Th Fr Sa
+             1  2  3   1  2  3  4  5  6  7   1  2  3  4  5  6  7
+ 4  5  6  7  8  9 10   8  9 10 11 12 13 14   8  9 10 11 12 13 14
+11 12 13 14 15 16 17  15 16 17 18 19 20 21  15 16 17 18 19 20 21
+18 19 20 21 22 23 24  22 23 24 25 26 27 28  22 23 24 25 26 27 28
+25 26 27 28 29 30 31                        29 30 31</code></pre>
+<div class="page-foot">
+    All rights reserved by ECE220@Illinois. Design by Asher Mai & Ivan Abraham. 
+    </br>
+    Last modified: August 17, 2026.
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia programming language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    </div>  <!-- div: content container -->
+    
+    
+        <script src="/ece220/fa2026/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

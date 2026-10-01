@@ -171,10 +171,15 @@ describe("a schedule with two date columns", () => {
     expect(found.map((c) => c.columns!.due).sort()).toEqual(["due", "released"]);
   });
 
-  it("puts the column that parsed more rows first", () => {
-    // Ordering is a suggestion, not a decision — the student picks by reading
-    // the sample rows, which is the only check that can tell these apart.
-    expect(found[0]!.columns!.due).toBe("released");
+  it("puts the column the page calls due first, though the release column dates more", () => {
+    // This test used to assert "released" first, because that column parsed
+    // three rows to Due's two — and it was pinning the defect (worker rule 6).
+    // CS 128's `Release Date-Time | Due Date-Time` table offered its release
+    // column first and dated every MP a week early; ECE 220's `Day` column
+    // beat `Submission due date` by the two help-session rows and dated every
+    // lab two days early. Within one table, the header that says "due" is the
+    // page's own statement of which date is the deadline (`dueColumnsFirst`).
+    expect(found[0]!.columns!.due).toBe("due");
   });
 });
 
@@ -199,16 +204,18 @@ describe("a column whose dates are written two different ways", () => {
      * Either format reads only half the rows, and the count is what tells the
      * student this page is not fully covered before they approve it.
      *
-     * `total` is five rather than four because it is the **runner's** count:
-     * this table has no `<tbody>`, so there is no narrower spelling than
-     * `#t tr` and `runAdapter` reads the header row as a row. The old search
-     * counted its own data rows and reported "2 of 4" for an adapter that would
-     * go on to keep five — the preview showing one page and the entry reading
-     * another, which is the whole failure this file exists to make impossible.
+     * `total` is the **runner's** count, and it is four: this table has no
+     * `<tbody>`, so there is no narrower spelling than `#t tr`, and the runner
+     * used to read the header row as a row — an item titled "Assignment" with
+     * "Due" for a date, which this test pinned as five. ECE 220 and PHYS 325
+     * showed that row to a student as `"Labs" unparsedDate="Day"`, so a column
+     * read of the header row now yields nothing (`cellByHeader`). The count is
+     * still the runner's own, which is the point of the old comment: the
+     * preview and the entry cannot disagree.
      */
     const best = propose(doc)[0]!;
     expect(best.dated).toBe(2);
-    expect(best.total).toBe(5);
+    expect(best.total).toBe(4);
   });
 });
 

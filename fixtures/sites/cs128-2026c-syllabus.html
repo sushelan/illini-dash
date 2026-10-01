@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>cs128@illinois</title>
+
+  <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="VdFx6b+knFrY7SNXsueACAd270Ax/1ep8slOU1DMR8cBRP+8SqY3RUiEtbJgeWVxMio2C8DCyKn73Q3hY83AiA==" />
+  
+  <link rel="stylesheet" media="all" href="/assets/application-71a6191911ced17a62bdf59e44914e33451a0a85fc9a910623fb9b30e848586d.css" data-turbolinks-track="reload" />
+  <script src="/assets/application-9fd75c4ff284671537036e7829b6a23bafb771a790de26de149c58a0148c3c78.js" data-turbolinks-track="reload"></script>
+
+  <meta name="sess-id" content="2::00e72e4d9f3847ce39e8495fe7571d0ba8b4f3c82f6b285c512bbf20482f475b" />
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="manifest" href="/images/site.webmanifest">
+  <link rel="mask-icon" href="/images/safari-pinned-tab.svg" color="#5bbad5">
+  <link rel="shortcut icon" href="/images/favicon.ico">
+  <meta name="msapplication-TileColor" content="#da532c">
+  <meta name="msapplication-config" content="/images/browserconfig.xml">
+  <meta name="theme-color" content="#ffffff">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/diff2html/2.12.2/diff2html.min.css" integrity="sha512-qBPfZrk1pehUAg5TbGtn4RaSi3ChkQTWHshPY+rSjKRK1l6NHqNdjFe9TpOc+xCAP1q566A0VU3OcG/Bn6cwnw==" crossorigin="anonymous" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.0.0/diff.min.js" integrity="sha512-Rjml7/E2zETyVFhzIQnTEjW7PBCH5/Y4ac2uu9MGqh1JclCVHbvT1lIlcVmvAGFipi/L16eA6Jr9km2zit9Tfg==" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/diff2html/2.12.2/diff2html.min.js" integrity="sha512-8cdb9zL6w8Wyo/efaAxbcA7Gh+lJglOQvChN0clQ7bZQ4BaV5RgBGavSa1pUhVkcWlalyttHMhxPPf9koYmJNw==" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/diff2html/2.12.2/diff2html-ui.min.js" integrity="sha512-FPfkHY+zkq/gdAdOHfDH+XceFPQ3elOoNsCmJZn4r4PlAv1tRZLA2lfEm0eQ4qzAIHpNGZ8dHhNpLaLMZeT2Lg==" crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+
+  <div id="full_loader" class="loading" style="display:none;" aria-busy="false">
+    <div class="d-flex justify-content-center" style="position:absolute; left:50%; top:47%;">
+      <div class="spinner-border" role="status"><span class="visually-hidden">Loading&hellip;</span></div>
+    </div>
+  </div>
+
+  <header class="topbar-128">
+  <div class="topbar-128__group">
+    <a href="/" class="topbar-128__wordmark">CS 128</a>
+    <button class="topbar-128__btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar">
+      <i class="fas fa-list" aria-hidden="true"></i>
+      Navigation
+    </button>
+      <nav aria-label="Breadcrumb" class="d-none d-lg-block topbar-128__breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item">
+                System
+            </li>
+          <li class="breadcrumb-item active" aria-current="page">Syllabus</li>
+        </ol>
+      </nav>
+  </div>
+
+  <div class="topbar-128__group">
+      <button class="topbar-128__btn topbar-128__btn--icon" type="button" data-bs-theme-value="toggle" title="Switch color theme" aria-label="Switch color theme">
+        <i class="fas fa-moon topbar-128__theme-icon--light" aria-hidden="true"></i>
+        <i class="fas fa-sun topbar-128__theme-icon--dark" aria-hidden="true"></i>
+      </button>
+      <a href="/login" class="topbar-128__btn"><i class="fas fa-sign-in-alt" aria-hidden="true"></i>Sign in</a>
+  </div>
+</header>
+
+  
+<div class="offcanvas offcanvas-start sidebar-128" tabindex="-1" id="offcanvasNavbar" aria-labelledby="offcanvasNavbarLabel">
+  <div class="sidebar-128__panel">
+    <div class="offcanvas-body sidebar-128__body">
+      <nav class="sidebar-128__nav" aria-label="Primary">
+      <ul class="sidebar-128__section">
+          <li>
+            <a class="sidebar-128__item sidebar-128__item--link no-webkit text-nowrap" href="/">
+              <span class="sidebar-128__icon" aria-hidden="true"><i class="fas fa-th-large fa-fw"></i></span>
+              <span class="sidebar-128__text">Dashboard</span>
+</a>          </li>
+          <li><span class="sidebar-128__divider" aria-hidden="true"></span></li>
+
+
+              <li>
+                <a class="sidebar-128__item sidebar-128__item--link no-webkit text-nowrap" href="/go/start">
+                  <span class="sidebar-128__icon" aria-hidden="true"><i class="fas fa-rocket fa-fw"></i></span>
+                  <span class="sidebar-128__text">Start Here </span>
+</a>              </li>
+              <li>
+                <a class="sidebar-128__item sidebar-128__item--link no-webkit text-nowrap" href="/go/syllabus">
+                  <span class="sidebar-128__icon" aria-hidden="true"><i class="fas fa-info-circle fa-fw"></i></span>
+                  <span class="sidebar-128__text">Syllabus</span>
+</a>              </li>
+              <li>
+                <a class="sidebar-128__item sidebar-128__item--link no-webkit text-nowrap" href="/directory">
+                  <span class="sidebar-128__icon" aria-hidden="true"><i class="fas fa-users fa-fw"></i></span>
+                  <span class="sidebar-128__text">Directory</span>
+</a>              </li>
+
+
+        <li><span class="sidebar-128__divider" aria-hidden="true"></span></li>
+        <li>
+          <button type="button"
+                  class="sidebar-128__item sidebar-128__item--toggle no-webkit text-nowrap"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#sidebar-appearance"
+                  aria-expanded="false"
+                  aria-controls="sidebar-appearance">
+            <span class="sidebar-128__icon" aria-hidden="true"><i class="fas fa-sun fa-fw"></i></span>
+            <span class="sidebar-128__text">Appearance</span>
+            <span class="sidebar-128__item-caret" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+          </button>
+          <div class="collapse sidebar-128__collapse" id="sidebar-appearance">
+            <ul class="sidebar-128__list" aria-label="Appearance">
+              <li>
+                <a href="javascript:void(0);" class="sidebar-128__list-link no-webkit" data-bs-theme-value="light">
+                  <span class="sidebar-128__list-text">Light Mode</span>
+                </a>
+              </li>
+              <li>
+                <a href="javascript:void(0);" class="sidebar-128__list-link no-webkit" data-bs-theme-value="dark">
+                  <span class="sidebar-128__list-text">Dark Mode (beta)</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </li>
+      </ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    'use strict';
+
+    const getStoredTheme = () => localStorage.getItem('theme');
+    const setStoredTheme = (theme) => localStorage.setItem('theme', theme);
+
+    const getPreferredTheme = () => {
+      const storedTheme = getStoredTheme();
+      if (storedTheme) {
+        return storedTheme;
+      }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    };
+
+    const setTheme = (theme) => {
+      if (theme === 'auto') {
+        document.documentElement.setAttribute(
+          'data-bs-theme',
+          window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        );
+      } else {
+        document.documentElement.setAttribute('data-bs-theme', theme);
+      }
+    };
+
+    setTheme(getPreferredTheme());
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const storedTheme = getStoredTheme();
+      if (storedTheme !== 'light' && storedTheme !== 'dark') {
+        setTheme(getPreferredTheme());
+      }
+    });
+
+    const handleThemeSwitch = () => {
+      document.querySelectorAll('[data-bs-theme-value]').forEach((toggle) => {
+        if (toggle.dataset.themeListenerAttached === 'true') return;
+        toggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-bs-theme');
+          let theme = toggle.getAttribute('data-bs-theme-value');
+          if (theme === 'toggle') {
+            theme = current === 'dark' ? 'light' : 'dark';
+          }
+          if (theme === current) return;
+          CS128Confirm('Switching themes will reload the page and discard unsaved work. Continue?', {
+            onProceed: () => {
+              $('main#content').html('');
+              $('#full_loader').show();
+              setStoredTheme(theme);
+              setTheme(theme);
+              window.location.reload();
+            },
+          });
+        });
+        toggle.dataset.themeListenerAttached = 'true';
+      });
+    };
+
+    const ensureSidebarCollapses = () => {
+      const sidebar = document.getElementById('offcanvasNavbar');
+      if (!sidebar || sidebar.dataset.collapseInitialized === 'true') return;
+
+      sidebar.querySelectorAll('.sidebar-128__collapse').forEach((collapseEl) => {
+        if (!collapseEl.dataset.bsCollapse) {
+          new bootstrap.Collapse(collapseEl, { toggle: false });
+        }
+      });
+
+      sidebar.dataset.collapseInitialized = 'true';
+    };
+
+    const initSidebarScripts = () => {
+      handleThemeSwitch();
+      ensureSidebarCollapses();
+      const offcanvas = document.getElementById('offcanvasNavbar');
+      if (offcanvas && offcanvas.dataset.backdropBound !== 'true') {
+        offcanvas.addEventListener('show.bs.offcanvas', () => {
+          document.body.classList.add('sidebar-128-open');
+        });
+
+        offcanvas.addEventListener('hide.bs.offcanvas', () => {
+          document.body.classList.remove('sidebar-128-open');
+        });
+
+        offcanvas.addEventListener('hidden.bs.offcanvas', () => {
+          document.body.classList.remove('sidebar-128-open');
+        });
+
+        offcanvas.dataset.backdropBound = 'true';
+      }
+    };
+
+    if (document.readyState !== 'loading') {
+      initSidebarScripts();
+    } else {
+      document.addEventListener('DOMContentLoaded', initSidebarScripts, { once: true });
+    }
+    document.addEventListener('turbolinks:load', initSidebarScripts);
+  })();
+</script>
+
+  <div class="flash-toasts" id="flash-toasts" role="status" aria-live="polite">
+</div>
+
+
+  <main class=" pb-5" id="content">
+    
+
+
+
+<div class="container-xl page-layout my-md-4">
+  <div class="page-content">
+    <h1 id="overview">Syllabus</h1>
+      <p class="page-subtitle text-body-secondary">Fall 2026</p>
+
+    <div class="page-status text-body-secondary">
+    </div>
+
+
+
+
+      <details class="page-toc-mobile d-xl-none mt-4">
+        <summary>On this page</summary>
+        <ul class="list-unstyled">
+            <li><a href="#instructor-information" data-turbolinks="false">Instructor Information</a></li>
+            <li><a href="#course-overview" data-turbolinks="false">Course Overview</a></li>
+            <li><a href="#grading" data-turbolinks="false">Grading</a></li>
+            <li><a href="#assessments" data-turbolinks="false">Assessments</a></li>
+            <li><a href="#deadlines-late-work-drops" data-turbolinks="false">Deadlines, Late Work, and Drops</a></li>
+            <li><a href="#ai-policy" data-turbolinks="false">AI Policy</a></li>
+            <li><a href="#academic-integrity" data-turbolinks="false">Academic Integrity</a></li>
+            <li><a href="#course-communication" data-turbolinks="false">Getting Help and Course Communication</a></li>
+            <li><a href="#regrades-audits-reports" data-turbolinks="false">Regrades, Audits, and Problem Reports</a></li>
+            <li><a href="#accommodations" data-turbolinks="false">Accommodations</a></li>
+            <li><a href="#additional-course-policies" data-turbolinks="false">Additional Course Policies</a></li>
+            <li><a href="#tentative-schedule" data-turbolinks="false">Tentative Schedule</a></li>
+        </ul>
+      </details>
+
+    <div class="page-blocks">
+        <section class="block block--text" id="content-14647">
+    <div class="prose"><h2 id="instructor-information">Instructor Information</h2>
+
+<p><strong>Prof. Michael R. Nowak</strong> | Teaching Assistant Professor<br>
+   Siebel School of Computing and Data Science, University of Illinois at Urbana-Champaign</p>
+
+<ul>
+   <li>
+<strong>Email:</strong> <a href="/cdn-cgi/l/email-protection#e4898a8b93858fd5a48d88888d8a8b8d97ca818091"><span class="__cf_email__" data-cfemail="f09d9e9f87919bc1b0999c9c999e9f9983de959485">[email&#160;protected]</span></a>
+</li>
+   <li>
+<strong>Office:</strong> 2338 Siebel Center for Computer Science</li>
+   <li>
+<strong>Phone:</strong> <a href="tel:+12172448894">+1 (217) 244-8894</a>
+</li>
+   <li>
+<strong>Website:</strong> <a href="https://michaelrnowak.com" target="_blank" rel="noopener noreferrer">michaelrnowak.com</a>
+</li>
+</ul>
+
+<p><em>See the <a href="#course-communication">Getting Help and Course Communication</a> section of this syllabus for contact guidelines.</em></p>
+
+<hr>
+
+<h2 id="course-overview">Course Overview</h2>
+
+<p>This class departs from the traditional collegiate lecture: we deliver new material through asynchronous daily
+   lessons, each of which introduces its topic through a combination of
+   text, video, and interactive walkthroughs. We intersperse interactive coding exercises throughout most lessons to
+   reinforce the material as you learn it. There is no required textbook for CS 128. We post all daily lessons on
+   this <a href="https://cs128.org">course website</a> (cs128.org). Recitation is the required synchronous component of
+   the course, and its format and expectations are stated under <a href="#recitation">Recitation</a>.</p>
+
+<h3 id="learning-objectives">Learning Objectives</h3>
+
+<p>At the end of the course, you should be able to:</p>
+
+<ul>
+   <li>Manage, organize, and compile C++ projects of simple complexity using basic Unix-based tools</li>
+   <li>Use basic editing and debugging tools such as the GNU Debugger (GDB) and Valgrind</li>
+   <li>Understand the features of computer systems that make them useful for solving problems, including computation,
+      memory, storage, data access and networking</li>
+   <li>Use object-oriented design to appropriately structure data and couple data and behavior</li>
+   <li>Decompose problems of modest complexity into simpler components with well defined interfaces</li>
+   <li>Formulate and implement useful algorithms that solve real problems</li>
+   <li>Construct and test code from a simple specification</li>
+</ul>
+
+<h3 id="meet-the-professor">Meet the Professor</h3>
+
+<p>"Meet the Professor" sessions are informal conversations with Prof. Nowak, held some weeks in person and others
+   virtually, with dates and times posted on the
+   <a href="https://cs128.org/calendar" target="_blank" rel="noopener noreferrer">course calendar</a> (cs128.org/calendar).
+   They are optional, ungraded, and require no preparation; they exist so that we come to know one another. For help
+   with course content, attend office hours.</p>
+
+<h3 id="getting-started">Getting Started</h3>
+
+<p>Once you have read this syllabus, visit our
+   <a href="https://cs128.org/start" target="_blank" rel="noopener noreferrer">Start Here page</a> (cs128.org/start).</p>
+
+<h3 id="computer-requirements">Computer Requirements</h3>
+
+<p>Ensure that you have a laptop that meets the
+   <a href="https://techzone.illinois.edu/site_engineering_recommendation.asp" target="_blank" rel="noopener noreferrer">College
+   of Engineering's laptop recommendations</a> (techzone.illinois.edu), running the Windows, Mac, or Ubuntu operating
+   system, with the Google Chrome web browser installed. Chrome is the browser through which you will access our
+   website.</p>
+
+<hr>
+
+<h2 id="grading">Grading</h2>
+
+<h3 id="category-weights">Category Weights</h3>
+
+<p>We calculate course grades using the following weights:</p>
+
+<table class="table table-hover table-sm">
+   <caption>CS 128 final grade weighting by assessment category.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Category</th>
+         <th scope="col">% Contribution</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">Quizzes</th>
+         <td>70%</td>
+      </tr>
+      <tr>
+         <th scope="row">Machine Problems</th>
+         <td>20%</td>
+      </tr>
+      <tr>
+         <th scope="row">Graded Lessons</th>
+         <td>5%</td>
+      </tr>
+      <tr>
+         <th scope="row">Recitation</th>
+         <td>5%</td>
+      </tr>
+   </tbody>
+</table>
+
+<p>We reserve the right to modify these weightings during the semester. Points do not overflow between categories: you cannot
+   earn more than the total available in any one of them.</p>
+
+<h3 id="grade-scale">Grade Scale</h3>
+
+<p>Only exceptional performance constitutes an A. We move at a pace that requires sustained commitment throughout the
+   semester. We assign course grades according to the following scale:</p>
+
+<table class="table table-hover table-sm">
+   <caption>CS 128 letter grade scale by minimum percentage of total points earned.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Letter Grade</th>
+         <th scope="col">Minimum % of Total Points Earned</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">A</th>
+         <td>93.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">A-</th>
+         <td>90.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">B+</th>
+         <td>87.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">B</th>
+         <td>83.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">B-</th>
+         <td>80.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">C+</th>
+         <td>77.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">C</th>
+         <td>73.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">C-</th>
+         <td>70.0%</td>
+      </tr>
+      <tr>
+         <th scope="row">D</th>
+         <td>60.0%</td>
+      </tr>
+   </tbody>
+</table>
+
+<p>You will fail this course if you earn below 60.0% of the total available points.</p>
+
+<p>We truncate, rather than round, your final percentage to the nearest tenth when determining the letter grade; e.g.,
+   a final score of 89.99% is treated as 89.9%.</p>
+
+<h3 id="final-exam">Final Exam</h3>
+
+<p>CS 128 has no final exam.</p>
+
+<h3 id="grade-reports">Grade Reports</h3>
+
+<p>We publish weekly grade reports to
+   <a href="https://achieve.cs128.org" target="_blank" rel="noopener noreferrer">128 Achieve</a>
+   (achieve.cs128.org). Each grade report is a snapshot of your grade at the time it was generated.</p>
+
+<h3 id="coursework-is-the-quiz-preparation">The Coursework Is the Quiz Preparation</h3>
+
+<p>Machine problems, graded lessons, and recitation are worth thirty percent of your grade and one hundred percent of
+   your preparation for the other seventy. We do not assign this work to distribute points. We assign it because
+   learning to program requires deliberate practice, and these activities are that practice. Working through them is
+   what turns a concept you have followed into one you can apply. Complete this work carefully, honestly, and on
+   schedule.</p>
+
+<hr>
+
+<h2 id="assessments">Assessments</h2>
+
+<p>We assess your work in four categories: Quizzes, Machine Problems (MPs), Graded Lessons, and Recitation. All due
+   dates,
+   late-work rules, drops, and waivers for these categories are governed by the
+   <a href="#deadlines-late-work-drops">Deadlines, Late Work, and Drops</a> section of this syllabus.</p>
+
+<h3 id="quizzes">Quizzes</h3>
+
+<h4 id="quiz-environment">Quiz Environment and Conduct</h4>
+
+<p>You take every quiz in the
+   <a href="https://cbtf.illinois.edu/" target="_blank" rel="noopener noreferrer">Computer-Based Testing Facility</a>
+   (<abbr title="Computer-Based Testing Facility">CBTF</abbr>; cbtf.illinois.edu) under proctored conditions, and you
+   complete it entirely on your own: no collaboration is permitted, no AI tool may be used, and no outside resource
+   beyond what the proctored environment provides is available to you during the session. Attempting to circumvent
+   those conditions is an academic integrity violation, which we refer to the Faculty Academic Integrity Reporting
+   (<abbr title="Faculty Academic Integrity Reporting">FAIR</abbr>) process governed by
+   <a href="https://studentcode.illinois.edu/article1/part4" target="_blank" rel="noopener noreferrer">Article 1,
+   Part 4 of the Student Code</a> (studentcode.illinois.edu/article1/part4).</p>
+
+<p>Each quiz lasts fifty minutes. If you have a testing
+   accommodation through
+   <a href="https://www.disability.illinois.edu/" target="_blank" rel="noopener noreferrer">Disability Resources &amp;
+   Educational Services</a> (<abbr title="Disability Resources and Educational Services">DRES</abbr>;
+   disability.illinois.edu), upload your Letter of Accommodations
+   (<abbr title="Letter of Accommodations">LOA</abbr>) <a href="https://cbtf.illinois.edu/students/dres" target="_blank" rel="noopener noreferrer">to the CBTF</a> (cbtf.illinois.edu/students/dres) before you make your
+   first quiz reservation. The CBTF then applies your accommodation to that base duration. You must complete this
+   upload each semester in which you use the CBTF, and it is separate from submitting your accommodations letter for
+   the course itself, which the <a href="#dres-accommodations">DRES Accommodations</a> section describes.</p>
+
+<p>The policies of the CBTF are the policies of this course, and academic integrity infractions related to the CBTF
+   are infractions in this course. <a href="https://cbtf.illinois.edu/students" target="_blank" rel="noopener noreferrer">Review all instructions on the CBTF website</a> (cbtf.illinois.edu/students) before your
+   first quiz.</p>
+
+<h4 id="quiz-reservations">Reservations</h4>
+
+<p>Quizzes are not administered at a fixed time, so you reserve your own seat through the CBTF
+   reservation system, which opens on the self-reserve date listed in the Quiz Schedule alongside each quiz's start and
+   end dates. Reserve early, since the most popular sessions fill first.</p>
+
+<h4 id="quiz-content-format">Content and Format</h4>
+
+<p>Quiz content is cumulative: each quiz can cover material from the
+   <a href="https://registrar.illinois.edu/faculty-staff/calendars/academic-calendars/" target="_blank" rel="noopener noreferrer">first day of instruction</a> up to and including the day before the day on which you take
+   it, so the content of your quiz depends on which day of the window you choose. The CBTF windows
+   for consecutive quizzes do not overlap. A later quiz can therefore cover material from lessons that were not yet
+   available during the preceding quiz's window.</p>
+
+<p>Quizzes may include multiple-choice questions, programming exercises, debugging challenges, and other formats as
+   appropriate. Conceptual questions are drawn from lesson content, while programming problems may be inspired by
+   prior lesson activities or adapted from previously or presently assigned machine problems. Every question is
+   autograded, and each question states the number of submissions it accepts within the timed session and how those
+   submissions are scored. We provide no practice quizzes, because
+   <a href="#coursework-is-the-quiz-preparation">the coursework is the quiz preparation</a>.</p>
+
+<h4 id="catch-up-quiz-grading">Scoring and Catch-Up Quiz Grading</h4>
+
+<p>All quizzes are weighted equally. When a quiz reveals that you have not yet mastered a concept, we want you to
+   review that material and catch up before moving forward. Our catch-up quiz grading policy rewards exactly that
+   recovery.</p>
+
+<p>We compare only consecutive quizzes. If you score higher on a quiz than on the quiz immediately preceding it, we
+   raise the earlier quiz's score to the average of the two. For example, if you earn a 70 on an earlier quiz and a 90
+   on the quiz that follows it, the earlier score becomes an 80, i.e., (70 + 90) / 2. This policy never lowers a quiz
+   score.</p>
+
+<p>There are three caveats:</p>
+<ul>
+   <li>Both quizzes in a pair must be taken. A quiz you missed is neither raised nor used to raise the quiz before it,
+      so a missed quiz ends the comparison on both sides.</li>
+   <li>Every comparison uses the scores you actually earned. A score we raise is a result, never an input: we do not
+      use it to raise the quiz before it, and we do not revisit a pair we have already scored.</li>
+   <li>Catch-up quiz grading cannot apply to the final quiz in the Quiz Schedule, since no quiz follows it.</li>
+</ul>
+
+<p>We apply catch-up quiz grading first and take the quiz drop afterward, so the drop, which is stated under
+   <a href="#quiz-deadlines">Quiz Deadlines and Drops</a>, is taken against your adjusted scores.</p>
+
+<h4 id="quiz-problems">Problems During or After a Quiz</h4>
+
+<p>If there is an issue with your testing environment, tell the proctor immediately so that they can observe and
+   document what happened. A problem you do not raise with a proctor during your session leaves no record, and you
+   forfeit all rights to redress for it. A defect in the question itself is a separate matter, and you report it
+   under <a href="#reporting-problems">Problem Reports</a>.</p>
+
+<h4 id="quiz-schedule">Quiz Schedule</h4>
+
+<div class="table-responsive" tabindex="0" role="region" aria-label="Quiz schedule">
+<table class="table table-hover table-sm">
+   <caption>CS 128 quiz schedule. All date-times are Champaign local time.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Name</th>
+         <th scope="col">CBTF Start Date</th>
+         <th scope="col">CBTF End Date</th>
+         <th scope="col">CBTF Self-Reserve Opens</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">Quiz 1</th>
+         <td>2026-09-04 00:01:00 CDT</td>
+         <td>2026-09-08 23:59:00 CDT</td>
+         <td>2026-08-20 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 2</th>
+         <td>2026-09-11 00:01:00 CDT</td>
+         <td>2026-09-14 23:59:00 CDT</td>
+         <td>2026-08-27 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 3</th>
+         <td>2026-09-18 00:01:00 CDT</td>
+         <td>2026-09-21 23:59:00 CDT</td>
+         <td>2026-09-03 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 4</th>
+         <td>2026-09-25 00:01:00 CDT</td>
+         <td>2026-09-28 23:59:00 CDT</td>
+         <td>2026-09-10 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 5</th>
+         <td>2026-10-02 00:01:00 CDT</td>
+         <td>2026-10-05 23:59:00 CDT</td>
+         <td>2026-09-17 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 6</th>
+         <td>2026-10-09 00:01:00 CDT</td>
+         <td>2026-10-12 23:59:00 CDT</td>
+         <td>2026-09-24 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 7</th>
+         <td>2026-10-16 00:01:00 CDT</td>
+         <td>2026-10-19 23:59:00 CDT</td>
+         <td>2026-10-01 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 8</th>
+         <td>2026-10-23 00:01:00 CDT</td>
+         <td>2026-10-26 23:59:00 CDT</td>
+         <td>2026-10-08 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 9</th>
+         <td>2026-10-30 00:01:00 CDT</td>
+         <td>2026-11-02 23:59:00 CST</td>
+         <td>2026-10-15 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 10</th>
+         <td>2026-11-06 00:01:00 CST</td>
+         <td>2026-11-09 23:59:00 CST</td>
+         <td>2026-10-22 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 11</th>
+         <td>2026-11-13 00:01:00 CST</td>
+         <td>2026-11-16 23:59:00 CST</td>
+         <td>2026-10-29 00:01:00 CDT</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 12</th>
+         <td>2026-11-18 00:01:00 CST</td>
+         <td>2026-11-20 23:59:00 CST</td>
+         <td>2026-11-05 00:01:00 CST</td>
+      </tr>
+      <tr>
+         <th scope="row">Quiz 13</th>
+         <td>2026-12-04 00:01:00 CST</td>
+         <td>2026-12-07 23:59:00 CST</td>
+         <td>2026-11-12 00:01:00 CST</td>
+      </tr>
+   </tbody>
+</table>
+</div>
+
+<p><em>Each quiz's dates are subject to change. Any changes will be communicated via the course forum.</em></p>
+
+<p>Quiz windows, the quiz drop, and the procedure for a missed quiz are governed by
+   <a href="#quiz-deadlines">Quiz Deadlines and Drops</a>.</p>
+
+<h3 id="machine-problems">Machine Problems</h3>
+
+<h4 id="mp-collaboration">Collaboration and Conduct</h4>
+
+<p>You complete every MP without collaboration: no other student and no outside individual may assist you. If you have
+   questions about your solution, your approach, or anything else related to an MP, seek help from the course staff
+   during office hours. Do not search for, open, or use another person's solution to a CS 128 assignment, wherever it
+   is posted, e.g., a public GitHub repository, Chegg, or Course Hero. If we find that you consulted or submitted such
+   a solution, we will refer you to FAIR. AI tools may be used only in
+   accordance with the <a href="#ai-policy">AI Policy</a>.</p>
+
+<h4 id="mp-submission">Release, Submission, and Scoring</h4>
+
+<p>We release new MPs according to the <a href="#mp-schedule">MP Schedule</a>. The PrairieLearn autograder grades
+   every MP, and awards partial credit for the test cases your solution passes. A solution that does
+   not compile earns no points. Each MP increases in difficulty and sophistication relative to the one before it, so
+   begin working as soon as an MP is released and continue steadily until the due date.</p>
+
+<p>Each MP's submission limit and scoring rule are stated on its problem specification page on cs128.org. Where the
+   specification does not state a submission limit, submissions are unmetered; where it does not state a scoring rule,
+   your score is the maximum score across all of your submissions.</p>
+
+<h4 id="code-interviews">Code Interviews</h4>
+
+<p>After each MP, we select some students for a one-on-one session with the staff, during which you explain the code
+   you submitted. Selection may be random or deliberate: we may choose you at random in a given cycle, and we may also
+   choose you on the basis of your submission history, concerns raised through our academic integrity process, or
+   other factors. Being selected for one MP neither guarantees nor precludes selection for another.</p>
+
+<p>Invitations arrive by email and may be sent at any time after an MP's due date (see table below). You are responsible for being able
+   to explain any solution you submitted for the MP, not only your latest or your highest-scoring one.</p>
+
+<p>You must reply to the code interview invitation by email within 48 hours of the time we send it; failing to do so
+   results in a zero on the MP. Your reply must list your availability across the 72 hours that follow the time of
+   your response. If circumstances beyond your
+   control prevent you from replying within 48 hours, post privately on the course forum as soon as you are able, and
+   we will work with you.</p>
+
+<p>The interview itself will take place in a format determined by the course staff, which may include virtual video conferencing (e.g., Zoom, Google Meet), 
+   an in-person meeting, or a session during recitation. Students will be informed of the assigned format in advance; the format is not selectable by the student. 
+   We expect you to explain your code to the staff's satisfaction, which means describing what the code does, justifying the design
+   decisions behind it, and explaining why you used each language feature. If you cannot do so, you
+   forfeit the grade for that MP, independent of the correctness of the code under discussion. Our assessment of
+   your explanation is final and not open to review.</p>
+
+<h4 id="mp-schedule">MP Schedule</h4>
+
+<div class="table-responsive" tabindex="0" role="region" aria-label="Machine problem schedule">
+<table class="table table-hover table-sm">
+   <caption>CS 128 machine problem schedule. All date-times are Champaign local time.</caption>
+   <thead>
+      <tr>
+         <th scope="col">#</th>
+         <th scope="col">Release Date-Time</th>
+         <th scope="col">Due Date-Time</th>
+         <th scope="col">Points</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">MP 0</th>
+         <td>2026-09-10 05:00:00 CDT</td>
+         <td>2026-09-17 23:59:59 CDT</td>
+         <td>10</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 1</th>
+         <td>2026-09-17 05:00:00 CDT</td>
+         <td>2026-09-24 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 2</th>
+         <td>2026-09-24 05:00:00 CDT</td>
+         <td>2026-10-01 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 3</th>
+         <td>2026-10-01 05:00:00 CDT</td>
+         <td>2026-10-08 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 4</th>
+         <td>2026-10-08 05:00:00 CDT</td>
+         <td>2026-10-15 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 5</th>
+         <td>2026-10-15 05:00:00 CDT</td>
+         <td>2026-10-22 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 6</th>
+         <td>2026-10-22 05:00:00 CDT</td>
+         <td>2026-10-29 23:59:59 CDT</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 7</th>
+         <td>2026-10-29 05:00:00 CDT</td>
+         <td>2026-11-05 23:59:59 CST</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 8</th>
+         <td>2026-11-05 05:00:00 CST</td>
+         <td>2026-11-12 23:59:59 CST</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 9</th>
+         <td>2026-11-12 05:00:00 CST</td>
+         <td>2026-11-19 23:59:59 CST</td>
+         <td>100</td>
+      </tr>
+      <tr>
+         <th scope="row">MP 10</th>
+         <td>2026-11-19 05:00:00 CST</td>
+         <td>2026-12-03 23:59:59 CST</td>
+         <td>100</td>
+      </tr>
+   </tbody>
+</table>
+</div>
+
+<p><em>Each MP's Release Date-Time and Due Date-Time are subject to change. Any changes will be communicated via the course
+      forum.</em></p>
+
+<p>Due dates, the late-credit schedule, the late penalty waivers, and the deliberate absence of an MP drop are governed
+   by <a href="#mp-deadlines">MP Deadlines and Late Work</a>.</p>
+
+<h3 id="graded-lessons">Graded Lessons</h3>
+
+<h4 id="lesson-release">Release and Assigned Dates</h4>
+
+<p>A lesson is a graded lesson if it has at least one graded programming activity or question. All of a week's graded
+   lessons are released together on Monday at 05:00 Champaign local time. Each lesson carries
+   its own <strong>assigned date</strong>, which is the weekday on which that lesson appears on the
+   <a href="https://cs128.org/lessons" target="_blank" rel="noopener noreferrer">lessons page</a>
+   (cs128.org/lessons). Releasing the week as a batch lets you work ahead, while the assigned date, not the release
+   time, determines when a lesson is due. We expect you to complete a lesson's activities and questions on its
+   assigned date.</p>
+
+<h4 id="lesson-collaboration">Collaboration</h4>
+
+<p>Graded lessons permit limited collaboration. You may discuss a lesson's activities and your approaches to them with
+   other students, in person or virtually; you may not give another student your source code, and you may not use
+   another student's source code. You write and submit your own solution. We encourage you to form a study group and meet
+   regularly. AI tools may be used only in accordance with the
+   <a href="#ai-policy">AI Policy</a>.</p>
+
+<h4 id="lesson-scoring">Submission and Scoring</h4>
+
+<p>Within a graded lesson, each programming activity or question displays its point value, its number of allowed
+   submissions (unlimited for programming activities), and its due date. In the event of any discrepancy between a
+   displayed due date and this syllabus, the syllabus is authoritative. Your
+   score for each activity or question is the maximum score across all of your submissions, and your score for a
+   graded lesson is the number of points earned out of the points
+   available for that lesson. Each graded lesson contributes equally to the graded lesson component of your final
+   grade.</p>
+
+<p>Due times and the automatic drops are governed by
+   <a href="#lesson-deadlines">Graded Lesson Deadlines and Drops</a>.</p>
+
+<h3 id="recitation">Recitation</h3>
+
+<h4 id="recitation-collaboration">Collaboration</h4>
+
+<p>Recitation requires collaboration: within your assigned group and during the session, you may discuss the activity, work through it together, and show one another your code, including on
+   screen. Recitation code stays within your group. Keep your own copy and study it; do not send, post, or otherwise
+   share it with students outside your group or after the session ends. AI tools may be used only in accordance with the
+   <a href="#ai-policy">AI Policy</a>.</p>
+
+<h4 id="recitation-expectations">Format and Expectations</h4>
+
+<p>Recitation is a time to review and practice applying the material learned during the week. Each meeting consists of
+   a short presentation followed by a group activity covering extensions of the week's material that we consider vital
+   for deeply understanding the course concepts. Groups are formed at each recitation meeting as directed by the staff
+   leading your section. Your assigned group for a given week is the group in which you complete that session's
+   activity. When your group finishes the activity, a staff member reviews your work and records your credit for the
+   week, so remain in the room until that verification is complete. Section days and times are listed in your course
+   schedule.</p>
+
+<p>Recitation credit is binary: you attend and participate to earn full credit, or you receive a zero for that week.
+   We expect you to be present, engaged, and respectful during recitation. You earn a zero for that week if you do any
+   of the following:</p>
+
+<ul>
+   <li>Do not attend your scheduled recitation.</li>
+   <li>Arrive late enough to miss part of the session.</li>
+   <li>Leave before a staff member verifies your work and records your credit.</li>
+   <li>Do not actively participate in your group's activities or discussions.</li>
+   <li>Do not work on the assigned tasks during the session.</li>
+   <li>Behave rudely or disrespectfully toward classmates or course staff.</li>
+</ul>
+
+<p>The absence of a make-up session and the automatic drops are governed by
+   <a href="#recitation-deadlines">Recitation Deadlines and Drops</a>.</p>
+
+<hr>
+
+<h2 id="deadlines-late-work-drops">Deadlines, Late Work, and Drops</h2>
+
+<p>The automatic drops and late penalty waivers below are the course's built-in flexibility, intended to cover
+   illnesses, personal emergencies, scheduling conflicts, late adds, and unexpected obligations that prevent you from
+   meeting a deadline. We expect you to use these accommodations first.</p>
+
+<p>You do not need to submit documentation to use a drop or a waiver. Maintain that documentation regardless (e.g., doctor's notes,
+   official communications) in case you need further accommodation. We will pull from your allocated drops for a missed
+   quiz, graded lesson, or recitation session, so do not contact the course staff about a single missed item. If
+   instead you believe a record is wrong, report it under <a href="#reporting-problems">Problem Reports</a>. The
+   Accommodation Beyond the Drops and Waivers subsection below governs circumstances that exceed what the drops and
+   waivers cover.</p>
+
+<p>We accept no submission of any kind past the
+   <a href="https://registrar.illinois.edu/faculty-staff/calendars/academic-calendars/" target="_blank" rel="noopener noreferrer">last day of instruction</a>, which is published on the University's academic calendar
+   (registrar.illinois.edu/faculty-staff/calendars/academic-calendars/). Search that calendar for "Last day of
+   instruction". Every late period, waiver, and deadline below operates within that bound.</p>
+
+<h3 id="quiz-deadlines">Quiz Deadlines and Drops</h3>
+
+<ul>
+   <li>
+<strong>Due date:</strong> Each quiz must be completed within its own CBTF window, which runs from that quiz's
+      CBTF Start Date through its CBTF End Date as listed in the <a href="#quiz-schedule">Quiz Schedule</a>.</li>
+   <li>
+<strong>Late policy:</strong> There is no late period. A quiz you do not complete before its CBTF End Date
+      earns no credit, whether or not you reserved a seat for it.</li>
+   <li>
+<strong>Drops:</strong> We automatically drop your single lowest quiz score, taken against your adjusted scores
+      as described under <a href="#catch-up-quiz-grading">Scoring and Catch-Up Quiz Grading</a>. You have one drop for
+      the semester. A quiz you skip consumes it, and no drop remains for an illness or an emergency later in the
+      term.</li>
+   <li>
+<strong>Missed quiz:</strong> If you miss your scheduled quiz session, two options remain: you reschedule at a
+      physical CBTF location and complete the quiz before that quiz's CBTF End Date, or, if you cannot reschedule
+      within the window, the missed quiz automatically becomes your dropped score. Any further missed quiz earns a
+      zero, since we drop only a single score.</li>
+</ul>
+
+<h3 id="mp-deadlines">MP Deadlines and Late Work</h3>
+
+<p>Machine problems have no drop. The late-credit schedule below and the late penalty waivers provide that
+   flexibility. Each MP is due at the Due Date-Time listed in the
+   <a href="#mp-schedule">MP Schedule</a>, and an MP you never submit earns a zero.</p>
+
+<table class="table table-hover table-sm">
+   <caption>CS 128 machine problem late-credit schedule.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Days Late</th>
+         <th scope="col">Credit</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">1</th>
+         <td>95%</td>
+      </tr>
+      <tr>
+         <th scope="row">2</th>
+         <td>90%</td>
+      </tr>
+      <tr>
+         <th scope="row">3</th>
+         <td>85%</td>
+      </tr>
+      <tr>
+         <th scope="row">4 or more, through the last day of instruction</th>
+         <td>70%</td>
+      </tr>
+   </tbody>
+</table>
+
+<p>A late day is a calendar day, not a rolling 24-hour period. If an MP is due on Monday at any hour, all of Tuesday
+   is the one-day late period, regardless of the hour at which you submit; specifically, for an MP due Monday at
+   23:59:59 Champaign local time, the one-day late penalty takes effect at Tuesday 00:00:00. The late period
+   ends at the last day of instruction, so an MP due near that day carries a correspondingly shortened schedule; e.g., an
+   MP due the day before the last day of instruction admits only a one-day late submission.</p>
+
+<p>We apply the late-credit schedule to each submission before we compare submissions, so the score we record is the
+   highest credited score across all of your submissions, where every submission made by the due date carries full
+   credit. Consider an MP on which you earn 80 by the due date and 100 two days later; your recorded score is 90,
+   since the 90% credit on the later submission exceeds the 80 you had already secured. Submitting again after the due
+   date can therefore only raise your score.</p>
+
+<h4 id="late-penalty-waivers">Late Penalty Waivers</h4>
+
+<p>You may elect to waive the late penalty on two MPs, past, present, or future, from the "MP Late Penalty Waivers"
+   section of <a href="https://cs128.org/my/waivers">My.CS128</a> (cs128.org/my/waivers). These waivers are "no
+   questions asked" and available to everyone. They are never applied automatically. A waiver removes the late-credit
+   reduction from that MP entirely, so we score it at the full number of points your submission earned, however late
+   that submission arrived. You must select your waivers by the last day of instruction, and any MP for which you
+   elect a waiver must be submitted to PrairieLearn no later than 23:59 Champaign local time on that day. PrairieLearn
+   displays your score with the late penalty applied in real time. The waived score appears only on your official
+   <a href="#grade-reports">grade report</a>.</p>
+
+<h3 id="lesson-deadlines">Graded Lesson Deadlines and Drops</h3>
+
+<ul>
+   <li>
+<strong>Due date:</strong> Each graded lesson is due at 17:00 (5:00 p.m.) Champaign local time two calendar
+      days after its <a href="#lesson-release">assigned date</a>, weekends included, or at 17:00 on the last day of
+      instruction, whichever is earlier. A lesson assigned on Monday is due Wednesday at 17:00; a lesson assigned on
+      Friday is due Sunday at 17:00.</li>
+   <li>
+<strong>Late policy:</strong> There is no late period. Work submitted after 17:00 on the due date earns no
+      credit.</li>
+   <li>
+<strong>Drops:</strong> We automatically drop your five lowest graded lesson scores when calculating the graded
+      lesson portion of your final grade.</li>
+</ul>
+
+<h3 id="recitation-deadlines">Recitation Deadlines and Drops</h3>
+
+<ul>
+   <li>
+<strong>Due date:</strong> Recitation is completed during your scheduled section meeting.</li>
+   <li>
+<strong>Late policy:</strong> There is no late period and no make-up session.</li>
+   <li>
+<strong>Drops:</strong> We automatically drop your two lowest recitation scores when computing your final
+      grade.</li>
+</ul>
+
+<h3 id="further-accommodation">Accommodation Beyond the Drops and Waivers</h3>
+
+<p>If your circumstances exceed what the built-in drops and waivers absorb, e.g., a sustained illness or an extended 
+emergency that affects multiple assessments, email the instructor within 48 hours of the missed deadline; attach the 
+documentation you have maintained, and we will discuss further accommodation. If circumstances prevent notification 
+within this window, e.g., hospitalization, notify the instructor as soon as reasonably possible thereafter, 
+and include documentation explaining why the 48-hour deadline could not be met.</p>
+
+<hr>
+
+<h2 id="ai-policy">AI Policy</h2>
+
+<h3 id="ai-definitions">Definition and Scope</h3>
+
+<p>Throughout this policy, an <strong>AI tool</strong> is any generative system that produces code, text, or
+   explanations in response to a prompt, however you access it: through a chat interface, an editor extension, a
+   command-line tool, or an agent. Dictionaries, translation tools, spell checkers, and non-generative editor
+   completion are not AI tools under this policy and are always permitted. During a quiz, no tool beyond what the
+   testing environment provides falls within any permitted use. The governing prohibition appears under
+   <a href="#quiz-environment">Quiz Environment and Conduct</a>.</p>
+
+<p>Using AI in this course is optional. You can complete every assignment and earn full marks without ever using an AI
+   tool. If you do use one, the rules in this policy apply.</p>
+
+<h3 id="ai-standard">The Standard</h3>
+
+<p>Our course standard is this: you must write your own code, and you must be able to explain every line of it. If a
+   course staff member asks why you wrote a particular line, what a specific variable represents, or how a section of
+   your code works, you should be able to answer immediately and confidently, without consulting any resource; if you
+   cannot, you have not yet learned what the assignment was designed to teach, regardless of whether your code
+   compiles and passes test cases. Stated as a rule of use, AI may support your process, e.g., understanding the
+   problem, learning relevant concepts, developing a strategy, debugging your attempts, and verifying correctness, but
+   it may not produce your product, i.e., the code you submit, which you must be able to reproduce independently.</p>
+
+<h3 id="ai-permitted-uses">Permitted Uses</h3>
+
+<p>You may use AI tools to assist your work on graded lessons, recitation activities, and machine problems in the
+   following ways:</p>
+
+<ul>
+   <li>
+<strong>Breaking down assignments:</strong> Ask the AI to help you understand what an assignment is asking,
+      identify the component parts of the problem, and clarify requirements that seem ambiguous.</li>
+   <li>
+<strong>Developing a problem-solving plan:</strong> Use the AI to help you formulate a high-level approach
+      before you begin writing code; that is, discuss algorithmic strategies, consider edge cases, and think through
+      the logical structure of your solution.</li>
+   <li>
+<strong>Explaining concepts or syntax:</strong> When you encounter unfamiliar C++ constructs, language
+      features, or programming concepts, use the AI to help make sense of them.</li>
+   <li>
+<strong>Understanding error messages and debugging output:</strong> Compiler errors and runtime failures can be
+      cryptic. The AI can help you interpret what went wrong and why.</li>
+   <li>
+<strong>Reviewing and explaining code:</strong> After you have written code yourself, use the AI to help you
+      understand whether your implementation aligns with your intent and to identify potential issues.</li>
+   <li>
+<strong>Designing test cases:</strong> Work with the AI to identify the scenarios, boundary conditions, and
+      expected behavior your tests should cover.</li>
+</ul>
+
+<p>Test-case design carries a limit: because a test case in C++ is itself code, you may work from an AI tool's
+   suggestions, but you may not submit test code verbatim as an AI tool produced it.</p>
+
+<h4 id="ai-examples">Examples of Appropriate and Inappropriate Use</h4>
+
+<div class="table-responsive" tabindex="0" role="region" aria-label="Appropriate and inappropriate AI use">
+<table class="table table-sm">
+   <caption>Appropriate and inappropriate AI prompts for CS 128 coursework, by situation.</caption>
+   <thead>
+      <tr>
+         <th scope="col">When you are...</th>
+         <th scope="col">Appropriate</th>
+         <th scope="col">Inappropriate</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">Debugging a runtime error</th>
+         <td>"I'm getting a segmentation fault on line 23. Can you help me understand what might cause this?"</td>
+         <td>"My code has a segmentation fault. Fix it."</td>
+      </tr>
+      <tr>
+         <th scope="row">Learning a concept or language feature</th>
+         <td>"Can you explain how a destructor works in C++?"</td>
+         <td>"Write a destructor for my LinkedList class."</td>
+      </tr>
+      <tr>
+         <th scope="row">Tracing faulty logic in code you wrote</th>
+         <td>"I wrote this function but it's not returning the right value. Can you help me trace through the
+            logic?"</td>
+         <td>"This function doesn't work. Rewrite it so it works."</td>
+      </tr>
+      <tr>
+         <th scope="row">Designing test cases</th>
+         <td>"I want to test my reverse function but I'm not sure where to start. Can you help me understand the
+            process?"</td>
+         <td>"Generate all my test cases so I don't have to think about edge cases."</td>
+      </tr>
+      <tr>
+         <th scope="row">Beginning an assignment</th>
+         <td>"I'm not sure how to approach this problem. Can you help me break it down into smaller steps?"</td>
+         <td>"Here's the assignment prompt. Write the solution."</td>
+      </tr>
+   </tbody>
+</table>
+</div>
+
+<h3 id="vibe-coding">Vibe Coding and Other Prohibited Use</h3>
+
+<p><strong>Vibe coding</strong> is the practice of prompting an AI until something works, without ever solving the
+   problem yourself. It is an academic integrity violation in this course, as is any other arrangement in which the AI
+   does your work for you. Two conditions govern every use of AI on CS 128 coursework, and both must hold: you must solve the problem, and you must understand every line you submit.</p>
+
+<p>The first condition concerns who does the work. A request that hands the problem to the AI fails this condition at
+   the moment you make it, and understanding the result afterward does not repair the failure, since arriving at the
+   solution is the work the assignment existed to develop. Test code is the exception, and Permitted Uses above states
+   its limit. The following requests are violations:</p>
+
+<ul>
+   <li>Asking the AI to complete an assignment or produce a solution for you.</li>
+   <li>Asking the AI to "write a function that does X," or making any comparable request for solution code you should
+      be writing yourself.</li>
+   <li>Asking the AI to "make this work" or "fix this" in place of diagnosing the problem yourself.</li>
+</ul>
+
+<p>The second condition concerns what you submit. Everything you turn in must be yours to explain, line by line,
+   without consulting your notes or the AI. This condition applies equally to code you wrote entirely on your own. The following are violations:</p>
+
+<ul>
+   <li>Submitting code you cannot fully explain.</li>
+   <li>Iteratively prompting the AI until the tests pass, without comprehending what changed or why.</li>
+</ul>
+
+<p>In a previous semester, we flagged approximately 150
+   students whose submissions exhibited patterns consistent with AI-generated code produced with minimal
+   understanding. Their median quiz score was 30 percentage points lower than that of students who were not flagged,
+   and the median score of those who relied most heavily on AI-generated submissions fell below passing.</p>
+
+<p>Submitting the required reflection form and transcript does not excuse a violation of these conditions; we refer
+   such violations to FAIR regardless.</p>
+
+<h3 id="ai-documentation">Required Documentation</h3>
+
+<p>For every graded lesson, recitation activity, and machine problem on which you use AI assistance, however minimal
+   or extensive, you must submit the <strong>AI Usage Reflection Form</strong> together with the complete transcript
+   of your AI interactions. The form is at
+   <a href="https://cs128.org/go/ai-reflection" target="_blank" rel="noopener noreferrer">cs128.org/go/ai-reflection</a>,
+   and it requires you to log in with your UIUC account. </p>
+   
+     <ul>
+    <li>To access this form, you will need to use your Illinois G Suite account.</li>
+    <li>If you haven't activated it (most of you probably did in CS 124), kindly review <a href="https://answers.uillinois.edu/illinois/47599" target="_blank">these instructions</a>.</li>
+    <li>The major step is activating the account in the <a href="https://cloud-dashboard.illinois.edu/" target="_blank">Cloud Dashboard</a>.</li>
+  </ul>
+   
+   
+   
+ <p>If you did not use AI on a particular assignment, you do not
+   need to submit the form. The form asks
+   you to document which tools you used and for what purposes, what you learned from the interaction, how you verified
+   that you understood the AI's suggestions, and what you would do differently next time, and to upload your
+   transcripts.</p>
+
+<p>Save your transcripts as follows.</p>
+
+<ul>
+   <li>
+<strong>Command-line tools</strong>, e.g., Claude Code: we encourage you to use
+      <a href="https://specstory.com/specstory-cli" target="_blank" rel="noopener noreferrer">specstory-cli</a>
+      (specstory.com/specstory-cli), which automatically logs your conversations so that they can be exported for
+      submission. If you choose not to use it, save the session output yourself, either by capturing the terminal
+      session to a file or by copying the conversation into a text file as you work.</li>
+   <li>
+<strong>Browser-based tools:</strong> download the entire conversation using the platform's export or download
+      feature, or copy the full conversation into a text or PDF file where no export exists.</li>
+   <li>
+<strong>Multiple sessions or tools on one assignment:</strong> submit transcripts from all sessions, labeling
+      each with the tool used and the date and time of the session.</li>
+   <li>
+<strong>Inline code-completion tools</strong> that cannot produce a transcript, e.g., GitHub Copilot, may not be
+      relied on for coursework in this course.</li>
+</ul>
+
+<p>Never ask the AI to reproduce the conversation for you: an AI asked to output a transcript produces a summary or a
+   paraphrase, and the attestation you sign requires a complete and unaltered record.</p>
+
+<p>Some assignments specify a required prompt header or interaction protocol, e.g., an opening prompt that establishes
+   context or constraints for the AI conversation. Where an assignment specifies such a requirement, you must follow
+   it; failing to do so is a violation of this policy.</p>
+
+<p>Submit the AI Usage Reflection Form by 23:59 Champaign local time the day after you submit the work, or on the
+   last day of instruction, whichever is earlier. For work you submit late, the clock runs from your actual
+   submission. </p>
+
+<h4 id="ai-attestation">Attestation</h4>
+
+<p>By submitting the AI Usage Reflection Form, you affirm that:</p>
+
+<ol>
+   <li>The information provided on the form is accurate and complete.</li>
+   <li>The submitted transcript(s) represent the complete and unaltered record of your AI interactions for this
+      assignment.</li>
+   <li>You understand that AI tools are permitted to support your learning, but that you are responsible for ensuring
+      that you understand all work you submit.</li>
+   <li>You acknowledge that quizzes must be completed without AI assistance and that your performance on quizzes
+      reflects your genuine understanding of the course material.</li>
+</ol>
+
+<h3 id="ai-tools-cost">Tools and Cost</h3>
+
+<p>We want you exposed to the most capable AI technologies, i.e., the frontier models, and we want you to develop the
+   habit of using them effectively and responsibly while you are still in an environment where we can guide that
+   development. We recommend Claude. Other tools such as ChatGPT or Gemini may also be used in accordance with this
+   policy. No purchase is required: the free tiers of these tools are sufficient for every use this policy
+   permits.</p>
+
+<hr>
+
+<h2 id="academic-integrity">Academic Integrity</h2>
+
+<p>The University of Illinois at Urbana-Champaign
+   <a href="https://studentcode.illinois.edu/" target="_blank" rel="noopener noreferrer">Student Code</a>
+   (studentcode.illinois.edu) is part of this syllabus, and its academic integrity provisions bind every submission
+   you make in this course. The
+   <a href="https://provost.illinois.edu/policies/policies/academic-integrity/students-quick-reference-guide-to-academic-integrity/" target="_blank" rel="noopener noreferrer">Students' Quick Reference Guide to Academic Integrity</a>
+   (provost.illinois.edu) summarizes those provisions. Ignorance of these policies excuses no infraction, and
+   sanctions are proportionate to the severity of the offense.</p>
+
+<p>We compare every submission against every classmate's code, against student submissions from previous semesters,
+   and against code from easily accessible online repositories. We also examine the development process behind a
+   submission, which distinguishes naturally authored work from artificially generated work. Where the evidence
+   persuades us that a violation is more probable than not, we file a FAIR case.</p>
+
+<h3 id="attestation-and-complicity">Your Attestation and Complicity</h3>
+
+<p>By submitting anything to this course, electronically or otherwise, you are asserting the following: "I have
+   neither given nor received unauthorized aid on this academic work. In particular, I certify that I have not
+   received or given any assistance that is contrary to the letter or the spirit of the collaboration guidelines for
+   this assignment."</p>
+
+<p><strong>Complicity</strong>, i.e., helping or attempting to help another student commit an act of academic
+   dishonesty, itself constitutes academic dishonesty and carries the same consequences as cheating. If you provide
+   your solution to another student, you have committed an act of academic dishonesty even if that student never
+   submits it. Both students will be subject to the same penalties.</p>
+
+<p>Students have previously defended FAIR cases by claiming that a friend or peer accessed their solutions while a
+   device was left unattended or loaned out; this is not a valid defense. You are responsible for securing your
+   coursework and protecting your device, and if another individual accesses your work through negligence on your
+   part, you remain accountable.</p>
+
+<h3 id="cheating">Cheating</h3>
+
+<p>All work submitted in this course must be completed according to course policies. The following activities are
+   examples of cheating and will result in the sanctions outlined below. You may not:</p>
+
+<ul>
+   <li>Submit work completed by anyone other than yourself.</li>
+   <li>Use an AI tool in any way not permitted by the <a href="#ai-policy">AI Policy</a>.</li>
+   <li>Use an AI tool without submitting the corresponding AI Usage Reflection Form and transcript.</li>
+   <li>Copy or paste code from another student, online solutions, or any unauthorized source.</li>
+   <li>Misrepresent another student's work as your own or allow your work to be misrepresented as theirs.</li>
+   <li>Examine, reproduce, or submit another classmate's machine problem or quiz solution.</li>
+   <li>Reveal, discuss, or enter the content of a quiz or other private course assessment anywhere outside the testing
+      environment, including to another person and to any AI tool. This holds after your session ends and after the
+      quiz window closes; a private problem report, per <a href="#reporting-problems">Problem Reports</a>, is always
+      permitted.</li>
+   <li>Publish your MPs or other coursework in any location where other students could access them, including public
+      GitHub repositories. Build the portfolio you show employers out of independent projects.</li>
+   <li>Email, message, or otherwise share your code with anyone in this class, now or in a future semester, beyond the
+      collaboration each assessment category expressly permits under <a href="#assessments">Assessments</a>.</li>
+   <li>Write, insert, or otherwise modify code or comments to reveal hidden test cases, hard-code against the test
+      cases in our suite, or circumvent or bypass the autograder in any way.</li>
+</ul>
+
+<p>Course staff are not responsible for warning you about potential policy violations. If you are ever uncertain about what is allowed, seek clarification from
+   the instructor via the course forum before collaborating with another student, using an AI tool, or seeking outside
+   assistance on any assignment.</p>
+
+<h3 id="plagiarism">Plagiarism and Self-Plagiarism</h3>
+
+<p>Plagiarism means presenting someone else's work as your own. We assume that college students know what is honest
+   and what is not.</p>
+
+<p>Self-plagiarism is reusing work you have already submitted to a class. In CS 128, you cannot reuse or submit work
+   you completed during a previous semester. If you are retaking the course, you must think through the problems
+   again and compose new solutions without reviewing your solutions from the previous semester. Sitting out and
+   disengaging while resubmitting old work teaches you nothing, so the sole exception is an extraordinary
+   circumstance, e.g., a withdrawal for medical reasons, that the instructor approves in writing. Request that
+   approval by
+   email.</p>
+
+<h3 id="sanctions">Sanctions</h3>
+
+<p>If you are caught cheating in CS 128, you will receive a FAIR violation, and the following
+   sanctions apply:</p>
+
+<table class="table table-hover table-sm">
+   <caption>CS 128 academic integrity sanctions.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Infraction</th>
+         <th scope="col">Sanction</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">First offense</th>
+         <td>A reduction of one full letter grade in the class, e.g., an A becomes a B, <em>and</em> a zero score on
+            each assessment involved in the violation.</td>
+      </tr>
+      <tr>
+         <th scope="row">Second offense, or an extreme act affecting other students</th>
+         <td>An F in the course.</td>
+      </tr>
+   </tbody>
+</table>
+
+<p>These sanctions are more severe than the departmental recommendations, and we apply them in full.</p>
+
+<hr>
+
+<h2 id="course-communication">Getting Help and Course Communication</h2>
+
+<p>The <a href="https://discuss.cs128.org" target="_blank" rel="noopener noreferrer">course forum</a>
+   (discuss.cs128.org) is your default channel for reaching the staff, because it scales: a question answered on the
+   forum is answered for the entire class, while a question answered by email is answered for one student, and many of
+   the questions you have tend to be shared by others. You are responsible for email sent to your @illinois.edu
+   address and for announcement messages posted on the course forum. We use both to distribute important
+   information.</p>
+
+<h3 id="office-hours">Office Hours</h3>
+
+<p>Office hours are scheduled times when course staff are available to help you individually, with no appointment
+   needed, for any question, whether you are stuck on an assignment or want to talk through a concept. Attending is
+   ordinary and expected.</p>
+
+<p>On scheduled days we hold a block of in-person hours in the Tutoring Center in the
+   Siebel Center for Computer Science, followed by virtual hours online. For both formats, you join through the
+   <a href="https://queue.cs128.org/" target="_blank" rel="noopener noreferrer">course queue</a> (queue.cs128.org).
+   For in-person hours, go to the Tutoring Center and locate the CS 128 section, which may change from day to day
+   since we do not have assigned spots. Once your name reaches the top of the queue, find the appropriate staff member
+   yourself. For virtual hours, join the queue from wherever you are. Office hour times are posted on the
+   <a href="https://cs128.org/calendar" target="_blank" rel="noopener noreferrer">course calendar</a>
+   (cs128.org/calendar).</p>
+
+<h3 id="course-forum">The Course Forum</h3>
+
+<p>The course forum (<a href="https://discuss.cs128.org" target="_blank" rel="noopener noreferrer">discuss.cs128.org</a>)
+   handles questions that can be answered in text form. Before posting, search the forum, since another student may
+   have asked your question and we may have answered it already. General questions about course content or an
+   assignment, e.g., what a prompt means or what you are being asked to do, belong in public posts. Anything that
+   would reveal your code or your solution, and any problem you are reporting, belongs in a private post. If you are unsure
+   whether your post's contents could go against course policies, post privately. We do not debug full solutions on
+   the forum, though we will provide clarification about smaller snippets of code.</p>
+
+<h3 id="where-to-direct">Where to Direct Questions and Concerns</h3>
+
+<table class="table table-hover table-sm">
+   <caption>Where to direct questions and concerns in CS 128.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Situation</th>
+         <th scope="col">Where it goes</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">A question about course content, an assignment, installation, or where to find something</th>
+         <td>Public post on the <a href="#course-forum">course forum</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">Anything that would reveal your code or your solution</th>
+         <td>Private post on the <a href="#course-forum">course forum</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">A problem with an assessment or with your record</th>
+         <td>Private post on the course forum, per <a href="#reporting-problems">Problem Reports</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">A request to raise a score</th>
+         <td>Not accepted, per <a href="#regrades">Regrades</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">You believe a classmate is cheating</th>
+         <td>Email the instructor</td>
+      </tr>
+      <tr>
+         <th scope="row">Illness or circumstances putting you behind</th>
+         <td>Email the instructor, per
+            <a href="#further-accommodation">Accommodation Beyond the Drops and Waivers</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">You are overwhelmed and want to talk to someone</th>
+         <td>Email the instructor, or speak with your academic advisor</td>
+      </tr>
+      <tr>
+         <th scope="row">Notice of a religious observance</th>
+         <td>Email the instructor, per <a href="#religious-observances">Religious Observances</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">Reply to a code interview invitation</th>
+         <td>Reply to the invitation email, per <a href="#code-interviews">Code Interviews</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">DRES letters and accommodation requests</th>
+         <td>Email the instructor, per <a href="#dres-accommodations">DRES Accommodations</a>
+</td>
+      </tr>
+      <tr>
+         <th scope="row">Accommodation beyond the built-in drops and waivers</th>
+         <td>Email the instructor, per
+            <a href="#further-accommodation">Accommodation Beyond the Drops and Waivers</a>
+</td>
+      </tr>
+   </tbody>
+</table>
+
+<h3 id="addressing-staff">Addressing Course Staff</h3>
+
+<p>We keep our forms of address formal and professional. Address your
+   professor by professional title, e.g., Prof. Nowak; address a graduate teaching assistant
+   (<abbr title="teaching assistant">TA</abbr>) as Mr., Ms., or Mx. unless your TA tells you otherwise; and address an
+   undergraduate course assistant (<abbr title="course assistant">CA</abbr>) by first name.</p>
+
+<hr>
+
+<h2 id="regrades-audits-reports">Regrades, Audits, and Problem Reports</h2>
+
+<h3 id="regrades">Regrades</h3>
+
+<p>We do not manually regrade work, and we do not act on requests for additional partial credit or for a more
+   generous reading of an answer. If you believe there is a genuine problem with a score, report it as described under
+   <a href="#reporting-problems">Problem Reports</a>.</p>
+
+<h3 id="audits">Audits</h3>
+
+<p>We reserve the right to audit the grade of any assessment submitted to this course. During an audit, we can
+   decrease or increase your score. Audits are initiated by the course staff. Circumstances that might prompt an
+   audit include a mistake made by our autograder, circumvention of a test case by any means, a breach of the
+   academic integrity rules however small, or a failure to follow an assignment requirement.</p>
+
+<h3 id="reporting-problems">Problem Reports</h3>
+
+<p>Report a problem through a private post on the course forum, identifying the specific issue you found. You might
+   have found a defect in an assessment, such as a broken test case, or an error in your record.</p>
+
+<p>Your reporting window opens on:</p>
+
+<ul>
+   <li>
+<strong>Quizzes:</strong> the date you took the quiz.</li>
+   <li>
+<strong>Machine problems and graded lessons:</strong> the date you submitted your solution, or the last day of
+      instruction if that is earlier.</li>
+   <li>
+<strong>Recitation activities:</strong> the date your recitation period met.</li>
+</ul>
+
+<p>It closes seven days later, or on the last day of instruction, whichever falls first.</p>
+
+<p>Once we have your report, we take one of the following actions:</p>
+
+<ul>
+   <li>
+<strong>The question has a bug.</strong> We correct it and ensure that all affected students receive full
+      credit or an opportunity to address the issue at our discretion, including those who completed the assessment
+      before the bug was identified.</li>
+   <li>
+<strong>The question has a minor typo</strong> that does not affect its ability to be correctly answered. We
+      fix it and post the correction.</li>
+   <li>
+<strong>The question is fine.</strong> We take no action.</li>
+</ul>
+
+<p>We review a report about your own record by similar criteria.</p>
+
+<p>Our determination closes the report. Filing again on the same question or the same record does not reopen it unless
+   you provide information we did not have.</p>
+
+<hr>
+
+<h2 id="accommodations">Accommodations</h2>
+
+<h3 id="religious-observances">Religious Observances</h3>
+
+<p>Illinois law requires the University to reasonably accommodate its students' religious beliefs, observances, and
+   practices with respect to admissions, class attendance, and the scheduling of examinations and work requirements.
+   If a religious observance affects any of your class activities or assessments, notify the instructor by email
+   within the first two weeks of classes for the semester in which the accommodation request applies.</p>
+
+<h3 id="dres-accommodations">DRES Accommodations</h3>
+
+<p>If you have DRES accommodations, you are required to formally submit your letter of accommodations for this
+   course. Instructions for fulfilling this requirement appear on the Start Here page. Accommodations apply only after
+   we receive your letter, and we cannot apply them retroactively in any situation. The upload of your LOA to the CBTF
+   for quiz accommodations, described under <a href="#quiz-environment">Quiz Environment and Conduct</a>, is a
+   separate, additional step.</p>
+
+<h3 id="ada-statement">ADA Statement</h3>
+
+<p>The Americans with Disabilities Act (ADA) is a federal anti-discrimination statute that provides comprehensive
+   civil rights protection for persons with disabilities. Among other things, this legislation requires that all
+   students with disabilities be guaranteed a learning environment that provides for reasonable accommodation of their
+   disabilities. To obtain disability-related academic adjustments or auxiliary aids, contact both the course
+   instructor and DRES as soon as possible: visit 1207 S. Oak St., Champaign, call
+   <a href="tel:+12173334603">+1 (217) 333-4603</a>, email
+   <a href="/cdn-cgi/l/email-protection#412528322023282d28353801282d2d282f2e28326f242534"><span class="__cf_email__" data-cfemail="ddb9b4aebcbfb4b1b4a9a49db4b1b1b4b3b2b4aef3b8b9a8">[email&#160;protected]</span></a>, or go to
+   <a href="https://www.disability.illinois.edu">disability.illinois.edu</a>. If you are concerned that a
+   disability-related condition is affecting your academic progress, academic screening appointments are available
+   that can help diagnose a previously undiagnosed disability. Access them by visiting the DRES website and selecting
+   "Request an Academic Screening" at the bottom of the page.</p>
+
+<hr>
+
+<h2 id="additional-course-policies">Additional Course Policies</h2>
+
+<h3 id="style-guide">Style Guide</h3>
+
+<p>In this course, we will use the
+   <a href="https://google.github.io/styleguide/cppguide.html" target="_blank" rel="noopener noreferrer">Google C++
+   Style Guide</a> (google.github.io/styleguide/cppguide.html).</p>
+
+<h3 id="copyright-recording">Copyright and Recording</h3>
+
+<p>All material prepared for this class is copyrighted, including the syllabus, lecture slides and notes, exams,
+   machine problems, and lab work activities. The course material is a copyrighted work, so you do not have the
+   right to copy or distribute it unless the author expressly grants such permission. You may not record audio or
+   video of any course activity unless you have an approved accommodation from DRES permitting recording, and you
+   must present that accommodation letter to the instructor in advance of any recording being done. Students who are
+   allowed to record are not permitted to redistribute audio or video recordings of statements or comments from the
+   course to other individuals without the express permission of the faculty member and of any students or staff
+   members who are recorded.</p>
+
+<h3 id="classroom-climate">Classroom Climate</h3>
+
+<p>Our course goals can only be accomplished in a setting of mutual respect. We are committed to a classroom
+   environment that welcomes all students, regardless of their identities, including race, class, gender, sexual
+   orientation, and religious beliefs. Everyone is expected to help establish and maintain an environment where
+   students, staff, and faculty can contribute without fear of personal ridicule or intolerant or offensive language.
+   If you witness or experience behavior that goes against these expectations, bring it to the attention of the
+   course instructor.</p>
+
+<h3 id="cs-cares">CS Values and Code of Conduct</h3>
+
+<p>All members of the Illinois Computer Science department, whether faculty, staff, or students, are expected to
+   adhere to the CS Values and Code of Conduct. The CS CARES Committee is available to serve as a resource for anyone
+   who is concerned about or experiences a potential violation of the Code. If you experience such issues, contact the
+   CS CARES Committee. The instructor of this course is also available for issues related to this class.</p>
+
+<hr>
+
+<h2 id="tentative-schedule">Tentative Schedule</h2>
+
+<table class="table table-hover table-sm">
+   <caption>Tentative weekly topic schedule for CS 128.</caption>
+   <thead>
+      <tr>
+         <th scope="col">Week</th>
+         <th scope="col">Topics</th>
+      </tr>
+   </thead>
+   <tbody>
+      <tr>
+         <th scope="row">1</th>
+         <td>Introduction to C++</td>
+      </tr>
+      <tr>
+         <th scope="row">2</th>
+         <td>Introduction to C++ cont.</td>
+      </tr>
+      <tr>
+         <th scope="row">3</th>
+         <td>Navigating the command line; compilation and execution</td>
+      </tr>
+      <tr>
+         <th scope="row">4</th>
+         <td>Build systems, version control, and software errors</td>
+      </tr>
+      <tr>
+         <th scope="row">5</th>
+         <td>Testing and debugging</td>
+      </tr>
+      <tr>
+         <th scope="row">6</th>
+         <td>Compound types (pointers, references, arrays); user-defined types</td>
+      </tr>
+      <tr>
+         <th scope="row">7</th>
+         <td>Streams and input validation; data representation</td>
+      </tr>
+      <tr>
+         <th scope="row">8</th>
+         <td>Functions and the stack; the free store</td>
+      </tr>
+      <tr>
+         <th scope="row">9</th>
+         <td>Dynamic memory in classes</td>
+      </tr>
+      <tr>
+         <th scope="row">10</th>
+         <td>Linked lists; generic programming</td>
+      </tr>
+      <tr>
+         <th scope="row">11</th>
+         <td>Inheritance and polymorphism</td>
+      </tr>
+      <tr>
+         <th scope="row">12</th>
+         <td>Trees</td>
+      </tr>
+      <tr>
+         <th scope="row">13</th>
+         <td>Graphs</td>
+      </tr>
+      <tr>
+         <th scope="row">14</th>
+         <td>Design patterns; smart pointers</td>
+      </tr>
+      <tr>
+         <th scope="row">15</th>
+         <td>Concurrency, networking, and databases</td>
+      </tr>
+   </tbody>
+</table>
+</div>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>cs128SyntaxHighlighterInit();</script>
+</section>
+
+    </div>
+  </div>
+
+    <nav class="page-toc d-none d-xl-block" id="scroll-nav" aria-label="On this page">
+      <span class="text-label">On this page</span>
+      <ul class="list-unstyled mb-0">
+        <li><a href="#overview" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Overview</a></li>
+          <li><a href="#instructor-information" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Instructor Information</a></li>
+          <li><a href="#course-overview" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Course Overview</a></li>
+          <li><a href="#grading" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Grading</a></li>
+          <li><a href="#assessments" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Assessments</a></li>
+          <li><a href="#deadlines-late-work-drops" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Deadlines, Late Work, and Drops</a></li>
+          <li><a href="#ai-policy" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">AI Policy</a></li>
+          <li><a href="#academic-integrity" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Academic Integrity</a></li>
+          <li><a href="#course-communication" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Getting Help and Course Communication</a></li>
+          <li><a href="#regrades-audits-reports" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Regrades, Audits, and Problem Reports</a></li>
+          <li><a href="#accommodations" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Accommodations</a></li>
+          <li><a href="#additional-course-policies" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Additional Course Policies</a></li>
+          <li><a href="#tentative-schedule" class="_cs128_nav_link _cs128_nav_inactive" data-turbolinks="false">Tentative Schedule</a></li>
+      </ul>
+    </nav>
+</div>
+
+<script>
+  document.addEventListener('turbolinks:load', function() {
+      var nav = document.querySelector('#scroll-nav');
+      if (nav) { scrollSpy(nav); }
+  });
+</script>
+<script>ytEmbedProcessAll();</script>
+
+<div id="cs128-partial-page-data-holder" data-title="Syllabus"></div>
+<script>document.title = "CS 128 | " + "Syllabus";</script>
+  </main>
+
+
+  <script>
+      function onReload() {
+          $.bigfoot();
+          $('[data-toggle="tooltip"]').tooltip();
+      }
+      if (!window._layoutListenersRegistered) {
+          window._layoutListenersRegistered = true;
+          document.addEventListener('turbolinks:click', function() {
+              $('#full_loader').attr('aria-busy', 'true').show();
+          });
+          document.addEventListener('turbolinks:render', function() {
+              $('#full_loader').attr('aria-busy', 'false').hide();
+              onReload();
+          });
+          document.addEventListener('turbolinks:load', function() {
+              $('#full_loader').attr('aria-busy', 'false').hide();
+              onReload();
+          });
+      }
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43ddd62acc4118b',t:'MTc5MDg4Mjg0Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
