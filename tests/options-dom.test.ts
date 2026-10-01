@@ -208,6 +208,14 @@ describe("Course websites: every switch is a real labelled control", () => {
     } as never)).toBe("course site");
   });
 
+  it("tells a page's exams switch from its homework switch", () => {
+    // `cs424-fa26` and `cs424-fa26-exams` both read schedule.html; two switches
+    // both called "schedule.html" said nothing about which read the midterms.
+    const page = { courseCode: "CS424", label: "CS 424 exams", url: "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html" };
+    expect(mod.adapterPageName({ ...page, kind: "exam" } as never)).toBe("schedule.html · exams");
+    expect(mod.adapterPageName(page as never)).toBe("schedule.html");
+  });
+
   it("gives every switch a distinct id, so one label cannot own two", () => {
     const ids = [...draw().querySelectorAll(`.${mod.SWITCH_CLASS}`)].map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);

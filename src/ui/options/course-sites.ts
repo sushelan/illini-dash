@@ -30,6 +30,7 @@ import {
   courseGroupsForYou,
   coursePagesLayout,
   groupHasCourse,
+  readsExams,
   type CourseGroup,
 } from "../../core/registry.js";
 import type { Response } from "../../messages.js";
@@ -94,7 +95,10 @@ const TERM_SEGMENT = /^(?:fa|sp|su|wi)\d{2,4}$/i;
  */
 export function adapterPageName(adapter: AdapterEntry): string {
   const segment = pagePathSegment(adapter.url);
-  if (segment !== undefined) return segment;
+  // One page can be two switches — `cs424-fa26` and `cs424-fa26-exams` both
+  // read schedule.html — and two switches called "schedule.html" said nothing
+  // about which one reads the midterms.
+  if (segment !== undefined) return readsExams(adapter) ? `${segment} · exams` : segment;
   for (const prefix of [displayCourseLabel(adapter.courseCode), adapter.courseCode]) {
     if (!adapter.label.toLowerCase().startsWith(prefix.toLowerCase())) continue;
     const rest = adapter.label.slice(prefix.length).trim();

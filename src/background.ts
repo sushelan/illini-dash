@@ -23,6 +23,7 @@ import {
   REGISTRY_URL,
   currentTermCode,
   isCurrentTerm,
+  newSiblingsToEnable,
   registryDueForRefresh,
   shouldSeedFromBundle,
   validateRegistry,
@@ -316,12 +317,52 @@ async function maybeRefreshRegistry(): Promise<void> {
     const { adapters, rejected } = validateRegistry(await response.text());
     for (const line of rejected) console.warn(`[registry] rejected ${line}`);
 
+    // Read before the hold, checked against Chrome outside it: no section
+    // holds the queue across an await on the browser (worker rule 4).
+    const before = await loadStore();
+    const candidates = newSiblingsToEnable(before.registry.adapters, adapters, before.enabledAdapters);
+    const granted: string[] = [];
+    for (const adapter of candidates) {
+      if (await chrome.permissions.contains({ origins: [adapter.hostPattern] })) granted.push(adapter.id);
+      else console.log(`[registry] ${adapter.id} is new for a course you read, but ${adapter.hostPattern} is not granted — left off`);
+    }
+
     await withStore(async () => {
+    // Read before the hold, checked against Chrome outside it: no section
+    // holds the queue across an await on the browser (worker rule 4).
+    const before = await loadStore();
+    const candidates = newSiblingsToEnable(before.registry.adapters, adapters, before.enabledAdapters);
+    const granted: string[] = [];
+    for (const adapter of candidates) {
+      if (await chrome.permissions.contains({ origins: [adapter.hostPattern] })) granted.push(adapter.id);
+      else console.log(`[registry] ${adapter.id} is new for a course you read, but ${adapter.hostPattern} is not granted — left off`);
+    }
+
       const fresh = await loadStore();
       fresh.registry = { fetchedAt: new Date().toISOString(), adapters };
+      if (granted.length > 0) {
+        fresh.enabledAdapters = [...new Set([...fresh.enabledAdapters, ...granted])];
+      }
       await saveStore(fresh);
+      if (granted.length > 0) {
+        fresh.enabledAdapters = [...new Set([...fresh.enabledAdapters, ...granted])];
+      }
     }, "registry: refreshed");
+    // Both branches (worker rule 5): "nothing new for your courses" and "the
+    // check never ran" are otherwise the same silence.
+    console.log(
+      granted.length > 0
+        ? `[registry] switched on ${granted.join(", ")}: new pages for courses you already read`
+        : `[registry] no new pages to switch on for your courses`,
+    );
     // The version is in the line because it is now what decides the counts:
+    // Both branches (worker rule 5): "nothing new for your courses" and "the
+    // check never ran" are otherwise the same silence.
+    console.log(
+      granted.length > 0
+        ? `[registry] switched on ${granted.join(", ")}: new pages for courses you already read`
+        : `[registry] no new pages to switch on for your courses`,
+    );
     // "3 rejected" against an unknown build is a mystery, and against 1.0.0 it
     // is "update and they come back" (§4.5's `minExtensionVersion`).
     console.log(
@@ -1132,6 +1173,14 @@ function createReportMenu(): void {
         "https://us.prairietest.com/*",
         "https://*.illinois.edu/*",
       ],
+    }, () => {
+      // onInstalled and onStartup both fire when Chrome starts after an
+      // update, and the two removeAll → create pairs interleave: both clear,
+      // then the second create finds the first's item. One menu exists either
+      // way, so the duplicate is logged, not left as an unchecked lastError.
+      if (chrome.runtime.lastError) {
+        console.log(`[menu] report menu already present: ${chrome.runtime.lastError.message}`);
+      }
     });
   });
 }

@@ -19,7 +19,7 @@ import { GRADESCOPE_ORIGIN } from "../sources/gradescope.js";
 import { PRAIRIELEARN_ORIGIN } from "../sources/prairielearn.js";
 import { PRAIRIETEST_ORIGIN } from "../sources/prairietest.js";
 import { SMARTPHYSICS_ORIGIN } from "../sources/smartphysics.js";
-import { DEFAULT_TIME, supportedDateFormats } from "../sources/site.js";
+import { DEFAULT_TIME, SITTING_INCLUDE, supportedDateFormats } from "../sources/site.js";
 import type { Adapter, Kind } from "../sources/types.js";
 
 /**
@@ -799,23 +799,71 @@ export interface ShadowedAdapter {
  * per deadline — §3.1 keys a site row on the adapter's id, and §5.3 merges
  * across sources, never within one. The published entry is set aside, and the
  * worker says so, rather than either copy being deleted for the student.
+ *
+ * "The same page" means the same page *read the same way*. A page read for its
+ * exams (`readsExams`) is a different reading from that page's homework, which
+ * is why the registry ships `cs424-fa26` and `cs424-fa26-exams` at one url —
+ * and keying on the url alone set the exams entry aside for any student who
+ * had added the homework page themselves (2026-10-01).
  */
 export function mergeAdapters(
   local: readonly Adapter[],
   published: readonly Adapter[],
 ): { adapters: Adapter[]; shadowed: ShadowedAdapter[] } {
   const byId = new Map(local.map((adapter) => [adapter.id, adapter] as const));
-  const byUrl = new Map(local.map((adapter) => [pageKey(adapter.url), adapter] as const));
+  const byUrl = new Map(local.map((adapter) => [readingKey(adapter), adapter] as const));
   const adapters: Adapter[] = [...local];
   const shadowed: ShadowedAdapter[] = [];
   for (const adapter of published) {
     const sameId = byId.get(adapter.id);
-    const sameUrl = byUrl.get(pageKey(adapter.url));
+    const sameUrl = byUrl.get(readingKey(adapter));
     if (sameId) shadowed.push({ id: adapter.id, by: sameId.id, why: "id" });
     else if (sameUrl) shadowed.push({ id: adapter.id, by: sameUrl.id, why: "url" });
     else adapters.push(adapter);
   }
   return { adapters, shadowed };
+}
+
+/**
+ * An entry that reads its page for exams and quizzes rather than its deadlines:
+ * a hand-written `"kind": "exam"` entry, or the proposer's exams-and-quizzes
+ * reading, which carries no kind and is known by its filter.
+ */
+export function readsExams(adapter: Pick<Adapter, "kind" | "filter">): boolean {
+  return adapter.kind === "exam" || adapter.filter?.include === SITTING_INCLUDE;
+}
+
+/** One page and the way it is read, for `mergeAdapters`' duplicate test. */
+function readingKey(adapter: Adapter): string {
+  return `${pageKey(adapter.url)}${readsExams(adapter) ? " exams" : ""}`;
+}
+
+/**
+ * Published entries that arrived with this refresh for a course the student
+ * already reads, which should arrive switched on.
+ *
+ * An exams entry is useless switched off and invisible until someone opens
+ * Settings to find it: the student who reads CS 424's schedule is exactly the
+ * one who wants its midterms, and "i dont see the exams appearing" was the
+ * report (2026-10-01). Only entries **new** with this refresh — absent from the
+ * previous copy — so a page the student switched off stays off at the next
+ * refresh, and only for a course that already has a page switched on. The
+ * worker still checks the host permission before enabling, because it cannot
+ * ask for one.
+ */
+export function newSiblingsToEnable(
+  previous: readonly Adapter[],
+  next: readonly Adapter[],
+  enabled: readonly string[],
+): Adapter[] {
+  const known = new Set(previous.map((adapter) => adapter.id));
+  const on = new Set(enabled);
+  const courses = new Set(
+    [...previous, ...next].filter((adapter) => on.has(adapter.id)).map((adapter) => adapter.courseCode),
+  );
+  return next.filter(
+    (adapter) => !known.has(adapter.id) && !on.has(adapter.id) && courses.has(adapter.courseCode),
+  );
 }
 
 /** One page, however its address was spelled: no fragment, no trailing slash. */

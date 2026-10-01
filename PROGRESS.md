@@ -2,13 +2,36 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (3055 tests) all pass, at any hour: the
+`npm run build`, `npm run typecheck`, `npm test` (3062 tests) all pass, at any hour: the
 three `popup-draw.test.ts` tests that read `Date.now()` and failed every evening from 22:00
 have had their clock pinned since 2026-09-27, and the suite no longer depends on the
 machine's load or locale or on the last build.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Why the exams did not appear — 2026-10-01
+
+*"i dont see the exams appearing"*, after the registry push and a reload. Three causes in
+the repo before any browser ask, two of them defects in today's work:
+
+- **A self-added page hid its published exams.** `mergeAdapters` set a published entry
+  aside when a local one read the same *url*, and four exams entries share their
+  homework page's url. It now keys on the page *and the reading* (`readsExams`): a
+  page's exams are a different reading from its homework.
+- **Two switches called `schedule.html`.** `adapterPageName` now says `schedule.html ·
+  exams` for an exams entry.
+- **A new entry arrived switched off**, even under a course the student reads. The
+  registry refresh now switches on an entry that is new with that refresh, for a course
+  with a page already on, when its host is already granted (`newSiblingsToEnable`; the
+  worker logs both branches). A page switched off stays off — it is no longer new.
+  This does not reach an install whose refresh already ran, so Sushi's own copy still
+  needs the switches turned on once.
+
+Six count-asserted mutations, all killed. Separately, `createReportMenu` now reads
+`lastError` on its create: onInstalled and onStartup interleave their removeAll → create
+pairs when Chrome starts after an update. Confirmed by Sushi the same day: the exams
+appear once their pages are switched on, and the menu warning is gone.
 
 ## Course-site quizzes are on the Exams tab — 2026-10-01
 

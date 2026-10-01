@@ -10,7 +10,8 @@
 import { describe, expect, it } from "vitest";
 import { emptyStore, migrate, withLocalAdapter, withoutLocalAdapter } from "../src/core/store.js";
 import { guessCourseCode, localAdapterId } from "../src/core/detect.js";
-import { mergeAdapters } from "../src/core/registry.js";
+import { mergeAdapters, newSiblingsToEnable } from "../src/core/registry.js";
+import { SITTING_EXCLUDE, SITTING_INCLUDE } from "../src/sources/site.js";
 import type { Adapter } from "../src/sources/types.js";
 
 const VALID = {
@@ -240,9 +241,62 @@ describe("mergeAdapters: what the student added stands in front of what was publ
     expect(mergeAdapters([local], [spelled]).shadowed).toHaveLength(1);
   });
 
+  it("does not set a page's exams aside behind the same page's homework", () => {
+    // 2026-10-01: the registry ships `cs424-fa26` and `cs424-fa26-exams` at one
+    // url, so a student who had added CS 424's schedule themselves lost the
+    // exams entry to the url rule — two readings of one page, not one twice.
+    const exams = { ...publishedSamePage, id: "cs374a-fa26-exams", kind: "exam" } as Adapter;
+    const { adapters, shadowed } = mergeAdapters([local], [exams]);
+    expect(adapters.map((a) => a.id)).toEqual([local.id, "cs374a-fa26-exams"]);
+    expect(shadowed).toEqual([]);
+  });
+
+  it("still sets a published exams entry aside behind a local exams reading of that page", () => {
+    // The proposer's exams-and-quizzes reading carries no kind; its filter is
+    // what says what it reads.
+    const localExams = {
+      ...local,
+      id: "cs374-fa26-homeworks-exams-local",
+      filter: { include: SITTING_INCLUDE, exclude: SITTING_EXCLUDE },
+    } as Adapter;
+    const exams = { ...publishedSamePage, id: "cs374a-fa26-exams", kind: "exam" } as Adapter;
+    expect(mergeAdapters([localExams], [exams]).shadowed).toEqual([
+      { id: "cs374a-fa26-exams", by: "cs374-fa26-homeworks-exams-local", why: "url" },
+    ]);
+  });
+
   it("keeps every published entry when nothing local overlaps", () => {
     const { adapters, shadowed } = mergeAdapters([], [publishedSamePage, publishedOther]);
     expect(adapters).toHaveLength(2);
     expect(shadowed).toEqual([]);
+  });
+});
+
+describe("newSiblingsToEnable: a new page for a course you read arrives switched on", () => {
+  const entry = (id: string, courseCode: string) => ({ ...VALID, id, courseCode }) as unknown as Adapter;
+  const hw = entry("cs424-fa26", "CS424");
+  const exams = entry("cs424-fa26-exams", "CS424");
+  const other = entry("ece391-fa26-exams", "ECE391");
+
+  it("switches on an entry that arrived for a course with a page already on", () => {
+    // "i dont see the exams appearing" (2026-10-01): the exams entry had
+    // arrived, switched off, under a course the student was reading.
+    expect(newSiblingsToEnable([hw], [hw, exams, other], ["cs424-fa26"]).map((a) => a.id)).toEqual([
+      "cs424-fa26-exams",
+    ]);
+  });
+
+  it("leaves a page the student switched off alone at the next refresh", () => {
+    // Already in the previous copy, so it is not new: a deliberate "off" must
+    // survive a daily refresh.
+    expect(newSiblingsToEnable([hw, exams], [hw, exams], ["cs424-fa26"])).toEqual([]);
+  });
+
+  it("switches on nothing for a course the student does not read", () => {
+    expect(newSiblingsToEnable([hw], [hw, exams, other], [])).toEqual([]);
+  });
+
+  it("does not offer an entry that is already on", () => {
+    expect(newSiblingsToEnable([hw], [hw, exams], ["cs424-fa26", "cs424-fa26-exams"])).toEqual([]);
   });
 });
