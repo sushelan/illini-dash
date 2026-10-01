@@ -963,7 +963,7 @@ export function attentionGroups(rawItems: Item[], now: Date): AttentionGroup[] {
       // for a week. The Exams tab already calls the same row "Just sat", so
       // the two tabs contradicted each other about the same exam, and the one
       // in red was the wrong one.
-      if (item.kind === "exam") continue;
+      if (item.kind === "exam" || courseSiteQuiz(item)) continue;
       // Handed in. It is in the past and it is on the grid, but it is not
       // asking for anything — and it only reaches here at all because past
       // work stopped being filtered out of the views.
@@ -1062,10 +1062,13 @@ export function overdueItems(items: Item[], now: Date): Item[] {
  * `exam` and `booking`, plus a Canvas quiz or exam (`canvasExam`). §4.4 maps a
  * PrairieTest reservation to `exam` and an unbooked window to `booking`, §4.1
  * promotes a Canvas calendar event whose title says exam, midterm or final, and
- * a student typing a row can pick Exam. What stays out is every other source's
- * idea of a quiz: PrairieLearn's are work done from a laptop whenever, and
- * including them would refill this tab with most of it — the same dilution that
- * made Attention read 11 when one thing was late.
+ * a student typing a row can pick Exam. A quiz a **course site** lists is in
+ * too (`courseSiteQuiz`): those are CBTF sittings booked and sat like an exam
+ * (Sushi, 2026-10-01, *"yes quizzes should appear in exams"*). What stays out is
+ * every other source's idea of a quiz: PrairieLearn's are work done from a
+ * laptop whenever and smartPhysics's are pre-lecture checkpoints, and including
+ * them would refill this tab with most of it — the same dilution that made
+ * Attention read 11 when one thing was late.
  *
  * **No horizon.** Every other view stops at 60 days, which is right for
  * homework and wrong for the one thing that is always further out than that: in
@@ -1126,6 +1129,16 @@ export function canvasExam(item: Item): boolean {
   );
 }
 
+/**
+ * A quiz a course site lists — `Quiz 3`, `Quiz 2 retake` — which is a CBTF
+ * sitting rather than homework. Only `site` rows: the runner gives `quiz` to a
+ * course-site row only when its whole title names one (`sittingKind`), while
+ * PrairieLearn and smartPhysics use `quiz` for work done whenever.
+ */
+export function courseSiteQuiz(item: Item): boolean {
+  return item.members.some((member) => member.source === "site" && member.kind === "quiz");
+}
+
 export function examBoard(items: Item[], now: Date): ExamBoard {
   const unbooked: Item[] = [];
   const upcoming: PlacedItem[] = [];
@@ -1142,7 +1155,7 @@ export function examBoard(items: Item[], now: Date): ExamBoard {
       if (end === undefined || end > now.getTime()) unbooked.push(item);
       continue;
     }
-    if (item.kind !== "exam" && !canvasExam(item)) continue;
+    if (item.kind !== "exam" && !canvasExam(item) && !courseSiteQuiz(item)) continue;
 
     const anchor = anchorOf(item, now);
     if (anchor === undefined) continue;

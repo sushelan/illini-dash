@@ -19,6 +19,7 @@ import {
   adapterFromCandidate,
   candidateNotes,
   candidatesFoundLine,
+  isExamsOnly,
   locatorDescription,
   noCandidateReason,
   proposeCandidates,
@@ -132,8 +133,10 @@ describe("what the student is told a page yielded", () => {
     // and calling it a list would be the same wrong word this sentence was
     // rewritten to stop saying when the ECE 411 list announced itself as a
     // table.
+    // The schedule's midterms are read too, as a second reading of the same
+    // table — said as such, not counted as a second table.
     expect(candidatesFoundLine(propose(fixture("cs424-fa2026-schedule.html")))).toBe(
-      "Found one table that looks like a schedule.",
+      "Found one table that looks like a schedule. It can also read just the exams and quizzes.",
     );
   });
 
@@ -882,8 +885,23 @@ describe("the real CS 425 lectures page: a column of dates that are not the dead
   });
 
   it("does not offer the column read by position, because the rows contradict it", () => {
-    expect(found.some((candidate) => candidate.dueSlot !== undefined && !candidate.duePhrase)).toBe(false);
+    // For deadlines. The exams reading is that column on purpose — see below.
+    const deadlines = found.filter((candidate) => !isExamsOnly(candidate));
+    expect(deadlines.some((candidate) => candidate.dueSlot !== undefined && !candidate.duePhrase)).toBe(false);
     expect(found.every((candidate) => !candidate.sample.some((row) => row.due === "2026-09-10T23:59:00-05:00"))).toBe(true);
+  });
+
+  it("reads the midterm off the lecture-date column, which is right for an exam", () => {
+    /*
+     * The "rows contradict the column" refusal is about a deadline the row
+     * states after "due". An exam row says no "due": `10/8 | IN-CLASS MIDTERM
+     * EXAM` is held on the lecture's own date, so the column is the answer.
+     */
+    const exams = found.filter(isExamsOnly);
+    expect(exams).toHaveLength(1);
+    expect(exams[0]!.sample.map((row) => [row.title, row.due])).toEqual([
+      ["IN-CLASS MIDTERM EXAM", "2026-10-08T23:59:00-05:00"],
+    ]);
   });
 
   it("does not cut the names at the colon inside 11:59", () => {
@@ -891,7 +909,7 @@ describe("the real CS 425 lectures page: a column of dates that are not the dead
   });
 
   it("folds the link-level reading of the same cells into the row-level one", () => {
-    expect(found).toHaveLength(1);
+    expect(found.filter((candidate) => !isExamsOnly(candidate))).toHaveLength(1);
   });
 });
 
@@ -1034,7 +1052,9 @@ describe("the CS/ECE 374 A calendar, which is the whole term", () => {
   const found = propose(doc);
 
   it("offers one reading of the whole calendar rather than one per week", () => {
-    expect(found).toHaveLength(1);
+    // And one of just its exams, which is the other thing a student may want
+    // from a page that is mostly lectures.
+    expect(found.map(isExamsOnly)).toEqual([false, true]);
     expect(found[0]!.duePrev).toBe("dt");
     expect(doc.querySelectorAll(found[0]!.rows)).toHaveLength(93);
   });

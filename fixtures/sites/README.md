@@ -45,18 +45,21 @@ forgotten.
 | `cs374a-fa2026-homeworks.html` | `…/cs374al1/fa2026/homeworks.html` | 2026-09-18 | `<dl class="calendar">`; the date is the `<dt>` **before** each `<dd>` |
 | `cs374a-fa2026-gps.html` | `…/cs374al1/fa2026/gps.html` | 2026-09-18 | same shape, every link off-origin |
 | `cs341-fa2026-home.html` | `cs341.cs.illinois.edu/` | 2026-09-24 | two "Latest Assignments" cards; the date sits behind the course week, `Due: Week 8 · 2026-10-12 23:59` |
-| `cs374a-fa2026-calendar.html` | `…/cs374al1/fa2026/calendar.html` | 2026-09-18 | fifteen `<dl>`s, 93 pairs — **fixture only, no registry entry** |
+| `cs374a-fa2026-calendar.html` | `…/cs374al1/fa2026/calendar.html` | 2026-09-18 | fifteen `<dl>`s, 93 pairs — read **for its exams only** (`cs374a-fa26-exams`) |
+| `phys435-fa2026-schedule.html` | `courses.physics.illinois.edu/phys435/fa2026/schedule.html` | 2026-10-01 | a header table whose Week cell spans three rows; the exam is the bold line in the Lecture cell |
 
 `fixtures/site/ece391-schedule.html` (singular `site/`) is a separate older directory
 and is left where it is.
 
-### `cs374a-fa2026-calendar.html` has no entry on purpose
+### `cs374a-fa2026-calendar.html` is read for its exams and nothing else
 
 93 dt/dd pairs, and most of them are lectures, labs and discussion sections rather than
 deadlines. The homeworks and GPSs it repeats are already read from their own pages, so an
-entry here would double every one of them under a different `sourceId` — §5.3 would merge
-most of them and the rest would sit in the list twice. It is kept because it is the only
-capture with enough repeated structure to exercise the search over a big page.
+entry reading every row would double each of them under a different `sourceId`. The
+exams, though, are on no other page the registry reads — so `cs374a-fa26-exams` reads this
+page with a filter anchored on `Midterm N` / `Final Exam` at the start of the row, which
+also leaves out the "Conflict Midterm" rows and the "Optional review for Midterm 1"
+asides. It is still the capture that exercises the search over a big page.
 
 ## The derived files, and every row that is invented in them
 

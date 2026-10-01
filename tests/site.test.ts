@@ -712,23 +712,42 @@ describe("the bundled registry", () => {
      * refuses wholesale on one new field would break the shipped courses.
      */
     const { adapters, rejected } = validateRegistry(text, "1.0.0");
+    const refused = (id: string) => rejected.find((line) => line.split(":")[0] === id)!;
     expect(rejected.map((line) => line.split(":")[0])).toEqual([
+      "cs424-fa26-exams",
+      "ece391-fa26-exams",
       "cs425-fa26",
+      "cs425-fa26-exams",
       "cs374a-fa26-hw",
       "cs374a-fa26-gps",
+      "cs374a-fa26-exams",
       "cs341-fa26",
+      "phys435-fa26-exams",
     ]);
     // Each says which version to update to, and CS 425 is the one that says
     // 1.2.0: it reads the clauses of one cell, which is a 1.2.0 field. CS 341
-    // says 1.3.1, which learned to read a date behind "Week 8 ·".
-    expect(rejected[0]).toContain("needs extension 1.2.0, this is 1.0.0");
-    expect(rejected[3]).toContain("needs extension 1.3.1, this is 1.0.0");
-    for (const line of rejected.slice(1, 3)) {
-      expect(line).toContain("needs extension 1.1.0, this is 1.0.0");
+    // says 1.3.1, which learned to read a date behind "Week 8 ·". The exam
+    // entries that need a grid slot, `titleBefore` or `duePrev` say 1.1.0.
+    expect(refused("cs425-fa26")).toContain("needs extension 1.2.0, this is 1.0.0");
+    expect(refused("cs341-fa26")).toContain("needs extension 1.3.1, this is 1.0.0");
+    for (const id of [
+      "cs424-fa26-exams",
+      "ece391-fa26-exams",
+      "cs425-fa26-exams",
+      "cs374a-fa26-hw",
+      "cs374a-fa26-gps",
+      "cs374a-fa26-exams",
+      "phys435-fa26-exams",
+    ]) {
+      expect(refused(id)).toContain("needs extension 1.1.0, this is 1.0.0");
     }
+    // ECE 310's exams use nothing newer than `dueLabel`, so a 1.0.0 build runs
+    // them — at an assumed 23:59, because the clock after the date is what a
+    // later build learned to read. A late hour is a smaller loss than no exam.
     expect(adapters.map((a) => a.id)).toEqual([
       "cs424-fa26",
       "ece310-fa26",
+      "ece310-fa26-exams",
       "ece391-fa26",
       "ece411-fa26-mp",
       "ece411-fa26-exams",

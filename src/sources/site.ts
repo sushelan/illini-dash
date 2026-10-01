@@ -16,7 +16,7 @@ import { cellAt, columnOf, formTableGrid, gridFor, rowIndex, type GridCache } fr
 // Re-exported so a caller that wants to run the locators can pass a cache
 // without also knowing where the grid lives. `runAdapter` owns one per run.
 export type { GridCache } from "../core/table-grid.js";
-import { ParseError, type Adapter, type PageCtx, type RawItem } from "./types.js";
+import { ParseError, type Adapter, type Kind, type PageCtx, type RawItem } from "./types.js";
 
 /**
  * A selector, optionally reading an attribute instead of the text:
@@ -552,7 +552,13 @@ export function matchDueLabel(text: string, spec: string): DueLabelMatch | undef
  * and CP3 collide on one `sourceId` and `KeyGuard` keeps one of the three.
  */
 export function labelSuffix(label: string): string {
-  return label.replace(/\s*\bdue\b\s*$/i, "").replace(/\s+/g, " ").trim();
+  // `Date` is the same noun as `Due`: ECE 310's syllabus files each exam's
+  // `Date: Wednesday, September 30th, 7-9pm` under the exam's name, and keeping
+  // the label titled them `Midterm Exam 1 Date`.
+  return label
+    .replace(/\s*\b(?:due(?:\s+date)?|date)\b\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -836,6 +842,52 @@ const DASH = "(?:[-–—]|to)";
 const CLOCK_RANGE = new RegExp(`^${CLOCK}\\s*${DASH}\\s*${CLOCK}\\.?$`, "i");
 const CLOCK_ONE = new RegExp(`^${CLOCK}\\.?$`, "i");
 /**
+ * A clock, or a range, at the **start** of a text that goes on afterwards —
+ * `7pm (no lecture)`, `7-9pm)`. The lookahead is what keeps `1002` from
+ * reading as `10`: a clock ends where the digits and the meridiem end. A date
+ * after a colon (`09/27`) is refused by `leadingClock`'s shape rule instead.
+ */
+const CLOCK_LEADING = new RegExp(
+  `^${CLOCK}(?:\\s*${DASH}\\s*${CLOCK})?(?![a-z\\d:])`,
+  "i",
+);
+/**
+ * The words that introduce a clock in a sentence: `Midterm Exam 1 at 7pm`,
+ * `Midterm 1:  7:00pm- 9:00pm`. A colon with a digit straight after it is
+ * inside a clock, not in front of one — `10:30 lecture` must not read `30` as
+ * a clock. "After a digit" was the first rule, and it lost `Midterm 1:`.
+ */
+const CLOCK_INTRODUCER = /(?:\bat\b|@|\(|:(?!\d))\s*/gi;
+
+/**
+ * In prose a clock has to *look* like one: minutes or a meridiem. `readClock`
+ * takes a leading-zero `09` as 24-hour, which is right in a cell that holds a
+ * time and wrong in a sentence — ECE 220's exam row ends `Deadline: 09/27`,
+ * and the colon introduced `09`, so a 7pm midterm landed at 9am (2026-10-01,
+ * found on the live page). `09-27` is the same mistake with a dash.
+ */
+function leadingClock(text: string): { hour: number; minute: number } | undefined {
+  const match = CLOCK_LEADING.exec(text);
+  if (!match) return undefined;
+  const shaped = [match[2], match[3], match[5], match[6]].some((part) => part !== undefined);
+  return shaped ? readClock(match[1]!, match[2], match[3] ?? match[6]) : undefined;
+}
+
+/**
+ * The first clock a sentence introduces, for a row that states its exam's hour
+ * in prose rather than in a cell of its own: ECE 391's `Midterm Exam 1 at 7pm`,
+ * CS 374 A's `Midterm 1:  7:00pm- 9:00pm`, ECE 329's `Midterm Exam 1 (7:00pm-8:15
+ * pm)`. Anchored on the introducing word for
+ * `CLOCK_LABELLED`'s reason — a number after nothing is a room or a lecture.
+ */
+function introducedClock(text: string): { hour: number; minute: number } | undefined {
+  for (const match of text.matchAll(CLOCK_INTRODUCER)) {
+    const clock = leadingClock(text.slice(match.index + match[0].length));
+    if (clock) return clock;
+  }
+  return undefined;
+}
+/**
  * Anchored on the word that makes a number a clock, exactly as
  * `statedTimeInText` is anchored on the word that makes one a deadline. A room
  * number is a number too: ECE 411's exam bullet reads
@@ -870,7 +922,9 @@ export function clockFromText(text: string): { hour: number; minute: number } | 
   if (range) return readClock(range[1]!, range[2], range[3] ?? range[6]);
   const one = CLOCK_ONE.exec(segment);
   if (one) return readClock(one[1]!, one[2], one[3]);
-  return undefined;
+  // Reached only without a `Time:` label: a label captures a clock-shaped
+  // segment, which one of the two above always matches and answers for.
+  return introducedClock(trimmed);
 }
 
 export function supportedDateFormats(): string[] {
@@ -966,7 +1020,16 @@ export function parseAdapterDateParts(
   // TIME has three alternatives and the ambiguity rule is shared with
   // `announce.ts`, so both live in `clockGroups`.
   const written = clockGroups(g);
-  const stated = written.hour !== undefined && !written.ambiguous;
+  const rest = raw.trim().slice(match[0].length);
+  /*
+   * A clock the grammar stopped short of. ECE 310 prints `Wednesday, September
+   * 30th, 7-9pm`; the formats read no ranges, so the date parsed, the exam
+   * landed at an invented 23:59 and `7-9pm` was filed as unparsed. A range
+   * gives its start, the instant a student has to be in the room.
+   */
+  const trailing =
+    written.hour === undefined ? leadingClock(rest.replace(/^\s*(?:,|\bat\b|@)?\s*/i, "")) : undefined;
+  const stated = (written.hour !== undefined && !written.ambiguous) || trailing !== undefined;
 
   /*
    * Cell, then the row, then the page, then 23:59.
@@ -984,8 +1047,9 @@ export function parseAdapterDateParts(
    * duplicating a reachable one is not defence, it is another thing to read.
    */
   const fallback = statedElsewhere ?? defaultClock;
-  const hour = stated ? written.hour! : (fallback?.hour ?? 23);
-  const minute = stated ? written.minute : (fallback?.minute ?? 59);
+  const own = trailing ?? (stated ? { hour: written.hour!, minute: written.minute } : undefined);
+  const hour = own ? own.hour : (fallback?.hour ?? 23);
+  const minute = own ? own.minute : (fallback?.minute ?? 59);
 
   const parts = { month, day: Number(g["day"]), hour, minute };
   // Checked before inferYear, which builds candidate instants itself and would
@@ -1018,7 +1082,7 @@ export function parseAdapterDateParts(
 
   // Anything after the match that still looks like a time is a value this
   // parser failed to read, not text it was right to ignore.
-  const leftover = timeLikeTail(raw.trim().slice(match[0].length));
+  const leftover = trailing ? undefined : timeLikeTail(rest);
   const unparsedTime = written.ambiguous ? written.written : leftover;
 
   try {
@@ -1784,7 +1848,7 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
         // what every entry written before `kind` existed meant. An exam page
         // says so: `examBoard` filters on `kind === "exam"`, so without it a
         // course with two midterms had an empty Exams tab (§4.5).
-        kind: adapter.kind ?? "assignment",
+        kind: kindOfRow(adapter, title),
         dueAt,
         url,
         status: "unknown",
@@ -1905,6 +1969,61 @@ export function runAdapter(adapter: Adapter, doc: Document, page: PageCtx): RawI
 /** `time` takes the same scope mechanism as `titleFrom`, or is row-relative. */
 function readTimeCell(row: Element, spec: string): string | undefined {
   return spec.includes(SCOPE_SEP) ? resolveScoped(row, spec) : select(row, spec);
+}
+
+/**
+ * A title that names a sitting — an exam or a quiz the student turns up to —
+ * and nothing else.
+ *
+ * Course pages put their exams and CBTF quizzes in the same table as their
+ * lectures and homework, so an entry nobody marked `"kind": "exam"` — every page
+ * a student adds, and every homework entry whose page also lists the midterms —
+ * filed them as assignments and left the Exams tab empty. This is the row
+ * deciding for itself. Quizzes joined on 2026-10-01: Sushi, *"yes quizzes should
+ * appear in exams"* — TAM 2xx, ECE 220, CS 128 and CS 440 all list `Quiz N`
+ * windows at the CBTF, which a student books and sits like an exam.
+ *
+ * Anchored at both ends, and the whole title has to be the sitting (parser rule
+ * 6): `Optional review for Midterm 1`, `HW3 due before midterm`, `Final
+ * project` and `Quiz Schedule` all *contain* the word and none of them is one.
+ * Up to two words may come before it (`In-class`, `Hour`, `Extra Credit`), but
+ * not `Lecture`, `Reading` or `Pre-lecture` — those quizzes are homework done
+ * from a laptop. Then a number, a retake, and only what introduces a time or a
+ * note: `: 7:00pm`, ` at 7pm`, ` (Open Book)`, ` - Chapters 1-4`, ` Mon (12/8)`.
+ *
+ * Two patterns, not one, because the proposer writes them into `filter.include`
+ * and `filter.exclude`, which `validateAdapter` caps at 200 characters each —
+ * and one pattern holding both halves is 272. `EXCLUDE` is the words that make
+ * a row about the sitting rather than the sitting: review, solutions, practice,
+ * grades, a formula sheet, a schedule, a policy, a mock.
+ */
+export const SITTING_INCLUDE = String.raw`^(?:(?!due|lecture|reading|pre|no|miss)[a-z-]+ ){0,2}(mid-?term|final|quiz|exam)(?: exam)?(?: ?#?(?:\d+|[ivx]+)\b)?(?: re(?:take|try))?(?: ?(?:[(:,@]|- |(?:at|on|due|mon|tue|wed|thu|fri) ).*)?$`;
+export const SITTING_EXCLUDE = String.raw`\b(?:review|solution|practice|prep|grade|releas|score|sheet|feedback|schedul|polic|mock)`;
+const SITTING_INCLUDE_RE = new RegExp(SITTING_INCLUDE, "i");
+const SITTING_EXCLUDE_RE = new RegExp(SITTING_EXCLUDE, "i");
+
+/**
+ * `quiz` when the sitting is one, `exam` for any other, undefined for a row
+ * that is neither. Decided by the word the title is *named* by, not by any
+ * mention: CS 440 writes "Our final (= Quiz 7) will be on Thurs Dec 17", which
+ * is the final.
+ */
+export function sittingKind(title: string): "exam" | "quiz" | undefined {
+  const text = title.replace(/\s+/g, " ").trim();
+  const match = SITTING_INCLUDE_RE.exec(text);
+  if (!match || SITTING_EXCLUDE_RE.test(text)) return undefined;
+  return match[1]!.toLowerCase() === "quiz" ? "quiz" : "exam";
+}
+
+/**
+ * What one row is. An entry that names a kind other than `assignment` has
+ * said what its whole page is, and that stands. Otherwise — no kind, or the
+ * default spelled out, which is what the options page saves when nobody
+ * changes the picker — a row whose title names a sitting is that sitting.
+ */
+function kindOfRow(adapter: Adapter, title: string): Kind {
+  if (adapter.kind !== undefined && adapter.kind !== "assignment") return adapter.kind;
+  return sittingKind(title) ?? "assignment";
 }
 
 /** §3.1: `${adapterId}:${hash(normalizedTitle + dueDate)}`. */

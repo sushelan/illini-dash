@@ -8,6 +8,7 @@
  * the ones that do.
  */
 
+import { courseSiteQuiz } from "./calendar.js";
 import { isItemDone, isTickedDone } from "./dedupe.js";
 import { creditWindowText, examDetail, liveDeadline } from "./grouping.js";
 import { courseLabel, nameList } from "./names.js";
@@ -290,6 +291,42 @@ function planBooking(item: Item, settings: Settings, now: Date): PlannedNotifica
 }
 
 /**
+ * Something the student turns up to: an exam, or a quiz a course site lists (a
+ * CBTF sitting, `courseSiteQuiz`). The week-out lead (I18) is theirs alone — a
+ * sitting needs a study runway, a homework does not, and a PrairieLearn quiz is
+ * homework.
+ */
+function isSitting(item: Item): boolean {
+  return item.kind === "exam" || courseSiteQuiz(item);
+}
+
+/**
+ * The week-out reminder for a sitting whose page gave only the day: the
+ * morning a week before, never a countdown. Not planned once that morning has
+ * passed — the day-of reminder is the honest one by then, and a "week out"
+ * toast four days out is a stale one.
+ */
+function planWeekOut(
+  item: Item,
+  settings: Settings,
+  now: Date,
+  due: number,
+): PlannedNotification | undefined {
+  if (notifiedOf(item)["7d"] !== undefined) return undefined;
+  const dueDate = new Date(due);
+  const morning = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate() - 7);
+  if (morning.getTime() <= now.getTime()) return undefined;
+  return {
+    alarmName: alarmName(item.id, "7d"),
+    itemId: item.id,
+    lead: "7d",
+    fireAt: deferPastQuietHours(morning, settings.quietHours).toISOString(),
+    overdue: false,
+    superseded: [],
+  };
+}
+
+/**
  * The single reminder an unknown-time deadline gets: the morning it is due.
  *
  * Deliberately not a lead time. The extension does not know when the work is
@@ -428,18 +465,30 @@ export function planNotifications(
 
     if (item.timeAssumed) {
       const dayOf = planDayOf(item, settings, now, due);
-      planned.push(...collapseOverdue([dayOf, snooze].filter((p): p is PlannedNotification => p !== undefined)));
+      // A sitting still gets its week out when only the day is known: the
+      // runway is about the day, and an in-class midterm or a CBTF quiz window
+      // is exactly the row a course page dates without a clock.
+      const weekOut =
+        isSitting(item) && !live.late && settings.leadTimes.length > 0
+          ? planWeekOut(item, settings, now, due)
+          : undefined;
+      planned.push(
+        ...collapseOverdue(
+          [weekOut, dayOf, snooze].filter((p): p is PlannedNotification => p !== undefined),
+        ),
+      );
       continue;
     }
 
     const leads: TimedLead[] = settings.leadTimes.map((setting) =>
       live.late ? LATE_LEAD[setting] : setting,
     );
-    // I18: a week out, for an exam only, and only off a stated instant (the
-    // `timeAssumed` branch above has already taken every invented one). Gated
-    // on the student having any lead on at all: someone who switched both off
-    // asked for no countdowns, and this is one.
-    if (item.kind === "exam" && !live.late && leads.length > 0) leads.push("7d");
+    // I18: a week out, for a sitting only (an exam, or a quiz a course site
+    // lists — Sushi, 2026-10-01, "add reminders for quizzes too"). Off a
+    // stated instant here; the `timeAssumed` branch above plans its own, by
+    // the day. Gated on the student having any lead on at all: someone who
+    // switched both off asked for no countdowns, and this is one.
+    if (isSitting(item) && !live.late && leads.length > 0) leads.push("7d");
 
     const forItem: PlannedNotification[] = snooze ? [snooze] : [];
     for (const lead of leads) {
@@ -787,6 +836,18 @@ export function notificationContent(
   // sends the student to the post, their own row to nowhere, and only a course
   // site's bare date to the course page.
   if (item.timeAssumed && due && !Number.isNaN(due.getTime())) {
+    if (lead === "7d") {
+      // The week-out toast for a day with no stated time: the date, and the
+      // same note on where the hour is, never a clock.
+      const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const inAWeek = Math.round((midnight(due) - midnight(now)) / DAY_MS) === 7;
+      return {
+        title: `${clampTitle(item.title)} is ${inAWeek ? "in a week" : dayWord(due, now)}`,
+        message: line(course, shortDate(due), assumedTimeNote(item)),
+        ...sourceLine(item),
+        url: item.url ?? "",
+      };
+    }
     return {
       title: `${clampTitle(item.title)} — due ${dayWord(due, now)}`,
       message: line(course, assumedTimeNote(item)),

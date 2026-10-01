@@ -932,8 +932,95 @@ describe("the week-out reminder for an exam (I18)", () => {
   });
 
   it("never counts a week down to a time this code invented", () => {
+    /*
+     * Until 2026-10-01 this said an assumed exam gets no week-out at all. The
+     * requirement is the test's name: no countdown to an invented 23:59. A
+     * week-out planned off the *day* — the morning a week before, worded with
+     * the date and no clock — is not one, and without it an in-class midterm
+     * or a CBTF quiz window, the rows a course page dates without a clock, had
+     * no runway at all (Sushi: "add reminders for quizzes too").
+     */
     const assumed = exam({ timeAssumed: true, dueAt: local(2026, 8, 20, 23, 59) });
+    const plans = planNotifications([assumed], quiet, NOW);
+    expect(plans.map((p) => p.lead).sort()).toEqual(["7d", "dayOf"]);
+    expect(plans.find((p) => p.lead === "7d")!.fireAt).toBe(local(2026, 8, 13, 0));
+    const content = notificationContent(assumed, "7d", new Date(2026, 8, 13, 8));
+    expect(content.title).toBe("CS 357: Quiz 1 is in a week");
+    expect(content.message.startsWith("CS 357 · Sun, Sep 20 · ")).toBe(true);
+    expect(content.message).not.toMatch(/\d:\d\d|11:59/);
+  });
+
+  it("does not plan a week-out by the day once that morning has gone", () => {
+    // Due in four days with no stated time: a "week out" toast now would be
+    // stale, and the day-of reminder is the honest one.
+    const soon = exam({ timeAssumed: true, dueAt: local(2026, 8, 14, 23, 59) });
+    expect(planNotifications([soon], quiet, NOW).map((p) => p.lead)).toEqual(["dayOf"]);
+  });
+
+  it("gives a by-the-day week-out only to a sitting, and only with leads on", () => {
+    const hw = item({ timeAssumed: true, dueAt: local(2026, 8, 20, 23, 59) });
+    expect(planNotifications([hw], quiet, NOW).map((p) => p.lead)).toEqual(["dayOf"]);
+    const assumed = exam({ timeAssumed: true, dueAt: local(2026, 8, 20, 23, 59) });
+    expect(planNotifications([assumed], { ...quiet, leadTimes: [] }, NOW).map((p) => p.lead)).toEqual([
+      "dayOf",
+    ]);
+  });
+
+  it("never plans the by-the-day week-out off a late window either", () => {
+    // The twin of the late-window case above, for a sitting with no stated
+    // time. Deliberately unrealistic for the same reason: no exam source states
+    // a late window, so this is the only way to reach the `!live.late` gate.
+    const odd = exam({
+      timeAssumed: true,
+      dueAt: local(2026, 8, 9, 23, 59),
+      lateDueAt: local(2026, 8, 20, 23, 59),
+    });
+    expect(planNotifications([odd], quiet, NOW).map((p) => p.lead)).not.toContain("7d");
+  });
+
+  it("does not plan the by-the-day week-out twice", () => {
+    const assumed = exam({
+      timeAssumed: true,
+      dueAt: local(2026, 8, 20, 23, 59),
+      notified: { "7d": "2026-09-13T13:00:00.000Z" },
+    });
     expect(planNotifications([assumed], quiet, NOW).map((p) => p.lead)).toEqual(["dayOf"]);
+  });
+
+  describe("a quiz a course site lists", () => {
+    // Sushi, 2026-10-01: "add reminders for quizzes too" — the CBTF quizzes
+    // that are on the Exams tab get the exam's week-out lead.
+    const quiz = (source: RawItem["source"], partial: Partial<Item> = {}) =>
+      item({
+        kind: "quiz",
+        title: "Quiz 3",
+        dueAt: local(2026, 8, 20, 19),
+        members: [{ ...member("unknown"), source, kind: "quiz", title: "Quiz 3" }],
+        ...partial,
+      });
+
+    it("gets the week-out lead", () => {
+      expect(planNotifications([quiz("site")], quiet, NOW).map((p) => p.lead).sort()).toEqual([
+        "24h",
+        "2h",
+        "7d",
+      ]);
+    });
+
+    it("gets it by the day when the page gave no time", () => {
+      const assumed = quiz("site", { timeAssumed: true, dueAt: local(2026, 8, 20, 23, 59) });
+      expect(planNotifications([assumed], quiet, NOW).map((p) => p.lead).sort()).toEqual([
+        "7d",
+        "dayOf",
+      ]);
+    });
+
+    it("is the course site's only — a PrairieLearn quiz is homework and gets none", () => {
+      expect(planNotifications([quiz("prairielearn")], quiet, NOW).map((p) => p.lead).sort()).toEqual([
+        "24h",
+        "2h",
+      ]);
+    });
   });
 
   it("stays silent when the student turned the lead times off", () => {

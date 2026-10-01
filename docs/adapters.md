@@ -54,6 +54,21 @@ re-review that takes days (§0 decision 4).
   Midterm 1, Midterm 2 and the final, and without `"kind": "exam"` those three landed in
   the homework list while the popup's Exams tab — which filters on `kind === "exam"` —
   stayed empty for a course that has two midterms in it.
+
+  **Omitted, a row decides for itself** (since 2026-10-01). When `kind` is absent or
+  `assignment`, a row whose whole title names a sitting is one (`sittingKind`,
+  `src/sources/site.ts`): `Midterm 1`, `Hour Exam II`, `In-class Midterm (Open Book)`,
+  `Midterm Exam 1 at 7pm` are `exam`; `Quiz 3`, `Quiz 2 retake`, `Quiz due 09/07 -
+  09/10` are `quiz`, and a course-site quiz is on the Exams tab (a CBTF sitting, booked
+  and sat like an exam). Anchored at both ends, refusing review, solutions, practice,
+  grades, a formula sheet, a schedule and a mock, and refusing `Lecture`/`Reading`/
+  `Pre-lecture` quizzes, which are homework. So `Optional review for Midterm 1`, `HW3
+  due before midterm` and `Quiz Schedule` stay what they are. The two patterns,
+  `SITTING_INCLUDE` and `SITTING_EXCLUDE`, are separate because the proposer writes
+  them into `filter.include`/`filter.exclude`, each capped at 200 characters. An entry that names any
+  other kind keeps it for every row. This is what makes exams work for a page nobody
+  wrote an `-exams` entry for: every page a student adds, and every homework entry whose
+  page also lists the midterms.
 - `term` expires the adapter — the options page hides adapters from other terms, so a
   stale one disappears on its own rather than quietly fetching last year's page.
 
@@ -330,8 +345,9 @@ Three fields cover it, all optional:
   a declared label throws, naming the labels, exactly like a named column that has left
   the table.
 
-  The matched label is also **appended to the title**, minus a trailing `Due` (which
-  every deadline line carries and so names nothing). That is what makes `mp_pipeline CP1`,
+  The matched label is also **appended to the title**, minus a trailing `Due`, `Date`
+  or `Due Date` (which every dated line carries and so names nothing — ECE 310's exams
+  were titled `Midterm Exam 1 Date` until `Date` joined the list). That is what makes `mp_pipeline CP1`,
   `CP2` and `CP3` three items: §3.1 hashes the title, so without it the three checkpoints
   share one `sourceId` and `KeyGuard` keeps one of them.
 
@@ -348,6 +364,20 @@ Three fields cover it, all optional:
   start. The search is anchored on the word `Time`, exactly as `statedTimeInText` is
   anchored on `due`: a room number is a number too, and an unanchored search finds
   `ECEB 1002` first.
+
+  Without a `Time:` label, the clock a sentence **introduces** is read — the first one
+  after `at`, `@` or a label's colon: ECE 391's `Midterm Exam 1 at 7pm`, CS 374 A's
+  `Midterm 1:  7:00pm- 9:00pm`. A colon with a digit straight after it is inside a clock,
+  not in front of one, and a clock ends where its digits and meridiem end, so
+  `Room: 1702` is not 17:00. The ambiguity rule is unchanged: `at 7` is either end of
+  the day and reads as nothing. The point at a row's own cell is common — `"time": "."`
+  for a `<dd>`, `"time": "td:nth-child(2)"` for ECE 391's title cell.
+
+- **A clock range straight after the date** is read as the date's own clock, at its
+  start: ECE 310's `Wednesday, September 30th, 7-9pm`. The formats read single clocks
+  only, so before 2026-10-01 that row parsed, landed at an invented 23:59 and filed
+  `7-9pm` under `unparsedTime`. No field turns it on — it is the date grammar — and a
+  build without it degrades to the assumed 23:59 rather than refusing the entry.
 
 ## What CS 425 taught us: the deadline is mid-sentence
 
@@ -547,6 +577,28 @@ can break on its own.
 CS/ECE 374 A is the second course to need it — `cs374a-fa26-hw` for `homeworks.html` and
 `cs374a-fa26-gps` for `gps.html`, both under `courseCode` `CS374` — which is what turned
 this from ECE 411's special case into the pattern.
+
+**A student adding a page gets an exams reading too.** Settings → Add a course site
+proposes, beside its usual readings, one that keeps only the rows naming an exam or a
+quiz (`examTrialFor`, `src/core/detect.ts`): the same date hook, the title from the
+column whose cells name sittings, the filter set to the two sitting patterns, no
+page-wide `kind` (each row names itself), and `time: "."`. It exists
+because the homework reading of a schedule keeps rows that say "due" and an exam row
+never does — CS 424's midterms were not in any proposal. It is always among the five
+shown, and it saves under its own id (`…-exams-local`), so saving it after the homework
+reading of the same page does not replace that one. Where the exam's name is buried in a
+longer cell (PHYS 435's `Hour Exam I Solutions Review Lectures 1-13`) or filed under a
+`Date:` label (ECE 310), it finds nothing, and those courses have hand-written entries.
+
+**Exams are the commonest second page.** As of 2026-10-01 every course with exam dates
+on its site has an `-exams` entry with `"kind": "exam"`: `cs424-fa26-exams`,
+`ece310-fa26-exams`, `ece391-fa26-exams`, `ece411-fa26-exams`, `cs425-fa26-exams`,
+`cs374a-fa26-exams` and `phys435-fa26-exams`. Four of them read the **same url** as the
+course's homework entry — a second entry for the same page is how one page is read two
+ways, homework rows as assignments and exam rows as exams, and it is still only a
+registry edit. A midterm held in lecture (CS 424, CS 425, PHYS 435) has no clock on the
+page, so its time is marked assumed rather than guessed from a lecture slot the page
+does not state.
 
 ## Adding one yourself
 

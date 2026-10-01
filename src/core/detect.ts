@@ -37,6 +37,9 @@ import { shortHash } from "./dates.js";
 import {
   clauseEvents,
   headerIndex,
+  SITTING_EXCLUDE,
+  SITTING_INCLUDE,
+  sittingKind,
   locateDue,
   locateTitle,
   MIN_DATED_ROWS,
@@ -250,7 +253,18 @@ export function shownCandidates(candidates: readonly Candidate[]): {
   shown: Candidate[];
   hidden: Candidate[];
 } {
-  return { shown: candidates.slice(0, MAX_SHOWN), hidden: candidates.slice(MAX_SHOWN) };
+  /*
+   * An exam reading dates two or three rows, so it ranks below every reading
+   * of the page's twenty homework rows and lands behind the button — where a
+   * student adding the page for its midterms would never find it. The best one
+   * takes the last place shown instead.
+   */
+  const exam = candidates.findIndex(isExamsOnly);
+  if (exam < MAX_SHOWN) {
+    return { shown: candidates.slice(0, MAX_SHOWN), hidden: candidates.slice(MAX_SHOWN) };
+  }
+  const shown = [...candidates.slice(0, MAX_SHOWN - 1), candidates[exam]!];
+  return { shown, hidden: candidates.filter((candidate) => !shown.includes(candidate)) };
 }
 
 /** The button's own words, beside the count it is hiding. */
@@ -482,6 +496,14 @@ export function searchCandidates(
         continue;
       }
 
+      // Before the "due" check below, which is about deadlines: an exam row
+      // says no "due", and the lecture column is exactly where its date is.
+      const exam = examTrialFor(structure, evidence, rows, grids);
+      if (exam) {
+        const outcome = runCandidate(exam, doc, reference, timezone);
+        if (outcome.ok) ran.push({ ...outcome, datedRows: evidence.datedAt.map((at) => rows[at]!) });
+      }
+
       /*
        * A column read by position is refused when the rows themselves say a
        * different date after the word "due".
@@ -608,6 +630,11 @@ function dedupe(ranked: readonly Ran[]): Candidate[] {
     const covered = kept.some((other) => {
       if (other.pairs.join("\n") === key) return true;
       if (locatorKindOf(other.candidate) !== locatorKindOf(candidate.candidate)) return false;
+      // The exams on a page are a subset of its dated rows by construction, and
+      // offering them is the point: a reading of every row files them as
+      // whatever its title says, and a student who wants only the exams of a
+      // page whose homework is read elsewhere has nothing else to pick.
+      if (isExamsOnly(candidate.candidate) !== isExamsOnly(other.candidate)) return false;
       const theirs = new Set(other.pairs);
       if (candidate.pairs.every((pair) => theirs.has(pair))) return true;
       return readsInside(candidate, other);
@@ -861,6 +888,91 @@ function trialFor(
     // *every* dated row is shaped that way: a separator that is present on half
     // of them cuts the other half's titles at a colon that means something else.
     ...(named ? { titleBefore: TITLE_SEPARATOR } : {}),
+  };
+}
+
+/**
+ * The same date hook, read for the rows that name an exam or a quiz and
+ * nothing else.
+ *
+ * A schedule puts its midterms among its lectures: CS 424's `In-class Midterm`
+ * sits in the topic column beside a date, while the column this search names
+ * the page by is the one that says "due" — so the reading it offers keeps the
+ * homework and drops the exams. The title comes from the column whose cells
+ * name sittings (`sittingKind`, the runner's own test), the filter is the same
+ * two patterns, and `time: "."` lets a row that says `at 7pm` be read at 7pm.
+ *
+ * Only where a row's name is its own text or a cell: a `dueLabel` reading is
+ * already titled by its label (ECE 411's syllabus is found that way), and a
+ * `duePhrase` one dates only rows that say "due", which no exam row does.
+ */
+function examTrialFor(
+  structure: RepeatedStructure,
+  evidence: LocatorEvidence,
+  rows: readonly Element[],
+  grids: GridCache,
+): Trial | undefined {
+  const dated = evidence.datedAt.map((at) => rows[at]!);
+  // No `kind`: each row says whether it is an exam or a quiz (`sittingKind`),
+  // and the filter is what makes this reading the sittings and nothing else.
+  const base = {
+    rows: structure.selector,
+    dateFormat: evidence.format,
+    time: ".",
+    filter: { include: SITTING_INCLUDE, exclude: SITTING_EXCLUDE },
+  };
+  const isSitting = (text: string): boolean => sittingKind(text) !== undefined;
+  const examColumn = (dueSlot: number, slots: readonly number[]): number | undefined => {
+    let best: { slot: number; n: number } | undefined;
+    for (const slot of slots) {
+      if (slot === dueSlot) continue;
+      const n = dated.filter((row) => isSitting(textOf(cellOf(row, slot, grids)))).length;
+      if (n > 0 && (!best || n > best.n)) best = { slot, n };
+    }
+    return best?.slot;
+  };
+
+  if (evidence.kind === "header") {
+    const table = dated[0]!.closest("table");
+    if (!table) return undefined;
+    const headers = headerIndex(table, grids);
+    const dueSlot = headers.get(evidence.spec);
+    if (dueSlot === undefined) return undefined;
+    const slot = examColumn(dueSlot, [...headers.values()]);
+    const name = [...headers].find(([, at]) => at === slot)?.[0];
+    if (name === undefined) return undefined;
+    return {
+      ...base,
+      columns: { title: name, due: evidence.spec },
+      title: "td:nth-child(1)",
+      due: "td:nth-child(2)",
+    };
+  }
+
+  if (evidence.kind === "slot") {
+    const dueSlot = Number(evidence.spec);
+    const grid = gridFor(dated[0]!, grids);
+    if (!grid) return undefined;
+    const titleSlot = examColumn(
+      dueSlot,
+      Array.from({ length: width(grid) }, (_, at) => at),
+    );
+    if (titleSlot === undefined) return undefined;
+    return { ...base, dueSlot, titleSlot, title: "td", due: "td" };
+  }
+
+  if (evidence.cell || evidence.kind === "label" || evidence.kind === "phrase") return undefined;
+
+  // A row with no cells is named by its own text, cut at a separator when the
+  // exam rows are written `Midterm 1: 7:00pm- 9:00pm`.
+  const named = dated.filter((row) => isSitting(textOf(row)));
+  if (named.length === 0) return undefined;
+  return {
+    ...base,
+    title: ".",
+    due: evidence.kind === "attr" ? evidence.spec : ".",
+    ...(evidence.kind === "prev" ? { duePrev: evidence.spec } : {}),
+    ...(named.every((row) => namedBySeparator(textOf(row))) ? { titleBefore: TITLE_SEPARATOR } : {}),
   };
 }
 
@@ -1361,6 +1473,9 @@ export function candidateNotes(candidate: Candidate): string[] {
         "like “Demos on 9/28”, becomes an event on that day.",
     );
   }
+  if (isExamsOnly(candidate)) {
+    notes.push("Only the rows that name an exam or a quiz — the rest of this page is left alone.");
+  }
   if (candidate.defaultTime) {
     notes.push(
       `Every deadline with no stated time is set to ${candidate.defaultTime}, ` +
@@ -1431,7 +1546,22 @@ export function noCandidateReason(
  * one page this feature was extended for, would have announced itself as a
  * table. Every number in it comes from a candidate that ran.
  */
+/** A reading of a page for its exams and quizzes alone, as `examTrialFor` builds one. */
+export function isExamsOnly(candidate: Candidate): boolean {
+  return candidate.filter?.include === SITTING_INCLUDE;
+}
+
 export function candidatesFoundLine(candidates: readonly Candidate[]): string {
+  // An exams-only reading is a second way to read a table already counted,
+  // not another table, so it is said separately rather than added to the sum.
+  const exams = candidates.filter(isExamsOnly).length;
+  const rest = candidates.filter((candidate) => !isExamsOnly(candidate));
+  if (rest.length === 0 && exams > 0) return "Found the exams and quizzes on that page.";
+  const line = scheduleLine(rest);
+  return exams === 0 ? line : `${line} It can also read just the exams and quizzes.`;
+}
+
+function scheduleLine(candidates: readonly Candidate[]): string {
   if (candidates.length === 0) return "Nothing on that page looked like a schedule.";
   // A grid candidate is a table too — it is a table with nothing to name, which
   // is why it has no `columns` — and calling it a list would be the same wrong
@@ -1489,9 +1619,17 @@ export function adapterFromCandidate(
   kind = "assignment",
 ): Record<string, unknown> & { id: string } {
   const host = new URL(url).origin;
+  /*
+   * An exams-only reading is a second entry for a page whose deadlines may
+   * already be saved under this url — and `withLocalAdapter` keys on the id, so
+   * sharing one would replace the homework with the midterms, silently. The
+   * registry's own pattern (`ece411-fa26-exams`) is the answer here too.
+   */
+  const examsOnly = isExamsOnly(candidate);
+  const id = localAdapterId(courseCode, term, url);
   const entry: Record<string, unknown> = {
-    id: localAdapterId(courseCode, term, url),
-    label: `${courseCode} course site`,
+    id: examsOnly ? id.replace(/-local$/, "-exams-local") : id,
+    label: `${courseCode} ${examsOnly ? "exams" : "course site"}`,
     courseCode,
     term,
     url,
@@ -1516,7 +1654,11 @@ export function adapterFromCandidate(
   // without `kind` files two midterms as homework and leaves the Exams tab
   // empty. Omitted when it is the default, so a saved entry reads like a
   // hand-written one rather than carrying a field it did not need.
-  if (kind && kind !== "assignment") entry["kind"] = kind;
+  // The picker is one control above every proposal and defaults to the first
+  // one's kind, so left alone it says "assignment" over an exams reading too.
+  // A choice made in it wins; an untouched one defers to the proposal.
+  const chosen = kind && kind !== "assignment" ? kind : candidate.kind;
+  if (chosen && chosen !== "assignment") entry["kind"] = chosen;
   else delete entry["kind"];
   entry["timezone"] = SITE_TIMEZONE;
   // The floor is read off the fields that were just written, so an entry using

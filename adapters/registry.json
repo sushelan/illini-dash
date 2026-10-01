@@ -20,6 +20,28 @@
       "minExtensionVersion": "0.1.0"
     },
     {
+      "$comment": "Same page as cs424-fa26, read for its in-class midterms. Slots rather than selectors because the exam's name sits in the second grid column, which the homework entry's td:nth-last-child(3) never reaches. No clock on the page: the midterms are in class, so 23:59 is marked assumed.",
+      "id": "cs424-fa26-exams",
+      "label": "CS 424 exams",
+      "courseCode": "CS424",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs424/fa2026/secure/schedule.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "table tr",
+      "title": "td:nth-last-child(3)",
+      "due": "td:not(.auto-style6)",
+      "kind": "exam",
+      "filter": {
+        "include": "^in-class midterm\\b|\\bfinal exam\\b"
+      },
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "titleSlot": 2,
+      "dueSlot": 1,
+      "titleBefore": " (",
+      "minExtensionVersion": "1.1.0"
+    },
+    {
       "id": "ece310-fa26",
       "label": "ECE 310 course site",
       "courseCode": "ECE310",
@@ -39,6 +61,23 @@
       "minExtensionVersion": "0.1.0"
     },
     {
+      "$comment": "Same page as ece310-fa26: the Grading and Exams list files each exam's `Date: Wednesday, September 30th, 7-9pm` under the exam's name. The final reads \"To be announced\" and stays undated.",
+      "id": "ece310-fa26-exams",
+      "label": "ECE 310 exams",
+      "courseCode": "ECE310",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece310/fa2026/",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "ol[type=a] > li",
+      "title": "strong",
+      "due": "ul > li",
+      "kind": "exam",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "dueLabel": "Date",
+      "minExtensionVersion": "1.0.0"
+    },
+    {
       "id": "ece391-fa26",
       "label": "ECE 391 course site",
       "courseCode": "ECE391",
@@ -54,6 +93,24 @@
         "include": "\\bdue\\b"
       },
       "minExtensionVersion": "1.0.0"
+    },
+    {
+      "$comment": "The exam rows on the same schedule page carry class=\"exam\", which is the hook; the clock is prose in the title cell (\"Midterm Exam 1 at 7pm\"), so `time` points at that cell and the runner reads the clock the word \"at\" introduces.",
+      "id": "ece391-fa26-exams",
+      "label": "ECE 391 exams",
+      "courseCode": "ECE391",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/ece391/fa2026/schedule.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "table tr.exam",
+      "title": "td:nth-child(2)",
+      "due": "td:nth-child(1)",
+      "kind": "exam",
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "titleBefore": " at ",
+      "time": "td:nth-child(2)",
+      "minExtensionVersion": "1.1.0"
     },
     {
       "$comment": "ECE 411 keeps MPs and exams on two pages, and an adapter has one URL — so the course is two entries. See docs/ece411-findings.md.",
@@ -115,6 +172,28 @@
       "minExtensionVersion": "1.2.0"
     },
     {
+      "$comment": "The lectures table's header row is <td>s, so `columns` cannot name it; the table has no <th> and slots are the sanctioned locator. Rows are every <tr> on the page because a stray <p> in the Snapshots row makes linkedom close #Table3 early; the filter is what keeps the nav tables out.",
+      "id": "cs425-fa26-exams",
+      "label": "CS 425 exams",
+      "courseCode": "CS425/ECE428",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs425/fa2026/lectures.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "tr",
+      "title": "td",
+      "due": "td",
+      "kind": "exam",
+      "filter": {
+        "include": "^(in-class midterm exam|final exam)\\b"
+      },
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "titleSlot": 3,
+      "dueSlot": 2,
+      "titleBefore": ".",
+      "minExtensionVersion": "1.1.0"
+    },
+    {
       "$comment": "ECE 374 A's homeworks page is a definition list: the date is the <dt> and the assignment is the <dd> after it, so the date is outside the row and duePrev is the only locator that reaches it. The page states the clock once, in prose above the list (\"Written homeworks are due every Tuesday at 9pm\"), which is what defaultTime carries. See docs/cs374a-findings.md.",
       "id": "cs374a-fa26-hw",
       "label": "CS/ECE 374 A course site",
@@ -153,6 +232,28 @@
       "minExtensionVersion": "1.1.0"
     },
     {
+      "$comment": "The course calendar's dt/dd list holds lectures and labs too, so the filter keeps only rows that start with an exam's name; \"Conflict Midterm\" rows are left out (time TBA). The row states its own clock, \"Midterm 1:  7:00pm- 9:00pm\". See fixtures/sites/README.md.",
+      "id": "cs374a-fa26-exams",
+      "label": "CS/ECE 374 A exams",
+      "courseCode": "CS374",
+      "term": "fa26",
+      "url": "https://courses.grainger.illinois.edu/cs374al1/fa2026/calendar.html",
+      "hostPattern": "https://courses.grainger.illinois.edu/*",
+      "rows": "dl.calendar > dd",
+      "title": ".",
+      "titleBefore": ":",
+      "due": ".",
+      "duePrev": "dt",
+      "kind": "exam",
+      "filter": {
+        "include": "^(Midterm \\d|Final Exam)\\b"
+      },
+      "dateFormat": "MMM d, h:mm a",
+      "timezone": "America/Chicago",
+      "time": ".",
+      "minExtensionVersion": "1.1.0"
+    },
+    {
       "$comment": "CS 341's home page lists only the current MP and lab, as 'Due: Week 8 \u00b7 2026-10-12 23:59'. The /assignments table states only week numbers, and its progress bar carries last spring's dates in title attributes, so neither is read. See docs/cs341-findings.md.",
       "id": "cs341-fa26",
       "label": "CS 341 course site",
@@ -168,6 +269,26 @@
       "dateFormat": "yyyy-MM-dd",
       "timezone": "America/Chicago",
       "minExtensionVersion": "1.3.1"
+    },
+    {
+      "$comment": "PHYS 435's schedule table: the exam name is the bold line in the Lecture cell, the date is the Date column (grid slot 1, because the Week cell spans three rows). Hour exams are in the MWF 9am lecture, which this page does not state, so the time is marked assumed.",
+      "id": "phys435-fa26-exams",
+      "label": "PHYS 435 exams",
+      "courseCode": "PHYS435",
+      "term": "fa26",
+      "url": "https://courses.physics.illinois.edu/phys435/fa2026/schedule.html",
+      "hostPattern": "https://courses.physics.illinois.edu/*",
+      "rows": "table tr",
+      "title": "strong",
+      "due": "td",
+      "kind": "exam",
+      "filter": {
+        "include": "^(hour exam|final exam)\\b"
+      },
+      "dateFormat": "M/d",
+      "timezone": "America/Chicago",
+      "dueSlot": 1,
+      "minExtensionVersion": "1.1.0"
     }
   ]
 }

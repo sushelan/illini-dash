@@ -1478,6 +1478,33 @@ describe("examBoard — the things you have to turn up to", () => {
     });
   });
 
+  describe("a quiz a course site lists", () => {
+    // Sushi, 2026-10-01: "yes quizzes should appear in exams" — the CBTF
+    // `Quiz N` windows TAM 2xx, ECE 220 and CS 128 put on their schedules.
+    const quiz = (source: RawItem["source"], title = "Quiz 3", dueAt = at(2026, 8, 20, 23, 59)) =>
+      item({ title, kind: "quiz", dueAt, members: [{ ...member(), source, title, kind: "quiz" }] });
+    const board = (...items: Item[]) =>
+      examBoard(items, NOW).upcoming.map((p) => p.item.title);
+
+    it("is on the board", () => {
+      expect(board(quiz("site"))).toEqual(["Quiz 3"]);
+    });
+
+    it("is the course site's only — PrairieLearn and smartPhysics quizzes stay off", () => {
+      // PrairieLearn's are done from a laptop whenever; smartPhysics calls its
+      // pre-lecture checkpoints quizzes. Either would fill the tab.
+      expect(board(quiz("prairielearn"), quiz("smartphysics"))).toEqual([]);
+    });
+
+    it("is not Overdue once its day has passed, any more than an exam is", () => {
+      // A quiz has no submission, so it would sit in red for a week after it
+      // was sat — the defect exams had until 2026-09-23.
+      const sat = quiz("site", "Quiz 1", at(2026, 8, 8, 23, 59));
+      expect(overdueItems([sat], NOW)).toEqual([]);
+      expect(examBoard([sat], NOW).recent.map((p) => p.item.title)).toEqual(["Quiz 1"]);
+    });
+  });
+
   it("has no horizon, because a final is further out than sixty days", () => {
     // Every other view stops at 60 days. In September that hides a December
     // final, which is the deadline a student most wants warning about.

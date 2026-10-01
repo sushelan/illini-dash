@@ -2,13 +2,188 @@
 
 Spec: SPEC.md. Build order §10, gates §9. Detailed evidence lives in `docs/`.
 
-`npm run build`, `npm run typecheck`, `npm test` (3000 tests) all pass, at any hour: the
+`npm run build`, `npm run typecheck`, `npm test` (3055 tests) all pass, at any hour: the
 three `popup-draw.test.ts` tests that read `Date.now()` and failed every evening from 22:00
 have had their clock pinned since 2026-09-27, and the suite no longer depends on the
 machine's load or locale or on the last build.
 
 **Steps 1–12 are done. G0–G3 have passed. G4 and G5 are Sushi's and cannot start
 from here.**
+
+## Course-site quizzes are on the Exams tab — 2026-10-01
+
+*"yes quizzes should appear in exams"* — the answer to the probe's open question about
+the CBTF `Quiz N` windows TAM 2xx, ECE 220, CS 128 and CS 440 list on their schedules.
+
+- **`sittingKind`** replaces `isExamTitle` (`src/sources/site.ts`): a title is an exam, a
+  quiz, or neither, decided by the word it is *named* by — CS 440's "Our final (= Quiz 7)
+  will be on Thurs Dec 17" is the final. Quiz shapes are taken from the live pages:
+  `Quiz 2 retake`, `Optional Quiz 1 Retry`, `Quiz due 09/07 - 09/10`, `Quiz 6 Mon (12/8)
+  - Wed (12/10)`. Refused: `Quiz Schedule`, `Quiz review`, `Practice Quizzes`, `Mock
+  Quiz`, `Missed quiz:`, and `Lecture`/`Reading`/`Pre-lecture` quizzes, which are
+  homework. One pattern holding all of it is 272 characters, over `validateAdapter`'s
+  200 cap on a filter, so it is two — `SITTING_INCLUDE` (193) and `SITTING_EXCLUDE` (88)
+  — which the proposer writes into `filter.include` and `filter.exclude`.
+- **`courseSiteQuiz`** (`src/core/calendar.ts`) puts a `quiz` from a `site` row on the
+  Exams board, and keeps a sat one out of Overdue as exams already were. PrairieLearn and
+  smartPhysics quizzes stay off — the board's reason for leaving them out is unchanged.
+- **The proposer's exams reading** now carries both filter halves and no page-wide
+  `kind`, so each row names itself; it is identified by its filter (`isExamsOnly`).
+  On the probe's TAM 210 page it reads the six quizzes, the retries and the cumulative
+  exam; on ECE 220's schedule the seven quiz windows.
+- **Week-out reminders for quizzes too** (Sushi: *"yes add reminders for quizzes too"*).
+  `isSitting` in `src/core/schedule.ts` — an exam, or a course-site quiz — gets the I18
+  `7d` lead. And a sitting whose page gave only the day now gets one as well
+  (`planWeekOut`): the morning a week before, worded with the date and no clock, and
+  not planned once that morning has passed. Before this an assumed-time exam got no
+  week-out at all, which would have made the request a no-op — nearly every course-site
+  quiz and every in-class midterm is dated without a clock. The test that pinned "no
+  week-out for an assumed exam" was rewritten to its own title's requirement, "never
+  counts a week down to a time this code invented", which the new reminder keeps.
+  Ten count-asserted mutations; one survived (the late-window gate on the new path) and
+  was killed by the date-only twin of the existing deliberately-unrealistic test.
+- **Left as is, by Sushi's call:** a quiz cell spanning two rows (TAM 210's W/F) is
+  emitted once per day — *"the user can just hide whatever day they dont pick"*.
+
+Eleven count-asserted mutations, all killed after one test was added: dropping the
+exclude half from the proposer's filter survived at first, because nothing showed an
+exams-only entry keeping `Midterm 2 (review session)` — inference had marked it an
+assignment, but the row was still in the entry. A deliberately unrealistic schedule
+now pins it.
+
+## Thirty course pages nobody had captured, read by the proposer — 2026-10-01
+
+*"invoke agents that can confirm this adapter works with multiple course sites, for exam
+and assignment parsing"*. Four agents, one per department group, fetched public fa2026
+pages, ran the "Add a course site" proposer and the real runner over each (a throwaway
+vitest probe, not committed), and compared the output with what the page states. Pages
+are in the session scratchpad, not `fixtures/`. **Leads, not results**; the two below
+marked *fixed* and the two marked *confirmed* were checked by hand.
+
+**The exam-title rule held everywhere.** No row on any page was wrongly marked an exam,
+and every exam-titled row that reached the runner was marked one (`Midterm review`,
+`NO CLASS – canceled due to Midterm Exam 1` and the like stayed what they were).
+
+**Two defects in today's clock reader, fixed:**
+- ECE 220's exam row ends `Deadline: 09/27`; the colon introduced `09`, which
+  `readClock` reads as 24-hour, and a 7pm midterm landed at 09:00. A clock read out of
+  prose now needs minutes or a meridiem (`leadingClock`).
+- ECE 329's `Midterm Exam 1 (7:00pm-8:15 pm)` landed at an assumed 23:59; `(` now
+  introduces a clock. The real calendar now reads all three midterms at 19:00.
+A `/` in the clock's lookahead, added with the first, survived its mutation because the
+shape rule already refuses `09/27`, so it was deleted (mutation rule 2).
+
+**The common failure is finding the rows, and it predates today.** Of the pages that were
+static and public, the proposer read assignments correctly on CS 473 (10/10 with times),
+CS 461's assignments page (4/4) and PHYS 486 (12/12), and exams on PHYS 486, ECE 329's
+calendar and CS 440 (wrong day). Open, roughly by how many deadlines each loses:
+
+| Lead | Seen on | Status |
+|---|---|---|
+| A table with row-header `<th>`s gets no proposal | CS 421 MPs (21 deadlines) | confirmed |
+| The title column picked is Discussion, not "Assignment Due Dates"; a rowspan cell repeats per row | TAM 210, 212, 251 | confirmed |
+| `MM-DD` dates are not in the grammar | ECE 220 MPs (12) | lead |
+| Several sibling tables fold into one group with no common header | CS 128 syllabus (24) | lead |
+| A "release"/"start"/"day" column outranks "due" on a tie | CS 128, ECE 220 labs | lead |
+| `Thu 10/01 at 7.00-8.20pm` is not date-shaped, so the exam table is not proposed | ECE 220 exams | lead |
+| A short list (3 items) is under the proposer's floor; an exam `li` with a nested list fails `isExamTitle` | CS 473 midterms | lead |
+| A cell leading with its date (`Oct 15 MIDTERM (in class)`) fails `isExamTitle` | CS 461 | lead |
+| A date column's week range beats a date stated in the row | CS 440 final | lead |
+| Cards, alternating title/date rows, nested label lists | CS 225, CS 421 exams, ECE 313 | lead |
+| A header row in `<thead>` with no `<tbody>` becomes an item | ECE 220, PHYS 325 | lead |
+
+Not readable from a static fetch: CS 222, CS 225's schedule, PHYS 225 (JavaScript); CS
+233, CS 361, ECE 120, ECE 408, BIOE 201 (login). No public fa2026 MATH or STAT course page
+was found. CBTF "Quiz N" windows are left as assignments — whether they belong on the
+Exams tab is Sushi's call.
+
+## Exams on any course page, without an entry for it — 2026-10-01
+
+*"can u make this adapter for every class"* — answered as "any course site, automatically"
+(Sushi chose it over crawling every UIUC course site or hand-writing entries per tester).
+
+**The runner decides a row's kind when the entry does not.** With `kind` absent or
+`assignment`, a row whose *whole* title names an exam sitting is `exam` (`isExamTitle`,
+`EXAM_TITLE` in `src/sources/site.ts`). Anchored at both ends, one optional leading word
+(`In-class`, `Hour`, `Take-home`), a number, then only a time or a note; and a lookahead
+refusing review, solutions, practice, grades, a formula sheet and "due". So `Optional
+review for Midterm 1`, `HW3 due before midterm`, `Final project` and `Finals week` stay
+what they were. An entry naming another kind keeps it for every row.
+
+**The proposer offers an exams-only reading** (`examTrialFor`, `src/core/detect.ts`),
+beside its usual ones: the same date hook, the title from the column whose cells name
+exams, `filter.include: EXAM_TITLE`, `time: "."`. Reason: a schedule's homework reading
+keeps the rows that say "due" and an exam row never does, so CS 424's midterms were in no
+proposal. It is built before the "rows contradict the column" refusal, which is about
+deadlines — CS 425's midterm is held on the lecture date that refusal distrusts. Over the
+captures it finds CS 424, ECE 391 (at 19:00), CS 425 and the CS 374 A calendar; it finds
+nothing for PHYS 435 (the name is inside `Hour Exam I Solutions Review …`) or ECE 310
+(under a `Date:` label), which keep their hand-written entries. Three rules keep it
+usable: it is always among the five proposals shown; it saves as `…-exams-local`, because
+the id was derived from the url alone and saving it after the homework reading of the
+same page would have **replaced that entry silently**; and the kind picker, which defaults
+to the first proposal's kind, defers to the proposal unless the student changed it.
+
+Fifteen count-asserted mutations, all killed. Four existing detect tests changed — each
+was counting proposals or forbidding the grid reading on CS 425, and now does so for the
+deadline readings only, with the exams reading asserted separately beside it.
+
+Not done: the options page still clears every proposal after one is saved, so adding a
+page's homework *and* its exams means pressing Read twice.
+
+## Exams on the course sites: six courses that had none — 2026-10-01
+
+*"theres no midterm or exam parsing on the course websites"*, then *"phys435 website needs
+exam adapter too"*.
+
+True for every course but ECE 411: `ece411-fa26-exams` was the only entry with
+`"kind": "exam"`, so every other course's midterms never reached the Exams tab, though
+the dates were on pages already captured. Six entries now, each run over its capture in
+`tests/exam-adapters.test.ts` with the exact list asserted:
+
+| entry | page | reads |
+|---|---|---|
+| `ece391-fa26-exams` | schedule (same url as the HW entry) | `tr.exam`; MT1 Oct 6, MT2 Nov 12, **19:00** from "at 7pm" |
+| `cs374a-fa26-exams` | `calendar.html` | MT1 Sep 28, MT2 Nov 9 at **19:00**, final Dec 11 at **08:00**; conflict rows out |
+| `ece310-fa26-exams` | index (same url) | MT1 Sep 30, MT2 Nov 4 at **19:00**; final undated ("To be announced") |
+| `cs424-fa26-exams` | schedule (same url) | in-class midterms Oct 7, Nov 4; time **assumed** |
+| `cs425-fa26-exams` | `lectures.html` | in-class midterm Oct 8, time **assumed**; final undated (TBD) |
+| `phys435-fa26-exams` | `courses.physics.illinois.edu/…/schedule.html` | Hour Exam I Oct 5, II Nov 9, time **assumed**; final undated ("Finals week") |
+
+PHYS 435's page is public; it was captured with `curl` into
+`fixtures/sites/phys435-fa2026-schedule.html` and committed verbatim, per the README.
+
+**Two runner changes in `src/sources/site.ts`, no new field.** Three of the pages state the
+exam's clock in prose the runner could not read, so each exam landed at an invented 23:59
+— five hours after it ended, with a two-hour reminder after that. `clockFromText` (the
+`time` field's reader) now falls back to the first clock a sentence *introduces* — after
+`at`, `@` or a label's colon — and the date grammar reads a clock range straight after
+the date (`September 30th, 7-9pm`) at its start. Both use the existing ambiguity rule, so
+`at 7` still reads as nothing. Adding no field was deliberate: an older build accepts these
+entries and shows the exams at an assumed 23:59, which beats refusing them. `labelSuffix`
+also drops `Date`, so ECE 310's exams are not titled `Midterm Exam 1 Date`.
+
+Twelve count-asserted mutations: eleven died. The one survivor, `clockFromText`'s
+"labelled ? undefined :" guard, was **redundant** — a matched `Time:` label always
+captures a clock-shaped segment, which the two lines above it always answer — and it is
+deleted (mutation rule 2).
+
+Three findings worth keeping:
+- `fixtures/sites/README.md` said the CS 374 calendar has "no entry on purpose". That held
+  for reading every row and was never about the exams, which are on no other page; the
+  section is rewritten rather than annotated.
+- linkedom closes CS 425's `#Table3` at a stray `<p>` in the Snapshots row, so the midterm
+  is outside the table in the fixture. Chrome's parser foster-parents the `<p>` and keeps
+  the table whole. The entry matches `tr` across the page and lets the filter do the
+  narrowing, which reads it either way.
+- The three in-class midterms are marked assumed rather than set to a lecture slot. PHYS
+  435's lecture time (MWF 9am) is on `course-description.html`, not on the page the entry
+  reads, so it is not this page's statement (worker rule 3).
+
+**Not reaching anyone yet.** The entries reach installs on the next daily registry refresh
+after `adapters/registry.json` is pushed to `main`. The clock readers reach them only in a
+build after 1.3.3; until then the exams show at an assumed 23:59. CS 341's page states its
+final only as a grading weight, so it has no exam entry.
 
 ## The clean run of 1.3.2, and what it found — 2026-09-27
 
