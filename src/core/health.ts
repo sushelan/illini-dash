@@ -16,6 +16,7 @@
  * that has not been checked is `pending`, and pending is grey.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { groupItems, liveDeadline } from "./grouping.js";
 import { isItemDone, isTickedDone } from "./dedupe.js";
 import {
@@ -414,7 +415,7 @@ export function healthPill(
   const when = lastSyncAt === undefined ? undefined : new Date(lastSyncAt);
   const clock =
     when && !Number.isNaN(when.getTime())
-      ? when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      ? when.toLocaleTimeString(DISPLAY_LOCALE, { hour: "numeric", minute: "2-digit" })
       : undefined;
 
   if (summary.needsLogin.length > 0) {
@@ -690,7 +691,7 @@ function compactAgo(at: number, now: Date): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Date(at).toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
 }
 
 export interface SourceTrouble {
@@ -1399,8 +1400,8 @@ export function quietState(
   // different Tuesdays, and the one the student assumes is the near one.
   const day =
     days < 7
-      ? when.toLocaleDateString(undefined, { weekday: "long" })
-      : when.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      ? when.toLocaleDateString(DISPLAY_LOCALE, { weekday: "long" })
+      : when.toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
 
   const total = summary.checkable.length;
   let newest: number | undefined;

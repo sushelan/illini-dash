@@ -27,7 +27,7 @@
  *    exactly (house rule 6) — "This question is resolved" is a question.
  */
 
-import { wallClockToIso } from "./dates.js";
+import { wallClockToIso, DISPLAY_LOCALE } from "./dates.js";
 import { extractCourseCode } from "./normalize.js";
 import { textOf } from "./parsing.js";
 import { ParseError } from "../sources/types.js";
@@ -398,8 +398,8 @@ export function describeObserver(facts: ObserverFacts | undefined, now: Date = n
   const when = Number.isNaN(at.getTime())
     ? facts.lastObservedAt
     : at.toDateString() === now.toDateString()
-      ? at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-      : at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      ? at.toLocaleTimeString(DISPLAY_LOCALE, { hour: "2-digit", minute: "2-digit" })
+      : at.toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
   const seen = facts.postsSeen ?? 0;
   return `On · last read ${when} · ${seen} post${seen === 1 ? "" : "s"}`;
 }

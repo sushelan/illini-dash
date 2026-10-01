@@ -33,6 +33,7 @@
  * this a quiet day or a broken one". This file draws what they answer.
  */
 
+import { DISPLAY_LOCALE } from "../../../core/dates.js";
 import { END_OF_DAY_HEADING, LATE_HEADING, todaySchedule, weekStatus } from "../../../core/calendar.js";
 import { quietState, type QuietState } from "../../../core/health.js";
 import { icon } from "../../icons.js";
@@ -341,7 +342,7 @@ function folio(now: Date, count: number): HTMLElement {
 
   const date = document.createElement("h1");
   date.className = "folio--date";
-  date.textContent = now.toLocaleDateString(undefined, {
+  date.textContent = now.toLocaleDateString(DISPLAY_LOCALE, {
     weekday: "long",
     month: "long",
     day: "numeric",

@@ -23,6 +23,7 @@
  * is exploitable.
  */
 
+import { DISPLAY_LOCALE } from "../core/dates.js";
 import {
   noDateCount,
   courseColours,
@@ -126,7 +127,7 @@ function navFor(view_: ViewName, now: Date): { label: string; step: number } {
       const days = weekContents([], anchor, now, WEEK_MODE);
       const first = days[0]!.date;
       const last = days[6]!.date;
-      const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const fmt = (d: Date) => d.toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
       /*
        * "Sep 20 – Sep 26", with the month repeated, per the Classical spec §4.
        *
@@ -142,7 +143,7 @@ function navFor(view_: ViewName, now: Date): { label: string; step: number } {
     }
     case "month":
       return {
-        label: anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+        label: anchor.toLocaleDateString(DISPLAY_LOCALE, { month: "long", year: "numeric" }),
         // Whole weeks, so ‹ › lands on the same weekday and the grid does not
         // jump by a variable number of days.
         step: 28,

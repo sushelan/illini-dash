@@ -23,6 +23,7 @@
  * line under the card's grid.
  */
 
+import { DISPLAY_LOCALE } from "../../core/dates.js";
 import { movedByText } from "../../core/suggest.js";
 import { anchorOf, itemTone } from "../../core/calendar.js";
 import {
@@ -657,7 +658,7 @@ function sep(): HTMLElement {
 /* -------------------------------------------------------------------------- */
 
 export function clockOf(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(at).toLocaleTimeString(DISPLAY_LOCALE, { hour: "numeric", minute: "2-digit" });
 }
 
 export function emptyNote(text: string): HTMLElement {
@@ -679,6 +680,6 @@ export function bookingWindowText(item: Item): { primary: string; detail?: strin
   // the explanation, and it goes on the second line like every other qualifier.
   if (!start || !end) return { primary: "not booked" };
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    new Date(iso).toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
   return { primary: "not booked", detail: `sessions ${fmt(start)}–${fmt(end)}` };
 }

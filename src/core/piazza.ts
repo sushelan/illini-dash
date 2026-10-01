@@ -23,6 +23,7 @@
  * where this file and SPEC.md disagree, the capture won (house rule 9).
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { extractCourseCodes } from "./normalize.js";
 import { isInstant, KeyGuard, nonEmpty } from "./parsing.js";
 import { backoffMinutes } from "./store.js";
@@ -2054,8 +2055,8 @@ function when(at: string, now: Date): string {
   const parsed = new Date(at);
   if (Number.isNaN(parsed.getTime())) return at;
   return parsed.toDateString() === now.toDateString()
-    ? parsed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-    : parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    ? parsed.toLocaleTimeString(DISPLAY_LOCALE, { hour: "2-digit", minute: "2-digit" })
+    : parsed.toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
 }
 
 /**

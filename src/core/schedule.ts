@@ -8,6 +8,7 @@
  * the ones that do.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { courseSiteQuiz } from "./calendar.js";
 import { isItemDone, isTickedDone } from "./dedupe.js";
 import { creditWindowText, examDetail, liveDeadline } from "./grouping.js";
@@ -742,12 +743,12 @@ function dayWord(due: Date, now: Date): string {
   const days = Math.round((midnight(due) - midnight(now)) / DAY_MS);
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
-  return due.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return due.toLocaleDateString(DISPLAY_LOCALE, { weekday: "long", month: "short", day: "numeric" });
 }
 
 /** "Wed, Sep 23" — a date a student can place without a year. */
 function shortDate(when: Date): string {
-  return when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return when.toLocaleDateString(DISPLAY_LOCALE, { weekday: "short", month: "short", day: "numeric" });
 }
 
 /**
@@ -787,9 +788,9 @@ export function notificationContent(
     const endRaw = read("windowEnd");
     const window =
       start && endRaw
-        ? `${new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${new Date(
+        ? `${new Date(start).toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" })}–${new Date(
             endRaw,
-          ).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+          ).toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" })}`
         : "soon";
     const end = windowEndOf(item);
 
@@ -865,7 +866,7 @@ export function notificationContent(
   // full date, and "a week" rather than "in 7 days" when it fires on time.
   if (lead === "7d" && due && !Number.isNaN(due.getTime())) {
     const words = urgency(due, now);
-    const date = due.toLocaleString(undefined, {
+    const date = due.toLocaleString(DISPLAY_LOCALE, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -898,7 +899,7 @@ export function notificationContent(
   const clock = due
     ? windowed
       ? creditWindowText(item, due)
-      : due.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+      : due.toLocaleString(DISPLAY_LOCALE, { weekday: "short", hour: "numeric", minute: "2-digit" })
     : "";
   const when = due ? `${clock} · ${relative(due, now)}` : "";
   const kindWord = windowed ? "late window closes" : "due";

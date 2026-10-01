@@ -11,6 +11,7 @@
  * day adding something to it. The per-day "+" went on 2026-09-19 (see below).
  */
 
+import { DISPLAY_LOCALE } from "../../../core/dates.js";
 import { allTimed, dayKey, quietDay, weekCardStatus, weekContents } from "../../../core/calendar.js";
 import type { Item } from "../../../sources/types.js";
 import { WEEK_MODE, anchorDate, dateNavEl, state, viewEl } from "../state.js";
@@ -28,7 +29,7 @@ export function renderWeekView(items: Item[], now: Date, colours: Map<string, nu
     head.className = "wday";
     const dow = document.createElement("div");
     dow.className = "wday--dow";
-    dow.textContent = day.date.toLocaleDateString(undefined, { weekday: "short" });
+    dow.textContent = day.date.toLocaleDateString(DISPLAY_LOCALE, { weekday: "short" });
     const num = document.createElement("div");
     num.className = "wday--num";
     num.textContent = String(day.date.getDate());

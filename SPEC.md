@@ -303,9 +303,11 @@ merge on it is lost. Acceptable; it's rare and the cost is one extra click.
     `timezone`.
 - Shared helper `parseLocalDate(parts, zone)`: build the instant from wall-clock
   parts in a named zone using `Intl.DateTimeFormat` offset lookup (no library needed
-  for one zone). Year inference: assume the current year; if the result is more than
-  6 months in the past, add one; if a weekday is present and doesn't match, try the
-  adjacent years and pick the one that matches (this catches almost every bad guess).
+  for one zone). Year inference: take the year (current, previous or next) that puts
+  the date nearest the moment it was read, forward or back — "Dec 15" read on Jan 3 is
+  last December; if a weekday is present, pick the adjacent year it matches instead
+  (this catches almost every bad guess). *Amended 2026-10-01: the original rule only
+  ever added a year, so a date read just after it passed jumped eleven months ahead.*
 - DST: 2026-11-01 falls back. Storing absolute instants makes this a non-issue for
   display; it only matters inside `parseLocalDate`, which must compute the offset for
   the specific date, not a fixed -05:00.

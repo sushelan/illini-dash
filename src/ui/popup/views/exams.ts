@@ -6,6 +6,7 @@
  * and it is the deadline a student most wants a month's warning about.
  */
 
+import { DISPLAY_LOCALE } from "../../../core/dates.js";
 import {
   type PlacedItem,
   examBoard,
@@ -393,12 +394,12 @@ function examWhen(
   now: Date,
 ): { primary: string; detail?: string } {
   const at = new Date(placed.anchor.at);
-  const day = at.toLocaleDateString(undefined, {
+  const day = at.toLocaleDateString(DISPLAY_LOCALE, {
     weekday: "short",
     month: "short",
     day: "numeric",
   });
-  const clock = at.toLocaleTimeString(undefined, {
+  const clock = at.toLocaleTimeString(DISPLAY_LOCALE, {
     hour: "numeric",
     minute: "2-digit",
   });

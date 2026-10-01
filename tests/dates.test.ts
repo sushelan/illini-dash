@@ -21,4 +21,28 @@ describe("inferYear (§3.2)", () => {
     );
     expect(year).toBe(2028);
   });
+
+  describe("with no weekday, the year nearest the moment it was read", () => {
+    // Sushi, 2026-10-01: "dec 15 read on jan 3 should mean last month".
+    const read = (month: number, day: number, reference: string) =>
+      inferYear({ month, day, hour: 23, minute: 59 }, undefined, reference, CHICAGO);
+
+    it("reads Dec 15 on Jan 3 as last December, not next", () => {
+      expect(read(12, 15, "2027-01-03T18:00:00Z")).toBe(2026);
+    });
+
+    it("still reads Jan 10 on Dec 20 as next January", () => {
+      expect(read(1, 10, "2026-12-20T18:00:00Z")).toBe(2027);
+    });
+
+    it("reads a date in the same term as this year, either side of today", () => {
+      expect(read(9, 7, "2026-09-18T18:00:00Z")).toBe(2026);
+      expect(read(11, 30, "2026-09-18T18:00:00Z")).toBe(2026);
+    });
+
+    it("reads a date-less Feb 29 in the nearest year that has one", () => {
+      // The old rule built this year's Feb 29 unconditionally and threw in 2027.
+      expect(read(2, 29, "2027-12-01T18:00:00Z")).toBe(2028);
+    });
+  });
 });

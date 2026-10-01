@@ -178,6 +178,16 @@ export function wallClockToIso(
   );
 }
 
+/**
+ * The one locale every date and time the student reads is written in.
+ *
+ * Sushi, 2026-10-01: *"popup should use us date formats"*. Formatting with the
+ * browser's locale meant a student whose Chrome is set to en-GB saw "15 Sep"
+ * beside a course page that says "Sep 15", and the suite — pinned to en-US in
+ * vitest.config.ts — could not see what they saw. Parsing never depended on it.
+ */
+export const DISPLAY_LOCALE = "en-US";
+
 export function monthIndex(name: string): number | undefined {
   const index = MONTHS.indexOf(name.slice(0, 3));
   return index === -1 ? undefined : index + 1;
@@ -206,8 +216,16 @@ export function weekdayOf(
  *
  * Try the reference year and its neighbours; prefer one whose weekday matches
  * the stated weekday, which catches almost every bad guess. With no weekday to
- * check against, fall back to §3.2's stated rule: assume the current year, and
- * add one if the result is more than 6 months in the past.
+ * check against, take the year that puts the date **nearest** the reference,
+ * forward or back.
+ *
+ * It was "the current year, plus one if that is more than six months past",
+ * which only ever added: "Dec 15" read on Jan 3 landed eleven months ahead
+ * instead of nineteen days behind, so a December final still on a course page
+ * in January became next December's. Sushi, 2026-10-01: *"dec 15 read on jan 3
+ * should mean last month"*. Nearest is the same rule both ways — and a date
+ * absent from one candidate (Feb 29) simply is not a candidate, where the old
+ * rule threw on it.
  *
  * Returns `undefined` when a weekday IS stated and matches no candidate year.
  * Falling through to the dateless rule there would return one of the very years
@@ -241,9 +259,15 @@ export function inferYear(
     return undefined;
   }
 
-  const sameYear = Date.parse(wallClockToIso({ ...parts, year: referenceYear }, timeZone));
-  const sixMonths = 182 * 86_400_000;
-  return referenceDate.getTime() - sameYear > sixMonths ? referenceYear + 1 : referenceYear;
+  if (Number.isNaN(referenceDate.getTime())) return referenceYear;
+  let nearest: { year: number; distance: number } | undefined;
+  for (const year of candidates) {
+    if (!isRealWallClock({ ...parts, year })) continue;
+    const at = Date.parse(wallClockToIso({ ...parts, year }, timeZone));
+    const distance = Math.abs(at - referenceDate.getTime());
+    if (nearest === undefined || distance < nearest.distance) nearest = { year, distance };
+  }
+  return nearest?.year;
 }
 
 /* -------------------------------------------------------------------------- */

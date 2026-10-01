@@ -25,6 +25,7 @@
  *    have their own view.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import {
   countdown,
@@ -1281,7 +1282,7 @@ export function weekStatus(item: Item, now: Date): string {
   // `missedDeadline` it found, so there is one to read.
   if (tone === "overdue") return countdown(missedDeadline(item)!.at, now);
   if (anchor.assumed) return "EOD";
-  return new Date(anchor.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(anchor.at).toLocaleTimeString(DISPLAY_LOCALE, { hour: "numeric", minute: "2-digit" });
 }
 
 /**

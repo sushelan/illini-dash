@@ -16,6 +16,7 @@
  * month they are on (both read `anchorDate`, both go through `monthCells`).
  */
 
+import { DISPLAY_LOCALE } from "../../../core/dates.js";
 import {
   type MonthDotCell,
   type PlacedItem,
@@ -54,7 +55,7 @@ export function renderMonthView(items: Item[], now: Date, colours: Map<string, n
   head.className = "mhead";
   for (let i = 0; i < 7; i += 1) {
     const label = document.createElement("div");
-    label.textContent = startOfDay(new Date(2026, 8, 6), i).toLocaleDateString(undefined, {
+    label.textContent = startOfDay(new Date(2026, 8, 6), i).toLocaleDateString(DISPLAY_LOCALE, {
       weekday: "short",
     });
     head.append(label);
@@ -86,7 +87,7 @@ export function renderMonthView(items: Item[], now: Date, colours: Map<string, n
      */
     const addDay = iconButton(
       "plus",
-      `Add something on ${cell.date.toLocaleDateString(undefined, {
+      `Add something on ${cell.date.toLocaleDateString(DISPLAY_LOCALE, {
         weekday: "long",
         month: "short",
         day: "numeric",
@@ -326,8 +327,8 @@ function renderDotMonth(items: Item[], now: Date, colours: Map<string, number>):
   for (let i = 0; i < 7; i += 1) {
     const day = startOfDay(new Date(2026, 8, 6), i);
     const label = document.createElement("div");
-    label.textContent = day.toLocaleDateString(undefined, { weekday: "narrow" });
-    label.title = day.toLocaleDateString(undefined, { weekday: "long" });
+    label.textContent = day.toLocaleDateString(DISPLAY_LOCALE, { weekday: "narrow" });
+    label.title = day.toLocaleDateString(DISPLAY_LOCALE, { weekday: "long" });
     head.append(label);
   }
 
@@ -482,7 +483,7 @@ function renderDotCell(
   const on = selected !== undefined && dayKey(selected.date) === dayKey(cell.date);
   if (on) box.classList.add("mday--on");
   box.setAttribute("aria-pressed", String(on));
-  const named = cell.date.toLocaleDateString(undefined, {
+  const named = cell.date.toLocaleDateString(DISPLAY_LOCALE, {
     weekday: "long",
     month: "short",
     day: "numeric",
@@ -566,7 +567,7 @@ function paintDayList(
    * Georgia against the ~300px the count leaves it, and it ellipses rather
    * than wrapping if a locale spells it longer.
    */
-  when.textContent = `Agenda for ${cell.date.toLocaleDateString(undefined, {
+  when.textContent = `Agenda for ${cell.date.toLocaleDateString(DISPLAY_LOCALE, {
     weekday: "long",
     month: "short",
     day: "numeric",

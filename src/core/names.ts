@@ -19,6 +19,7 @@
  * whichever is shorter.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { extractCourseCode } from "./normalize.js";
 import type { Source, SourceState } from "../sources/types.js";
 
@@ -272,7 +273,7 @@ export function timeAgo(at: Date | number | string | undefined, now: Date): stri
   const days = Math.floor(hours / 24);
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} days ago`;
-  return new Date(then).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Date(then).toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
 }
 
 /** The full stamp, for the tooltip behind every `timeAgo`. */
@@ -280,7 +281,7 @@ export function fullStamp(at: Date | number | string | undefined): string | unde
   if (at === undefined) return undefined;
   const then = typeof at === "string" ? Date.parse(at) : at instanceof Date ? at.getTime() : at;
   if (!Number.isFinite(then)) return undefined;
-  return new Date(then).toLocaleString();
+  return new Date(then).toLocaleString(DISPLAY_LOCALE);
 }
 
 /**

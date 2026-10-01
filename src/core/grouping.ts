@@ -6,6 +6,7 @@
  * in the renderer.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import { isItemDone, isTickedDone, opensAt } from "./dedupe.js";
 import { unreadableDeadline } from "./quality.js";
 import { movedRange } from "./provenance.js";
@@ -367,7 +368,7 @@ export interface DueText {
 
 /** A short weekday-and-clock, the common case: `Thu 11:59 PM`. */
 function clockOf(due: Date): string {
-  return due.toLocaleString(undefined, {
+  return due.toLocaleString(DISPLAY_LOCALE, {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
@@ -376,7 +377,7 @@ function clockOf(due: Date): string {
 
 /** `Sep 22`, for a date far enough out that a weekday alone is ambiguous. */
 function dayOf(due: Date): string {
-  return due.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return due.toLocaleDateString(DISPLAY_LOCALE, { month: "short", day: "numeric" });
 }
 
 /** Whole local days from today to `due`, negative for the past. */
@@ -503,7 +504,7 @@ export function creditWindowText(
   // the week's day card — where "Sat" again is noise in a 72px column.
   const when =
     form === "clock"
-      ? until.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      ? until.toLocaleTimeString(DISPLAY_LOCALE, { hour: "numeric", minute: "2-digit" })
       : clockOf(until);
   return `${credit === undefined ? "late" : `${credit}%`} until ${when}`;
 }
@@ -519,9 +520,9 @@ export function creditWindowText(
 export function suggestionDueText(at: string, timeAssumed: boolean): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "—";
-  const day = when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const day = when.toLocaleDateString(DISPLAY_LOCALE, { weekday: "short", month: "short", day: "numeric" });
   if (timeAssumed) return `${day} · end of day`;
-  return when.toLocaleString(undefined, {
+  return when.toLocaleString(DISPLAY_LOCALE, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -619,7 +620,7 @@ export function countdown(
   }
   if (days === 1) return "in 1d";
   if (days < 7)
-    return new Date(at).toLocaleDateString(undefined, { weekday: "short" });
+    return new Date(at).toLocaleDateString(DISPLAY_LOCALE, { weekday: "short" });
   // Past a week a weekday is two different days, and the one a reader assumes
   // is the near one.
   return dayOf(new Date(at));
@@ -660,7 +661,7 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
           ? dayOf(at)
           : precisionFor(section) === "weekday"
             ? clockOf(at)
-            : at.toLocaleTimeString(undefined, {
+            : at.toLocaleTimeString(DISPLAY_LOCALE, {
                 hour: "numeric",
                 minute: "2-digit",
               });
@@ -726,7 +727,7 @@ function dueTextFor(item: Item, now: Date, section?: SectionName): DueText {
   const minutes = Math.floor(abs / 60_000);
   const span = days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : `${minutes}m`;
 
-  const time = due.toLocaleTimeString(undefined, {
+  const time = due.toLocaleTimeString(DISPLAY_LOCALE, {
     hour: "numeric",
     minute: "2-digit",
   });

@@ -28,6 +28,7 @@
  * move-range formatter has to be the one they share.
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import type { Item } from "../sources/types.js";
 import { STUDENT_POST_ID } from "./overrides.js";
 
@@ -175,9 +176,9 @@ export function movedRange(from: Date, to: Date): string | undefined {
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return undefined;
   if (Math.abs(to.getTime() - from.getTime()) < MOVE_TOLERANCE_MS) return undefined;
   const day = (date: Date) =>
-    date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    date.toLocaleDateString(DISPLAY_LOCALE, { weekday: "short", month: "short", day: "numeric" });
   const clock = (date: Date) =>
-    date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    date.toLocaleTimeString(DISPLAY_LOCALE, { hour: "numeric", minute: "2-digit" });
   // `toDateString` rather than comparing the formatted day: two days in
   // different years format identically ("Sat, Sep 19") and are not the same day.
   if (from.toDateString() === to.toDateString()) {

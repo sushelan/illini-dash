@@ -19,6 +19,7 @@
  * goes through the queue (worker rule 4).
  */
 
+import { DISPLAY_LOCALE } from "./dates.js";
 import {
   describeEmpty,
   extractDeadlineMentions,
@@ -575,7 +576,7 @@ export function movedByText(item: Item): string | undefined {
   const to = new Date(instant);
   if (Number.isNaN(to.getTime())) return undefined;
   const day = (date: Date) =>
-    date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    date.toLocaleDateString(DISPLAY_LOCALE, { weekday: "short", month: "short", day: "numeric" });
   const from = movedBy.from === undefined ? undefined : new Date(movedBy.from);
   // `movedRange` also answers `undefined` when the two ends are the same
   // moment — a second "Give it a date" that restates the date it already held

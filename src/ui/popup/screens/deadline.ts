@@ -20,6 +20,7 @@
  * screen.
  */
 
+import { DISPLAY_LOCALE } from "../../../core/dates.js";
 import { countdown, examDetail, formatDue, liveDeadline, movedText } from "../../../core/grouping.js";
 import { courseLabel, displayCourseLabel, SOURCE_NAME } from "../../../core/names.js";
 import { courseColours, coursesIn } from "../../../core/calendar.js";
@@ -302,7 +303,7 @@ function renderDeadlineScreen(item: Item, now: Date): HTMLElement {
         if (member.dueAt === undefined || member.dueAt === item.dueAt) continue;
         const at = Date.parse(member.dueAt);
         if (!Number.isFinite(at)) continue;
-        const says = new Date(at).toLocaleString(undefined, {
+        const says = new Date(at).toLocaleString(DISPLAY_LOCALE, {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
         });
         note.append(el("div", "dl--moved-text", `${SOURCE_NAME[member.source]} says ${says}`));
@@ -370,7 +371,7 @@ function renderDueCard(item: Item, now: Date): HTMLElement {
   } else if (live === undefined) {
     when.textContent = "No date yet";
   } else {
-    when.textContent = new Date(live.at).toLocaleString(undefined, {
+    when.textContent = new Date(live.at).toLocaleString(DISPLAY_LOCALE, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -450,7 +451,7 @@ function renderFacts(item: Item, now: Date): HTMLElement {
       facts.append(
         factRow(
           "Late window",
-          `Until ${until.toLocaleString(undefined, {
+          `Until ${until.toLocaleString(DISPLAY_LOCALE, {
             month: "short",
             day: "numeric",
             hour: "numeric",
